@@ -21,6 +21,16 @@ import SwiftUI
 /// 此作废；③技术信息下沉——同①。
 ///
 /// 不许回退的既有语义：
+/// - §241 回告留存（大厂九项①）：本页列表/计数改读
+///   历史面（桥现行∪本机存档，见 store.historyNoti-
+///   fications）——已读只消未读标记、记录不清，滑
+///   出桥 50 条窗口的旧回告仍在本页回看、点行进详
+///   情、落点可达；角标与聊天页回告卡仍读桥现行，
+///   不许拿历史面冒充未读口径；
+/// - §454 入账分级：三级条目（前台会话正常完成）
+///   在入账口已拦下，本页与存档都见不到；二级同
+///   类事件按 NotificationIntakePolicy.rows 折成
+///   计数行呈现，点开整组标已读（cohort 通道）；
 /// - 伴生 1.0.27「已决不提醒」：已决回执在桥侧已读
 ///   出生，本页不重算、不复活未读；角标口径原样由
 ///   桥快照出，本页零改动；
@@ -48,7 +58,6 @@ struct NotificationsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
-    @Namespace private var filterNamespace
 
 
     /// 筛选档（全部/未读）：纯本页呈现态，不落盘
@@ -60,12 +69,16 @@ struct NotificationsView: View {
     /// 文案在 alert 内一次说清，沿旧版）
     @State private var markAllFailed = false
 
+    /// 未读数与列表面（§241 留存）：读历史面（现行∪
+    /// 存档）——已读记录留存可回看，未读仍是现行口径；
+    /// 角标不走本面（桥快照单源，见 store 头注）
     private var unreadCount: Int {
-        store.notifications.filter { !$0.read }.count
+        store.historyNotifications.filter { !$0.read }.count
     }
 
     private var visibleItems: [OverviewNotification] {
-        NotificationDetail.filtered(store.notifications, filter: filter)
+        NotificationDetail.filtered(
+            store.historyNotifications, filter: filter)
     }
 
     private var groups: [NotificationDayGroup] {
@@ -83,7 +96,11 @@ struct NotificationsView: View {
             .background(Palette.pageBG)
             .toolbar(.hidden, for: .navigationBar)
             .task {
-                await store.loadNotifications(appState: appState)
+                await store.loadNotifications(
+                    appState: appState,
+                    userSessionIDs: ChatSessionScope
+                        .userSessionIDs(from: modelContext)
+                )
             }
             .onReceive(
                 Timer.publish(every: 60, on: .main, in: .common)
@@ -94,7 +111,7 @@ struct NotificationsView: View {
             .alert("没有全部标上已读", isPresented: $markAllFailed) {
                 Button("知道了", role: .cancel) {}
             } message: {
-                Text("有几条通知没能标为已读，它们仍保持未读状态。下拉刷新后再试一次。")
+                Text("有几条通知的已读状态还没同步成功，下拉刷新后再确认一次。")
             }
         }
         .presentationDragIndicator(.visible)
@@ -128,7 +145,7 @@ struct NotificationsView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
                         .foregroundStyle(Palette.inkSecondary)
                         .frame(width: 30, height: 30)
                         .background(
@@ -145,10 +162,10 @@ struct NotificationsView: View {
             }
             Text(subtitleText)
                 .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
                 .padding(.top, OneDayMetrics.spacingXS)
             if store.notificationsLoaded, !store.notificationsFailed,
-               !store.notifications.isEmpty {
+               !store.historyNotifications.isEmpty {
                 filterBar
                     .padding(.top, OneDayMetrics.spacingSM)
             }
@@ -168,70 +185,33 @@ struct NotificationsView: View {
         if store.notificationsFailed {
             return String(localized: "通知暂时无法获取")
         }
-        if store.notifications.isEmpty {
+        if store.historyNotifications.isEmpty {
             return String(localized: "需要你处理的事项会出现在这里")
         }
         return NotificationDetail.subtitle(unreadCount: unreadCount)
     }
 
-    /// 筛选条：轨道＝surface＋发丝边全胶囊、选中药丸
-    /// ＝selectionFill 垫＋字 semibold（与连接器页分
-    /// 段同源同值，SegmentedControlSpec）；档题后带
-    /// 计数小字（全部＝总数、未读＝未读数，均实算）
+    /// 筛选条（2026-11-15 第 88 条收口）：自制分段
+    /// （SegmentedControlSpec 几何）迁系统 segmented
+    /// ——主线裁决「系统件优先为默认、自制为例外」，
+    /// 本面纯文字两段无例外理由。形态差如实记：总
+    /// 高 48→系统约 32；轨道自 surface 白＋发丝边改
+    /// 系统灰、选中垫自 selectionFill 改系统白拇指
+    /// （自带微影）；字阶自 .bodyText semibold 改系
+    /// 统分段字；计数自弱色独立段并入段题文字（全
+    /// 部＝总数、未读＝未读数，均实算）；切换触感
+    /// （selection）保留，药丸滑移由系统过渡替代
     private var filterBar: some View {
-        HStack(spacing: 0) {
-            filterButton(.all, title: String(localized: "全部"),
-                         count: store.notifications.count)
-            filterButton(.unread, title: String(localized: "未读"),
-                         count: unreadCount)
-        }
-        .padding(SegmentedControlSpec.inset)
-        .background(Palette.surface, in: Capsule())
-        .overlay {
-            Capsule().strokeBorder(Palette.separator, lineWidth: 1)
-        }
-        .sensoryFeedback(.selection, trigger: filter)
-    }
-
-    private func filterButton(
-        _ value: NotificationDetail.Filter,
-        title: String, count: Int
-    ) -> some View {
-        let selected = filter == value
-        return Button {
-            withAnimation(
-                MotionTokens.resolved(
-                    MotionTokens.selectionSpring,
-                    reduceMotion: reduceMotion
-                )
-            ) { filter = value }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingXS) {
-                Text(title)
-                Text("\(count)")
-                    .foregroundStyle(Palette.inkMuted)
-            }
-            .font(.bodyText.weight(.semibold))
-            .foregroundStyle(Palette.ink)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: SegmentedControlSpec.pillHeight
+        Picker("筛选", selection: $filter) {
+            Text(
+                "\(String(localized: "全部")) \(store.historyNotifications.count)"
             )
-            .background {
-                if selected {
-                    Capsule()
-                        .fill(Palette.selectionFill)
-                        .matchedGeometryEffect(
-                            id: "notificationFilterPill",
-                            in: filterNamespace
-                        )
-                }
-            }
-            .contentShape(Rectangle())
+            .tag(NotificationDetail.Filter.all)
+            Text("\(String(localized: "未读")) \(unreadCount)")
+                .tag(NotificationDetail.Filter.unread)
         }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel("\(title) \(count)")
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .pickerStyle(.segmented)
+        .sensoryFeedback(.selection, trigger: filter)
     }
 
     // MARK: - 内容面（四态：骨架/失败/空/列表）
@@ -247,12 +227,18 @@ struct NotificationsView: View {
                 Text("通知暂时读不到。请检查服务器连接，或稍后重试。")
             } actions: {
                 Button("重新加载") {
-                    Task { await store.loadNotifications(appState: appState) }
+                    Task {
+                        await store.loadNotifications(
+                            appState: appState,
+                            userSessionIDs: ChatSessionScope
+                                .userSessionIDs(from: modelContext)
+                        )
+                    }
                 }
                 .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if store.notifications.isEmpty {
+        } else if store.historyNotifications.isEmpty {
             ContentUnavailableView(
                 "暂无通知",
                 systemImage: "bell",
@@ -316,19 +302,26 @@ struct NotificationsView: View {
             ForEach(Array(groups.enumerated()), id: \.element.id) {
                 index, group in
                 Section {
-                    ForEach(group.items) { item in
-                        notificationRow(item)
+                    ForEach(
+                        NotificationIntakePolicy.rows(
+                            items: group.items
+                        )
+                    ) { row in
+                        notificationRow(row)
                     }
                 } header: {
                     groupHeader(group, isFirst: index == 0)
                 }
             }
-            if store.notifications.count >= 50 {
-                // 桥上限 50 条：达上限如实标注，不装全量
+            if store.historyNotifications.count
+                >= ReportCardHistory.retentionLimit {
+                // §241 留存上限：存档只保留最近 200 条，
+                // 达上限如实标注（旧「桥 50 条」注记随历
+                // 史面落地退役——历史已不止桥窗口）
                 Section {
-                    Text("只显示最近 50 条")
+                    Text("只保留最近 200 条回告记录")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .listRowSeparator(.hidden)
                 }
@@ -338,7 +331,11 @@ struct NotificationsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .refreshable {
-            await store.loadNotifications(appState: appState)
+            await store.loadNotifications(
+                appState: appState,
+                userSessionIDs: ChatSessionScope
+                    .userSessionIDs(from: modelContext)
+            )
         }
     }
 
@@ -351,7 +348,7 @@ struct NotificationsView: View {
     ) -> some View {
         Text(group.title)
             .font(.footnote)
-            .foregroundStyle(Palette.inkMuted)
+            .foregroundStyle(Palette.inkSecondary)
             .padding(.horizontal, ListRowSpec.horizontalPadding)
             .padding(.top, isFirst ? OneDayMetrics.spacingS : OneDayMetrics.spacingL)
             .padding(.bottom, OneDayMetrics.spacingS)
@@ -367,8 +364,9 @@ struct NotificationsView: View {
     /// 行上发生、归详情页落点按钮（原型分工）
 
     private func notificationRow(
-        _ item: OverviewNotification
+        _ row: NotificationIntakePolicy.Row
     ) -> some View {
+        let item = row.lead
         let presentation = NotificationSummary.presentation(
             kind: item.kind, title: item.title, body: item.body
         )
@@ -376,6 +374,7 @@ struct NotificationsView: View {
             NotificationDetailView(
                 store: store,
                 item: item,
+                cohort: row.isAggregate ? row.items : [],
                 destination: destination(for: item)
             )
         } label: {
@@ -390,9 +389,9 @@ struct NotificationsView: View {
 
                 ) {
                     Text(item.title)
-                        .font(item.read
-                            ? .rowTitleL
-                            : .rowTitleL.weight(.semibold))
+                        .font(row.hasUnread
+                            ? .rowTitleL.weight(.semibold)
+                            : .rowTitleL)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(2)
                     if !presentation.summary.isEmpty {
@@ -401,7 +400,7 @@ struct NotificationsView: View {
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(2)
                     }
-                    metaLine(item)
+                    metaLine(row)
                 }
                 Spacer(minLength: 0)
             }
@@ -417,19 +416,23 @@ struct NotificationsView: View {
         // 自左缘起（沿旧版落法）
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         .swipeActions(edge: .trailing) {
-            if !item.read {
+            if row.hasUnread {
                 Button("标已读") {
                     Task {
-                        await store.markRead(
-                            appState: appState, id: item.id
-                        )
+                        // 聚合行整组同消（§454）：组内
+                        // 未读逐条标读，不留计数尾巴
+                        for entry in row.items where !entry.read {
+                            await store.markRead(
+                                appState: appState, id: entry.id
+                            )
+                        }
                     }
                 }
                 .tint(Palette.primary)
             }
         }
         .accessibilityLabel(
-            item.read ? item.title : "未读，\(item.title)"
+            row.hasUnread ? "未读，\(item.title)" : item.title
         )
     }
 
@@ -475,7 +478,7 @@ struct NotificationsView: View {
             glyph = item.read ? Palette.warning : Palette.primary
         }
         return Image(systemName: symbol)
-            .font(.system(size: 18, weight: .regular))
+            .font(.system(size: FrameworkIcon.fileGlyphSize))
             .foregroundStyle(glyph)
             .frame(width: 36, height: 36)
             .background(fill, in: RoundedRectangle(
@@ -488,18 +491,18 @@ struct NotificationsView: View {
     /// 元信息行：未读蓝点（5pt，只此一处未读点——旧
     /// 版左列点已随行形态收编）＋相对时间＋「· 类别」
     private func metaLine(
-        _ item: OverviewNotification
+        _ row: NotificationIntakePolicy.Row
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingXS) {
-            if !item.read {
+            if row.hasUnread {
                 Circle()
                     .fill(Palette.primary)
                     .frame(width: 5, height: 5)
                     .accessibilityHidden(true)
             }
-            Text(metaText(item))
+            Text(metaText(row))
                 .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
                 .monospacedDigit()
         }
     }
@@ -508,14 +511,24 @@ struct NotificationsView: View {
     /// 源——旧版只给监测加「· 监测」、裁决不加的口径
     /// 随原型收编为全类带类别）。createdAt 解析不了
     /// 原样呈现（不编造时间，沿旧版）
-    private func metaText(_ item: OverviewNotification) -> String {
+    private func metaText(
+        _ row: NotificationIntakePolicy.Row
+    ) -> String {
+        let item = row.lead
         let time: String
         if let date = NotificationGrouping.parseCreatedAt(item.createdAt) {
             time = DisplayDate.relative(date, now: now)
         } else {
             time = item.createdAt
         }
-        return time + " · " + NotificationDetail.categoryName(for: item)
+        var text = time + " · "
+            + NotificationDetail.categoryName(for: item)
+        // 聚合行计数申报（§454）：行面以最新一条为
+        // 准，组内总数在元信息行如实给出
+        if row.isAggregate {
+            text += " · 共 \(row.items.count) 条"
+        }
+        return text
     }
 
     // MARK: - 落点（详情页消费，跳转机制单一来源）
@@ -533,8 +546,8 @@ struct NotificationsView: View {
             return NotificationDestination.resolve(item)
         }
         let hubStore = appState.sharedHubStore()
-        let decided = hubStore.decisionHistory
-            + (hubStore.anchorDecisions ?? [])
+        // §259：已决账读 store 单源合成面，View 不自拼
+        let decided = hubStore.decidedRecords
         guard let record = decided.first(where: { $0.id == refId })
         else {
             return NotificationDestination.resolve(item)
@@ -585,6 +598,9 @@ struct NotificationsView: View {
 private struct NotificationDetailView: View {
     let store: OverviewBridgeStore
     let item: OverviewNotification
+    /// 聚合行同组条目（§454）：进页标已读时整组同
+    /// 消；单条行恒空
+    var cohort: [OverviewNotification] = []
     let destination: NotificationDestination
 
     @Environment(AppState.self) private var appState
@@ -593,9 +609,11 @@ private struct NotificationDetailView: View {
     private var reduceMotion
     @State private var technicalExpanded = false
 
-    /// 最新一份条目（store 优先、快照兜底）
+    /// 最新一份条目（历史面优先、快照兜底）：§241
+    /// 后已读记录可能只在存档里，详情取数须认历史面
     private var current: OverviewNotification {
-        store.notifications.first(where: { $0.id == item.id }) ?? item
+        store.historyNotifications.first(where: { $0.id == item.id })
+            ?? item
     }
 
     /// 锚点命中申报（§166 合裁）：落点为锚点两档
@@ -624,7 +642,7 @@ private struct NotificationDetailView: View {
                     .foregroundStyle(Palette.ink)
                 Text(timeLine(current))
                     .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                     .padding(.top, OneDayMetrics.spacingXS)
                 if let outcome = NotificationDetail.outcome(for: current) {
                     outcomeChip(outcome)
@@ -634,7 +652,6 @@ private struct NotificationDetailView: View {
                     Text(presentation.summary)
                         .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
-                        .lineSpacing(6)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
                 if !lines.isEmpty {
@@ -676,6 +693,12 @@ private struct NotificationDetailView: View {
             if !item.read {
                 await store.markRead(appState: appState, id: item.id)
             }
+            for entry in cohort
+            where !entry.read && entry.id != item.id {
+                await store.markRead(
+                    appState: appState, id: entry.id
+                )
+            }
         }
     }
 
@@ -713,7 +736,7 @@ private struct NotificationDetailView: View {
             glyph = Palette.warning
         }
         return Image(systemName: symbol)
-            .font(.system(size: 22, weight: .regular))
+            .font(.system(size: FrameworkIcon.tabGlyphSize))
             .foregroundStyle(glyph)
             .frame(width: 48, height: 48)
             .background(fill, in: RoundedRectangle(
@@ -742,7 +765,8 @@ private struct NotificationDetailView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingXS) {
             Image(systemName: outcome == .rejected ? "xmark" : "checkmark")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: FrameworkIcon.tinyGlyphSize, weight: .semibold))
+                .accessibilityHidden(true)
             Text(outcome.label())
                 .font(.footnote.weight(.medium))
         }
@@ -755,7 +779,7 @@ private struct NotificationDetailView: View {
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
             .font(.sectionLabel)
-            .foregroundStyle(Palette.inkMuted)
+            .foregroundStyle(Palette.inkSecondary)
             .padding(.top, OneDayMetrics.spacingL)
             .padding(.bottom, OneDayMetrics.spacingS)
     }
@@ -777,17 +801,18 @@ private struct NotificationDetailView: View {
                     spacing: OneDayMetrics.spacingSM
                 ) {
                     Image(systemName: "doc.text")
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.system(size: FrameworkIcon.composerGlyphSize))
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 2) {
+                        .accessibilityHidden(true)
+                        .padding(.top, OneDayMetrics.spacingMicro)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text(line.name)
                             .font(.rowSubtitle.weight(.medium))
                             .foregroundStyle(Palette.ink)
                         if let identifier = line.identifier {
                             Text(identifier)
                                 .font(.footnote)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                     Spacer(minLength: OneDayMetrics.spacingS)
@@ -812,13 +837,13 @@ private struct NotificationDetailView: View {
     private func approvalNote(_ note: String) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Image(systemName: "info.circle")
-                .font(.system(size: 14, weight: .regular))
+                .font(.system(size: FrameworkIcon.composerGlyphSize))
                 .foregroundStyle(Palette.inkMuted)
+                .accessibilityHidden(true)
                 .padding(.top, 1)
             Text(note)
                 .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
-                .lineSpacing(4)
+                .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.top, OneDayMetrics.spacingM)
     }
@@ -837,15 +862,14 @@ private struct NotificationDetailView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: destinationSymbol)
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.system(size: FrameworkIcon.composerGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
                 Text(label)
                     .font(.rowSubtitle)
                     .foregroundStyle(Palette.ink)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
+                DisclosureChevron(font: .system(size: FrameworkIcon.miniGlyphSize, weight: .regular))
             }
             .padding(OneDayMetrics.spacingSM)
             .frame(minHeight: OneDayMetrics.minTapTarget)
@@ -884,12 +908,13 @@ private struct NotificationDetailView: View {
                 HStack {
                     Text("技术记录")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                     Spacer()
                     Image(systemName: technicalExpanded
                         ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .regular))
+                        .font(.system(size: FrameworkIcon.tinyGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
+                        .accessibilityHidden(true)
                 }
                 .frame(minHeight: OneDayMetrics.minTapTarget)
                 .contentShape(Rectangle())
@@ -923,7 +948,7 @@ private enum NotificationDestinationFlow {
         appState: AppState,
         dismiss: DismissAction
     ) {
-        guard appState.requestHubDestination(destination)
+        guard appState.router.requestHubDestination(destination)
         else { return }
         dismiss()
     }

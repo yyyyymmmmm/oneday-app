@@ -32,6 +32,20 @@ import SwiftUI
 /// 体与连接两组续存。组头小字随 IA 回归本页（0.36.3
 /// 撤组头是无组名 IA 下的口径、四组命名 IA 需要组名
 /// 领读，范围仅本页组头）
+/// 结构归位（2026-11-20，纲要 D6/D7）：根页段序＝
+/// 身份卡→智能体→服务与工作区→偏好与权限→支持→版
+/// 本脚——上下文分组分根（智能体话题/服务器话题/本
+/// 机偏好各成一组、叶子直达）；prototype-2 的四个转
+/// 接枢纽页撤销（子项提回根组、断开连接落服务器组
+/// 末行）；实验组沉入关于页末节，不再占根层位
+/// 台账 198 收敛（2026-11-21）：服务与工作区按目录
+/// segment 四段分段渲染（服务器/会话/工作区/维护，
+/// 断开连接收维护段末）；重启网关根行与独立页退役
+/// （重启归网关页控制组一条执行路径）；语音行归偏
+/// 好组；聊天诊断根行退役（入口迁关于页内部实验
+/// 节）；网关状态词改委托 Core ServerLabels 单源派
+/// 生；行盒/组头改设计层共用件（OneDayMetrics
+/// .settingsRowInsets／SettingsSectionHeader）
 struct SettingsView: View {
     /// 0.20.0：呈现形态改根级 sheet（ContentView 呈现）
     /// ——关闭走本回调（页内大标题＋右上圆 X 头照 Muse
@@ -42,21 +56,17 @@ struct SettingsView: View {
     /// 「去聊天」类动作（总览 sheet 内快捷动作）：关
     /// 设置并切聊天格（ContentView 注入）
     var onRequestChat: (() -> Void)? = nil
-    /// 「工作区」组三页的 sheet 呈现（总览/电脑自带导
-    /// 航栈、服务器文件由本页包一层栈）：不进本页导航
-    /// 栈——三页都是整面工作区、且各自带栈，套栈必乱；
-    /// sheet 呈现与 Muse 设置里连接器/设备行打开整
-    /// 面页的形态一致（原「管理」组，§164 改组名工作区）
-    @State private var manageSheet: ManageSheet?
+    // （工作区 sheet 呈现已于 §493 退役：电脑并入中
+    // 枢电脑格、服务器文件正口归资源库，本页不再有
+    // sheet 呈现的工作区面，ManageSheet 枚举一并删）
     // §164 合裁：§159 的身份卡 Menu 形态与呈现旗退役
     // ——身份卡改导航进 IdentityDetailView，编辑面本
     // 体在详情页内复用（AgentAvatarEditorView／
     // AgentNameEditorView 全仓一份不变）
 
-    enum ManageSheet: String, Identifiable {
-        case overview, computer, serverFiles
-        var id: String { rawValue }
-    }
+    // （ManageSheet 枚举已于 §305 随 A-03/A-28 上移
+    // AppRouter.swift 公共层——呈现槽枚举归呈现协调
+    // 方，不再有枢纽页反向借用本页内部类型）
 
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
@@ -67,9 +77,19 @@ struct SettingsView: View {
     /// 行、身份详情与关于页的注入值（0.22.0 值位撤除
     /// 后，各行摘要状态与其加载一并退役，见 loadSummaries）
     @State private var status: ServerStatus?
-    @State private var showRestartConfirm = false
     @State private var showDisconnectConfirm = false
-    @State private var notice: String?
+    /// 根页 notice 行（§493，D8）：伴生异常才显——
+    /// 值＝伴生探测 footerNote（未检测到/需升级 App
+    /// 时才有值、其余恒 nil 不占行）。旧 @State 自
+    /// §164 续存起从未被赋值、该行实际恒不渲染，本
+    /// 轮接真源
+    private var notice: String? {
+        appState.companionProbe.status?.footerNote()
+    }
+    /// 设置注册表（§437）：能力位亮且拉到才有值；nil
+    /// ＝回落内置目录（与注册表上线前逐字一致）——注
+    /// 册表是增益不是依赖，失败对用户零感知
+    @State private var settingsRegistry: SettingsRegistryResponse?
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -88,7 +108,8 @@ struct SettingsView: View {
                     supportSection
                     versionFooter
                 }
-                // notice 提示行在根页续存（§164 监工纠正⑥遗漏①）：浏览/搜索两态都显
+                // notice 提示行（§164 续存；§493 改异常
+                // 才显，见 notice 计算属性）
                 if let notice {
                     Section {
                         Text(notice)
@@ -139,15 +160,20 @@ struct SettingsView: View {
                         Button(action: onClose) {
                             Image(systemName: "xmark")
                         }
-                        .accessibilityLabel("关闭设置")
+                        // A6 根因修：关闭钮是结构钩子（冒烟门／回归
+                        // 测试按「关闭设置」寻址），无障碍名必须逐字
+                        // 稳定——字面量会走 LocalizedStringKey 查目录，
+                        // 英文档下译成 "Close Settings"，钩子随之漂移、
+                        // 测试找不到钮（sheet 本已呈现）。改 Text(verbatim:)
+                        // 钉死逐字，与齿轮「设置」／底栏「聊天」等结构
+                        // 名的既有口径一致；可见文案仍走目录本地化，不动。
+                        .accessibilityLabel(Text(verbatim: "关闭设置"))
                     }
                 }
             }
-            .sheet(item: $manageSheet) { item in
-                manageSheetContent(item)
-            }
             .task {
                 await loadSummaries()
+                await loadSettingsRegistry()
                 // 伴生探测（DESIGN §110）：打开设置时
                 // 节流补探一次——RootView 的登录/前台触
                 // 发是主路，本处保证用户直奔设置时版本
@@ -159,10 +185,10 @@ struct SettingsView: View {
             .onAppear {
                 consumePendingRoutes()
             }
-            .onChange(of: appState.pendingSettingsRoute) { _, _ in
+            .onChange(of: appState.router.pendingSettingsRoute) { _, _ in
                 consumePendingRoutes()
             }
-            .onChange(of: appState.pendingAgentRoute) { _, _ in
+            .onChange(of: appState.router.pendingAgentRoute) { _, _ in
                 consumePendingRoutes()
             }
             .navigationDestination(for: SettingsRoute.self) { route in
@@ -183,8 +209,6 @@ struct SettingsView: View {
                     LogsView()
                 case .appearance:
                     AppearanceView()
-                case .sidebar:
-                    DrawerSectionsView()
                 case .identity:
                     IdentityDetailView(
                         serverStatusText: identityServerStatusText,
@@ -196,56 +220,41 @@ struct SettingsView: View {
                 case .help:
                     HelpView()
                 case .about:
-                    AboutView(
-                        hermesVersionText: hermesVersionText,
-                        companionLine: companionVersionLine,
-                        companionNote: companionFooterNote
-                    )
+                    AboutView()
                 case .privacy:
                     LegalDocumentView(kind: .privacy)
                 case .terms:
                     LegalDocumentView(kind: .terms)
                 case .agent(let agentRoute):
                     agentDestination(agentRoute)
-                // prototype-2 新增枢纽页
-                case .agentConfig:
-                    AgentConfigView()
-                case .serverManagement:
-                    ServerManagementView(
-                        status: status,
-                        showDisconnectConfirm: $showDisconnectConfirm
-                    )
-                case .sessionManagement:
-                    SessionManagementView()
-                case .workspaceHub:
-                    WorkspaceHubView(manageSheet: $manageSheet)
+                // （prototype-2 四个枢纽页已于结构归位
+                // 2026-11-20 撤销：子项提回根组直达、
+                // 路由退役，见 SettingsCatalog 迁移口径）
                 case .mainSession:
                     MainSessionView(
                         onRequestChat: onRequestChat,
                         onClose: onClose
                     )
-                case .restartGateway:
-                    RestartGatewayView(
-                        status: status,
-                        showRestartConfirm: $showRestartConfirm
-                    )
+                case .healthCheck:
+                    HealthCheckView()
+                case .connectionSelfCheck:
+                    ConnectionSelfCheckView()
+                case .voice:
+                    VoiceSettingsView()
+                case .notifications:
+                    NotificationSettingsView()
+                case .addDevice:
+                    AddDeviceView()
+                case .pairingManagement:
+                    PairingManagementView()
+                case .chatDiagnostics:
+                    ChatDiagnosticsView()
+                case .crashReports:
+                    CrashReportsView()
                 }
             }
-            .confirmationDialog(
-                "重启网关？",
-                isPresented: $showRestartConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("重启", role: .destructive) {
-                    Task {
-                        await restartGateway()
-                        path.removeAll()
-                    }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("重启期间对话会短暂中断，进行中的任务会被打断。")
-            }
+            // §496：断开行已迁当前服务器页，本确认框
+            // 只余搜索 activate(.disconnect) 路径在用
             .confirmationDialog(
                 "断开连接？",
                 isPresented: $showDisconnectConfirm,
@@ -268,17 +277,18 @@ struct SettingsView: View {
             MemoryView()
         case .skills:
             SkillsView()
+        case .toolsets:
+            ToolsetsSettingsView()
+        case .delegation:
+            DelegationRoutingView()
         case .cron:
             CronJobsView()
-        case .serverSessions:
-            ServerSessionsView()
         case .serverSessionDetail(let id):
             ServerSessionDetailView(sessionID: id)
         case .mcp:
-            // 0.29.0：目录本机服务详情的「总览」入口经
-            // 本闭包回设置页开管理组总览 sheet（总览的
-            // 承载在本页 manageSheet、不另立第二份）
-            ConnectorsView(onOpenOverview: { manageSheet = .overview })
+            // 本机服务详情原有的「总览」入口已随结构
+            // 归位包撤除（纲要 D5-1 总览撤页）
+            ConnectorsView()
         case .devicePermissions:
             DevicePermissionsView()
         }
@@ -307,7 +317,10 @@ struct SettingsView: View {
                     appState.agentAvatarImage
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 44, height: 44)
+                        .frame(
+                            width: OneDayMetrics.avatarListRow,
+                            height: OneDayMetrics.avatarListRow
+                        )
                         .clipShape(Circle())
                         .overlay {
                             Circle().stroke(Palette.hairline, lineWidth: 0.5)
@@ -353,70 +366,237 @@ struct SettingsView: View {
 
     /// 身份详情页「服务器状态」值位：未配置显未连接、
     /// 状态未读到显 —、网关异常如实显异常、其余已连接
+    /// （异常判定与状态词同源取词比较——委托 Core 后
+    /// 状态词随语言走，比较也须走 L10n 同词，不再拿
+    /// 中文字面量比本地化结果）
     private var identityServerStatusText: String {
         if appState.config == nil { return L10n.string("未连接") }
         guard status != nil else { return "—" }
-        return gatewayStateWord == "异常"
+        return gatewayStateWord == L10n.string("异常")
             ? L10n.string("异常")
             : L10n.string("已连接")
     }
 
-    /// 网关状态词派生（与 ServerManagementView.gatewayStateWord 同口径）
+    /// 网关状态词：委托 Core ServerLabels 单源派生
+    /// （台账 198 收敛 S10——本页旧私有实现与已退役
+    /// RestartGatewayView 的同名副本一并收口，词表
+    /// 只此一处）
     private var gatewayStateWord: String {
-        switch status?.gatewayState?.lowercased() {
-        case "running": return "运行中"
-        case "stopped": return "已停止"
-        case "error", "failed": return "异常"
-        default: return status == nil ? "—" : "未知"
-        }
+        ServerLabels.gatewayStateWord(for: status)
     }
 
     // MARK: - 智能体组（prototype-2）
 
-    /// 智能体组（prototype-2 收敛）：只剩模型与服务商／智能体配置／
-    /// 定时任务三行——profiles/memory/skills 移入 agentConfig 枢纽页
+    /// 智能体组（结构归位 2026-11-20）：智能体配置枢
+    /// 纽页撤销，原页内三行（配置档案/记忆/技能）提回
+    /// 本组与模型与服务商／定时任务并列直达
     private var agentSection: some View {
         Section {
-            ForEach(SettingsCatalog.browseEntries(in: .agent)) { entry in
-                catalogNavRow(entry)
+            ForEach(
+                SettingsCatalog.effectiveBrowseRows(
+                    in: .agent, registry: settingsRegistry
+                )
+            ) { row in
+                catalogRow(row)
             }
         } header: {
             sectionHeader("智能体")
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     // MARK: - 服务与工作区组（prototype-2 新组）
 
-    /// 服务与工作区组（prototype-2）：三个二级枢纽页——服务器管理／
-    /// 会话管理／工作区
+    /// 服务与工作区组（台账 198 收敛 S7 分段渲染）：
+    /// 目录 segment 四段各成一个 Section（段题＝服务
+    /// 器/会话/工作区/维护，四题连读即组名全义，组题
+    /// 不再单独占行）——段与段内序全由 Core 目录机
+    /// 器口径出（SettingsCatalog.browseSegments），本
+    /// 页只管行构建（browseRow）与段末动作（断开连接
+    /// 收维护段末，确认框与执行口径不变）
+    /// §493 收敛后浏览段只剩服务器段（工作区/维护段
+    /// 条目全退役或收进页内）；§496：断开连接迁出本
+    /// 段——住当前服务器页页末（连接动作归连接详情
+    /// 页），本段自此只剩目录行
     private var serverAndWorkspaceSection: some View {
-        Section {
-            ForEach(SettingsCatalog.browseEntries(in: .serverAndWorkspace)) { entry in
-                catalogNavRow(entry)
+        ForEach(
+            SettingsCatalog.effectiveBrowseSegments(
+                in: .serverAndWorkspace, registry: settingsRegistry
+            ),
+            id: \.segment
+        ) { group in
+            Section {
+                ForEach(group.rows) { row in
+                    browseRow(row)
+                }
+            } header: {
+                sectionHeader(group.segment.title)
             }
-        } header: {
-            sectionHeader("服务与工作区")
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
     }
 
-    // MARK: - 偏好与权限组（prototype-2 新组）
+    /// 有效行分发（§437）：目的地行走既有目录行构建
+    /// （行为不变）、注册表值行走五型通用渲染
+    @ViewBuilder
+    private func catalogRow(_ row: SettingsRowModel) -> some View {
+        switch row {
+        case .destination(let entry):
+            catalogNavRow(entry)
+        case .value(let record):
+            SettingsRegistryRowView(record: record)
+        }
+    }
 
-    /// 偏好与权限组（prototype-2）：外观／连接器／设备与权限
+    /// 有效行分发（服务与工作区分段版，§437）：目的
+    /// 地行走 browseRow(for:) 特型分流、值行同上
+    @ViewBuilder
+    private func browseRow(_ row: SettingsRowModel) -> some View {
+        switch row {
+        case .destination(let entry):
+            browseRow(for: entry)
+        case .value(let record):
+            SettingsRegistryRowView(record: record)
+        }
+    }
+
+    /// 服务与工作区行构建（四段共用一处）：特型行与
+    /// 普通目录行在此分流，各段只管排列——网关行副
+    /// 题＝状态词（状态即行内容）、体检行副题＝上次
+    /// 结论（没跑过不占副题位、降普通行）、状态行副
+    /// 题＝「汇总」（S14：汇总页性质明示，与枢纽工
+    /// 作台账、服务端会话名单分清；§470 后状态条目
+    /// 已降仅搜索可达，本特型浏览态不可达、保留备查）
+    @ViewBuilder
+    private func browseRow(for entry: SettingsCatalogEntry) -> some View {
+        switch entry.destination {
+        case .gateway:
+            statusNavRow(
+                icon: iconName(for: entry),
+                title: L10n.string(entry.title),
+                status: gatewayStateWord,
+                route: .gateway
+            )
+        case .healthCheck:
+            if let lastHealthWord {
+                statusNavRow(
+                    icon: iconName(for: entry),
+                    title: L10n.string(entry.title),
+                    status: lastHealthWord,
+                    route: .healthCheck
+                )
+            } else {
+                catalogNavRow(entry)
+            }
+        case .connectionSelfCheck:
+            if let lastSelfCheckWord {
+                statusNavRow(
+                    icon: iconName(for: entry),
+                    title: L10n.string(entry.title),
+                    status: lastSelfCheckWord,
+                    route: .connectionSelfCheck
+                )
+            } else {
+                catalogNavRow(entry)
+            }
+        case .pairingManagement:
+            if pendingPairingCount > 0 {
+                statusNavRow(
+                    icon: iconName(for: entry),
+                    title: L10n.string(entry.title),
+                    status: "\(pendingPairingCount) 条待批准",
+                    route: .pairingManagement
+                )
+            } else {
+                catalogNavRow(entry)
+            }
+        default:
+            catalogNavRow(entry)
+        }
+    }
+
+    /// 体检留痕（原服务器管理页同源同读法）：「体检
+    /// 与存档」行副题的上次一词结论
+    @State private var healthSummaryStore = HealthSummaryStore.shared
+
+    /// 平台用户配对留痕（DESIGN §359）：「平台用户
+    /// 配对」行副题的待批数——只读本页回读后的缓存
+    /// （PairingSummaryStore），不为副行单开轮询；
+    /// 未知/为 0 不占副题位、降普通行
+    @State private var pairingSummaryStore = PairingSummaryStore.shared
+
+    private var pendingPairingCount: Int {
+        pairingSummaryStore.pendingCount(
+            for: appState.config?.baseString
+        ) ?? 0
+    }
+
+    private var lastHealthWord: String? {
+        healthSummaryStore
+            .summary(for: appState.config?.baseString)?
+            .overall.word
+    }
+
+    /// 自检留痕（DESIGN §357，与体检同式共读）：
+    /// 「连接自检」行副题的上次一词结论
+    @State private var selfCheckSummaryStore = SelfCheckSummaryStore.shared
+
+    private var lastSelfCheckWord: String? {
+        selfCheckSummaryStore
+            .summary(for: appState.config?.baseString)?
+            .word
+    }
+
+    /// 朗读可用性一词（原服务器管理页同源同读法）：
+    /// 未知为 nil、不占副题位；与语音面/聊天页共读
+    /// SpeechPlayer 同一份判定
+    private var voiceAvailabilityWord: String? {
+        let availability = SpeechPlayer.shared.availability
+        return availability == .unknown ? nil : availability.word
+    }
+
+    // MARK: - 偏好组（prototype-2 新组；§493 改名，D7：
+    // 审批规则迁出后组内只剩偏好与本机权限，组题收为「偏好」）
+
+    /// 偏好与权限组（prototype-2；台账 198 收敛 S13
+    /// 起含语音行）：外观／语音／连接器／设备与权限／
+    /// 批准规则。语音行副题＝朗读可用性一词（未知不
+    /// 占副题位、降普通导航行——随行迁组保留，原服务
+    /// 器组同行同口径）
     private var preferencesSection: some View {
         Section {
-            ForEach(SettingsCatalog.browseEntries(in: .preferences)) { entry in
-                catalogNavRow(entry)
+            ForEach(
+                SettingsCatalog.effectiveBrowseRows(
+                    in: .preferences, registry: settingsRegistry
+                )
+            ) { row in
+                if let entry = row.destinationEntry,
+                   entry.destination == .voice,
+                   let voiceAvailabilityWord {
+                    statusNavRow(
+                        icon: iconName(for: entry),
+                        title: L10n.string(entry.title),
+                        status: voiceAvailabilityWord,
+                        route: .voice
+                    )
+                } else {
+                    catalogRow(row)
+                }
             }
         } header: {
-            sectionHeader("偏好与权限")
+            sectionHeader("偏好")
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
+
+    // （实验组已于结构归位 2026-11-20 沉底：三面内部
+    // 实验旗（§257/§247/§291）不再占设置根层位，整组
+    // 迁入「关于 OneDay」页末节「内部实验」——开关本
+    // 体与 @AppStorage 键、文案口径随迁不改，见
+    // SettingsSupportViews.AboutView.labSection）
 
     // MARK: - 支持组（§164）
 
@@ -425,50 +605,18 @@ struct SettingsView: View {
     /// 见 §164.2 对账）
     private var supportSection: some View {
         Section {
-            ForEach(SettingsCatalog.browseEntries(in: .support)) { entry in
-                catalogNavRow(entry)
+            ForEach(
+                SettingsCatalog.effectiveBrowseRows(
+                    in: .support, registry: settingsRegistry
+                )
+            ) { row in
+                catalogRow(row)
             }
         } header: {
             sectionHeader("支持")
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
-    }
-
-    // MARK: - 工作区 sheet 呈现（prototype-2 保持）
-
-    /// 工作区 sheet 内容：总览／电脑／服务器文件保持现行 sheet 机制
-    @ViewBuilder
-    private func manageSheetContent(_ item: ManageSheet) -> some View {
-        switch item {
-        case .overview:
-            OverviewView(
-                onOpenAgent: { route in
-                    manageSheet = nil
-                    path = [.agent(route)]
-                },
-                onOpenChatSession: { id in
-                    manageSheet = nil
-                    onClose?()
-                    appState.pendingChatSessionID = id
-                },
-                onOpenSettings: { route in
-                    manageSheet = nil
-                    path = [route]
-                },
-                onOpenChat: {
-                    manageSheet = nil
-                    onRequestChat?()
-                },
-                onBackToApps: { manageSheet = nil }
-            )
-        case .computer:
-            ComputerView(onBackToApps: { manageSheet = nil })
-        case .serverFiles:
-            NavigationStack {
-                FilesBrowserView()
-            }
-        }
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     // MARK: - 搜索（§164）
@@ -479,12 +627,14 @@ struct SettingsView: View {
     /// 动作（原型同款）。搜索索引与浏览清单同源
     /// （SettingsCatalog），不另维护第二份
     private var searchSection: some View {
-        let hits = SettingsCatalog.search(searchText)
+        let hits = SettingsCatalog.effectiveSearch(
+            searchText, registry: settingsRegistry
+        )
         return Section {
             if hits.isEmpty {
                 VStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 22, weight: .regular))
+                        .font(.system(size: FrameworkIcon.tabGlyphSize))
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityHidden(true)
                     Text("没有找到「\(searchText.trimmingCharacters(in: .whitespacesAndNewlines))」")
@@ -502,15 +652,20 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, OneDayMetrics.spacingM)
             } else {
-                ForEach(hits) { entry in
-                    searchRow(entry)
+                ForEach(hits) { row in
+                    switch row {
+                    case .destination(let entry):
+                        searchRow(entry)
+                    case .value(let record):
+                        SettingsRegistryRowView(record: record)
+                    }
                 }
             }
         } header: {
             sectionHeader("搜索结果")
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func searchRow(_ entry: SettingsCatalogEntry) -> some View {
@@ -529,10 +684,7 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -541,13 +693,18 @@ struct SettingsView: View {
         .settingsSeparatorToIconEdge()
     }
 
-    /// 搜索点达分发：管理三件开 sheet、余者压设置栈
-    /// （与深链消费同一落点口径）
+    /// 搜索点达分发：断开连接起确认框、余者压设置
+    /// 栈（与深链消费同一落点口径）
     private func activate(_ entry: SettingsCatalogEntry) {
         switch entry.destination {
-        case .overview: manageSheet = .overview
-        case .computer: manageSheet = .computer
-        case .serverFiles: manageSheet = .serverFiles
+        case .disconnect: showDisconnectConfirm = true
+        case .serverSessions:
+            // 台账 199（2026-11-21 用户裁）：服务端会
+            // 话名单正主＝全部对话（一级面），本行改
+            // 深链——置根级呈现请求，ContentView 先
+            // 收设置 sheet 再升全屏页（AfterSettings
+            // 序）；设置内旧名单页已删
+            appState.router.allConversationsRequested = true
         default:
             if let route = route(for: entry.destination) {
                 path = [route]
@@ -555,47 +712,13 @@ struct SettingsView: View {
         }
     }
 
-    /// 目录条目 id 取行（浏览组内特型行与目录行的混
-    /// 排处用；id 是对账锚点、清单内必有）
-    private func entry(id: String) -> SettingsCatalogEntry {
-        SettingsCatalog.entries.first { $0.id == id }!
-    }
-
-    /// 目的地 → 设置路由（sheet 三件与无路由项返回
-    /// nil，由 activate/特型行分流）
+    /// 目的地 → 设置路由（映射本体已收口 AppRouter
+    /// 侧 SettingsRoute.from(destination:)，设置页与
+    /// 全局搜索共用一份，DESIGN §391）
     private func route(
         for destination: SettingsDestination
     ) -> SettingsRoute? {
-        switch destination {
-        case .identity: return .identity
-        case .profiles: return .profiles
-        case .memory: return .agent(.memory)
-        case .skills: return .agent(.skills)
-        case .cron: return .agent(.cron)
-        case .serverSessions: return .agent(.serverSessions)
-        case .models: return .models
-        case .envVars: return .envVars
-        case .usage: return .usage
-        case .serverDetail: return .serverDetail
-        case .connectors: return .agent(.mcp)
-        case .devicePermissions: return .agent(.devicePermissions)
-        case .gateway: return .gateway
-        case .logs: return .logs
-        case .appearance: return .appearance
-        case .sidebar: return .sidebar
-        case .help: return .help
-        case .about: return .about
-        case .privacy: return .privacy
-        case .terms: return .terms
-        case .overview, .computer, .serverFiles: return nil
-        // prototype-2 新增
-        case .agentConfig: return .agentConfig
-        case .serverManagement: return .serverManagement
-        case .sessionManagement: return .sessionManagement
-        case .workspaceHub: return .workspaceHub
-        case .mainSession: return .mainSession
-        case .restartGateway: return .restartGateway
-        }
+        SettingsRoute.from(destination: destination)
     }
 
     /// 条目行图标（SF 符号留 App 层；既有行图标沿旧
@@ -606,6 +729,8 @@ struct SettingsView: View {
         case "profiles": return "archivebox"
         case "memory": return "memorychip"
         case "skills": return "puzzlepiece.extension"
+        case "toolsets": return "wrench.and.screwdriver"
+        case "delegation": return "arrow.triangle.branch"
         case "models": return "text.bubble"
         case "cron": return "clock.arrow.2.circlepath"
         case "serverSessions": return "bubble.left"
@@ -616,31 +741,57 @@ struct SettingsView: View {
         case "logs": return "doc.text"
         case "envVars": return "key"
         case "usage": return "chart.bar"
-        case "overview": return "chart.xyaxis.line"
-        case "computer": return "display"
-        case "serverFiles": return "folder"
         case "appearance": return "sun.max"
-        case "sidebar": return "sidebar.left"
         case "help": return "questionmark.circle"
         case "about": return "info.circle"
+        // 台账 198 收敛 S11：与体检行同为 stethoscope
+        // 是根行图标唯一重名（搜索结果里两行同图易
+        // 混）——诊断行换放大镜文档符号，体检保留听诊器
+        case "chatDiagnostics": return "doc.text.magnifyingglass"
+        case "crashReports": return "exclamationmark.triangle"
         case "privacy": return "lock.shield"
         case "terms": return "doc.text"
-        // prototype-2 新增
-        case "agentConfig": return "slider.horizontal.3"
-        case "serverManagement": return "server.rack"
-        case "sessionManagement": return "bubble.left.and.bubble.right"
-        case "workspace": return "square.grid.2x2"
+        // prototype-2 叶子（枢纽页四行图标随页退役）
         case "mainSession": return "link"
-        case "restartGateway": return "arrow.clockwise"
+        case "healthCheck": return "stethoscope"
+        case "connectionSelfCheck": return "antenna.radiowaves.left.and.right"
+        case "voice": return "speaker.wave.2"
+        case "notifications": return "bell"
+        case "addDevice": return "qrcode"
+        case "pairing": return "person.badge.key"
+        case "disconnect": return "rectangle.portrait.and.arrow.right"
         default: return "gearshape"
         }
     }
 
     /// 目录驱动导航行：图标/题自条目、去向自 route
-    /// 映射（条目必有路由——sheet 三件不走本行）
+    /// 映射。有栈内路由的走 navRow；无路由的是动作行
+    /// （全部对话＝根级全屏页、工作区三件＝sheet 呈
+    /// 现，route 恒 nil）——渲动作 Button 行，点按走
+    /// activate 与搜索点达同一分发。动作行行貌与
+    /// navRow 同构（图标＋标题、行高与分隔口径同），
+    /// chevron 显式补（普通 Button 在 List 里没有系
+    /// 统自带的揭示箭头，与 searchRow 同式）
     @ViewBuilder
     private func catalogNavRow(_ entry: SettingsCatalogEntry) -> some View {
-        if let route = route(for: entry.destination) {
+        if route(for: entry.destination) == nil {
+            Button {
+                activate(entry)
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    rowIcon(iconName(for: entry))
+                    Text(L10n.string(entry.title))
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .settingsSeparatorToIconEdge()
+        } else if let route = route(for: entry.destination) {
             navRow(
                 icon: iconName(for: entry), title: L10n.string(entry.title),
                 route: route
@@ -649,12 +800,11 @@ struct SettingsView: View {
     }
 
     /// 组头（§164 随 IA 回归：小字 sectionLabel＋次
-    /// 级墨，与全 App 详情页 SectionLabel 同字阶）
+    /// 级墨，与全 App 详情页 SectionLabel 同字阶；
+    /// 台账 198 收敛 B7 起走设计层共用件
+    /// SettingsSectionHeader，本页只供已本地化的题）
     private func sectionHeader(_ title: String) -> some View {
-        Text(L10n.string(title))
-            .font(.sectionLabel)
-            .foregroundStyle(Palette.inkSecondary)
-            .textCase(nil)
+        SettingsSectionHeader(L10n.string(title))
     }
 
     /// 页脚签名行（§188 补回原型形态：App 图标小图
@@ -681,13 +831,9 @@ struct SettingsView: View {
 
     // MARK: - 行盒与辅助
 
-    /// 本页统一行盒（0.3.8 第 5 条）：纵向 insets 钉 0，
-    /// 行高只由行内容 minHeight 56 决定（旧形态系统行
-    /// 实测约 83＝内容＋系统纵向 insets 叠加）；横向 20
-    /// 与页 gutter 对齐线一致
-    private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
-    }
+    // （本页统一行盒已于台账 198 收敛 B7 上收设计层
+    // OneDayMetrics.settingsRowInsets 单源——0.3.8 第
+    // 5 条的口径不变：纵向 0、横向 20 与页 gutter 对齐）
 
     /// 身份节专用行盒（0.24.0）：首节顶距＋10——用户真
     /// 机图里身份卡紧贴导航栏区、Hermes 题上沿被横切；
@@ -697,28 +843,10 @@ struct SettingsView: View {
         EdgeInsets(top: 10, leading: 20, bottom: 0, trailing: 20)
     }
 
-    // MARK: - 版本派生（关于页注入，§164）
-
-    /// Hermes 版本位：status 读到才有版本，version
-    /// 字段缺失或整份 status 没读到都如实显「未知」
-    /// （原版本组口径：不许拿已知生产版本冒充现读）
-    private var hermesVersionText: String {
-        status?.version.map { "v\($0)" }
-            ?? L10n.string("未知")
-    }
-
-    /// 伴生副行：探测态未立（还没探过）显「尚未检
-    /// 测」；其余形态（现读/上次读到/未检测到/暂时
-    /// 读不到）全由 Core 派生态出整行
-    private var companionVersionLine: String {
-        guard let status = appState.companionProbe.status
-        else { return L10n.string("尚未检测") }
-        return status.settingsLine()
-    }
-
-    private var companionFooterNote: String? {
-        appState.companionProbe.status?.footerNote()
-    }
+    // （版本派生三件已于 §493 退役：关于页服务组删
+    // 除后 hermesVersionText/companionVersionLine 无
+    // 消费方；companionFooterNote 的语义由根页 notice
+    // 计算属性直读探测态承接）
 
 
     // MARK: - 共用行组件
@@ -799,22 +927,18 @@ struct SettingsView: View {
 
     // MARK: - 数据与动作
 
-    /// 深链消费：设置内路由直接落位；智能体详情类路由垫一层
-    /// 列表页，返回键才有落点（沿 0.2.0 智能体格口径）
+    /// 深链消费：设置内路由直接落位（会话详情旧垫层
+    /// ——设置内名单页——已随台账 199 删除，详情路由
+    /// 直达本体）
     private func consumePendingRoutes() {
-        if let route = appState.pendingSettingsRoute {
-            appState.pendingSettingsRoute = nil
+        if let route = appState.router.pendingSettingsRoute {
+            appState.router.pendingSettingsRoute = nil
             path = [route]
             return
         }
-        guard let route = appState.pendingAgentRoute else { return }
-        appState.pendingAgentRoute = nil
-        switch route {
-        case .serverSessionDetail:
-            path = [.agent(.serverSessions), .agent(route)]
-        default:
-            path = [.agent(route)]
-        }
+        guard let route = appState.router.pendingAgentRoute else { return }
+        appState.router.pendingAgentRoute = nil
+        path = [.agent(route)]
     }
 
     /// 0.22.0 瘦身：值位撤除后本页只剩 status 一个数
@@ -829,20 +953,27 @@ struct SettingsView: View {
         }
     }
 
-    private func restartGateway() async {
-        do {
-            try await appState.performAdmin { client, config in
-                try await client.gatewayRestart(config: config)
-            }
-            notice = "重启指令已发送，稍等片刻在总览确认状态。"
-            // 结果触感（0.3.2 纪律）：指令成功 .success
-            Haptics.success()
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "重启失败，请稍后再试。"
-            // 失败改判 error（0.36.2，表 D 语义归位）
-            Haptics.error()
-        }
+    /// 设置注册表拉取（§437）：能力位不亮／拉不到／
+    /// 解不开一律保持 nil 回落内置目录——注册表是增
+    /// 益不是依赖，失败零感知（判定走能力协商单源）
+    private func loadSettingsRegistry() async {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey,
+              let capabilities = try? await appState.client
+                .capabilities(config: config, apiKey: apiKey),
+              CapabilityNegotiation.settingsRegistryAvailability(
+                  capabilities
+              ) == .available,
+              let registry = try? await appState.client
+                .settingsRegistry(config: config, apiKey: apiKey)
+        else { return }
+        settingsRegistry = registry
     }
+
+    // （根页重启执行副本 restartGateway() 已于台账
+    // 198 收敛 S4 删除：重启只走网关状态页控制组一
+    // 条执行路径——确认＋执行＋状态回读，版本口径
+    // 见 GatewayView）
 }
 
 private extension View {

@@ -91,6 +91,11 @@ public enum LedgerKind: Equatable, Sendable {
     case job
     case approval
     case device
+    /// 监测变化（§217 枢纽收段新增）：A-05 台账单流
+    /// 起由服务端台账直供（伴生采集器监测源，见
+    /// LedgerMonitorChange 的 id 契约）；此前客户端合
+    /// 成（LedgerMonitorSynthesis）已退役
+    case monitor
     case other(String)
 
     public init(rawValue: String?) {
@@ -100,6 +105,7 @@ public enum LedgerKind: Equatable, Sendable {
         case "job": self = .job
         case "approval": self = .approval
         case "device": self = .device
+        case "monitor": self = .monitor
         default: self = .other(rawValue ?? "")
         }
     }
@@ -111,8 +117,31 @@ public enum LedgerKind: Equatable, Sendable {
         case .job: return "job"
         case .approval: return "approval"
         case .device: return "device"
+        case .monitor: return "monitor"
         case .other(let raw): return raw
         }
+    }
+}
+
+/// 监测变化条目的 id 契约（A-05 台账单流）：服务端
+/// 台账直供的 kind=monitor 条目，id 恒为
+/// `monitor-change:<变化 id>`，与服务端条目 id 空间
+/// （run:/task:/appr:/job:）不相撞。两个消费点靠它：
+/// 通知深链聚焦按 itemID(changeID:) 换算落点；详情
+/// 分发按 isMonitorChange 识别「不走台账详情面」
+/// （监测条目的详情本体是监测详情）。§217 的客户
+/// 端合成（LedgerMonitorSynthesis）退役后，本契约
+/// 是该 id 式的唯一持有处；条目本体由伴生
+/// _ledger_monitor_item 按同式产出（字段真源在彼）
+public enum LedgerMonitorChange {
+    public static let itemIDPrefix = "monitor-change:"
+
+    public static func itemID(changeID: String) -> String {
+        itemIDPrefix + changeID
+    }
+
+    public static func isMonitorChange(itemID: String) -> Bool {
+        itemID.hasPrefix(itemIDPrefix)
     }
 }
 

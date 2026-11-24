@@ -32,7 +32,7 @@ struct PresetsView: View {
                     newPresetButton
                 }
             } footer: {
-                Text("预设是整套设置的快照：默认模型加全部辅助分配，一次切换。不是几个模型一起答一道题。")
+                Text("预设就是一整套设置：默认模型加全部辅助分配，一次切换。不是几个模型一起答一道题。")
             }
             if let errorMessage = store.errorMessage {
                 Section {
@@ -122,7 +122,7 @@ struct PresetsView: View {
                         if isActive {
                             Text("使用中")
                                 .font(.footnote)
-                                .foregroundStyle(Palette.success)
+                                .foregroundStyle(Palette.successText)
                         }
                     }
                     Text(preset.summaryLine)

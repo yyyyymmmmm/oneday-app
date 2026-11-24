@@ -55,11 +55,26 @@ public enum SessionHistoryImport {
         /// 片附件路径（呈现走用户气泡文件牌）；助手消
         /// 息恒空（其文件引用由正文探测出牌，旧口径）
         public let fileRefs: [String]
+        /// 台账 187：服务端行 id（SessionMessage.id 的
+        /// 整数形）——落盘钉进 ChatEntry.serverRowID
+        /// 作反应寻址坐标；工具卡项与异常 id 恒 nil。
+        /// 不进回补指纹（指纹口径一字不动）
+        public let serverRowID: Int?
+        /// 台账 187：服务端反应全集——落盘覆写条目
+        /// 镜像（服务端唯一真源）；工具卡项恒空
+        public let reactions: [MessageReaction]
+        /// 总表 203／§441：选择框载荷——不进条目本
+        /// 体（v1 瞬态覆盖层口径），由导入侧按尾位规
+        /// 则播种覆盖层；工具卡项恒 nil
+        public let options: MessageOptions?
 
         public init(
             role: String, content: String, date: Date?,
             imagePaths: [String], toolCard: ToolCard?,
-            fileRefs: [String] = []
+            fileRefs: [String] = [],
+            serverRowID: Int? = nil,
+            reactions: [MessageReaction] = [],
+            options: MessageOptions? = nil
         ) {
             self.role = role
             self.content = content
@@ -67,6 +82,9 @@ public enum SessionHistoryImport {
             self.imagePaths = imagePaths
             self.toolCard = toolCard
             self.fileRefs = fileRefs
+            self.serverRowID = serverRowID
+            self.reactions = reactions
+            self.options = options
         }
     }
 
@@ -108,6 +126,16 @@ public enum SessionHistoryImport {
         )
     }
 
+    /// 服务端行 id 的整数形（台账 187）：id 是 JSON 数
+    /// （Double 承载）——整数且为正才成钉桩；0/负/小数
+    /// 是异常数据，宁可不钉（不可反应）也不钉错行
+    private static func serverRowID(
+        of message: SessionMessage
+    ) -> Int? {
+        guard message.id > 0 else { return nil }
+        return Int(exactly: message.id)
+    }
+
     public static func richItems(
         from messages: [SessionMessage]
     ) -> [RichItem] {
@@ -137,7 +165,12 @@ public enum SessionHistoryImport {
                         date: message.date,
                         imagePaths: normalized.imagePaths,
                         toolCard: nil,
-                        fileRefs: normalized.fileRefs
+                        fileRefs: normalized.fileRefs,
+                        serverRowID: Self.serverRowID(
+                            of: message
+                        ),
+                        reactions: message.reactions,
+                        options: message.options
                     )
                 }
                 let parsed = AttachedImageRef.parse(message.content)
@@ -146,7 +179,10 @@ public enum SessionHistoryImport {
                 return RichItem(
                     role: message.role, content: parsed.text,
                     date: message.date, imagePaths: parsed.paths,
-                    toolCard: nil
+                    toolCard: nil,
+                    serverRowID: Self.serverRowID(of: message),
+                    reactions: message.reactions,
+                        options: message.options
                 )
             }
         }

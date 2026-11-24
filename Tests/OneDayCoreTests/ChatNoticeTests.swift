@@ -13,18 +13,20 @@ final class ChatNoticeTests: XCTestCase {
 
     func testTierDurations() {
         XCTAssertEqual(
-            ChatNoticeTier.brief.autoDismissSeconds, 5,
-            accuracy: 0.001
+            ChatNoticeTier.brief.autoDismissSeconds, 5
         )
         XCTAssertEqual(
-            ChatNoticeTier.extended.autoDismissSeconds, 8,
-            accuracy: 0.001
+            ChatNoticeTier.extended.autoDismissSeconds, 8
         )
+        // 常驻档（OB-I3，§391）：无自消秒数——不起计时、
+        // 只许手关，「需要人知道的失败不自动消失」
+        XCTAssertNil(ChatNoticeTier.persistent.autoDismissSeconds)
     }
 
-    func testTierSetIsExactlyTwo() {
-        // 档位只许两档：新增档位须先改纪律、再改这里
-        XCTAssertEqual(ChatNoticeTier.allCases.count, 2)
+    func testTierSetIsExactlyThree() {
+        // 档位只许三档：新增档位须先改纪律、再改这里
+        // （三档＝中性/重要/常驻失败，§391 随 OB-I3 扩）
+        XCTAssertEqual(ChatNoticeTier.allCases.count, 3)
     }
 
     // MARK: 呈现/换代

@@ -60,6 +60,8 @@ public enum EntryScanMemo {
         ParseMemoBox<String>(capacity: 256)
     private static let plainBox =
         ParseMemoBox<String>(capacity: 256)
+    private static let facetBox =
+        ParseMemoBox<[String]>(capacity: 256)
 
     /// 五组扫描中的四组打包（摘行一组入参含 App
     /// 层存在性派生量，走 displayText 单独一盒）
@@ -126,6 +128,60 @@ public enum EntryScanMemo {
         }
     }
 
+    /// facet 路径集（§333，待办 143 根治）：整行
+    /// 备忘键的 facet 摘要（App 层 ChatNativeRow-
+    /// Height.entryFacetDigest）需要的助手行文件
+    /// 路径全集——MEDIA 图＋行内候选＋独立成行＋
+    /// 整条消息路径＋组合排除口径锚定探测五源并
+    /// 集。此前消费方在每趟行键组装时对正文现算
+    /// 后两源（wholeMessagePath 与组合排除口径的
+    /// detectStandaloneAnchored 不在 scans 的备
+    /// 忘口径内），长会话每趟 body 求值全表重扫，
+    /// 是量测台（§331）落成后滚动热路径上残余的
+    /// 主线程同步全扫。本盒把并集本身收进条目级
+    /// 备忘：键与 scans 同式（条目 id×内容哈希×
+    /// 远端图集哈希），内容不变恒命中、第二趟起
+    /// 零重扫；产出与逐遍现算逐字相等（EntryScan-
+    /// MemoTests 对拍钉住）
+    public static func facetPaths(
+        entryID: UUID,
+        content: String,
+        remoteImagePaths: [String]
+    ) -> [String] {
+        let key = "facet|\(entryID.uuidString)"
+            + "|\(content.count)|\(contentHash(content))"
+            + "|\(contentHash(remoteImagePaths.joined(separator: "\u{1}")))"
+        return facetBox.value(for: key) {
+            let scans = scans(
+                entryID: entryID, content: content,
+                remoteImagePaths: remoteImagePaths
+            )
+            var paths = Set<String>()
+            paths.formUnion(scans.media.imagePaths)
+            paths.formUnion(
+                scans.inlineCandidates.map(\.path)
+            )
+            paths.formUnion(scans.standalonePaths)
+            let wholePathRef = FileRefDetector
+                .wholeMessagePath(in: scans.media.text)
+            if let wholePathRef {
+                paths.insert(wholePathRef.path)
+            }
+            let fileRefs = FileRefDetector
+                .detectStandaloneAnchored(
+                    in: content,
+                    excluding: remoteImagePaths
+                        + scans.media.imagePaths
+                        + scans.inlineCandidates
+                            .map(\.path)
+                        + (wholePathRef.map { [$0.path] }
+                            ?? [])
+                )
+            paths.formUnion(fileRefs.map(\.path))
+            return paths.sorted()
+        }
+    }
+
     // MARK: - 验收读面（与 MarkdownParseMetrics 同口径）
 
     public struct Metrics: Equatable {
@@ -135,16 +191,20 @@ public enum EntryScanMemo {
         public var stripMisses: Int
         public var plainHits: Int
         public var plainMisses: Int
+        public var facetHits: Int
+        public var facetMisses: Int
     }
 
     public static func metrics() -> Metrics {
         let scans = scansBox.metrics()
         let strip = strippedBox.metrics()
         let plain = plainBox.metrics()
+        let facet = facetBox.metrics()
         return Metrics(
             scanHits: scans.hits, scanMisses: scans.misses,
             stripHits: strip.hits, stripMisses: strip.misses,
-            plainHits: plain.hits, plainMisses: plain.misses
+            plainHits: plain.hits, plainMisses: plain.misses,
+            facetHits: facet.hits, facetMisses: facet.misses
         )
     }
 
@@ -152,12 +212,14 @@ public enum EntryScanMemo {
         scansBox.resetMetrics()
         strippedBox.resetMetrics()
         plainBox.resetMetrics()
+        facetBox.resetMetrics()
     }
 
     public static func removeAll() {
         scansBox.removeAll()
         strippedBox.removeAll()
         plainBox.removeAll()
+        facetBox.removeAll()
     }
 
     /// FNV-1a 64 位（确定性、无随机种子）：只作缓

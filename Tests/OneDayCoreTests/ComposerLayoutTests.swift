@@ -12,50 +12,54 @@ import XCTest
 /// （2 行 38.33、4 行 76.67），封顶随之 115.02、胶囊上
 /// 限 141.02；单行规格不变（键侧主导仍 46）。键盘态端
 /// 到端观感由用户真机验收（既定分工）。
+/// 2026-11-15 第 84 条（§265）：基准字号 16 → 17
+/// （Body 同档），行高常数线性缩放为 20.37、封顶
+/// 122.22、单行胶囊 46.37（文本侧首超键侧）；本
+/// 文件钉值随派生全数改钉如下。
 final class ComposerLayoutTests: XCTestCase {
-    /// 空态：实测 0 也按一行计，胶囊总高＝单行规格 46
+    /// 空态：实测 0 也按一行计，胶囊总高＝单行规格 46.37
     func testEmptyCountsAsSingleLine() {
         XCTAssertEqual(
             ComposerLayout.effectiveTextHeight(measured: 0),
-            19.17, accuracy: 0.01
+            20.37, accuracy: 0.01
         )
         let capsule = ComposerLayout.capsuleHeight(narrowMeasured: 0, fullMeasured: 0)
-        XCTAssertEqual(capsule, 46, accuracy: 0.001)
-        XCTAssertTrue((45...46).contains(capsule), "空态胶囊高 \(capsule) 应在目标带 45–46 内")
+        XCTAssertEqual(capsule, 46.37, accuracy: 0.001)
+        XCTAssertTrue((46...47).contains(capsule), "空态胶囊高 \(capsule) 应在目标带 46–47 内")
         XCTAssertFalse(ComposerLayout.isMultiline(measured: 0))
         XCTAssertFalse(ComposerLayout.shouldScroll(measured: 0))
     }
 
-    /// 单行：胶囊总高 46（目标带 45–46），不多行、不内滚
+    /// 单行：胶囊总高 46.37（目标带 46–47），不多行、不内滚
     func testSingleLineSpec() {
         let oneLine = ComposerLayout.textHeight(forLineCount: 1)
-        XCTAssertEqual(oneLine, 19.17, accuracy: 0.01)
+        XCTAssertEqual(oneLine, 20.37, accuracy: 0.01)
         let capsule = ComposerLayout.capsuleHeight(narrowMeasured: oneLine, fullMeasured: oneLine)
-        XCTAssertEqual(capsule, 46, accuracy: 0.001)
-        XCTAssertTrue((45...46).contains(capsule))
+        XCTAssertEqual(capsule, 46.37, accuracy: 0.001)
+        XCTAssertTrue((46...47).contains(capsule))
         XCTAssertFalse(ComposerLayout.isMultiline(measured: oneLine))
         XCTAssertFalse(ComposerLayout.shouldScroll(measured: oneLine))
     }
 
     /// 多行（0.3.3 上文下钮）：3 行全宽文本高＋文本纵
     /// 向边距 10＋按钮行距 4＋按钮行 30＋行纵向边距 16
-    /// ＝57.51＋60＝117.51；判据走窄宽（此处窄＝全宽同
+    /// ＝61.11＋60＝121.11；判据走窄宽（此处窄＝全宽同
     /// 值代入，形态判定不变）
     func testMultilineGrowsWithLines() {
         let threeLines = ComposerLayout.textHeight(forLineCount: 3)
         XCTAssertEqual(
             ComposerLayout.cappedTextHeight(measured: threeLines),
-            57.51, accuracy: 0.01
+            61.11, accuracy: 0.01
         )
         XCTAssertEqual(
             ComposerLayout.capsuleHeight(
                 narrowMeasured: threeLines, fullMeasured: threeLines
             ),
-            117.51, accuracy: 0.01
+            121.11, accuracy: 0.01
         )
         XCTAssertTrue(ComposerLayout.isMultiline(measured: threeLines))
         XCTAssertFalse(ComposerLayout.shouldScroll(measured: threeLines))
-        // 判据边界：恰 1.5 行（阈值 28.76）不多行，过阈值
+        // 判据边界：恰 1.5 行（阈值 30.56）不多行，过阈值
         // 即多行；2 行起多行
         XCTAssertFalse(ComposerLayout.isMultiline(
             measured: ComposerLayout.multilineThreshold
@@ -68,19 +72,19 @@ final class ComposerLayoutTests: XCTestCase {
         ))
     }
 
-    /// 上限：7 行实测封顶在 6 行（115.02），多行胶囊
-    /// ＝115.02＋60＝175.02，且须内滚；恰在封顶值不内滚
+    /// 上限：7 行实测封顶在 6 行（122.22），多行胶囊
+    /// ＝122.22＋60＝182.22，且须内滚；恰在封顶值不内滚
     func testCapAtSixLines() {
         let sevenLines = ComposerLayout.textHeight(forLineCount: 7)
         XCTAssertEqual(
             ComposerLayout.cappedTextHeight(measured: sevenLines),
-            115.02, accuracy: 0.01
+            122.22, accuracy: 0.01
         )
         XCTAssertEqual(
             ComposerLayout.capsuleHeight(
                 narrowMeasured: sevenLines, fullMeasured: sevenLines
             ),
-            175.02, accuracy: 0.01
+            182.22, accuracy: 0.01
         )
         XCTAssertTrue(ComposerLayout.shouldScroll(measured: sevenLines))
         XCTAssertTrue(ComposerLayout.isMultiline(measured: sevenLines))
@@ -109,18 +113,19 @@ final class ComposerLayoutTests: XCTestCase {
         XCTAssertEqual(ComposerLayout.inputBarChrome, 24)
     }
 
-    /// 圆角连续函数（0.3.5，§20.1）：单行高 46 → 半径
-    /// 23（与 Capsule 几何等价）；48 起在 cap 饱和；全
-    /// 程单调不减；形态边界两侧（单行可达最大高 ↔ 多
-    /// 行最小高）的半径差 <1pt——形状跨形态无可感知
-    /// 跳变，是「无旧形状盖新几何」的数值证据
+    /// 圆角连续函数（0.3.5，§20.1）：单行高 46.37 →
+    /// 半径 23.19（与 Capsule 几何等价）；48 起在 cap
+    /// 饱和；全程单调不减；形态边界两侧（单行可达最
+    /// 大高 ↔ 多行最小高）的半径差 <1pt——形状跨形
+    /// 态无可感知跳变，是「无旧形状盖新几何」的数值
+    /// 证据
     func testCornerRadiusIsContinuousAcrossModes() {
         let cap: CGFloat = 24
         XCTAssertEqual(
             ComposerLayout.cornerRadius(
-                forCapsuleHeight: 46, cap: cap
+                forCapsuleHeight: 46.37, cap: cap
             ),
-            23, accuracy: 0.001
+            23.19, accuracy: 0.01
         )
         XCTAssertEqual(
             ComposerLayout.cornerRadius(
@@ -130,7 +135,7 @@ final class ComposerLayoutTests: XCTestCase {
         )
         XCTAssertEqual(
             ComposerLayout.cornerRadius(
-                forCapsuleHeight: 175.02, cap: cap
+                forCapsuleHeight: 182.22, cap: cap
             ),
             24, accuracy: 0.001
         )

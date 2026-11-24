@@ -7,9 +7,11 @@ import Foundation
 /// 与渲染在 App 层（ChatEntry.echoKey 标记，见 ChatView）。
 ///
 /// 真源纪律（不许造假回响）：
-/// - 完成只认桥侧落戳：BridgeGoalTaskLink.completionEntryAt
-///   非空——桥是在任务板状态落进完成集后才写这条戳的，
-///   与 App 本地推测无关；
+/// - 完成只认桥侧落戳：BridgeGoalTask.completionEntryAt
+///   非空——它是桥回声账的只读投影，桥是在任务板状态
+///   落进完成集、事实进展条目写下后才落这条戳的，与
+///   App 本地推测无关（§308 单轨后载体从链接记录换成
+///   GD-2 行的派生字段，判定口径不变）；
 /// - 开始/等你回答/失败认任务板现值经
 ///   KanbanStatusPresentation.resolve 的呈现判定
 ///   （.running/.needsInput/.failed），其中「失败」是
@@ -29,23 +31,26 @@ public enum GoalEcho {
     public struct Planned: Equatable, Sendable {
         public let key: String
         public let kind: Kind
-        public let linkID: String
+        public let taskID: String
         /// 任务标题；任务板没取到时为空串，文案走泛称
         public let taskTitle: String
 
         public init(
-            key: String, kind: Kind, linkID: String, taskTitle: String
+            key: String, kind: Kind, taskID: String,
+            taskTitle: String
         ) {
             self.key = key
             self.kind = kind
-            self.linkID = linkID
+            self.taskID = taskID
             self.taskTitle = taskTitle
         }
     }
 
-    /// 去重键（落盘在 ChatEntry.echoKey，跨启动稳定）
-    public static func key(linkID: String, kind: Kind) -> String {
-        "goalTask:\(linkID):\(kind.rawValue)"
+    /// 去重键（落盘在 ChatEntry.echoKey，跨启动稳定）。
+    /// §308 起键材料是任务本身——旧链接 id 键从未在生产
+    /// 落过盘（存量链接为零），无迁移负担
+    public static func key(taskID: String, kind: Kind) -> String {
+        "goalTask:\(taskID):\(kind.rawValue)"
     }
 
     /// 按关联序规划待落回响：每条关联先「已安排」，再按
@@ -58,20 +63,20 @@ public enum GoalEcho {
     ) -> [Planned] {
         var planned: [Planned] = []
         for linked in linkedTasks {
-            let link = linked.link
+            let row = linked.row
             let title = linked.task?.title ?? ""
             func append(_ kind: Kind) {
-                let k = key(linkID: link.id, kind: kind)
+                let k = key(taskID: row.taskId, kind: kind)
                 guard !existingKeys.contains(k) else { return }
                 planned.append(
                     Planned(
-                        key: k, kind: kind, linkID: link.id,
+                        key: k, kind: kind, taskID: row.taskId,
                         taskTitle: title
                     )
                 )
             }
             append(.delegated)
-            if link.completionEntryAt != nil {
+            if row.completionEntryAt != nil {
                 append(.completed)
             } else if let task = linked.task {
                 let presentation = KanbanStatusPresentation.resolve(

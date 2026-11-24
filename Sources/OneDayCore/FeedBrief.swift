@@ -1,19 +1,36 @@
 import Foundation
 
-// MARK: - 简报两层（0.38.0，GET/PUT /meta/brief 契约）
+// MARK: - 简报单层（§459，GET/PUT /meta/brief 契约）
 //
-// 兴趣层＝用户用自己的话写「我感兴趣什么」；执行层＝
-// AI 据兴趣层扩写维护的正式简报（生成链真正消费的
-// 文本），可见可改。两层分开存、分开显示；改兴趣层
-// 触发扩写，扩写落盘且执行层真变了才触发一轮调研；
-// 直接改执行层＝真变更触发一轮调研。
+// 0.38.0 的两层（兴趣层＋执行层）在 §459 合一层：
+// 编辑器只见一份「当前生效全文」text——服务端按
+// 单层规则出数（润色稿与当前 interest 逐字相等才
+// 出润色稿、否则出原文），保存只发 {text}（服务端
+// 折为 interest 保存、briefInterest 永不被润色覆
+// 盖）。brief/interest 字段服务端照旧出、App 只作
+// 旧桥容错回落与摘要行口径，不再进编辑器。润色状
+// 态以 polishState 如实呈现，绝不假装已润色。
+
+/// 润色状态（§459 契约四值；未知值宽容折 idle）
+public enum BriefPolishState: String, Sendable, Equatable {
+    case done
+    case pending
+    case error
+    case idle
+}
 
 /// 简报全文（桥 /meta/brief 读视图；PUT 回执同形另带
 /// expandStarted，只在回执里有意义、解码宽容可缺）
 public struct BridgeBriefDoc: Decodable, Equatable, Sendable {
-    /// 执行层（正式简报）
+    /// 当前生效全文（§459 单层编辑器唯一绑定）
+    public let text: String
+    /// text 是否为润色稿（false＝用户原文）
+    public let polished: Bool
+    /// 润色状态原始值（BriefPolishState 解析）
+    public let polishStateRaw: String
+    /// 执行层（正式简报，旧字段、兼容保留）
     public let brief: String
-    /// 兴趣层（用户原话）
+    /// 兴趣层（用户原话，旧字段、兼容保留）
     public let interest: String
     public let briefUpdatedAt: Double?
     public let interestUpdatedAt: Double?
@@ -29,7 +46,9 @@ public struct BridgeBriefDoc: Decodable, Equatable, Sendable {
         briefUpdatedAt: Double? = nil,
         interestUpdatedAt: Double? = nil,
         expanding: Bool = false, expandError: String? = nil,
-        expandStarted: Bool? = nil
+        expandStarted: Bool? = nil,
+        text: String = "", polished: Bool = false,
+        polishStateRaw: String = "idle"
     ) {
         self.brief = brief
         self.interest = interest
@@ -38,11 +57,20 @@ public struct BridgeBriefDoc: Decodable, Equatable, Sendable {
         self.expanding = expanding
         self.expandError = expandError
         self.expandStarted = expandStarted
+        self.text = text
+        self.polished = polished
+        self.polishStateRaw = polishStateRaw
+    }
+
+    /// 润色状态（未知/缺失一律 idle，不猜已润色）
+    public var polishState: BriefPolishState {
+        BriefPolishState(rawValue: polishStateRaw) ?? .idle
     }
 
     private enum CodingKeys: String, CodingKey {
         case brief, interest, briefUpdatedAt, interestUpdatedAt
         case expanding, expandError, expandStarted
+        case text, polished, polishState
     }
 
     public init(from decoder: Decoder) throws {
@@ -68,6 +96,15 @@ public struct BridgeBriefDoc: Decodable, Equatable, Sendable {
         expandStarted = try container.decodeIfPresent(
             Bool.self, forKey: .expandStarted
         )
+        text = try container.decodeIfPresent(
+            String.self, forKey: .text
+        ) ?? ""
+        polished = try container.decodeIfPresent(
+            Bool.self, forKey: .polished
+        ) ?? false
+        polishStateRaw = try container.decodeIfPresent(
+            String.self, forKey: .polishState
+        ) ?? "idle"
     }
 }
 
@@ -90,10 +127,14 @@ public enum FeedBriefBoard {
         return nil
     }
 
-    /// 引导态：两层都还没写过（兴趣层空且执行层空）
+    /// 引导态：还没写过（生效全文与两层旧字段皆空）
     public static func isGuideState(_ doc: BridgeBriefDoc) -> Bool {
-        doc.interest.trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty
+        effectiveText(doc).trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty
+            && doc.interest.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty
             && doc.brief.trimmingCharacters(
                 in: .whitespacesAndNewlines
             ).isEmpty
@@ -106,36 +147,61 @@ public enum FeedBriefBoard {
             != new.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// 示例兴趣（用户现行简报的原话口径）：只作编辑
-    /// 器里的示例呈现，用户点「填入示例改一改」才进
-    /// 输入框，绝不静默预填、绝不当用户已保存的兴趣
-    public static let exampleInterest =
-        "我的兴趣动态版块，围绕三块内容：热门 GitHub 项目、"
-        + "AI 相关进展、搞钱和副业机会。全部用中文写。"
-        + "GitHub 项目要正在升温、有实际用处的；AI 只报"
-        + "实质进展，不报炒作；搞钱和副业只报具体可落地的"
-        + "机会与真实案例，不写割韭菜营销号内容。"
+    /// 编辑器打开时见到的全文（§459）：服务端 text
+    /// 优先；旧桥未出 text 时回落旧两层口径（兴趣层
+    /// 优先、其次执行层），不许空白冒充已同步
+    public static func effectiveText(_ doc: BridgeBriefDoc) -> String {
+        if !doc.text.isEmpty { return doc.text }
+        if !doc.interest.isEmpty { return doc.interest }
+        return doc.brief
+    }
+
+    /// 润色状态极小提示（§459：只许小字如实呈现，
+    /// 不许假装已润色）：pending/error 恒出；done
+    /// 仅当 text 确为润色稿时出；idle 且原文生效
+    /// 时不出（原文即生效、无事可报）
+    public static func polishHint(_ doc: BridgeBriefDoc) -> String? {
+        switch doc.polishState {
+        case .pending:
+            return "正在整理成正式简报…"
+        case .error:
+            return "上次整理没成功，现在生效的是你保存的原文。"
+        case .done:
+            return doc.polished
+                ? "现在生效的是整理后的简报；你改的就是它，保存后原样生效。"
+                : nil
+        case .idle:
+            return nil
+        }
+    }
 }
 
 
-/// 简报保存请求（PUT /meta/brief）：两层分别保存、
-/// 分别触发——兴趣层保存走 {interest}，执行层保存走
-/// {brief}，绝不混发（混发会让桥侧变更判定失真）
+/// 简报保存请求（PUT /meta/brief）：§459 起编辑器
+/// 只发 {text}（服务端折为 interest 保存）；interest
+/// /brief 字段保留在契约里（服务端显式给出时优先），
+/// App 不再混发
 public struct BridgeBriefSaveRequest: Encodable, Sendable, Equatable {
+    public let text: String?
     public let interest: String?
     public let brief: String?
 
-    public init(interest: String? = nil, brief: String? = nil) {
+    public init(
+        text: String? = nil,
+        interest: String? = nil, brief: String? = nil
+    ) {
+        self.text = text
         self.interest = interest
         self.brief = brief
     }
 
     private enum CodingKeys: String, CodingKey {
-        case interest, brief
+        case text, interest, brief
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(text, forKey: .text)
         try container.encodeIfPresent(interest, forKey: .interest)
         try container.encodeIfPresent(brief, forKey: .brief)
     }

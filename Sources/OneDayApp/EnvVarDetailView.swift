@@ -22,10 +22,9 @@ struct EnvVarDetailView: View {
                 SectionLabel("变量")
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
-                    LabeledContent("键") {
-                        Text(entry.key)
-                            .font(.system(.callout, design: .monospaced))
-                    }
+                    // 键值行走 KeyValueRow（台账 198 收敛
+                    // S5 嫌疑页查实：键/类别两行同构造）
+                    KeyValueRow("键", value: entry.key)
                     if let description = entry.description, !description.isEmpty {
                         GroupDivider()
                         Text(description)
@@ -37,7 +36,7 @@ struct EnvVarDetailView: View {
                     }
                     if let category = entry.category, !category.isEmpty {
                         GroupDivider()
-                        LabeledContent("类别", value: ServerLabels.categoryLabel(category))
+                        KeyValueRow("类别", value: ServerLabels.categoryLabel(category))
                     }
                     GroupDivider()
                     valueRow
@@ -45,7 +44,7 @@ struct EnvVarDetailView: View {
                 .odGroup()
 
                 SectionLabel("操作")
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     actionRow(title: entry.isSet ? "修改值" : "设置值", icon: "pencil.circle") {

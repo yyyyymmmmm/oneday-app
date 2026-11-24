@@ -57,3 +57,102 @@ public enum AgentName {
         return fallback
     }
 }
+
+/// 改名校验失败（§383 包一）：与 identity 桥
+/// _validate_new_name 逐条同口径——改名迁直连
+/// 后校验责任在 App 侧，规则不许漂移（桥侧注
+/// 记自明「与 App 解析口径一致」，双向镜像）
+public enum AgentNameWriteError: Error, Equatable, Sendable {
+    case empty
+    case tooLong
+    case punctuation
+    case structural
+    case illegalCharacter
+}
+
+extension AgentName {
+    /// 改名校验（桥 _validate_new_name 镜像）：
+    /// 去首尾空白后非空、≤20 字（按 unicode 标
+    /// 量计，与桥 len() 同口径）、不含句读标点、
+    /// 不是结构词、不含 # 与控制符；通过回校验
+    /// 后的名（已去首尾空白）
+    public static func validatedNewName(
+        _ raw: String
+    ) throws -> String {
+        let name = raw.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !name.isEmpty else {
+            throw AgentNameWriteError.empty
+        }
+        guard name.unicodeScalars.count <= 20 else {
+            throw AgentNameWriteError.tooLong
+        }
+        guard !name.contains(where: {
+            "。．.：:、，,；;！!？?".contains($0)
+        }) else {
+            throw AgentNameWriteError.punctuation
+        }
+        guard !structuralHeadings.contains(name.lowercased())
+        else {
+            throw AgentNameWriteError.structural
+        }
+        guard !name.contains("#"),
+              !name.unicodeScalars.contains(where: {
+                  $0.value < 32
+              })
+        else {
+            throw AgentNameWriteError.illegalCharacter
+        }
+        return name
+    }
+
+    /// 身份标题行在否（窗口与 resolve 同：前 3
+    /// 个非空行内首个 `# ` 一级标题行）
+    public static func hasIdentityTitle(
+        in soulContent: String
+    ) -> Bool {
+        identityTitleIndex(
+            in: soulContent.components(separatedBy: "\n")
+        ) != nil
+    }
+
+    /// 标题行手术（桥 _find_title_line＋_set_
+    /// name 镜像）：窗口内有标题行则整行替换为
+    /// `# {name}`，无则在全文首行插入；正文其
+    /// 余逐字不动。写后自验 resolve(新全文) ==
+    /// name，不成立回 nil（调用方不许落盘）
+    public static func applyingNewName(
+        _ name: String, to soulContent: String
+    ) -> String? {
+        var lines = soulContent.components(separatedBy: "\n")
+        if let index = identityTitleIndex(in: lines) {
+            lines[index] = "# \(name)"
+        } else {
+            lines.insert("# \(name)", at: 0)
+        }
+        let updated = lines.joined(separator: "\n")
+        guard resolve(soulContent: updated) == name else {
+            return nil
+        }
+        return updated
+    }
+
+    /// 标题行窗口扫描（与 resolve 的窗口逐条同
+    /// 口径：数非空行、超过 3 行即出窗）
+    private static func identityTitleIndex(
+        in lines: [String]
+    ) -> Int? {
+        var contentLines = 0
+        for (index, raw) in lines.enumerated() {
+            let trimmed = raw.trimmingCharacters(
+                in: .whitespaces
+            )
+            if trimmed.isEmpty { continue }
+            contentLines += 1
+            if contentLines > 3 { return nil }
+            if trimmed.hasPrefix("# ") { return index }
+        }
+        return nil
+    }
+}

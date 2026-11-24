@@ -37,7 +37,8 @@ final class SessionDisplayTests: XCTestCase {
             model: nil, profile: nil,
             startedAt: startedAt, endedAt: endedAt, endReason: nil,
             messageCount: messageCount, toolCallCount: nil,
-            inputTokens: nil, outputTokens: nil
+            inputTokens: nil, outputTokens: nil,
+            runtimeRevision: nil, runtimeGeneration: nil
         )
     }
 

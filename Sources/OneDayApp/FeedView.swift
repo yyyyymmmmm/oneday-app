@@ -1,5 +1,7 @@
+import NukeUI
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 动态格（P3，0.35.0；0.38.0 换代）：形态按设计档
@@ -14,7 +16,15 @@ import SwiftUI
 /// §117 未读口径作废）——已读回写与 readAt 保留为
 /// 静默账本，只停提醒面、不停账本；搜索改工具栏
 /// 点开式（.toolbar 落点，不再常驻一行）；列表顶
-/// 距改条件化（见 topMargin）。§177：帖面不单独设
+/// 距改条件化（见 topMargin）。
+/// §486（2026-11-24，三页审计全抄）：页头安排再
+/// 换代——§126 的「简报胶囊行删除＋工具栏点开搜
+/// 索」口径就此作废：页内自持页头簇（身份簇＋34
+/// 大标题＋标题下字段槽），字段槽静止态＝简报胶
+/// 囊（胶囊行以此形态回归，与 §126 删的旧行不同
+/// 件）、滚过阈值后＝搜索字段顶替【推定待真机帧
+/// 翻案】；链接改 OG 式预览卡、链接出处图不再整
+/// 幅渲染。细则见 DESIGN §486 与 feedPageHead。§177：帖面不单独设
 /// 色——根 List 与点子页同口径隐藏系统滚动底、透
 /// 出页面底 pageBG，帖行同色（此前本页根 List 没
 /// 隐藏系统滚动底，列表区被系统默认底罩住、与页
@@ -29,25 +39,59 @@ import SwiftUI
 struct FeedView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = FeedStore()
     /// refs 点达与标题解析的数据源（与点子/目标格同
-    /// 一套 Store，本格持有自己的实例、按需加载）
-    @State private var ideasStore = IdeasStore()
-    @State private var goalsStore = GoalsStore()
-    @State private var kanban = KanbanStore()
-    @State private var monitorsStore = MonitorsStore()
+    /// 一套 Store）：台账 199 改走 AppState 共享单例
+    /// （§259 先例补齐），与点子格／目标格／目标详
+    /// 情同一份，不再自持实例
+    private var ideasStore: IdeasStore {
+        appState.sharedIdeasStore()
+    }
+    private var goalsStore: GoalsStore {
+        appState.sharedGoalsStore()
+    }
+    /// §259 三店合一：任务/监测两店走 AppState 共享
+    /// 单例，与枢纽/目标/点子各面同一份，不再私建
+    private var kanban: KanbanStore {
+        appState.sharedKanbanStore()
+    }
+    private var monitorsStore: MonitorsStore {
+        appState.sharedMonitorsStore()
+    }
     @State private var path = NavigationPath()
     /// 简报编辑器（0.38.0 两层制）呈现
     @State private var briefEditorShown = false
-    /// 搜索（0.47.0 §117；§126 改点开式）：落点改
-    /// 工具栏（.toolbar）——放大镜在工具栏内点开才
-    /// 展开搜索场，不再以 .searchable 默认落点常驻
-    /// 一整行；按标题＋正文过滤当前已载帖，收起即
-    /// 清过滤态（见 readyContent 的 onChange）
+    /// 页头身份簇开中枢（§486：簇自聊天页同件接入
+    /// 本页，落点与聊天页同为本栈推 AgentHubView）
+    @State private var showHub = false
+    /// 页头字段槽切换态（§498）：列表内容偏移驱动
+    /// （onScrollGeometryChange）——过阈值字段槽由简
+    /// 报胶囊换搜索入口；共同簇与大标题行恒常驻（§
+    /// 486.4 的整簇收起已废止，本状态不再触碰簇）
+    @State private var fieldSlotSwapped = false
+
+    /// 字段槽切换阈值（§486.2 翻案单点之一）：内容
+    /// 上滚超此值字段槽换搜索形态（§498：只动字段
+    /// 槽，不再收簇）
+    private static let collapseThreshold: CGFloat = 24
+    /// 搜索（0.47.0 §117；§126 改点开式；§486 改
+    /// 页头字段槽）：激活态由标题下字段槽的搜索行
+    /// 承载（FileSearchField 单源件），不再走 .sea-
+    /// rchable 工具栏落点；按标题＋正文过滤当前已
+    /// 载帖，收起即清过滤态（见 body 的 onChange）
     @State private var searchText = ""
     @State private var isSearching = false
-    /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
-    @State private var sourcesPost: BridgeFeedPost?
+    /// 「关于」展开节当前展开的帖 id（§453：动作
+    /// 行 ⓘ 原地 toggle，一次至多一帖展开）
+    @State private var expandedAboutID: String?
+    /// §208 原帖回跳挂起中的帖 id：回跳请求已消费、
+    /// 帖名单未就绪时先挂起，posts 到达后再判（见
+    /// resolveFeedOpen）
+    @State private var pendingFeedOpenPostID: String?
+    /// §208 回跳查无此帖的诚实提示（帖已过期/删除；
+    /// 引用块里的快照仍可读，提示只管原帖不在）
+    @State private var feedPostGoneNotice = false
 
     /// 页顶浮层的实测重叠高度（§126）：顶距改条件
     /// 化——§122 的无条件 64pt（spacingXXL＋spacingM）
@@ -60,6 +104,10 @@ struct FeedView: View {
     /// 即按 FeedBoard.topClearance 政策（重叠高＋
     /// spacingS）生效。不许再回到无条件写死
     @State private var topOverlayHeight: CGFloat?
+
+    /// §415：派生快照指纹缓存（visiblePosts 收口，
+    /// 照资源库 LibrarySnapshotCache 模板）
+    @State private var snapshotCache = FeedSnapshotCache()
 
     /// 列表顶部边距（§126）：政策收口在 Core
     /// FeedBoard.topClearance——无重叠恒 0，真重叠
@@ -77,8 +125,17 @@ struct FeedView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            Group {
+        // §415：派生快照一趟算齐下传（旧 visiblePosts
+        // 计算属性＋readyContent 内 sorted 每趟重排
+        // 已退役，派生收口 FeedListSnapshot）
+        let snapshot = snapshotCache.snapshot(
+            posts: store.posts, searchText: searchText,
+            isSearching: isSearching
+        )
+        return NavigationStack(path: $path) {
+            VStack(spacing: 0) {
+                feedPageHead
+                Group {
                 switch store.loadState {
                 case .loading:
                     ProgressView()
@@ -106,44 +163,84 @@ struct FeedView: View {
                         .buttonStyle(.bordered)
                     }
                 case .ready:
-                    readyContent
+                    readyContent(snapshot)
+                }
                 }
             }
             .background {
                 Palette.pageBG
                     .ignoresSafeArea()
             }
-            .navigationTitle("动态")
-            .toolbar {
-                // 搜索入口（§126）：.searchable 的
-                // .toolbar 落点自带工具栏放大镜，与滑
-                // 杆钮同舱呈现；0.47.0 的自绘放大镜钮
-                // 与其重复占位，一并退役
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        briefEditorShown = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                    }
-                    .accessibilityLabel("编辑简报")
+            // §486：页头整簇改页内自持（ContentPage-
+            // Header＋大标题＋字段槽，见 feedPageHead），
+            // 系统导航栏在本页根隐藏——推入的详情页
+            // 各自声明栏可见性（与文件页同式）；§126
+            // 的工具栏滑杆钮与 .searchable 工具栏落点
+            // 随之退役（滑杆进页头簇、搜索进字段槽）
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showHub) {
+                AgentHubView()
+            }
+            .onChange(of: isSearching) { _, searching in
+                if !searching {
+                    searchText = ""
                 }
             }
-            .sheet(isPresented: $briefEditorShown) {
-                FeedBriefEditorView(store: store)
+            // §208：聊天里点动态引用块的原帖回跳——请
+            // 求在此消费（清零先行防重入），落点判定走
+            // resolveFeedOpen（在名单直达详情、名单就
+            // 绪而查无给诚实提示、未就绪挂起等名单）
+            .onChange(of: appState.router.feedOpenPostRequest) { _, id in
+                if let id {
+                    appState.router.feedOpenPostRequest = nil
+                    pendingFeedOpenPostID = id
+                    resolveFeedOpen()
+                }
             }
-            .sheet(item: $sourcesPost) { post in
-                FeedSourcesSheet(post: post) { ref in
-                    sourcesPost = nil
-                    path.append(Route.ref(ref))
+            .onChange(of: store.posts) { _, _ in
+                resolveFeedOpen()
+            }
+            .alert(
+                "这篇动态已不在了",
+                isPresented: $feedPostGoneNotice
+            ) {
+                Button("好", role: .cancel) {}
+            }
+            // §233：点赞乐观翻心被后台否掉的轻提醒
+            // （心已恢复原状，这里只告知一声）
+            .alert(
+                "点赞没成功，请稍后再试。",
+                isPresented: Binding(
+                    get: { store.likeNotice != nil },
+                    set: { if !$0 { store.clearLikeNotice() } }
+                )
+            ) {
+                Button("好", role: .cancel) {
+                    store.clearLikeNotice()
                 }
             }
             .task {
-                await reload()
+                await loadIfNeeded()
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .post(let id):
-                    FeedPostDetailView(store: store, postID: id) { ref in
+                    FeedPostDetailView(
+                        store: store, postID: id,
+                        refInfo: { ref in
+                            // §459：事件帖来源行存亡判据
+                            // 与列表同源（就绪＋解析不到
+                            // 才算已删除）
+                            guard let type = ref.refType
+                            else { return (nil, false) }
+                            let title = refResolvedTitle(ref)
+                            return (
+                                title,
+                                refSourceReady(type)
+                                    && title == nil
+                            )
+                        }
+                    ) { ref in
                         path.append(Route.ref(ref))
                     }
                 case .ref(let ref):
@@ -151,39 +248,217 @@ struct FeedView: View {
                 }
             }
         }
+        .topAnchoredPanel(isPresented: $briefEditorShown) { size in
+            FeedBriefEditorView(
+                store: store,
+                screenHeight: size.height,
+                onClose: { briefEditorShown = false }
+            )
+        }
     }
 
+    /// 强制重拉（下拉刷新/错误态重试专用）：只拉本
+    /// 面——跨面联动已拆（§367.5）：点子/目标/看板/
+    /// 监测各面按自己的触发自治，refs 标题解析改读
+    /// 各店已载数据、缺数降级类别文案（既有口径）
     private func reload() async {
         await store.load(appState: appState)
-        // refs 标题解析面：失败只降级为类别文案，不挡帖子
-        async let ideas: Void = ideasStore.load(appState: appState)
-        async let goals: Void = goalsStore.load(appState: appState)
-        async let board: Void = kanban.load(appState: appState)
-        async let monitors: Void = monitorsStore.load(appState: appState)
-        _ = await (ideas, goals, board, monitors)
+    }
+
+    /// 读触发入口（.task）：过新鲜度门，TTL 内零请求
+    private func loadIfNeeded() async {
+        await store.loadIfNeeded(appState: appState)
+    }
+
+    // MARK: - 页头（§486）
+
+    /// 页头整簇：身份簇（ContentPageHeader，滑杆钮
+    /// 归其右位）＋大标题（pageTitle 34，与参照同
+    /// 档）＋标题下字段槽。本簇在列表之外——滚动时
+    /// 天然钉顶；§498 起簇与标题恒常驻，滚动只切
+    /// 字段槽形态（见 fieldMode）
+    private var feedPageHead: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ContentPageHeader(
+                onOpenHub: { showHub = true }
+            ) {
+                PageHeaderCircleButton(
+                    symbol: "slider.horizontal.3",
+                    label: "编辑简报"
+                ) {
+                    briefEditorShown = true
+                }
+            }
+            Text("动态")
+                .font(.pageTitle)
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingS)
+            fieldSlot
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingS)
+                .padding(.bottom, OneDayMetrics.spacingS)
+        }
+    }
+
+    /// 字段槽切换判定：过阈值换搜索入口、回阈值内
+    /// 还简报胶囊（状态不变不重写，免无谓重绘）
+    private func updateFieldSlot(_ offset: CGFloat) {
+        let swapped = offset > Self.collapseThreshold
+        if swapped != fieldSlotSwapped {
+            fieldSlotSwapped = swapped
+        }
+    }
+
+    /// 标题下字段槽的形态（§486.2【推定待真机帧翻
+    /// 案】）：静止态＝简报胶囊首行、滚过阈值＝搜索
+    /// 字段顶替、搜索激活中＝真搜索行。依据＝审计
+    /// §1.3 槽位推定（静止帧见简报胶囊、滚动帧同位
+    /// 见搜索字段）；翻案时只改本判定与 collapse-
+    /// Threshold，两形态件本体不动。§498：本切换是
+    /// 全 App 唯一保留的滚动形态变化——整行交互件
+    /// 互换、非收起（簇与标题不动、编辑简报另有滑
+    /// 杆钮常驻入口）
+    private enum FieldMode {
+        case brief
+        case searchEntry
+        case searching
+    }
+
+    private var fieldMode: FieldMode {
+        if isSearching { return .searching }
+        return fieldSlotSwapped ? .searchEntry : .brief
+    }
+
+    @ViewBuilder
+    private var fieldSlot: some View {
+        switch fieldMode {
+        case .searching:
+            // 真搜索行：内嵌搜索件单源 FileSearchField
+            // （第 88 条对账）＋取消，与资源库页同式；
+            // 过滤仍走既有快照（searchText/isSearching）
+            HStack(spacing: OneDayMetrics.spacingS) {
+                FileSearchField(
+                    query: $searchText,
+                    placeholder: "搜索动态",
+                    autoFocus: true
+                )
+                Button("取消") {
+                    isSearching = false
+                }
+                .font(.body)
+                .foregroundStyle(Palette.primary)
+                .buttonStyle(.odPressable)
+            }
+        case .searchEntry:
+            // 滚动帧的搜索字段形态（照参照量测：浅灰
+            // 填充、高 50、大圆角、占位「搜索动态」）：
+            // 点按进真搜索行
+            Button {
+                isSearching = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Image(systemName: "magnifyingglass")
+                    Text("搜索动态")
+                    Spacer(minLength: 0)
+                }
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(height: 50)
+                .background(
+                    Palette.fieldFill,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("搜索动态")
+        case .brief:
+            // 简报胶囊（静止帧形态）：当前生效简报首
+            // 行单行省略；点按开简报编辑器（与滑杆钮
+            // 同落点）。简报未载/为空显引导文案（与空
+            // 态同句），不假造内容
+            Button {
+                briefEditorShown = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Text(briefPillText)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .font(.subheadline)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(height: 40)
+                .background(Palette.fieldFill, in: Capsule())
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("编辑简报")
+        }
+    }
+
+    /// 简报胶囊文案：生效全文（FeedBriefBoard 单源
+    /// 口径，与编辑器同读）的首行
+    private var briefPillText: String {
+        let text = store.briefDoc
+            .map(FeedBriefBoard.effectiveText) ?? ""
+        let firstLine = text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .first.map(String.init) ?? ""
+        let trimmed = firstLine.trimmingCharacters(
+            in: .whitespaces
+        )
+        return trimmed.isEmpty
+            ? "写下你感兴趣什么，我每天替你去看" : trimmed
     }
 
     // MARK: - 就绪内容
 
     @ViewBuilder
-    private var readyContent: some View {
-        if store.posts.isEmpty {
+    private func readyContent(
+        _ snapshot: FeedListSnapshot
+    ) -> some View {
+        if store.posts.isEmpty, !store.seedPosts.isEmpty {
+            // FA-2：从未产出且无真帖时，种子帖垫底——
+            // 与真帖同列表形态呈现（行本体共用 postRow，
+            // 动作行走种子分支：讨论/删除＋「上手指南」）
+            List {
+                Section {
+                    ForEach(store.seedPosts) { post in
+                        postRow(post)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Palette.pageBG)
+            .listSectionSpacing(OneDayMetrics.spacingM)
+            .contentMargins(.top, topMargin, for: .scrollContent)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, newValue in
+                updateFieldSlot(newValue)
+            }
+            .refreshable {
+                await reload()
+            }
+        } else if store.posts.isEmpty {
             switch store.emptyKind {
             case .neverProduced:
-                ContentUnavailableView(
+                ODEmptyState(
                     "动态刚上线",
                     systemImage: "doc.text",
-                    description: Text(
-                        "写下你感兴趣什么，我每天替你去看；第一轮明早 8:30 到。站内的新点子、新简报也会汇编到这里。"
-                    )
+                    description: "写下你感兴趣什么，我每天替你去看；第一轮明早 8:30 到。站内的新点子、新简报也会汇编到这里。"
                 )
             case .quiet:
-                ContentUnavailableView(
+                ODEmptyState(
                     "近来没有新动态",
                     systemImage: "moon.zzz",
-                    description: Text(
-                        "今天没有值得一提的新发现；有动静时这里会先更新。"
-                    )
+                    description: "今天没有值得一提的新发现；有动静时这里会先更新。"
                 )
             }
         } else {
@@ -191,7 +466,7 @@ struct FeedView: View {
                 // 简报胶囊行已整行删除（§126）：简报
                 // 入口只剩工具栏滑杆钮；动态不再有占
                 // 行的页头横幅，标题之下直接是帖流
-                if isSearching, visiblePosts.isEmpty {
+                if isSearching, snapshot.visiblePosts.isEmpty {
                     Section {
                         ContentUnavailableView(
                             "没有找到相关动态",
@@ -202,12 +477,14 @@ struct FeedView: View {
                 }
 
                 // §177：单条时间流——一个无头 Section
-                // 盛全部帖（FeedBoard.sorted 纯时间
-                // 序）；日期分组与分组头整套撤下（用
-                // 户亲定「不要今天、昨天这些时间」）
-                if !visiblePosts.isEmpty {
+                // 盛全部帖；日期分组与分组头整套撤下
+                // （用户亲定「不要今天、昨天这些时
+                // 间」）。顺序 §459 改判：照单全收服务
+                // 端序（近三日 usefulness 序），快照只
+                // 过滤不重排（见 FeedListSnapshot）
+                if !snapshot.visiblePosts.isEmpty {
                     Section {
-                        ForEach(FeedBoard.sorted(visiblePosts)) { post in
+                        ForEach(snapshot.visiblePosts) { post in
                             postRow(post)
                         }
                     }
@@ -225,17 +502,12 @@ struct FeedView: View {
             // spacingM，不回系统默认
             .listSectionSpacing(OneDayMetrics.spacingM)
             .contentMargins(.top, topMargin, for: .scrollContent)
-            // 搜索点开式（§126）：落点改工具栏——点
-            // 放大镜才展开搜索场，不再常驻一行；收起
-            // 即清过滤态（下方 onChange）
-            .searchable(
-                text: $searchText, isPresented: $isSearching,
-                placement: .toolbar, prompt: "搜索动态"
-            )
-            .onChange(of: isSearching) { _, searching in
-                if !searching {
-                    searchText = ""
-                }
+            // §498：滚动偏移只驱动字段槽切换（归一
+            // 化偏移＝offset＋顶 inset，静止恒 0）
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, newValue in
+                updateFieldSlot(newValue)
             }
             .refreshable {
                 await reload()
@@ -249,21 +521,6 @@ struct FeedView: View {
             // 下缘 API，映射口径见 DESIGN §170.2）
             // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
             .scrollEdgeEffectStyle(.soft, for: .bottom)
-        }
-    }
-
-    /// 搜索过滤（0.47.0）：标题或正文命中即留；排
-    /// 序与全量同走 FeedBoard.sorted 唯一口径（单条
-    /// 时间流，§177 起不再经 dayGroups 分组——该函
-    /// 数保留在 Core 仅作口径存档，不再有呈现调用方）
-    private var visiblePosts: [BridgeFeedPost] {
-        let query = searchText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        guard isSearching, !query.isEmpty else { return store.posts }
-        return store.posts.filter {
-            $0.title.localizedCaseInsensitiveContains(query)
-                || $0.body.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -282,34 +539,75 @@ struct FeedView: View {
     /// ImageBox 定尺盒（见该类型注）
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
-            Text(post.displayEmoji)
-                .font(.system(size: 38))
+            Image(systemName: post.kind.symbolName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 28, height: 28)
+                .background(post.kind.kickerColor)
+                // §486.3：扁平瓷砖圆角收令牌 radiusTile
+                // （与点子页 §462 瓷砖同值同形）
+                .clipShape(RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusTile
+                ))
                 .frame(width: 44, height: 44)
-                // 内容 emoji 是帖的类别信号、动作行另
+                // kicker 字形块是帖的类别信号、动作行另
                 // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
-                    Text(post.title)
-                        // 0.47.0（§117.5 记账）：行题经
-                        // 用户对标指令改回 semibold——
-                        // C14 的 .rowTitle 归轨只限本页
-                        // 与点子页，其余页面角色表不动
-                        .font(.headline)
-                        .foregroundStyle(Palette.ink)
-                        // 0.43.0（A11Y-D3）：AX 档放宽
-                        .a11yLineLimit(2, ax: 4)
-                    // 未读蓝点已撤（§126）：动态取消一切
-                    // 未读提醒面；已读回写保留为静默账本
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
+                Button {
                     openPost(post)
+                } label: {
+                    HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
+                        Text(post.title)
+                            // §364（台账 23）：行题升内容行题
+                            // 例外角色 contentListTitle
+                            // （Title3 semibold）——§117.5 例
+                            // 外经用户 2026-11-22 裁定扩展至
+                            // 目标面，三面同例
+                            .font(.contentListTitle)
+                            .foregroundStyle(Palette.ink)
+                            // 0.43.0（A11Y-D3）：AX 档放宽
+                            .a11yLineLimit(2, ax: 4)
+                        // 未读蓝点已撤（§126）：动态取消一切
+                        // 未读提醒面；已读回写保留为静默账本
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        // 可点指示（2026-11-15 第 88 条，宪法
+                        // §9「可点必有指示」）：标题可点进详
+                        // 情此前与正文同貌无任何指示，补行尾
+                        // 弱色 chevron；VO 侧本有 .isButton＋
+                        // accessibilityAction、不受影响
+                        DisclosureChevron(font: .caption2.weight(.semibold))
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.odPressable)
                 .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction {
-                    openPost(post)
+                // §459：category chip——简报方向原文
+                // （如「GitHub 热门」）；事件/小结帖为
+                // nil 不渲染，不拿 kind 名冒充。§486.3
+                // 升参照话题灰片档：subheadline（≈15）
+                // ＋高 ≈29、浅灰填充、圆角矩形（照审
+                // 计量测：标题下、正文上、单片）
+                if let category = post.category,
+                   !category.trimmingCharacters(
+                       in: .whitespacesAndNewlines
+                   ).isEmpty {
+                    Text(category)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(
+                            .horizontal, OneDayMetrics.spacingSM
+                        )
+                        .padding(
+                            .vertical, OneDayMetrics.spacingXS
+                        )
+                        .background(
+                            Palette.selectionFill,
+                            in: RoundedRectangle(
+                                cornerRadius: OneDayMetrics.radiusTile
+                            )
+                        )
+                        .lineLimit(1)
                 }
                 if !post.body.isEmpty {
                     let rowBody = FeedBoard.rowBodyPresentation(
@@ -336,10 +634,24 @@ struct FeedView: View {
                 // 机理，用户 12:41 截图实证）；加载未
                 // 成/失败整块不显（宁无图不假图、不摆
                 // 占位，旧口径不变）
+                // §486.3：首图若是某链接/来源卡的出处图
+                // （sourceUrl 命中 links 或来源卡 url，
+                // 即该页的 OG 图），不再整幅渲成封面图
+                // ——链接由下方预览卡/来源卡承载；真配
+                // 图（sourceUrl 不命中）照旧通栏
                 if let first = post.images.first,
+                   !isLinkCoverImage(first, of: post),
                    let url = URL(string: first.url) {
-                    AsyncImage(url: url) { phase in
-                        if case .success(let image) = phase {
+                    // §418：取图换 Nuke LazyImage（统一管
+                    // 线：解码缓存＋降采样，旧 AsyncImage
+                    // 两样都没有）；失败/未成整块不显的
+                    // 旧口径由 success-only 闭包等价实现
+                    LazyImage(
+                        request: RemoteImageRequestFactory
+                            .publicRequest(
+                                url: url, longEdgeCap: 1200)
+                    ) { state in
+                        if let image = state.image {
                             FeedPostImageBox(
                                 image: image,
                                 cornerRadius: OneDayMetrics
@@ -347,13 +659,23 @@ struct FeedView: View {
                             )
                         }
                     }
+                    .pipeline(OneDayImagePipelines.remote)
+                    .id(url)
                     .accessibilityHidden(true)
                 }
                 if let card = post.sourceCard {
                     FeedSourceCardView(card: card)
+                } else if let link = post.links.first {
+                    // §486.3：无来源卡时首链走 OG 式预
+                    // 览卡（站点名＋标题＋域名）；余下链
+                    // 接仍在详情页全量呈现
+                    FeedLinkPreviewCard(link: link)
                 }
                 if !post.refs.isEmpty {
-                    refsRow(post.refs)
+                    refsRow(post)
+                }
+                if expandedAboutID == post.id {
+                    aboutSection(post)
                 }
                 actionRow(post)
             }
@@ -367,15 +689,57 @@ struct FeedView: View {
         }
     }
 
-    /// 动作行（0.47.0）：讨论（以本帖开新会话）＋类
-    /// 别小字＋相对时间＋ⓘ（来源小 sheet）。行内含
-    /// 真按钮，0.43.0 的「动作行合并元素」自此退役
-    /// ——合并会吞掉按钮的可达性
+    /// 动作行（0.47.0；§453 收简约对 Muse 卡底
+    /// 定版）：♡＋讨论＋短相对时间＋ⓘ 四件——类别
+    /// 与方向撤出卡底归详情头，精确时刻搬进 ⓘ 的
+    /// 「关于」展开节。行内含真按钮，0.43.0 的「动
+    /// 作行合并元素」自此退役——合并吞按钮可达性
+    @ViewBuilder
     private func actionRow(_ post: BridgeFeedPost) -> some View {
+        if FeedSeedPosts.isSeed(post.id) {
+            // FA-2 种子动作行：讨论（同真帖，带原文开
+            // 旁聊）＋删除（本地标记、删了不复活）＋
+            // 「上手指南」kicker 明示；无点赞/来源/时间
+            // （不在桥上，没有这些账）
+            HStack(spacing: OneDayMetrics.spacingM) {
+                Button {
+                    discuss(post)
+                } label: {
+                    HStack(spacing: OneDayMetrics.stackGap) {
+                        Image(systemName: "text.bubble")
+                        Text("讨论")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    store.deleteSeed(post)
+                } label: {
+                    HStack(spacing: OneDayMetrics.stackGap) {
+                        Image(systemName: "trash")
+                        Text("删除")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                Text(post.kind.label)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                Spacer()
+            }
+        } else {
+            seedlessActionRow(post)
+        }
+    }
+
+    private func seedlessActionRow(_ post: BridgeFeedPost) -> some View {
         HStack(spacing: OneDayMetrics.spacingM) {
-            // 爱心（FA-1）：填充态读桥 likedAt（桥为
-            // 真源）、点按走 FeedStore.toggleLiked 幂
-            // 等写、失败不本地假装；行面只加一钮，
+            // 爱心（FA-1；§233 改乐观时序）：填充态读
+            // likedAt、点按当拍先翻本地呈现，后台走
+            // FeedStore.toggleLiked 幂等写＋回执对账，
+            // 失败恢复原状＋轻提醒；行面只加一钮，
             // 不新增 why/edition 字样（守 §126 行面栈
             // 与 rev2 §1.9 冻结契约）
             Button {
@@ -395,39 +759,89 @@ struct FeedView: View {
                 HStack(spacing: OneDayMetrics.stackGap) {
                     Image(systemName: "text.bubble")
                     Text("讨论")
+                        .lineLimit(1)
                 }
                 .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
+                .fixedSize(horizontal: true, vertical: false)
             }
             .buttonStyle(.plain)
-            Text(post.kind.label)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-            if let direction = post.direction, !direction.isEmpty {
-                Text(direction)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
+            // §453：类别（kind.label）与方向撤出卡
+            // 底——归详情页头部（类别原已在详情头，
+            // 本包补方向），卡面只留四件
             // 动作行「未读」文字已撤（§126）：与底栏
             // 角标、行内蓝点同批取消未读提醒面
             Spacer()
-            Text(FeedBoard.relativeText(
+            Text(FeedBoard.relativeShortText(
                 for: post.createdAt, now: Date()
             ))
             .font(.footnote)
             .foregroundStyle(Palette.inkSecondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             Button {
                 markRead(post)
-                sourcesPost = post
+                // §489（HIG 批 A／P1-01）：字面动画收编
+                // 令牌册——折叠展开走 swap 档、经 resolved
+                // 出口（Reduce Motion 开启即瞬时）
+                withAnimation(MotionTokens.resolved(
+                    MotionTokens.swap, reduceMotion: reduceMotion
+                )) {
+                    expandedAboutID =
+                        expandedAboutID == post.id ? nil : post.id
+                }
             } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Palette.inkSecondary)
+                Image(systemName: expandedAboutID == post.id
+                      ? "info.circle.fill" : "info.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        expandedAboutID == post.id
+                            ? Palette.ink : Palette.inkSecondary
+                    )
+                    // 第 83 条（命中域收口）：字形不变、命
+                    // 中域外扩 44；负内边距按字形名义 15 抵
+                    // 消（(44−15)/2），帖头行高由同排脚注文
+                    // 本主导、布局不动
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+                    .padding(-(OneDayMetrics.minTapTarget - 15) / 2)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("来源")
+            .accessibilityLabel(
+                expandedAboutID == post.id ? "收起关于" : "关于"
+            )
         }
+    }
+
+    /// 「关于」展开节（§453 对 Muse 定版）：ⓘ 在
+    /// 卡内原地展开——标题「为何我创建这篇帖子」＋
+    /// 生成理由（why 真字段）＋节底精确时刻；无理
+    /// 由的帖只给时刻、不编理由。内容裁决在 Core
+    /// FeedBoard.aboutSection，展开态与 ⓘ 实心态绑定
+    @ViewBuilder
+    private func aboutSection(_ post: BridgeFeedPost) -> some View {
+        let about = FeedBoard.aboutSection(for: post)
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            Divider()
+            if about.showsHeading {
+                Text("为何我创建这篇帖子")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                if let reason = about.reason {
+                    Text(reason)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            Text(about.preciseTime)
+                .font(.subheadline)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .transition(.opacity)
     }
 
     private func openPost(_ post: BridgeFeedPost) {
@@ -435,64 +849,187 @@ struct FeedView: View {
         path.append(Route.post(post.id))
     }
 
-    /// 已读回写：未读才发（markRead 内部幂等、桥回
-    /// 执对账）；失败按下轮 load 的服务端真源纠正
+    /// 链接出处图判定（§486.3）：图注 sourceUrl 命
+    /// 中本帖任一链接或来源卡的 url＝该页的 OG 图
+    /// （桥抓图口径：图出自来源页，见 BridgeFeed-
+    /// Image）；空 sourceUrl 不命中
+    private func isLinkCoverImage(
+        _ image: BridgeFeedImage, of post: BridgeFeedPost
+    ) -> Bool {
+        guard !image.sourceUrl.isEmpty else { return false }
+        if post.links.contains(where: { $0.url == image.sourceUrl }) {
+            return true
+        }
+        return post.sourceCard?.url == image.sourceUrl
+    }
+
+    /// §208 回跳落点判定：挂起帖在已载名单里→直达
+    /// 详情并销挂起；名单已就绪（.ready）而查无→帖
+    /// 真不在了，诚实提示并销挂起；名单未就绪→继
+    /// 续挂起，等 posts 变更时由 onChange 再判
+    private func resolveFeedOpen() {
+        guard let id = pendingFeedOpenPostID else { return }
+        if store.post(id: id) != nil {
+            pendingFeedOpenPostID = nil
+            path.append(Route.post(id))
+        } else if case .ready = store.loadState {
+            pendingFeedOpenPostID = nil
+            feedPostGoneNotice = true
+        }
+    }
+
+    /// 已读回写：未读才发（§233 本地先行——markRead
+    /// 先落本地已读再向桥确认，失败静默留下轮名单纠正）
     private func markRead(_ post: BridgeFeedPost) {
         guard !post.isRead else { return }
         Task { await store.markRead(appState: appState, post: post) }
     }
 
-    /// 讨论（0.47.0）：以本帖为上下文开一条新对话
-    /// ——本地建线程（DrawerView.createThread 同形）、
-    /// 预填开场（标题＋正文摘录）进输入框草稿、切到
-    /// 聊天格选中该线程；用户改完再发，本钮不代发
-    /// §123（M2）：预填拼装收口 Core FeedDiscussPrefill
-    /// ——超长正文改句界节选＋明标「原帖节选」，尾行带
-    /// 原帖回指（旧实现 prefix(1200) 硬截无标记无回指）
-    /// FA-1：建聊同时登记待发信号关联——该旁聊第一
-    /// 条用户消息发出后，ChatView 据此发一记 discuss
-    /// 信号（契约 rev2 §1.9；本钮仍不代发消息）
+    /// 讨论（0.47.0；§208 引用化）：以本帖为引用开
+    /// 一条对话——帖以引用卡挂发送舱（FeedPostQuote
+    /// 值快照），输入框恒空、亲笔才是草稿；引用直
+    /// 写目标线程的待发状态（AppState.pendingFeed-
+    /// QuotesByThread，§210 改挂、ChatView 派生呈
+    /// 现），永不进草稿账。
+    /// §208 前旧形（预填经 setDraft 直写草稿账）已
+    /// 退役：预填文与亲笔在草稿账里同形、被防丢稿
+    /// 保活永久保护，没发就赖着不走（用户
+    /// 2026-11-13 点名）；存量旧预填由包 3 清扫。
+    /// 去重：同帖已有讨论线程复用（FA-1 关联反
+    /// 查，threadID(forFeedDiscussPostID:)），不
+    /// 再堆空会话；复用不覆盖其草稿（本路根本不
+    /// 写草稿账），关联在但线程已删则补建并改写
+    /// 关联（与点子流 openIdeaChat 同形）
+    /// FA-1：建聊同时登记待发信号关联——该线程
+    /// 第一条用户消息发出后，ChatView 据此发一记
+    /// discuss 信号（契约 rev2 §1.9；本钮仍不代
+    /// 发消息）
     private func discuss(_ post: BridgeFeedPost) {
         markRead(post)
-        let thread = ChatThread()
-        modelContext.insert(thread)
-        try? modelContext.save()
-        appState.sideChats.linkFeedDiscussThread(thread.id, postID: post.id)
-        let prefill = FeedDiscussPrefill.make(
-            title: post.title, body: post.body
+        let thread: ChatThread
+        if let linkedID = appState.sessionLedger.threadID(
+            forFeedDiscussPostID: post.id
+        ), let existing = fetchThread(linkedID) {
+            thread = existing
+        } else {
+            let fresh = ChatThread()
+            modelContext.insert(fresh)
+            try? modelContext.save()
+            appState.sessionLedger.linkFeedDiscussThread(
+                fresh.id, postID: post.id
+            )
+            thread = fresh
+        }
+        // §210：引用直写目标线程的待发状态（落点决定
+        // 与引用写入同动作完成），不再经全局种子
+        appState.pendingQuotes.feedQuotesByThread[thread.id] =
+            FeedPostQuote(post: post)
+        appState.router.drawerThreadSelection = thread.id
+        appState.router.mainTabSwitchRequest = .chat
+    }
+
+    /// 按 id 取本地线程（点子流 fetchThread 同形）
+    private func fetchThread(_ id: UUID) -> ChatThread? {
+        let descriptor = FetchDescriptor<ChatThread>(
+            predicate: #Predicate { $0.id == id }
         )
-        appState.sideChats.setDraft(prefill, for: thread.id)
-        appState.drawerThreadSelection = thread.id
-        appState.mainTabSwitchRequest = .chat
+        return try? modelContext.fetch(descriptor).first
     }
 
     /// refs 蓝字内链：横滑小链，点达对象详情（标题
     /// 解析不到时回类别文案，不编名）
-    private func refsRow(_ refs: [BridgeFeedRef]) -> some View {
+    private func refsRow(_ post: BridgeFeedPost) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 ForEach(
-                    Array(refs.enumerated()), id: \.offset
+                    Array(post.refs.enumerated()), id: \.offset
                 ) { _, ref in
-                    if ref.refType != nil {
-                        Button {
-                            path.append(Route.ref(ref))
-                        } label: {
-                            HStack(spacing: 4) {
+                    if let type = ref.refType {
+                        if post.kind == .event,
+                           refSourceReady(type),
+                           refResolvedTitle(ref) == nil {
+                            // §459 事件帖来源行：源头实体
+                            // 已不在（删除/过期）——帖仍
+                            // 在，来源置灰标已删除、不给
+                            // 假链接
+                            HStack(spacing: OneDayMetrics.spacingXS) {
                                 Image(
-                                    systemName: ref.refType!.symbolName
+                                    systemName: type.symbolName
                                 )
-                                .font(.system(size: 11))
-                                Text(refLabel(ref))
+                                .font(.caption2)
+                                Text("\(type.label) · 已删除")
                                     .lineLimit(1)
                             }
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(Palette.primary)
+                            .foregroundStyle(Palette.inkSecondary)
+                        } else {
+                            Button {
+                                path.append(Route.ref(ref))
+                            } label: {
+                                HStack(spacing: OneDayMetrics.spacingXS) {
+                                    Image(
+                                        systemName: type.symbolName
+                                    )
+                                    .font(.caption2)
+                                    Text(refLabel(ref))
+                                        .lineLimit(1)
+                                }
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(Palette.primary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
+        }
+    }
+
+    /// ref 源名单就绪判据（§459）：对应 store 已成
+    /// 功加载过才许下「已删除」结论；未就绪（本会话
+    /// 还没去过那个面）时存亡未知，事件帖来源行回
+    /// 既有中性呈现（蓝链＋类别文案，点达后详情自
+    /// 带懒拉见真章），不许把没加载冒充已删除
+    private func refSourceReady(_ type: FeedRefType) -> Bool {
+        switch type {
+        case .idea:
+            return ideasStore.loadState == .ready
+        case .goal, .briefing:
+            return goalsStore.loadState == .ready
+        case .task:
+            return kanban.snapshot != nil
+        case .monitor:
+            return monitorsStore.loadState == .ready
+        }
+    }
+
+    /// ref 标题真解析：实体在对应名单里才有标题；
+    /// 解析不到回 nil（与 refLabel 的类别文案兜底分
+    /// 工——那是呈现兜底、这是存亡判据，不许混用）
+    private func refResolvedTitle(
+        _ ref: BridgeFeedRef
+    ) -> String? {
+        switch ref.refType {
+        case .idea:
+            return ideasStore.ideas
+                .first { $0.id == ref.id }?.title
+        case .goal:
+            return goalsStore.goals
+                .first { $0.id == ref.id }?.title
+        case .task:
+            return kanban.snapshot?.tasks
+                .first { $0.id == ref.id }?.title
+        case .monitor:
+            return monitorsStore.monitors
+                .first { $0.id == ref.id }?.name
+        case .briefing:
+            guard let gid = ref.goalId,
+                  let goal = goalsStore.goals
+                    .first(where: { $0.id == gid })
+            else { return nil }
+            return "《\(goal.title)》的简报"
+        case nil:
+            return nil
         }
     }
 
@@ -560,26 +1097,53 @@ struct FeedPostDetailView: View {
     @Environment(AppState.self) private var appState
     let store: FeedStore
     let postID: String
+    /// ref 呈现信息（§459）：标题真解析＋已删除判据
+    /// 由列表面注入（与卡面来源行同源）；缺省＝无标
+    /// 题、不断言已删除（独立呈现时不断言存亡）
+    var refInfo: (BridgeFeedRef) -> (
+        title: String?, isDeleted: Bool
+    ) = { _ in (nil, false) }
     let onOpenRef: (BridgeFeedRef) -> Void
 
     var body: some View {
         Group {
             if let post = store.post(id: postID) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+                        HStack(spacing: OneDayMetrics.spacingS) {
                             Image(systemName: post.kind.symbolName)
-                                .font(.system(size: 15))
+                                .font(.subheadline)
                                 .foregroundStyle(Palette.inkSecondary)
                             Text(post.kind.label)
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(Palette.inkSecondary)
+                            // §453：方向自卡底撤出后归
+                            // 此（类别原已在详情头）
+                            if let direction = post.direction,
+                               !direction.isEmpty {
+                                Text(direction)
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(1)
+                            }
                             Spacer()
-                            Text(FeedBoard.relativeText(
-                                for: post.createdAt, now: Date()
-                            ))
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
+                            // FA-2：种子帖无产出时刻，
+                            // 详情头不显相对时间
+                            if !FeedSeedPosts.isSeed(post.id) {
+                                Text(FeedBoard.relativeText(
+                                    for: post.createdAt, now: Date()
+                                ))
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                            }
+                        }
+                        // §459：有用度只作弱提示——详情
+                        // 头下一行小字，不进卡面主视觉、
+                        // 不参与任何本地排序
+                        if let usefulness = post.usefulness {
+                            Text("有用度 \(Int(usefulness.rounded()))")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                         Text(post.title)
                             // 0.41.0（C14/P5）：字面量收编
@@ -600,9 +1164,15 @@ struct FeedPostDetailView: View {
                             id: \.offset
                         ) { _, item in
                             if let url = URL(string: item.url) {
-                                AsyncImage(url: url) { phase in
-                                    if case .success(let image)
-                                        = phase {
+                                // §418：同帖行口径换 LazyImage
+                                LazyImage(
+                                    request:
+                                        RemoteImageRequestFactory
+                                        .publicRequest(
+                                            url: url,
+                                            longEdgeCap: 1600)
+                                ) { state in
+                                    if let image = state.image {
                                         FeedPostImageBox(
                                             image: image,
                                             cornerRadius:
@@ -611,6 +1181,9 @@ struct FeedPostDetailView: View {
                                         )
                                     }
                                 }
+                                .pipeline(
+                                    OneDayImagePipelines.remote)
+                                .id(url)
                                 // 0.43.0（A11Y-V2）：详情大
                                 // 图的文本等价——以图片 URL
                                 // 文件名为最低口径（A11y-
@@ -652,7 +1225,7 @@ struct FeedPostDetailView: View {
                             FeedSourceCardView(card: card)
                         }
                         if !post.links.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                                 Text("链接")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
@@ -666,7 +1239,7 @@ struct FeedPostDetailView: View {
                                                 Image(
                                                     systemName: "link"
                                                 )
-                                                .font(.system(size: 12))
+                                                .font(.caption)
                                                 Text(link.title.isEmpty
                                                      ? link.url : link.title)
                                                     .lineLimit(2)
@@ -681,7 +1254,7 @@ struct FeedPostDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         if !post.refs.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                                 Text("引用")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
@@ -690,33 +1263,53 @@ struct FeedPostDetailView: View {
                                     id: \.offset
                                 ) { _, ref in
                                     if let type = ref.refType {
-                                        Button {
-                                            onOpenRef(ref)
-                                        } label: {
+                                        let info = refInfo(ref)
+                                        if post.kind == .event,
+                                           info.isDeleted {
+                                            // §459：源头已删除
+                                            // ——置灰、不给假链接
                                             HStack(spacing: OneDayMetrics.rowInnerGap) {
                                                 Image(
                                                     systemName: type.symbolName
                                                 )
-                                                .font(.system(size: 12))
-                                                Text(type.label)
+                                                .font(.caption)
+                                                Text("\(type.label) · 已删除")
                                                 Spacer()
-                                                Image(
-                                                    systemName: "chevron.right"
-                                                )
-                                                .font(.system(size: 11,
-                                                                weight: .semibold))
                                             }
                                             .font(.subheadline)
-                                            .foregroundStyle(Palette.primary)
+                                            .foregroundStyle(Palette.inkSecondary)
+                                        } else {
+                                            Button {
+                                                onOpenRef(ref)
+                                            } label: {
+                                                HStack(spacing: OneDayMetrics.rowInnerGap) {
+                                                    Image(
+                                                        systemName: type.symbolName
+                                                    )
+                                                    .font(.caption)
+                                                    Text(
+                                                        post.kind == .event
+                                                            ? (info.title ?? type.label)
+                                                            : type.label
+                                                    )
+                                                    Spacer()
+                                                    Image(
+                                                        systemName: "chevron.right"
+                                                    )
+                                                    .font(.caption2.weight(.semibold))
+                                                }
+                                                .font(.subheadline)
+                                                .foregroundStyle(Palette.primary)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
-                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(16)
+                    .padding(OneDayMetrics.spacingM)
                 }
                 .background(Palette.pageBG)
                 .task {
@@ -742,7 +1335,7 @@ struct FeedPostDetailView: View {
 /// 担定尺寸的那一层，不许把比例约束挂在会以自然
 /// 尺寸参与求解的图片载体本体上）。帖行（只喂第
 /// 一张）与详情（逐张）共用；是否出现由外层
-/// AsyncImage 相位决定（成功才建盒，失败整块不
+/// LazyImage 状态决定（成功才建盒，失败整块不
 /// 显、无占位，旧口径不变）
 private struct FeedPostImageBox: View {
     let image: Image
@@ -771,8 +1364,14 @@ struct FeedSourceCardView: View {
         let content = HStack(alignment: .top, spacing: OneDayMetrics.cardInnerGap) {
             if let imageUrl = card.imageUrl,
                let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
+                // §418：同口径换 LazyImage；未成/失败显
+                // selectionFill 的旧回落由 else 分支保留
+                LazyImage(
+                    request: RemoteImageRequestFactory
+                        .publicRequest(
+                            url: url, longEdgeCap: 160)
+                ) { state in
+                    if let image = state.image {
                         image
                             .resizable()
                             .scaledToFill()
@@ -780,6 +1379,8 @@ struct FeedSourceCardView: View {
                         Palette.selectionFill
                     }
                 }
+                .pipeline(OneDayImagePipelines.remote)
+                .id(url)
                 .frame(width: 40, height: 40)
                 .clipShape(Circle())
             }
@@ -798,7 +1399,7 @@ struct FeedSourceCardView: View {
                         .lineLimit(2)
                 }
                 if !card.facts.isEmpty {
-                    HStack(spacing: 12) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
                         ForEach(
                             Array(card.facts.enumerated()),
                             id: \.offset
@@ -812,10 +1413,10 @@ struct FeedSourceCardView: View {
             }
             Spacer()
             Image(systemName: "arrow.up.forward")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(Palette.inkSecondary)
         }
-        .padding(12)
+        .padding(OneDayMetrics.spacingSM)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.surface,
@@ -829,308 +1430,403 @@ struct FeedSourceCardView: View {
     }
 }
 
-/// 来源小 sheet（0.47.0 §117）：动作行 ⓘ 的落点——
-/// 为什么选这篇＋外链清单＋站内引用；数据全是帖自
-/// 带字段（桥真抓），没有的段整段不出现。点引用先
-/// 关 sheet 再由父视图压栈（onOpenRef 回调）
-struct FeedSourcesSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let post: BridgeFeedPost
-    let onOpenRef: (BridgeFeedRef) -> Void
+/// 链接预览卡（§486.3）：照 Muse 动态页 OG 卡形
+/// 态——站点名（小字，顶）＋标题（大字 semibold）
+/// ＋域名（小字，底），整卡点开链接。数据只用桥下
+/// 发的 link{title, url}：桥不下发 og:site_name／
+/// og:description，App 不自拼不假造（来源卡 §0.38
+/// 同旨）——站点名位与域名位同由 url 的 host 派生
+/// （去 www.），域名位在路径非根时带路径以与站点
+/// 名位区分；根路径时域名位与站点名位同值、只显
+/// 站点名位一行。卡面与来源卡同族（surface 底＋
+/// radiusCard）
+struct FeedLinkPreviewCard: View {
+    let link: BridgeFeedLink
+
+    @Environment(\.openURL) private var openURL
+
+    private var url: URL? { URL(string: link.url) }
+
+    /// 站点标识：host 去 www.（URL 事实派生，非编造）
+    private var host: String {
+        guard let host = url?.host(percentEncoded: false)
+        else { return "" }
+        return host.hasPrefix("www.")
+            ? String(host.dropFirst(4)) : host
+    }
+
+    /// 域名行：host＋非根路径；根路径返回 nil（不与
+    /// 站点名行重复）
+    private var domainLine: String? {
+        guard let url, !host.isEmpty else { return nil }
+        let path = url.path(percentEncoded: false)
+        guard !path.isEmpty, path != "/" else { return nil }
+        return host + path
+    }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if let why = post.why, !why.isEmpty {
-                    Section {
-                        Text(why)
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.bodyInk)
-                    } header: {
-                        Text("为什么选这篇")
-                    }
+        Button {
+            if let url { openURL(url) }
+        } label: {
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingS
+            ) {
+                if !host.isEmpty {
+                    Text(host)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
                 }
-                if !post.links.isEmpty {
-                    Section {
-                        ForEach(
-                            Array(post.links.enumerated()), id: \.offset
-                        ) { _, link in
-                            if let url = URL(string: link.url) {
-                                Link(destination: url) {
-                                    HStack(spacing: OneDayMetrics.rowInnerGap) {
-                                        Image(systemName: "link")
-                                            .font(.system(size: 12))
-                                        Text(link.title.isEmpty
-                                             ? link.url : link.title)
-                                            .lineLimit(2)
-                                    }
-                                    .font(.subheadline)
-                                }
-                            }
-                        }
-                    } header: {
-                        Text("链接")
-                    }
-                }
-                if !post.refs.isEmpty {
-                    Section {
-                        ForEach(
-                            Array(post.refs.enumerated()), id: \.offset
-                        ) { _, ref in
-                            if let type = ref.refType {
-                                Button {
-                                    dismiss()
-                                    onOpenRef(ref)
-                                } label: {
-                                    HStack(spacing: OneDayMetrics.rowInnerGap) {
-                                        Image(systemName: type.symbolName)
-                                            .font(.system(size: 12))
-                                        Text(type.label)
-                                            .foregroundStyle(Palette.bodyInk)
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(Palette.inkSecondary)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    } header: {
-                        Text("引用")
-                    }
-                }
-                if post.why == nil || post.why?.isEmpty == true,
-                   post.links.isEmpty, post.refs.isEmpty {
-                    Section {
-                        Text("这篇没有附带来源信息")
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
+                Text(link.title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if let domainLine {
+                    Text(domainLine)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkMuted)
+                        .lineLimit(1)
                 }
             }
-            .navigationTitle("来源")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
-                }
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(OneDayMetrics.spacingM)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusCard
+                )
+            )
+            .contentShape(Rectangle())
         }
-        .presentationDetents([.medium, .large])
+        .buttonStyle(.odPressable)
+        .accessibilityLabel("链接：\(link.title)")
     }
 }
 
-/// 简报编辑器（0.38.0 两层制）：上层只写自己的话，
-/// 保存后由 AI 整理成下层的正式简报；正式简报可见
-/// 可改、直改保存同样算数。两层分开存、分开保存，
-/// 不许让用户对着空白框自写完整执行提示词——示例
-/// 只作参考呈现，点「填入示例」才进输入框。
+/// 来源小 sheet 已退役（§453）：ⓘ 改 Muse 式
+/// 「关于」原地展开节——why 归展开节，links/refs
+/// 归详情页（详情头与正文区已全量呈现），卡面不
+/// 再开 sheet
+
+/// 简报编辑器（§459 单层制，推翻 0.38.0 两层制）：
+/// 只有一个文本框绑服务端 text——打开见当前生效
+/// 全文（润色稿仅在与原文逐字对齐时才由服务端出
+/// 数，见 FeedBriefBoard.effectiveText），保存只发
+/// PUT /meta/brief {"text"} 原样落盘；润色状态以
+/// 极小提示如实呈现，不许假装已润色。本地未保存
+/// 草稿与服务端不一致时打开先弹问、不许静默吞
+/// 简报编辑器（§487 呈现换轨）：内容逻辑沿 §473
+/// 件一定版（打开必回读／pending 轻轮询／已改字不
+/// 覆盖／保存恒可用，逻辑一字未动）；呈现弃底部全
+/// 屏 sheet，改顶部锚定覆盖面板（TopAnchoredPanel
+/// 组件，几何与主题照参照录屏量测抄，DESIGN
+/// §487）。页头只剩两行——标题＋一句说明（用户
+/// 2026-11-24 12:09 亲令简化）；其余说明性文字全
+/// 删（清点见 §487），只留错误回执（保存失败／上
+/// 次整理失败）——回执不是说明。
 struct FeedBriefEditorView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
     let store: FeedStore
+    /// 呈现根层屏高（TopAnchoredPanel 闭包下传）：
+    /// 卡高按 TopPanelMetrics 占比取
+    let screenHeight: CGFloat
+    /// 关闭呈现（代旧 sheet 的 dismiss 环境值）
+    let onClose: () -> Void
 
-    @State private var interestText = ""
-    @State private var promptText = ""
+    @State private var text = ""
     @State private var initialized = false
-    @State private var savedNote: String?
+    /// 回读基线（§473 件一）：打开时回读到的服务端生
+    /// 效全文——变更判定与草稿对账以它为准；轮询换
+    /// 新时仅在用户未改字时让编辑框跟随、已改字只换
+    /// 基线不动编辑框；保存成功后随回执更新
+    @State private var baselineText = ""
+    @State private var draftConflictShown = false
+
+    /// 未改字判定（与草稿对账同源 FeedBriefBoard）：
+    /// 保存钮灰置档位以此为准——仅视觉档位，钮恒可
+    /// 用（§473 定版：禁用只剩 briefSaving 一因）
+    private var textUnchanged: Bool {
+        !FeedBriefBoard.textChanged(baselineText, text)
+    }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextEditor(text: $interestText)
-                        .frame(minHeight: 110)
-                } header: {
-                    Text("我感兴趣什么")
-                } footer: {
-                    Text("用自己的话写就行：关心哪几个方向、"
-                         + "什么样的内容不要。保存后我来整理"
-                         + "成下面的正式简报。")
+        VStack(spacing: TopPanelMetrics.cardButtonGap) {
+            card
+            buttonRow
+        }
+        .task {
+            // 打开必回读最新 briefDoc（§473 件一）：
+            // 不许再以「已有缓存」跳过——服务端润
+            // 色写回的专业稿靠本回读进编辑器（简报
+            // 定版第 3 条的 App 侧断链就此接上）
+            await store.loadBrief(appState: appState)
+            if !initialized {
+                let server = serverText
+                baselineText = server
+                if let draft = store.briefDraftText,
+                   FeedBriefBoard.textChanged(server, draft) {
+                    // 未保存草稿与服务端回读不一致：先以
+                    // 草稿占位并弹问，不许静默吞（§459）
+                    text = draft
+                    draftConflictShown = true
+                } else {
+                    text = server
                 }
+                initialized = true
+            }
+            // pending 期轻轮询（§473 件一）：约 10s
+            // 回读一次、done/error 即停；只换基线，
+            // 编辑框跟随与否在 onChange(briefDoc)
+            // 按「未改字才跟随」口径处理
+            while !Task.isCancelled,
+                  let doc = store.briefDoc,
+                  Self.polishInFlight(doc) {
+                try? await Task.sleep(for: .seconds(10))
+                if Task.isCancelled { break }
+                await store.loadBrief(appState: appState)
+            }
+        }
+        .onChange(of: store.briefDoc) { _, newDoc in
+            // 轮询换新（§473 件一）：编辑框仍等于旧
+            // 基线（用户未改字）时跟随新全文；已改
+            // 字只换基线、不覆盖编辑框
+            guard initialized, let newDoc else { return }
+            let newServer = FeedBriefBoard
+                .effectiveText(newDoc)
+            if !FeedBriefBoard.textChanged(baselineText, text) {
+                text = newServer
+            }
+            baselineText = newServer
+        }
+        .onChange(of: text) { _, newValue in
+            if initialized {
+                store.noteBriefDraft(
+                    newValue, serverText: baselineText
+                )
+            }
+        }
+        .confirmationDialog(
+            "有未保存的修改",
+            isPresented: $draftConflictShown,
+            titleVisibility: .visible
+        ) {
+            Button("继续编辑未保存的内容") {}
+            Button(
+                "用服务器上的版本", role: .destructive
+            ) {
+                text = baselineText
+                store.discardBriefDraft()
+            }
+        } message: {
+            Text("上次写的内容还没保存，和服务器上的简报不一样。")
+        }
+    }
 
-                Section {
-                    Text(FeedBriefBoard.exampleInterest)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                    Button {
-                        interestText = FeedBriefBoard.exampleInterest
-                    } label: {
-                        Label("填入示例改一改",
-                              systemImage: "text.badge.plus")
-                    }
-                } header: {
-                    Text("示例")
-                }
-
-                Section {
-                    // S2-11：保存钮提主钮层级——照 §118 审批
-                    // 卡主钮同款形态（通栏胶囊、高
-                    // ApprovalCardSpec.buttonHeight、蓝实心
-                    // 白字），不再用 Form 文本行式 Button
-                    Button {
-                        Task { await saveInterest() }
-                    } label: {
-                        ZStack {
-                            Text("保存兴趣")
-                                .font(.headline)
-                                .foregroundStyle(Color.white)
-                            if store.briefSaving {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .tint(Color.white)
-                                }
-                                .padding(
-                                    .trailing,
-                                    OneDayMetrics.spacingM
-                                )
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: ApprovalCardSpec.buttonHeight)
-                        .background(Palette.primary, in: Capsule())
-                        .contentShape(Capsule())
-                        .opacity(
-                            store.briefSaving || !interestChanged
-                                ? 0.45 : 1
-                        )
-                    }
-                    .buttonStyle(.odPressable)
-                    .disabled(
-                        store.briefSaving || !interestChanged
+    /// 编辑卡：页头两行钉住（标题＋一句说明，错误回
+    /// 执随页头同钉）＋正文卡内滚动、上下缘淡出遮罩
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FeedBriefPanelHeader(
+                briefError: store.briefError,
+                expandError: store.briefDoc?.expandError
+            )
+            TextEditor(text: $text)
+                .font(.body)
+                .foregroundStyle(.white)
+                .tint(.white)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                // TextEditor 内建 5pt 行首缩进补偿：
+                // 正文左缘与页头标题对齐（参照同形）
+                .padding(.leading, -5)
+                .padding(.top, 6)
+                .mask {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black, location: 0.07),
+                            .init(color: .black, location: 0.93),
+                            .init(color: .clear, location: 1),
+                        ],
+                        startPoint: .top, endPoint: .bottom
                     )
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                } footer: {
-                    Text("保存后先整理简报；整理出新版就立刻"
-                         + "按新简报去看一轮。平时每天早上 "
-                         + "8:30 例行一轮，有新发现就多一篇，"
-                         + "没有就不凑数。")
                 }
+        }
+        .padding(
+            .horizontal, TopPanelMetrics.contentHorizontalInset
+        )
+        .padding(.top, 24)
+        .padding(.bottom, 14)
+        .frame(
+            height: TopPanelMetrics.cardHeight(
+                screenHeight: screenHeight
+            )
+        )
+        .frame(maxWidth: .infinity)
+        .background(
+            TopPanelMetrics.cardFill,
+            in: RoundedRectangle(
+                cornerRadius: TopPanelMetrics.cornerRadius,
+                style: .continuous
+            )
+        )
+        .padding(
+            .horizontal, TopPanelMetrics.cardHorizontalInset
+        )
+    }
 
-                if let doc = store.briefDoc, doc.expanding {
-                    Section {
-                        HStack(spacing: 8) {
+    /// 双钮出卡固定（§487 照参照）：卡下 10pt、黑底
+    /// 上等宽胶囊；保存未改字呈灰置观感（仅视觉档
+    /// 位、恒可用，见 textUnchanged）
+    private var buttonRow: some View {
+        HStack(spacing: TopPanelMetrics.buttonSpacing) {
+            Button {
+                onClose()
+            } label: {
+                Text("取消")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TopPanelMetrics.buttonHeight)
+                    .background(
+                        TopPanelMetrics.cardFill, in: Capsule()
+                    )
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.odPressable)
+            Button {
+                Task { await save() }
+            } label: {
+                ZStack {
+                    Text("保存")
+                        .font(.headline)
+                        .foregroundStyle(
+                            textUnchanged
+                                ? TopPanelMetrics.saveIdleLabel
+                                : .white
+                        )
+                    if store.briefSaving {
+                        HStack {
+                            Spacer()
                             ProgressView()
                                 .controlSize(.small)
-                            Text("正在整理简报…")
-                                .foregroundStyle(Palette.inkSecondary)
+                                .tint(.white)
                         }
+                        .padding(
+                            .trailing, OneDayMetrics.spacingM
+                        )
                     }
                 }
-                if let error = store.briefDoc?.expandError,
-                   !error.isEmpty {
-                    Section {
-                        Text("上次整理没成功：\(error)")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-
-                Section {
-                    TextEditor(text: $promptText)
-                        .frame(minHeight: 150)
-                } header: {
-                    Text("正式简报")
-                } footer: {
-                    Text("这是每天真正照着去看的那份，由上"
-                         + "面的兴趣自动整理。你也可以直接改"
-                         + "它：保存后立刻按新简报去看一轮。")
-                }
-
-                Section {
-                    // S2-11：次钮同几何、降一档——浅灰填充
-                    // 墨字通栏胶囊，与上方主钮主次分明
-                    Button {
-                        Task { await savePrompt() }
-                    } label: {
-                        Text("保存正式简报")
-                            .font(.headline)
-                            .foregroundStyle(Palette.ink)
-                            .frame(maxWidth: .infinity)
-                            .frame(
-                                height: ApprovalCardSpec.buttonHeight
-                            )
-                            .background(
-                                Palette.selectionFill, in: Capsule()
-                            )
-                            .contentShape(Capsule())
-                            .opacity(
-                                store.briefSaving || !promptChanged
-                                    ? 0.45 : 1
-                            )
-                    }
-                    .buttonStyle(.odPressable)
-                    .disabled(store.briefSaving || !promptChanged)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                }
-
-                if let note = savedNote {
-                    Section {
-                        Text(note)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-                if let error = store.briefError {
-                    Section {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
+                .frame(maxWidth: .infinity)
+                .frame(height: TopPanelMetrics.buttonHeight)
+                .background(
+                    TopPanelMetrics.cardFill, in: Capsule()
+                )
+                .contentShape(Capsule())
             }
-            .navigationTitle("我的简报")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
-                }
-            }
-            .task {
-                if store.briefDoc == nil {
-                    await store.load(appState: appState)
-                }
-                if !initialized {
-                    interestText = store.briefDoc?.interest ?? ""
-                    promptText = store.briefDoc?.brief ?? ""
-                    initialized = true
-                }
-            }
+            .buttonStyle(.odPressable)
+            .disabled(store.briefSaving)
         }
-    }
-
-    private var interestChanged: Bool {
-        FeedBriefBoard.textChanged(
-            store.briefDoc?.interest ?? "", interestText
+        .padding(
+            .horizontal,
+            TopPanelMetrics.buttonRowHorizontalInset
         )
     }
 
-    private var promptChanged: Bool {
-        FeedBriefBoard.textChanged(
-            store.briefDoc?.brief ?? "", promptText
-        )
+    /// 服务端生效全文（store 回读口径；baselineText
+    /// 是打开时定格的基线快照，本口只在初始化时用）
+    private var serverText: String {
+        store.briefDoc.map(FeedBriefBoard.effectiveText) ?? ""
     }
 
-    private func saveInterest() async {
-        if await store.saveInterest(
-            appState: appState, interestText
-        ) {
-            savedNote = store.briefDoc?.expandStarted == true
-                ? "已保存，正在整理简报；整理出新版会立刻去看一轮。"
-                : "已保存。"
+    /// 润色在飞判定（新契约 pending／旧桥 idle 且
+    /// expanding 同义，§459 旧口径）：轮询口径
+    private static func polishInFlight(
+        _ doc: BridgeBriefDoc
+    ) -> Bool {
+        doc.polishState == .pending
+            || (doc.polishState == .idle && doc.expanding)
+    }
+
+    private func save() async {
+        // 保存成功即关页（对齐参照表单形态：保存＝
+        // 落盘＋离开）；失败留在页内看 briefError
+        // 触感补接线（§487）：走全 App 单源表 D 既
+        // 有语义（保存＝任务成功／操作失败），只接
+        // 线不新造；失败震以 briefError 回执在案为
+        // 准——无回执的静默 false（如未连接时保存
+        // 守卫）不震
+        if await store.saveBriefText(appState: appState, text) {
+            baselineText = serverText
+            Haptics.success()
+            onClose()
+        } else if store.briefError != nil {
+            Haptics.error()
         }
     }
+}
+/// 简报面板页头（§487）：只剩两行——标题「动态说
+/// 明」＋一句说明，钉在卡顶不随正文滚；错误回执
+/// （保存失败／上次整理失败）随页头同钉、恒可见。
+/// 独立成件以便钉测实测其高（见 §487 钉测）。
+struct FeedBriefPanelHeader: View {
+    let briefError: String?
+    let expandError: String?
 
-    private func savePrompt() async {
-        if await store.savePrompt(appState: appState, promptText) {
-            savedNote = store.briefDoc?.expandStarted == true
-                ? "已保存，正在按新简报去看一轮。"
-                : "已保存。"
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("动态说明")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+            Text("你的动态版块由以下指示驱动。"
+                 + "你对此说明做出的任何编辑，"
+                 + "都将应用于今后的动态帖子。")
+                .font(.subheadline)
+                .foregroundStyle(
+                    TopPanelMetrics.textSecondary
+                )
+            // 错误回执（功能必需，§487 清点留）：
+            // 保存失败即时回执
+            if let briefError {
+                Text(briefError)
+                    .font(.footnote)
+                    .foregroundStyle(
+                        TopPanelMetrics.errorText
+                    )
+            }
+            // 错误回执（同上）：上次整理失败的服务
+            // 端回执（旧 weakPolishHint 的 expandError
+            // 分支——其余弱提示文案已按 §487 全删）
+            if let expandError, !expandError.isEmpty {
+                Text("上次整理没成功：\(expandError)")
+                    .font(.footnote)
+                    .foregroundStyle(
+                        TopPanelMetrics.errorText
+                    )
+            }
+        }
+    }
+}
+
+// MARK: - Kicker 字形块映射（§462）
+
+extension FeedPostKind {
+    /// kicker 字形块底色（§462）：按类别映射到 Palette
+    /// 既有令牌——扁平色块，去卡通化
+    var kickerColor: Color {
+        switch self {
+        case .digest: return Palette.tintSky
+        // §459 合并补 case（0.50.111 组版）：.event 为
+        // §459 复活的本地事件成帖新 kind，§462 映射表
+        // 成表时该 kind 不存在；事件帖同属系统装配面，
+        // 与 .digest 同族取 tintSky，不新造令牌
+        case .event: return Palette.tintSky
+        case .morning: return Palette.tintOrange
+        case .research: return Palette.tintLavender
+        case .seed: return Palette.tintGreen
+        case .unknown: return Palette.primaryPale
         }
     }
 }

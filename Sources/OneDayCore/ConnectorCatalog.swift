@@ -176,7 +176,12 @@ public struct ConnectorServerPresentation: Equatable, Sendable {
 public enum ConnectorDirectory {
     /// 2026-11-10 实查在册仅 box（Simular 官方插件
     /// 预置）：显示产品名与人话说明，服务端名 box
-    /// 本身对用户无意义
+    /// 本身对用户无意义。图标维持 §4 降级通用符号：
+    /// 2026-11-15 第 88 条④复查官方渠道仍无图标级
+    /// 官方原图（官网仅 32px favicon、官方 GitHub
+    /// 组织头像为纯黑方块、无 App Store 应用），不
+    /// 冒充品牌（查证记录见 platform-icons-
+    /// unify-20261115 报告）
     public static let knownServers: [String: ConnectorServerPresentation] = [
         "box": ConnectorServerPresentation(
             name: "Simular Box",

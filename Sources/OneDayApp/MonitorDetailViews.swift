@@ -37,9 +37,9 @@ struct MonitorDetailView: View {
             // 且变化确在账上才继续推变化详情，消费即清
             // AppState（防下次手动进本页时旧链复活）；
             // 对不上/变化已滚没了就停在本页，如实降级
-            if let deepLink = appState.monitorDeepLink,
+            if let deepLink = appState.router.monitorDeepLink,
                deepLink.monitorID == monitorID {
-                appState.monitorDeepLink = nil
+                appState.router.monitorDeepLink = nil
                 if let changeID = deepLink.changeID,
                    store.changes[monitorID]?.contains(
                        where: { $0.id == changeID }
@@ -98,13 +98,19 @@ struct MonitorDetailView: View {
                         )
                     )
                 }
-                if MonitorPresentation.status(of: monitor) == .failed,
-                   let error = monitor.lastError, !error.isEmpty {
+                // §344（失败给人话）：原因文案走
+                // MonitorPresentation.failureReasonText
+                // ——服务端原文先过 §233 安全门才上屏，
+                // 不过门落通用句（旧版 lastError 红字
+                // 直出、英文技术串原样露面）
+                if let reason = MonitorPresentation.failureReasonText(
+                    of: monitor
+                ) {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("失败原因")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
-                        Text(error)
+                        Text(reason)
                             .font(.subheadline)
                             .foregroundStyle(Palette.danger)
                     }
@@ -196,9 +202,9 @@ struct MonitorDetailView: View {
                 .foregroundStyle(Palette.danger)
         } else if let changes = store.changes[monitorID] {
             if changes.isEmpty {
-                Text("还没有检出过变化。")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView {
+                    Label("还没有检出过变化。", systemImage: "eye")
+                }
             } else {
                 ForEach(changes) { change in
                     NavigationLink {
@@ -209,18 +215,47 @@ struct MonitorDetailView: View {
                     } label: {
                         changeRow(change)
                     }
+                    .swipeActions(edge: .trailing) {
+                        if !change.read {
+                            Button("标已读") {
+                                Task {
+                                    await store.markRead(
+                                        appState: appState,
+                                        monitorID: monitorID,
+                                        changeID: change.id
+                                    )
+                                }
+                            }
+                            .tint(Palette.primary)
+                        }
+                    }
                 }
             }
         }
     }
 
+    /// 变化行（§344，三段式）：左 IconTile（eye＝监
+    /// 测身份字形，与定时/台账监测行同形）＋未读点
+    /// 作砖右上角标／中摘要＋日期／右时刻——旧版无
+    /// 图标位、未读点独占左列、完整日期时间全压中
+    /// 列一行。日期/时刻走 AdminFormat 既有格式件
+    /// （与定时行同口径），不再用完整日期时间串
     private func changeRow(_ change: BridgeMonitorChange) -> some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            if !change.read {
-                Circle()
-                    .fill(Palette.primary)
-                    .frame(width: 7, height: 7)
-                    .accessibilityLabel("未读")
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            ZStack(alignment: .topTrailing) {
+                IconTile(symbol: "eye")
+                if !change.read {
+                    Circle()
+                        .fill(Palette.primary)
+                        .frame(width: 10, height: 10)
+                        .overlay {
+                            Circle().stroke(
+                                Palette.surface, lineWidth: 1.5
+                            )
+                        }
+                        .offset(x: 3, y: -3)
+                        .accessibilityLabel("未读")
+                }
             }
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(change.summary)
@@ -228,13 +263,23 @@ struct MonitorDetailView: View {
                     .foregroundStyle(Palette.bodyInk)
                     .lineLimit(2)
                 Text(
-                    DisplayDate.dateTime(
+                    AdminFormat.day(
                         Date(timeIntervalSince1970: change.detectedAt)
                     )
                 )
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
             }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(
+                AdminFormat.timeOnly(
+                    Date(timeIntervalSince1970: change.detectedAt)
+                )
+            )
+            .font(.metaMonospaced)
+            .monospacedDigit()
+            .foregroundStyle(Palette.inkSecondary)
+            .lineLimit(1)
         }
     }
 
@@ -276,7 +321,7 @@ struct MonitorChangeDetailView: View {
                 let rows = MonitorChangeDetail.rows(for: change)
                 List {
                     Section {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                             Text(rows.summary)
                                 .font(.body)
                                 .foregroundStyle(Palette.bodyInk)

@@ -9,6 +9,10 @@ import SwiftUI
 /// 0.13.0（P7）顶部增「记忆条目」段（MemoryEntriesSection）：
 /// 逐条看全文、新建/修改/遗忘全走 write-gate 待批流，
 /// 与本页状态面分属两个数据源、互不冒充。
+/// 台账 164 续增「它记住的事」段（LearningMemory-
+/// Section）：Hermes 本体学习图谱（技能＋记忆块）
+/// 可见可改可删，与条目段又分属两个数据源——三者
+/// 同页不同源、标题与说明各自交代，不合并。
 struct MemoryView: View {
     @Environment(AppState.self) private var appState
 
@@ -21,11 +25,15 @@ struct MemoryView: View {
     /// 状态面各自独立数据源（条目走 write-gate 桥
     /// 契约面、状态走 Hermes 本体），互不冒充
     @State private var memoriesStore = MemoriesStore()
+    /// 台账 164：学习图谱段的数据中枢（Hermes 本体
+    /// 数据源，与条目段的桥数据各自独立、互不冒充）
+    @State private var learningStore = LearningGraphStore()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 MemoryEntriesSection(store: memoriesStore)
+                LearningMemorySection(store: learningStore)
                 if let status {
                     // 0.3.7 卡 13：摘要卡——当前提供方＋内置文件总数
                     summaryCard(status)
@@ -57,10 +65,12 @@ struct MemoryView: View {
         .refreshable {
             await load()
             await memoriesStore.load(appState: appState)
+            await learningStore.load(appState: appState)
         }
         .task {
             await load()
-            await memoriesStore.load(appState: appState)
+            await memoriesStore.loadIfNeeded(appState: appState)
+            await learningStore.loadIfNeeded(appState: appState)
         }
         .confirmationDialog(
             "重置记忆？",
@@ -124,7 +134,7 @@ struct MemoryView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .odGroup()
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     // MARK: - 提供方
@@ -157,7 +167,7 @@ struct MemoryView: View {
             icon: "internaldrive",
             title: "内置记忆",
             trailing: active ? "使用中" : nil,
-            trailingColor: Palette.success
+            trailingColor: Palette.successText
         )
     }
 
@@ -182,7 +192,7 @@ struct MemoryView: View {
             title: provider.name,
             subtitle: chineseDescription,
             trailing: isActive(provider, in: status) ? "使用中" : nil,
-            trailingColor: Palette.success,
+            trailingColor: Palette.successText,
             showsChevron: true
         )
     }
@@ -192,7 +202,7 @@ struct MemoryView: View {
     private func builtinGroup(_ status: MemoryStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("内置记忆文件")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 fileRow(label: "MEMORY（长期记忆）", value: status.builtinFiles["memory"])
@@ -220,7 +230,7 @@ struct MemoryView: View {
     private var resetGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("重置")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 resetRow(title: "重置全部记忆", target: "all")
@@ -352,12 +362,16 @@ struct MemoryProviderConfigView: View {
             SectionLabel("状态")
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                LabeledContent("可用", value: provider.available == true ? "是" : "否")
+                // 键值行走 KeyValueRow（台账 198 收敛
+                // S5 嫌疑页查实：本组三行同构造，一并
+                // 替换；下方「当前提供方」状态行是自绘
+                // HStack、不在此列）
+                KeyValueRow("可用", value: provider.available == true ? "是" : "否")
                 GroupDivider()
-                LabeledContent("已配置", value: provider.configured == true ? "是" : "否")
+                KeyValueRow("已配置", value: provider.configured == true ? "是" : "否")
                 if let state = provider.status, !state.isEmpty {
                     GroupDivider()
-                    LabeledContent("状态", value: state)
+                    KeyValueRow("状态", value: state)
                 }
                 if isActive {
                     GroupDivider()
@@ -368,7 +382,7 @@ struct MemoryProviderConfigView: View {
                         Spacer()
                         Text("使用中")
                             .font(.footnote)
-                            .foregroundStyle(Palette.success)
+                            .foregroundStyle(Palette.successText)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
@@ -390,7 +404,7 @@ struct MemoryProviderConfigView: View {
     private func fieldsGroup(_ config: MemoryProviderConfig) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("配置")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(config.fields.enumerated()), id: \.element.id) { index, field in

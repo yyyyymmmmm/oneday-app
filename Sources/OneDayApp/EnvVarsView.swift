@@ -71,7 +71,7 @@ struct EnvVarsView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .navigationTitle("密钥")
+        .navigationTitle("服务器密钥")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -123,10 +123,7 @@ struct EnvVarsView: View {
                 // inkSecondary
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(Palette.inkMuted)
-                .accessibilityHidden(true)
+            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)

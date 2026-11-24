@@ -33,17 +33,19 @@ public enum DrawerThreadTitle {
         titleIsManual: Bool,
         serverTitle: String?
     ) -> String {
-        if titleIsManual {
-            return localTitle
-        }
-        if let serverTitle {
-            let trimmed = serverTitle.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
-        return localTitle
+        // 第 67 条包二：本地段并入标题单管线——本
+        // 方法只做本地线程行入参适配（手改名原样、
+        // 服务端标题清洗后喂入、本地快照末位回落），
+        // 优先级实现在 SessionTitlePipeline 一处
+        let cleanedServerTitle = serverTitle?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return SessionTitlePipeline.resolve(
+            manualLocalTitle: titleIsManual ? localTitle : nil,
+            serverTitle: (cleanedServerTitle?.isEmpty == false)
+                ? cleanedServerTitle : nil,
+            localSnapshotTitle: titleIsManual ? nil : localTitle,
+            derivedTitle: nil,
+            humanFallback: localTitle
+        )
     }
 }

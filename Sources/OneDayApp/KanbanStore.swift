@@ -23,6 +23,9 @@ final class KanbanStore {
     private(set) var actingIDs: Set<String> = []
     /// 卡内行内提示（未确认/失败的人话，不弹模态）
     private(set) var notes: [String: String] = [:]
+    /// 最近一次自动拆解的回执结论（§390）：execute
+    /// 写入、perform 落进 notes 后即弃
+    private var lastDecomposeSummary: String?
     private(set) var detail: KanbanTaskDetail?
     private(set) var detailLoading = false
     private(set) var creating = false
@@ -30,6 +33,12 @@ final class KanbanStore {
 
     private var probed = false
     private var loadInFlight = false
+    /// 新鲜度门（§416 收编，§367 口径）：读触发先
+    /// 过门，TTL 内零请求；落账点在 fetchBoard 成
+    /// 功（快照落地即全量现值，写后回板同口径）
+    private var freshness = FreshnessGate(
+        ttl: FreshnessGate.standardListTTL
+    )
 
     var groups: [KanbanTaskGroup] {
         KanbanBoardGrouping.group(snapshot?.tasks ?? [])
@@ -41,6 +50,26 @@ final class KanbanStore {
     /// 取不到时不臆断未开通——直取板快照、404 才落
     /// 未开通态；清单明确无 oneday 才直接落未开通
     func load(appState: AppState) async {
+        await load(appState: appState, now: Date())
+    }
+
+    /// 读触发入口（§416 新鲜度门）：TTL 内且配置没
+    /// 变直接用已载快照、零请求；首拉/过期/换服务
+    /// 器才走 load 全量。下拉刷新与错误重试不经此
+    /// 门、恒走 load 强制
+    func loadIfNeeded(appState: AppState) async {
+        await loadIfNeeded(appState: appState, now: Date())
+    }
+
+    func loadIfNeeded(appState: AppState, now: Date) async {
+        guard !freshness.isFresh(
+            configKey: appState.config?.baseString, now: now
+        ) else { return }
+        await load(appState: appState, now: now)
+    }
+
+    /// 时刻注入的加载本体（钉测拨时刻验过期）
+    func load(appState: AppState, now: Date) async {
         guard !loadInFlight else { return }
         guard appState.config != nil else {
             loadState = .notConnected
@@ -75,7 +104,8 @@ final class KanbanStore {
         }
         await fetchBoard(
             appState: appState,
-            missingMeansUnprovisioned: provisioned == nil
+            missingMeansUnprovisioned: provisioned == nil,
+            now: now
         )
     }
 
@@ -83,7 +113,8 @@ final class KanbanStore {
     /// 动作回读不许把整段打成失败页）；未就绪时才按
     /// 错误落态（404＋清单不可用→未开通，其余人话失败）
     private func fetchBoard(
-        appState: AppState, missingMeansUnprovisioned: Bool
+        appState: AppState, missingMeansUnprovisioned: Bool,
+        now: Date = Date()
     ) async {
         do {
             let fetched = try await appState.performAdmin { client, config in
@@ -93,6 +124,9 @@ final class KanbanStore {
             }
             snapshot = fetched
             loadState = .ready
+            freshness.stamp(
+                configKey: appState.config?.baseString, now: now
+            )
         } catch let error as HermesError {
             if loadState == .ready, snapshot != nil { return }
             if case .unexpectedStatus(_, let status) = error,
@@ -223,6 +257,7 @@ final class KanbanStore {
         }
         actingIDs.insert(task.id)
         notes.removeValue(forKey: task.id)
+        lastDecomposeSummary = nil
         defer { actingIDs.remove(task.id) }
         let steps = KanbanControlPlan.steps(action: action, task: task)
         do {
@@ -253,7 +288,11 @@ final class KanbanStore {
         if detail?.task.id == task.id {
             await loadDetail(appState: appState, id: task.id)
         }
-        if !isConfirmed(action: action, taskID: task.id) {
+        if action == .decompose, let summary = lastDecomposeSummary {
+            // 拆解回执自带结论（拆了几个/为何没拆），
+            // 原样落注记，不走呈现态确认口径
+            notes[task.id] = summary
+        } else if !isConfirmed(action: action, taskID: task.id) {
             notes[task.id] = L10n.string("动作已发出，但状态还没有确认变化，请刷新核对。")
         }
     }
@@ -303,6 +342,13 @@ final class KanbanStore {
                     config: config, board: board
                 )
             }
+        case .decompose(let taskID):
+            let receipt = try await appState.performAdmin { client, config in
+                try await client.kanbanDecompose(
+                    config: config, board: board, id: taskID
+                )
+            }
+            lastDecomposeSummary = receipt.summary
         }
     }
 
@@ -336,6 +382,9 @@ final class KanbanStore {
             return current.presentation != .needsInput
         case .create:
             return false
+        case .decompose:
+            // 回执结论已落注记（见 perform），不另判
+            return true
         }
     }
 }

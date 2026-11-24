@@ -29,7 +29,6 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
     case invalidPath
     case forbidden
     case unsupportedType
-    case transcodeFailed
     case other
 
     /// 客户端预检：空路径（或纯空白）不必发请求、
@@ -47,7 +46,8 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         error: HermesError
     ) -> FileOpenFailure {
         switch error {
-        case .unexpectedStatus(_, let status):
+        case .unexpectedStatus(_, let status),
+             .serverError(_, let status, _):
             switch status {
             case 404: return .notFound
             case 413: return .tooLarge
@@ -57,35 +57,50 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
             case 500...599: return .serviceUnavailable
             default: return .other
             }
-        case .transientNetwork:
+        case .transientNetwork, .notSentOffline:
+            // notSentOffline（§414 增补分型）：文件打开
+            // 面保形——拆分前经 transientNetwork 同落
+            // 本档，拆分后同行同落，行为不变
             return .timeout
         case .unreachable, .healthCheckFailed,
-             .sessionExpired, .loginRejected,
+             .sessionExpired, .loginRejected, .loginRateLimited,
              .loginFailed, .apiKeyRejected:
             return .serviceUnavailable
         case .invalidServerAddress, .decodingFailed,
              .modelNotUpstream, .cancelled,
-             .demoLimitReached:
+             .demoLimitReached, .sessionBusy,
+             .speechProviderUnavailable,
+             .enrollmentCodeInvalid, .enrollmentCodeExpired,
+             .enrollmentLocked, .enrollmentTooManyPending,
+             .pushEndpointNotReady,
+             .reactionTargetGone,
+             .runBillingExhausted, .runServiceUnavailable,
+             .runTimedOut, .runNetworkInterrupted,
+             .runFailedGeneric:
             // demoLimitReached（第 4 项空态信号）：文件
             // 读面在演示里是保留面、本分型实际不会收到
             // 它；归 other 兜底，不冒充已分类
+            // sessionBusy（删会话围栏信号：有 turn 在跑，
+            // 见 HermesError.swift）：文件打开面实际不会
+            // 收到它；即便收到也不是「服务器连不上」，不
+            // 许冒充 serviceUnavailable，归 other 兜底
+            // run 五档（基础止血包 P5）：是落定失败的
+            // 呈现值、由分型器合成，从不由文件取回路
+            // 抛出；同理归 other，不冒充文件侧已分类
+            // speechProviderUnavailable（H2-a）：朗读
+            // 面的未开通信号，文件打开面不会收到；同
+            // 理归 other 兜底
+            // enrollment 四态（配对一期）：设备认领面
+            // 的分型信号，文件打开面不会收到；同理归
+            // other 兜底
+            // reactionTargetGone（台账 187）：反应面
+            // 的目标行消失信号，文件打开面不会收到；
+            // 同理归 other 兜底
+            // pushEndpointNotReady（总表 138）：推送
+            // 登记面的未开通信号，文件打开面不会收
+            // 到；同理归 other 兜底
             return .other
         }
-    }
-
-    /// 表格转码失败分型（§125）：伴生转码端点 422
-    /// （文件损坏/格式读不出）专档 transcodeFailed，
-    /// 其余状态码与下载同规走 classify——转码失败不
-    /// 许混进「没法预览」，两者出路不同（转码可换下
-    /// 载原文件用别的 App 开）
-    public static func classifySpreadsheet(
-        error: HermesError
-    ) -> FileOpenFailure {
-        if case .unexpectedStatus(_, let status) = error,
-           status == 422 {
-            return .transcodeFailed
-        }
-        return classify(error: error)
     }
 
     /// 人话文案（目录取词形，与 HermesError 同口径）
@@ -123,11 +138,6 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         case .unsupportedType:
             return L10n.string(
                 "这个类型没法直接预览，可以下载到本地再打开。",
-                locale: locale
-            )
-        case .transcodeFailed:
-            return L10n.string(
-                "表格转换失败，没能读出内容；可以下载原文件再打开。",
                 locale: locale
             )
         case .other:

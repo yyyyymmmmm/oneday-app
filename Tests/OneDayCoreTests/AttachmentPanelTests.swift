@@ -5,6 +5,7 @@ import XCTest
 /// 请求）、照片条拼装（相机恒首、去重、截断）、图片
 /// 接入闸与汇总文案（两条取图路共用）、视频入条命名。
 /// §152 修订二续：照片条多选（切换/呈现序/确认文案）。
+/// D5（台账 11）续：布局常量单源＋贴合高度三态逐值。
 final class AttachmentPanelTests: XCTestCase {
 
     // MARK: 授权政策
@@ -121,12 +122,16 @@ final class AttachmentPanelTests: XCTestCase {
     }
 
     func testAddSelectedTitle() {
+        // §461 文案：随目标图作「添加 N 个附件」；未
+        // 选回 nil（确认按钮不呈现）与旧行同源
         XCTAssertNil(AttachmentPanel.addSelectedTitle(count: 0))
         XCTAssertEqual(
-            AttachmentPanel.addSelectedTitle(count: 1), "添加 1 张"
+            AttachmentPanel.addSelectedTitle(count: 1),
+            "添加 1 个附件"
         )
         XCTAssertEqual(
-            AttachmentPanel.addSelectedTitle(count: 3), "添加 3 张"
+            AttachmentPanel.addSelectedTitle(count: 3),
+            "添加 3 个附件"
         )
     }
 
@@ -155,111 +160,49 @@ final class AttachmentPanelTests: XCTestCase {
         )
     }
 
-    // MARK: 定高决策（§154 热修）
+    // MARK: 布局常量与定高（D5，台账 11）
 
-    /// 量测未到/无效一律回 nil（宿主回落 .medium、
-    /// 面板照常打开）：0 与负值是 §152 的旧口径，
-    /// §154 起低于可信下限的正值同判——那是量测链
-    /// 塌陷途中的伪值，绝不许当 detent
-    func testDetentHeightRejectsImplausibleMeasurements() {
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: 0, screenHeight: 852
-            )
-        )
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: -20, screenHeight: 852
-            )
-        )
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: 42, screenHeight: 852
-            )
-        )
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: AttachmentPanel
-                    .detentMinimumPlausibleHeight - 1,
-                screenHeight: 852
-            )
+    func testLayoutConstants() {
+        // 常量单源：与 AttachmentPanelView 引用同值
+        XCTAssertEqual(AttachmentPanel.Layout.cellSize, 118)
+        XCTAssertEqual(AttachmentPanel.Layout.rowHeight, 52)
+        XCTAssertEqual(AttachmentPanel.Layout.titleRowHeight, 22)
+        XCTAssertEqual(
+            AttachmentPanel.Layout.confirmButtonHeight, 56
         )
     }
 
-    /// 屏高无效（宿主几何还没回写）同回 nil，不拿
-    /// 0 屏高算出 0 高 detent
-    func testDetentHeightRejectsInvalidScreenHeight() {
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: 330, screenHeight: 0
-            )
+    func testFittedSheetHeightThreeStates() {
+        // 无库态：32（padding）＋ 105（动作行）＝ 137
+        let noLibrary = AttachmentPanel.fittedSheetHeight(
+            showsLibrary: false,
+            hasSelection: false
         )
-        XCTAssertNil(
-            AttachmentPanel.detentHeight(
-                measured: 330, screenHeight: -852
-            )
+        XCTAssertEqual(noLibrary, 137)
+
+        // 有库未选：32 ＋ 152（库区）＋ 16 ＋ 105 ＝ 305
+        let libraryNoSelection = AttachmentPanel.fittedSheetHeight(
+            showsLibrary: true,
+            hasSelection: false
         )
+        XCTAssertEqual(libraryNoSelection, 305)
+
+        // 有库已选：305 ＋ 16 ＋ 56（§461 确认按钮）＝ 377
+        let libraryWithSelection = AttachmentPanel.fittedSheetHeight(
+            showsLibrary: true,
+            hasSelection: true
+        )
+        XCTAssertEqual(libraryWithSelection, 377)
     }
 
-    /// 有效量测原样贴合（含可信下限边界值）；超
-    /// 75% 屏高钳顶
-    func testDetentHeightFitsAndClamps() {
-        XCTAssertEqual(
-            AttachmentPanel.detentHeight(
-                measured: 330, screenHeight: 852
-            ),
-            330
+    func testFittedSheetHeightExcludesSafeArea() {
+        // D5 根因口径：贴合高只算内容、安全区不入参——系统 sheet 的
+        // detent 解析值已含安全区处理，函数再加一层即多算 34.3pt
+        // （装配测 testAttachPanelPresentsAtFittedHeight 钉死此口径）
+        let height = AttachmentPanel.fittedSheetHeight(
+            showsLibrary: false,
+            hasSelection: false
         )
-        XCTAssertEqual(
-            AttachmentPanel.detentHeight(
-                measured: AttachmentPanel
-                    .detentMinimumPlausibleHeight,
-                screenHeight: 852
-            ),
-            AttachmentPanel.detentMinimumPlausibleHeight
-        )
-        XCTAssertEqual(
-            AttachmentPanel.detentHeight(
-                measured: 900, screenHeight: 852
-            ),
-            852 * AttachmentPanel.detentMaxScreenFraction
-        )
-    }
-
-    /// 不动点（§154 定因的回归钉）：决策只认内容
-    /// 理想高与宿主真高、与当前 detent 无关——宿
-    /// 主回路「量测→detent→按 detent 重排→再量
-    /// 测」迭代多少轮都收敛在同一值。§152 的坏回
-    /// 路是把当前 sheet 高当屏高：min(H, 0.75·s)
-    /// 每轮剩 0.75 倍、塌到近零（本测以旧递推式
-    /// 在测试内复算作对照，证明坏式确实单调衰
-    /// 减、新式恒定）
-    func testDetentHeightIsFixedPointUnderPresenterLoop() {
-        let contentHeight: CGFloat = 330
-        let screenHeight: CGFloat = 852
-        var decided = AttachmentPanel.detentHeight(
-            measured: contentHeight, screenHeight: screenHeight
-        )
-        for _ in 0..<10 {
-            let next = AttachmentPanel.detentHeight(
-                measured: contentHeight,
-                screenHeight: screenHeight
-            )
-            XCTAssertEqual(next, decided)
-            decided = next
-        }
-        XCTAssertEqual(decided, contentHeight)
-        // 旧坏式对照：以当前 sheet 高冒充屏高，从
-        // .medium（≈半屏）起步严格单调衰减
-        var sheetHeight = screenHeight / 2
-        var previous = sheetHeight
-        for _ in 0..<10 {
-            sheetHeight = min(
-                contentHeight, sheetHeight * 0.75
-            )
-            XCTAssertLessThan(sheetHeight, previous)
-            previous = sheetHeight
-        }
-        XCTAssertLessThan(sheetHeight, 60)
+        XCTAssertEqual(height, 137)
     }
 }

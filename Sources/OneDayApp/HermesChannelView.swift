@@ -14,7 +14,7 @@ import SwiftUI
 enum ThreadLinkage {
     @MainActor
     static func nonMainLinkedSessionIDs(
-        threads: [ChatThread], sideChats: SideChatStore
+        threads: [ChatThread], ledger: SessionLedger
     ) -> Set<String> {
         var ids = Set<String>()
         for thread in threads {
@@ -23,8 +23,8 @@ enum ThreadLinkage {
             if SideChatClassifier.isMain(
                 localThreadID: thread.id,
                 linkedServerSessionID: sessionID,
-                mainThreadID: sideChats.mainThreadID,
-                mainServerSessionID: sideChats.mainServerSessionID
+                mainThreadID: ledger.mainThreadID,
+                mainServerSessionID: ledger.mainServerSessionID
             ) {
                 continue
             }
@@ -52,29 +52,22 @@ struct HermesChannelView: View {
     var onClose: () -> Void
 
     @Environment(AppState.self) private var appState
+    /// 本地写上下文（§223 删除收口清线程用）
+    @Environment(\.modelContext) private var modelContext
     @Query private var threads: [ChatThread]
     @State private var store = HermesChannelStore()
 
     private var channel: ChannelDescriptor { ChannelRegistry.hermes }
 
-    /// 名单分筐（每次呈现按当前拉取与本地关联现算，
-    /// 与分类纯函数同口径；收养后重开本页即按新分
-    /// 类刷新）
-    private var partition: SessionPartition {
-        SessionClassifier.partition(
-            sessions: store.sessions,
-            mainServerSessionID: appState.sideChats.mainServerSessionID,
-            linkedThreadSessionIDs: ThreadLinkage.nonMainLinkedSessionIDs(
-                threads: threads, sideChats: appState.sideChats
-            )
-        )
-    }
-
-    /// 频道全名单（普通行＋合并桶行）：合并桶与普通
-    /// 行在分筐里是两筐、各自保序，呈现按 startedAt
+    /// 频道全名单（普通行＋合并桶行）：读账本频道
+    /// 投影（第 67 条包二——分类在账本合并时统一算
+    /// 一次，本页不再自拉自算）；呈现按 startedAt
     /// 倒序统一重排（规格 §4.1）；无开始时间者沉底
     private var channelRows: [ServerSession] {
-        partition.hermesChannelSessions.sorted {
+        appState.sessionLedger.channelList(
+            appState: appState, localThreads: threads,
+            channelID: ChannelRegistry.hermesChannelID
+        ).sorted {
             ($0.startedDate ?? .distantPast)
                 > ($1.startedDate ?? .distantPast)
         }
@@ -89,7 +82,7 @@ struct HermesChannelView: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .listRowSeparator(.hidden)
                 }
-                if store.isLoading, store.sessions.isEmpty {
+                if store.isLoading, channelRows.isEmpty {
                     Text("正在读取…")
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
@@ -98,10 +91,10 @@ struct HermesChannelView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 } else if channelRows.isEmpty {
-                    EmptyState(
-                        icon: "tray",
-                        title: "还没有从其他地方来的对话",
-                        message: "在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。"
+                    ContentUnavailableView(
+                        "还没有从其他地方来的对话",
+                        systemImage: "tray",
+                        description: Text("在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。")
                     )
                     .listRowSeparator(.hidden)
                 } else {
@@ -115,8 +108,28 @@ struct HermesChannelView: View {
                                 onOpen: { openSession(session) },
                                 onChanged: {
                                     Task {
-                                        await store.load(appState: appState)
+                                        await store.load(
+                                            appState: appState,
+                                            localThreads: threads
+                                        )
                                     }
+                                },
+                                onDeleteRequested: { session in
+                                    // §232 乐观删除：同拍摘
+                                    // 账本名单行＋协调器起手
+                                    // （墓碑/后台删）；最终失
+                                    // 败时引擎恢复账本名单、
+                                    // 本页读投影自动回行
+                                    appState.sessionLedger
+                                        .removeSession(
+                                            sessionID: session.id
+                                        )
+                                    appState.sessionDeletions.begin(
+                                        sessionID: session.id,
+                                        title: rowTitle(session),
+                                        appState: appState,
+                                        modelContext: modelContext
+                                    )
                                 }
                             ) {
                                 rowLabel(session)
@@ -139,9 +152,20 @@ struct HermesChannelView: View {
             .navigationDestination(for: String.self) { id in
                 ServerSessionDetailView(sessionID: id, readOnly: true)
             }
-            .refreshable { await store.load(appState: appState) }
+            .refreshable {
+                await store.load(
+                    appState: appState, localThreads: threads
+                )
+            }
+            // §232 恢复回行：本页直读账本投影，删除引
+            // 擎恢复时账本名单回行即自动呈现，不再需
+            // 要恢复信号重拉（第 67 条包二）
         }
-        .task { await store.load(appState: appState) }
+        .task {
+            await store.load(
+                appState: appState, localThreads: threads
+            )
+        }
     }
 
     /// 合并桶特例行（§4.3）：普通行同型呈现＋行尾
@@ -164,17 +188,18 @@ struct HermesChannelView: View {
     /// 普通行点按续聊：先置频道来源标记、再走宿主
     /// 续聊通道（标记与 pendingChatSessionID 同行，
     /// ChatView 消费口据此落频道出处与收养提示，
-    /// 见 AppState.pendingChatChannelID 注）
+    /// 见 AppState.router.pendingChatChannelID 注）
     private func openSession(_ session: ServerSession) {
-        appState.pendingChatChannelID = ChannelRegistry.hermesChannelID
+        appState.router.pendingChatChannelID = ChannelRegistry.hermesChannelID
         onOpenSession(session.id)
     }
 
-    /// 行标题：与全部对话页同口径（存量本地覆盖优
-    /// 先，其后统一管线 resolvedTitle）
+    /// 行标题：与全部对话页同口径，经账本标题读点
+    /// （存量本地覆盖优先，其后统一管线）
     private func rowTitle(_ session: ServerSession) -> String {
-        appState.sideChats.titleOverrides[session.id]
-            ?? appState.sessionTitles.title(for: session)
+        appState.sessionLedger.title(
+            for: session, appState: appState
+        )
     }
 
     /// 行面：标题（统一管线）＋置顶标＋人话副题，与
@@ -202,45 +227,34 @@ struct HermesChannelView: View {
     }
 }
 
-/// 频道页数据层（0.36.29）：可见全量分页拉取（与
-/// 全部对话页 fetchAll 同口径：limit 100 逐页、上
-/// 限 10 页）＋标题回落素材预算。只拉未归档集——
-/// 分类规则作用于未归档集（规格 §2），归档集在全
-/// 部对话页全量呈现
+/// 频道页数据层（0.36.29 立、第 67 条包二收编）：
+/// 内联分页私抄整段退役——拉取归账本唯一拉取者
+/// （refreshVisible：可见段全量＋待删过滤＋标题补
+/// 拉），名单本体由视图读账本频道投影，本店只剩
+/// 本页加载/失败态。只拉未归档集——分类规则作用
+/// 于未归档集（规格 §2），归档集在全部对话页全量
+/// 呈现
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：取数经 SessionLedger 可见段（门已覆盖），本店只接线（判定表见 DESIGN §416）
 final class HermesChannelStore {
-    var sessions: [ServerSession] = []
     var isLoading = false
     var loadError: String?
 
-    func load(appState: AppState) async {
+    func load(
+        appState: AppState, localThreads: [ChatThread]
+    ) async {
         isLoading = true
         loadError = nil
-        do {
-            let visible = try await appState.performAdmin {
-                client, config in
-                var all: [ServerSession] = []
-                var offset = 0
-                for _ in 0..<10 {
-                    let page = try await client.serverSessionsPage(
-                        config: config, limit: 100,
-                        offset: offset, archived: "exclude"
-                    )
-                    all.append(contentsOf: page.sessions)
-                    if page.sessions.count < 100 { break }
-                    if let total = page.total, all.count >= total { break }
-                    offset += 100
-                }
-                return all
-            }
-            sessions = visible
-            await appState.sessionTitles.ensureTitles(
-                for: visible, appState: appState, budget: 12
+        let loaded = await appState.sessionLedger
+            .refreshVisible(
+                appState: appState, localThreads: localThreads
             )
-        } catch {
-            loadError = (error as? HermesError)?.userMessage
-                ?? "名单没拉下来，请稍后再试。"
+        // 拉失败且账本无名单可呈现才报失败态；已有
+        // 名单时保留旧行呈现（账本名单未被失败轮动）
+        if !loaded,
+           appState.sessionLedger.visibleSessions.isEmpty {
+            loadError = "名单没拉下来，请稍后再试。"
         }
         isLoading = false
     }

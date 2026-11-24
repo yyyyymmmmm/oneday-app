@@ -371,6 +371,60 @@ final class RichContentTests: XCTestCase {
         )
     }
 
+    /// §449.9：活动短语与卡面标题同表——逐工具短语
+    /// 优先、轻动作（react_to_message）有短语、未知
+    /// 工具回分类短语、MCP 前缀穿透
+    func testActivityPhraseMapping() {
+        let zh = Locale(identifier: "zh-Hans")
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "terminal", locale: zh
+            ),
+            "运行命令"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "web_search", locale: zh
+            ),
+            "联网搜索"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "read_file", locale: zh
+            ),
+            "读取文件"
+        )
+        // 轻动作不许回落成「工具调用」
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "react_to_message", locale: zh
+            ),
+            "回应消息"
+        )
+        // 无参数通道：memory 回类内默认短语
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "memory", locale: zh
+            ),
+            "记忆操作"
+        )
+        // MCP 前缀穿透到逐工具短语
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "mcp__box__browser_navigate",
+                locale: zh
+            ),
+            "打开网页"
+        )
+        // 未知工具回分类短语（.other＝工具调用类名）
+        XCTAssertEqual(
+            ToolCardClassifier.activityPhrase(
+                forToolName: "mcp__foo__do_thing", locale: zh
+            ),
+            "工具调用"
+        )
+    }
+
     /// 0.36.10（诊断 D3-3）：连接管理与设备类工具的
     /// 分类/标题补齐；未知工具回落中文类名、不再是
     /// 英文短名

@@ -3,12 +3,14 @@ import XCTest
 
 /// oneday-bridge 契约测试（P4/P5，0.11.0）：fixture 按
 /// oneday-bridge-rollout-20261109.md 的实测样本逐字落
-/// 形（id 前缀 g_/m_/i_、时间 epoch 秒 float、PATCH
-/// 后旧里程碑 id 保留且 done=true）。红线：勾选走
-/// PATCH 全量替换（已有条 id 必原样带回、新条不带
-/// id）。0.32.0 口径更新：已转标记改走 PATCH /ideas
-/// 的 taskId 回写桥端（服务端真源），本地标记编解码
-/// 退役为存档、仍钉行为不删测。
+/// 形（id 前缀 g_/m_/i_、时间 epoch 秒 float）。0.32.0
+/// 口径更新：已转标记改走 PATCH /ideas 的 taskId 回写
+/// 桥端（服务端真源），本地标记编解码退役为存档、仍
+/// 钉行为不删测。G-6（2026-11-24）口径更新：里程碑整
+/// 概念移除——旧载荷里的 milestones 键解码时忽略（固
+/// 件样本保留该键正是为钉住这一点），PATCH 体只剩
+/// 标题/备注；G-2 条目 title/origin 与 G-3a 目标
+/// entriesFingerprint 在本文件钉解码。
 final class OneDayBridgeModelsTests: XCTestCase {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
@@ -47,20 +49,44 @@ final class OneDayBridgeModelsTests: XCTestCase {
         XCTAssertEqual(goal.id, "g_735c0a39eb9e")
         XCTAssertEqual(goal.title, "验收目标")
         XCTAssertEqual(goal.note, "验收备注")
-        XCTAssertEqual(goal.milestones.count, 2)
-        XCTAssertEqual(goal.milestones[0].id, "m_020af9aa0107")
-        XCTAssertEqual(goal.milestones[0].done, false)
+        // G-6：样本里的 milestones 键已被移除出模型——
+        // 能解码到这里即证明旧键被忽略而非报错
+        XCTAssertNil(goal.entriesFingerprint)
         XCTAssertEqual(goal.createdAt, 1794217810.2546644)
         XCTAssertEqual(goal.updatedAt, goal.createdAt)
     }
 
-    func testGoalDecodesMissingNoteAndMilestonesAsEmpty() throws {
+    func testGoalDecodesMissingNoteAsEmpty() throws {
         let data = Data(
             "{\"id\": \"g_x\", \"title\": \"只有标题\", \"createdAt\": 1.5, \"updatedAt\": 2.5}".utf8
         )
         let goal = try decoder.decode(BridgeGoal.self, from: data)
         XCTAssertEqual(goal.note, "")
-        XCTAssertEqual(goal.milestones, [])
+    }
+
+    /// G-3a：目标视图的条目指纹解码（在面重验的比对底）
+    func testGoalDecodesEntriesFingerprint() throws {
+        let data = Data(
+            "{\"id\": \"g_f\", \"title\": \"指纹\", \"entriesFingerprint\": \"0123456789abcdef\", \"createdAt\": 1.5, \"updatedAt\": 2.5}".utf8
+        )
+        let goal = try decoder.decode(BridgeGoal.self, from: data)
+        XCTAssertEqual(goal.entriesFingerprint, "0123456789abcdef")
+    }
+
+    /// G-2：条目 title/origin 解码（旧载荷两键皆缺 → nil）
+    func testGoalEntryDecodesTitleAndOrigin() throws {
+        let withTitle = Data(
+            "{\"id\": \"e_1\", \"goalId\": \"g_1\", \"body\": \"正文\", \"source\": \"agent\", \"createdAt\": 3.0, \"title\": \"提炼题\", \"origin\": \"bookkeeping\"}".utf8
+        )
+        let entry = try decoder.decode(BridgeGoalEntry.self, from: withTitle)
+        XCTAssertEqual(entry.title, "提炼题")
+        XCTAssertEqual(entry.origin, "bookkeeping")
+        let plain = Data(
+            "{\"id\": \"e_2\", \"goalId\": \"g_1\", \"body\": \"正文\", \"source\": \"user\", \"createdAt\": 3.0}".utf8
+        )
+        let plainEntry = try decoder.decode(BridgeGoalEntry.self, from: plain)
+        XCTAssertNil(plainEntry.title)
+        XCTAssertNil(plainEntry.origin)
     }
 
     func testIdeaDecodesLinkedAndUnlinked() throws {
@@ -89,92 +115,23 @@ final class OneDayBridgeModelsTests: XCTestCase {
         XCTAssertTrue(ok.ok)
     }
 
-    // MARK: - 进度派生
+    // MARK: - 编辑 PATCH 体（G-6：只剩标题/备注）
 
-    func testGoalProgressCountsAndFraction() throws {
-        let goal = try decodeGoal()
-        XCTAssertEqual(GoalProgress.counts(of: goal).done, 0)
-        XCTAssertEqual(GoalProgress.counts(of: goal).total, 2)
-        XCTAssertEqual(GoalProgress.fraction(of: goal), 0)
-        XCTAssertEqual(GoalProgress.text(of: goal), "0/2")
-
-        let half = BridgeGoal(
-            id: "g_h", title: "半程", note: "",
-            milestones: [
-                BridgeMilestone(id: "m_1", title: "一", done: true),
-                BridgeMilestone(id: "m_2", title: "二", done: false),
-            ],
-            createdAt: 0, updatedAt: 0
-        )
-        XCTAssertEqual(GoalProgress.fraction(of: half), 0.5)
-        XCTAssertEqual(GoalProgress.text(of: half), "1/2")
-
-        let empty = BridgeGoal(
-            id: "g_e", title: "空", note: "", milestones: [],
-            createdAt: 0, updatedAt: 0
-        )
-        // 0/0 不冒充完成：fraction 恒 0
-        XCTAssertEqual(GoalProgress.fraction(of: empty), 0)
-        XCTAssertEqual(GoalProgress.text(of: empty), "0/0")
-    }
-
-    // MARK: - 勾选 PATCH 体组装（全量替换＋id 原样带回）
-
-    func testTogglePlanFlipsOneAndKeepsIDs() throws {
-        let goal = try decodeGoal()
-        let plan = try XCTUnwrap(
-            GoalPatchPlan.toggle(goal: goal, milestoneID: "m_020af9aa0107")
-        )
-        XCTAssertEqual(plan.title, "验收目标")
-        XCTAssertEqual(plan.note, "验收备注")
-        XCTAssertEqual(plan.milestones.count, 2)
-        // 勾选对齐靠 id：两条 id 都原样带回
-        XCTAssertEqual(plan.milestones[0].id, "m_020af9aa0107")
-        XCTAssertEqual(plan.milestones[0].done, true)
-        XCTAssertEqual(plan.milestones[1].id, "m_d04190218c94")
-        XCTAssertEqual(plan.milestones[1].done, false)
-
-        let object = try jsonObject(plan)
-        let milestones = try XCTUnwrap(object["milestones"] as? [[String: Any]])
-        XCTAssertEqual(milestones[0]["id"] as? String, "m_020af9aa0107")
-        XCTAssertEqual(milestones[0]["done"] as? Bool, true)
-    }
-
-    func testTogglePlanUnknownIDReturnsNil() throws {
-        let goal = try decodeGoal()
-        XCTAssertNil(GoalPatchPlan.toggle(goal: goal, milestoneID: "m_nope"))
-    }
-
-    func testUpdatePlanNewMilestoneOmitsIDAndDropsBlankTitles() throws {
-        let plan = GoalPatchPlan.update(
-            title: " 验收目标·改 ",
-            note: " 验收备注 ",
-            milestones: [
-                MilestoneDraftState(id: "m_020af9aa0107", title: "第一步", done: true),
-                MilestoneDraftState(id: nil, title: "第三步", done: false),
-                MilestoneDraftState(id: nil, title: "  ", done: false),
-            ]
+    func testGoalPatchRequestEditedTrimsAndHasOnlyTitleNote() throws {
+        let plan = BridgeGoalPatchRequest.edited(
+            title: " 验收目标·改 ", note: " 验收备注 "
         )
         XCTAssertEqual(plan.title, "验收目标·改")
         XCTAssertEqual(plan.note, "验收备注")
-        // 空标题行剔除（服务端对空里程碑标题回 400，客户端先收口）
-        XCTAssertEqual(plan.milestones.count, 2)
-
         let object = try jsonObject(plan)
-        let milestones = try XCTUnwrap(object["milestones"] as? [[String: Any]])
-        XCTAssertEqual(milestones[0]["id"] as? String, "m_020af9aa0107")
-        XCTAssertEqual(milestones[0]["done"] as? Bool, true)
-        // 新条不带 id 键（服务端据此新生成，契约定版语义 1）
-        XCTAssertNil(milestones[1]["id"])
-        XCTAssertEqual(milestones[1]["title"] as? String, "第三步")
-        XCTAssertEqual(milestones[1]["done"] as? Bool, false)
+        XCTAssertEqual(Set(object.keys), ["title", "note"])
     }
 
     // MARK: - 新建请求体收口
 
     func testGoalCreateRequestOmitsEmptyOptionals() throws {
         let bare = BridgeGoalCreateRequest.make(
-            title: " 只有标题 ", note: " ", milestoneTitles: []
+            title: " 只有标题 ", note: " "
         )
         let object = try jsonObject(bare)
         XCTAssertEqual(object["title"] as? String, "只有标题")
@@ -182,18 +139,11 @@ final class OneDayBridgeModelsTests: XCTestCase {
         XCTAssertNil(object["milestones"])
 
         let full = BridgeGoalCreateRequest.make(
-            title: "目标", note: "备注",
-            milestoneTitles: [" 第一步 ", "", "第二步"]
+            title: "目标", note: "备注"
         )
         let fullObject = try jsonObject(full)
         XCTAssertEqual(fullObject["note"] as? String, "备注")
-        let milestones = try XCTUnwrap(
-            fullObject["milestones"] as? [[String: Any]]
-        )
-        // 草稿里程碑只有 title 键（id/done 由服务端定）
-        XCTAssertEqual(milestones.count, 2)
-        XCTAssertEqual(milestones[0].keys.sorted(), ["title"])
-        XCTAssertEqual(milestones[0]["title"] as? String, "第一步")
+        XCTAssertNil(fullObject["milestones"])
     }
 
     func testIdeaCreateRequestOmitsNilGoalAndEmptyDetail() throws {

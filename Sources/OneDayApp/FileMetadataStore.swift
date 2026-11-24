@@ -23,6 +23,7 @@ import OneDayCore
 /// 下次露面再查」。
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：按路径逐项懒取（ensureSize），非名单全量拉取（判定表见 DESIGN §416）
 final class FileMetadataStore {
     static let shared = FileMetadataStore()
 

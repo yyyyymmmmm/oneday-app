@@ -48,13 +48,13 @@ final class LibraryMenuResolutionTests: XCTestCase {
 
     func testLibrarySortResolvedFallback() {
         XCTAssertEqual(
-            LibrarySort.resolved(rawValue: nil), .lastOpened
+            LibrarySort.resolved(rawValue: nil), .lastModified
         )
         XCTAssertEqual(
-            LibrarySort.resolved(rawValue: ""), .lastOpened
+            LibrarySort.resolved(rawValue: ""), .lastModified
         )
         XCTAssertEqual(
-            LibrarySort.resolved(rawValue: "bySize"), .lastOpened
+            LibrarySort.resolved(rawValue: "bySize"), .lastModified
         )
     }
 

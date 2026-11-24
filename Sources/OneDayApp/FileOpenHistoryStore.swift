@@ -7,6 +7,7 @@ import OneDayCore
 /// 助而已，丢了不伤数据（规格 §六切割声明）。
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：本地打开历史落盘店，无远端新鲜度问题（判定表见 DESIGN §416）
 final class FileOpenHistoryStore {
     private(set) var history: FileOpenHistory
 

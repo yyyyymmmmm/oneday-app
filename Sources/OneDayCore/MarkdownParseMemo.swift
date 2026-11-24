@@ -37,6 +37,23 @@ public final class ParseMemoBox<Value>: @unchecked Sendable {
         self.capacity = max(1, capacity)
     }
 
+    /// 种入（§417）：同批解析顺手产出的等价结果预
+    /// 先入盒（如块解析时从同一棵树直产的行内
+    /// runs），后续查表直接命中。种入不是查表——
+    /// 不计命中／未命中；已有键不覆盖（纯函数同键
+    /// 同值，先到为准）；容量与 LRU 淘汰同 value
+    public func seed(_ value: Value, for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard values[key] == nil else { return }
+        values[key] = value
+        recency.append(key)
+        while values.count > capacity, let oldest = recency.first {
+            recency.removeFirst()
+            values[oldest] = nil
+        }
+    }
+
     public func value(
         for key: String, compute: () -> Value
     ) -> Value {

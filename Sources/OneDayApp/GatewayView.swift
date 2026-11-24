@@ -2,14 +2,26 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 网关页（设置·网关）：状态详情（/api/status 全字段呈现）＋
-/// 启停控制。重启入口在设置首页与总览快捷动作也有，动作口径
-/// 一致：二次确认后 POST，状态靠回读确认不靠回执猜。
+/// 网关状态页（设置·服务器段）：状态详情（/api/status
+/// 全字段呈现）＋启停控制。重启自台账 198 收敛 S4 起
+/// 只在本页控制组一条执行路径（设置根行独立重启页与
+/// 根页执行副本已删、总览无此动作）：二次确认后 POST，
+/// 状态靠回读确认不靠回执猜。页题与设置目录题对齐
+/// 「网关状态」（S9，此前页题只写「网关」与目录题不一）
+/// §470（S5-11 打包改）：用量自设置根页服务器段移
+/// 出、收进本页成「用量」组一行（点达走设置栈同一
+/// 路由 .usage，UsageDetailView 本体不变）
 struct GatewayView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var status: ServerStatus?
+    /// 系统段数据（§493 承接 StatusView）：/api/
+    /// system/stats——资源与运行时明细
+    @State private var systemStats: SystemStats?
+    /// 系统组拉取已尝试（§493 帧面自查修）：失败后占
+    /// 位须改失败文案，不许拿「正在读取」冒充加载中
+    @State private var systemStatsAttempted = false
     @State private var errorMessage: String?
     @State private var pendingAction: String?
     @State private var notice: String?
@@ -21,7 +33,9 @@ struct GatewayView: View {
                 if let status {
                     statusGroup(status)
                     platformsGroup(status)
+                    usageGroup
                     actionsGroup(status)
+                    systemGroup
                 } else if let errorMessage {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
@@ -48,7 +62,7 @@ struct GatewayView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .navigationTitle("网关")
+        .navigationTitle("网关状态")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
@@ -117,16 +131,13 @@ struct GatewayView: View {
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.vertical, OneDayMetrics.spacingSM)
                 GroupDivider()
-                LabeledContent("服务端版本") {
-                    Text(status.version.map { "v\($0)" } ?? "—")
-                        .font(.system(.callout, design: .monospaced))
-                }
+                // 键值行走 KeyValueRow（台账 198 收敛
+                // S5：裸 LabeledContent 入组卡贴边溢出
+                // 的实锤页之一，自此只许共用件）
+                KeyValueRow("服务端版本", value: status.version.map { "v\($0)" } ?? "—")
                 if let date = status.releaseDate {
                     GroupDivider()
-                    LabeledContent("发布日期") {
-                        Text(date)
-                            .font(.system(.callout, design: .monospaced))
-                    }
+                    KeyValueRow("发布日期", value: date)
                 }
             }
             .odGroup()
@@ -136,7 +147,7 @@ struct GatewayView: View {
     private func platformsGroup(_ status: ServerStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("平台连接")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if status.platforms.isEmpty {
@@ -163,7 +174,10 @@ struct GatewayView: View {
                             Spacer()
                             Text(ServerLabels.platformState(platform.state))
                                 .font(.footnote)
-                                .foregroundStyle(Palette.stateColor(platform.state))
+                                // 第 85 条（BC-2）：状态词是文字
+                                // 位，走 stateTextColor；左侧点
+                                // 位仍走 stateColor
+                                .foregroundStyle(Palette.stateTextColor(platform.state))
                         }
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
@@ -174,12 +188,41 @@ struct GatewayView: View {
         }
     }
 
+    /// 用量入口（§470）：行貌与本页控制行同 metrics
+    /// （水平边距/行高/按压反馈），披露箭头走共用件
+    /// DisclosureChevron（§453 收口后的全仓单源）
+    private var usageGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("用量")
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                NavigationLink(value: SettingsRoute.usage) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Text("用量")
+                            .font(.body)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                        DisclosureChevron(
+                            font: .footnote.weight(.semibold)
+                        )
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+            }
+            .odGroup()
+        }
+    }
+
     private func actionsGroup(_ status: ServerStatus) -> some View {
         let running = status.gatewayRunning == true
             || status.gatewayState?.lowercased() == "running"
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("控制")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 actionRow(title: "重启网关", danger: false) {
@@ -221,6 +264,123 @@ struct GatewayView: View {
         .disabled(isActing)
     }
 
+    /// 系统组（§493，D1 承接）：StatusView 整页退役
+    /// 时其系统段是唯一无等价正主的内容——整组收进
+    /// 本页：资源（内存/磁盘条＋CPU/负载/运行时间/
+    /// 进程内存）＋版本与运行时（主机/系统/Python/
+    /// 内核；Hermes 版本已在本页状态组、不重复）＋
+    /// 会话存储块（SessionStatsBlock 本体不变）
+    @ViewBuilder
+    private var systemGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("系统")
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            if let systemStats {
+                VStack(spacing: 0) {
+                    percentRow(
+                        "内存", percent: systemStats.memory?.percent,
+                        detail: memoryDetail(systemStats)
+                    )
+                    GroupDivider()
+                    percentRow(
+                        "磁盘", percent: systemStats.disk?.percent,
+                        detail: diskDetail(systemStats)
+                    )
+                    GroupDivider()
+                    KeyValueRow("CPU", value: systemStats.cpuPercent.map {
+                        "\(AdminFormat.count($0))% · \(systemStats.cpuCount ?? 0) 核"
+                    } ?? "—")
+                    GroupDivider()
+                    KeyValueRow("负载", value: systemStats.loadAvg.map {
+                        $0.map { AdminFormat.count($0) }.joined(separator: " / ")
+                    } ?? "—")
+                    GroupDivider()
+                    KeyValueRow(
+                        "运行时间",
+                        value: systemStats.uptimeSeconds.map(uptimeText) ?? "—"
+                    )
+                    GroupDivider()
+                    KeyValueRow(
+                        "进程内存",
+                        value: systemStats.process?.rss.map(byteText) ?? "—"
+                    )
+                    GroupDivider()
+                    KeyValueRow("主机", value: systemStats.hostname ?? "—")
+                    GroupDivider()
+                    KeyValueRow("系统", value: [
+                        systemStats.os, systemStats.arch,
+                    ].compactMap { $0 }.joined(separator: " · "))
+                    GroupDivider()
+                    KeyValueRow("Python", value: systemStats.pythonVersion ?? "—")
+                    GroupDivider()
+                    KeyValueRow("内核", value: systemStats.osRelease ?? "—")
+                }
+                .odGroup()
+            } else {
+                Text(
+                    systemStatsAttempted
+                        ? "系统状态没读到，下拉刷新再试。"
+                        : "正在读取系统状态…"
+                )
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            SessionStatsBlock()
+        }
+    }
+
+    private func percentRow(
+        _ label: String, percent: Double?, detail: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack {
+                Text(label)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Text(detail)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            DataBar(fraction: (percent ?? 0) / 100, height: 6)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingSM)
+    }
+
+    private func memoryDetail(_ stats: SystemStats) -> String {
+        guard let memory = stats.memory,
+              let used = memory.used, let total = memory.total else {
+            return stats.memory?.percent.map {
+                "\(AdminFormat.count($0))%"
+            } ?? "—"
+        }
+        return "\(byteText(used)) / \(byteText(total))"
+    }
+
+    private func diskDetail(_ stats: SystemStats) -> String {
+        guard let disk = stats.disk,
+              let used = disk.used, let total = disk.total else {
+            return stats.disk?.percent.map {
+                "\(AdminFormat.count($0))%"
+            } ?? "—"
+        }
+        return "\(byteText(used)) / \(byteText(total))"
+    }
+
+    private func byteText(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .memory)
+    }
+
+    private func uptimeText(_ seconds: Double) -> String {
+        let days = Int(seconds) / 86400
+        let hours = (Int(seconds) % 86400) / 3600
+        if days > 0 { return "\(days) 天 \(hours) 小时" }
+        let minutes = (Int(seconds) % 3600) / 60
+        return "\(hours) 小时 \(minutes) 分"
+    }
+
     private func stateWord(_ status: ServerStatus) -> String {
         ServerLabels.gatewayState(status.gatewayState, running: status.gatewayRunning)
     }
@@ -234,6 +394,13 @@ struct GatewayView: View {
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "网关状态没读出来，可能是网络或服务暂时没响应"
         }
+        let loadedStats = try? await appState.performAdmin({ client, config in
+            try await client.systemStats(config: config)
+        })
+        if let loadedStats {
+            systemStats = loadedStats
+        }
+        systemStatsAttempted = true
     }
 
     private func perform(_ action: String) async {

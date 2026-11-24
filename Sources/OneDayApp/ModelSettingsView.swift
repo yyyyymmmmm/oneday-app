@@ -21,6 +21,7 @@ import SwiftUI
 /// 取数层不碰（交叉点见 DESIGN §151 记账）。
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var store = ModelManagementStore()
     @State private var showProviderEditor = false
@@ -106,7 +107,7 @@ struct ModelSettingsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("模型与服务商")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await store.load(appState: appState, forceCatalog: true) }
         .task { await store.load(appState: appState) }
         .sheet(isPresented: $showProviderEditor) {
             ProviderEditorView(store: store) { added in
@@ -298,7 +299,11 @@ struct ModelSettingsView: View {
                 isCollapsed: providersFolded,
                 titleFont: .body,
                 onToggle: {
-                    withAnimation(.smooth(duration: 0.3)) {
+                    withAnimation(
+                        MotionTokens.resolved(
+                            MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+                        )
+                    ) {
                         modelCollapseData = SectionCollapseState.encode(
                             SectionCollapseState.toggled(
                                 key: Self.providersFoldKey,
@@ -421,7 +426,7 @@ struct ModelSettingsView: View {
             if isDefaultOwner {
                 Text("默认")
                     .font(.footnote)
-                    .foregroundStyle(Palette.success)
+                    .foregroundStyle(Palette.successText)
             }
             Text(L10n.format("%lld 个模型", modelCount))
                 .font(.footnote)
@@ -454,6 +459,19 @@ struct ModelSettingsView: View {
                         .font(.body)
                         .foregroundStyle(Palette.ink)
                     Text("把默认模型和辅助分配存成一份，整套切换。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            NavigationLink {
+                MoaView(modelStore: store)
+            } label: {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("多模型会商")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                    Text("几个模型先各自答、一个汇总——重要问题用。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
@@ -498,8 +516,6 @@ struct ModelSettingsView: View {
                 )
             } header: {
                 Text(L10n.format("模型（%lld）", appState.availableModels.count))
-            } footer: {
-                Text("点一行设为默认，立即生效。")
             }
             Section {
                 actionRow("获取模型", busy: busyCards.contains(Self.mainCardID)) {
@@ -561,8 +577,6 @@ struct ModelSettingsView: View {
                 }
             } header: {
                 Text(L10n.format("模型（%lld）", entry.models.count))
-            } footer: {
-                Text("点一行设为默认，立即生效。")
             }
             Section {
                 actionRow("获取模型", busy: busyCards.contains(entry.name)) {
@@ -652,7 +666,8 @@ struct ModelSettingsView: View {
     private func refreshMainCard() async {
         busyCards.insert(Self.mainCardID)
         defer { busyCards.remove(Self.mainCardID) }
-        await appState.refreshModelCatalog()
+        // §368：手动刷新走强制口，必真拉不清 TTL 的账
+        await appState.refreshModelCatalogForced()
         testResults[Self.mainCardID] = appState.availableModels.isEmpty
             ? .failed(message: L10n.string("没能读到网关的模型清单，检查网络与登录状态后再试。"))
             : .connected(modelCount: appState.availableModels.count)
@@ -736,27 +751,18 @@ struct GovernedModelRows: View {
         }
     }
 
+    /// 行渲染走全 App 共用行件 ModelListRow（台账
+    /// 199，与顶栏选择面同一套）：当前默认行＝勾＋
+    /// 「默认」标双保险（DefaultModelPickerView 定
+    /// 版口径）且静态不可再点，其余行整行可点
     private func modelRow(_ model: String) -> some View {
         let current = isDefault(model)
-        let content = HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(model)
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if current {
-                Text("默认")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.success)
-            }
-        }
-        .contentShape(Rectangle())
-        if current {
-            return AnyView(content)
-        }
-        return AnyView(
-            Button { onSelect(model) } label: { content }
-                .buttonStyle(.odPressable)
+        return ModelListRow(
+            title: model,
+            isCurrent: current,
+            currentTag: current ? L10n.string("默认") : nil,
+            monospaced: true,
+            onSelect: current ? nil : { onSelect(model) }
         )
     }
 }

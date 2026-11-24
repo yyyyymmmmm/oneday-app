@@ -103,6 +103,49 @@ public enum ApprovalCardCopy {
         }
     }
 
+    /// 原因行单读口（B-05，§301）：卡面防呆行与宿主
+    /// 裁决提示只读 reason 一处，reason_phase 决定前
+    /// 缀句式——预检拦截「这条无法批准：…」、执行
+    /// 失败「裁决未生效：…」（两句均为 §245 定案文
+    /// 案，本包只收口读法、不改措辞）。phase 缺失/
+    /// 未知时按载体缺省：记录面唯一产出阶段是预检、
+    /// 回执面唯一产出阶段是执行（桥 1.0.63 两面产
+    /// 出点实证），缺省与产出同口径、不发明新句式。
+    /// 无 reason 返回 nil（调用方走各自无原因分支）
+    public static func reasonLine(
+        for record: WriteGateRecord,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String? {
+        reasonLine(
+            reason: record.reason, phase: record.reasonPhase,
+            defaultPhase: .preCheck, locale: locale
+        )
+    }
+
+    /// 裁决回执的原因行（与记录面同一读口，见上）
+    public static func reasonLine(
+        for response: WriteGateDecisionResponse,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String? {
+        reasonLine(
+            reason: response.reason, phase: response.reasonPhase,
+            defaultPhase: .execution, locale: locale
+        )
+    }
+
+    private static func reasonLine(
+        reason: String?, phase: WriteGateReasonPhase?,
+        defaultPhase: WriteGateReasonPhase, locale: Locale
+    ) -> String? {
+        guard let reason else { return nil }
+        switch phase ?? defaultPhase {
+        case .preCheck:
+            return L10n.format("这条无法批准：%@", locale: locale, reason)
+        case .execution:
+            return L10n.format("裁决未生效：%@", locale: locale, reason)
+        }
+    }
+
     /// 「总是允许这一类」的范围说明：子系统＋来源，
     /// 与桥规则键（subsystem, origin）同一口径的人话
     /// 呈现——用户点之前就知道记住的是哪一类

@@ -25,10 +25,12 @@ final class FeedBoardTests: XCTestCase {
     private func post(
         id: String, kind: FeedPostKind = .digest,
         title: String = "帖", body: String = "正文",
+        why: String? = nil,
         createdAt: Date, readAt: Date? = nil
     ) -> BridgeFeedPost {
         BridgeFeedPost(
             id: id, kind: kind, title: title, body: body,
+            why: why,
             createdAt: createdAt.timeIntervalSince1970,
             readAt: readAt?.timeIntervalSince1970
         )
@@ -89,6 +91,71 @@ final class FeedBoardTests: XCTestCase {
         XCTAssertEqual(rel(date(2026, 11, 6, 8, 0)), "星期五 08:00")
         XCTAssertEqual(rel(date(2026, 10, 30, 8, 0)), "10月30日 08:00")
         XCTAssertEqual(rel(date(2025, 12, 31, 8, 0)), "2025年12月31日 08:00")
+    }
+
+    // MARK: - §453 短相对时间与关于节
+
+    func testRelativeShortTextTiers() {
+        let now = date(2026, 11, 10, 15, 30)
+        func rel(_ d: Date) -> String {
+            FeedBoard.relativeShortText(
+                for: d.timeIntervalSince1970, now: now,
+                calendar: calendar,
+                locale: Locale(identifier: "zh-Hans")
+            )
+        }
+        XCTAssertEqual(rel(date(2026, 11, 10, 15, 29, 40)), "刚刚")
+        XCTAssertEqual(rel(date(2026, 11, 10, 15, 10)), "20分钟")
+        XCTAssertEqual(rel(date(2026, 11, 10, 13, 30)), "2小时")
+        XCTAssertEqual(rel(date(2026, 11, 9, 22, 5)), "1天")
+        XCTAssertEqual(rel(date(2026, 11, 8, 8, 0)), "2天")
+        XCTAssertEqual(rel(date(2026, 11, 4, 8, 0)), "6天")
+        // 满 7 天走日期、无时刻（卡面不带精确时刻）
+        XCTAssertEqual(rel(date(2026, 11, 3, 8, 0)), "11月3日")
+        XCTAssertEqual(rel(date(2025, 12, 31, 8, 0)), "2025年12月31日")
+    }
+
+    func testPreciseTextIsWeekdayPlusTime() {
+        // 2026-11-06 是星期五（与 relativeText 档位同证）
+        let text = FeedBoard.preciseText(
+            for: date(2026, 11, 6, 8, 22).timeIntervalSince1970,
+            calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
+        )
+        XCTAssertEqual(text, "星期五08:22")
+    }
+
+    func testAboutSectionWithReasonShowsHeadingReasonAndTime() {
+        let p = post(
+            id: "w", why: "你让这份动态盯着热榜。",
+            createdAt: date(2026, 11, 6, 8, 22)
+        )
+        let about = FeedBoard.aboutSection(
+            for: p, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
+        )
+        XCTAssertTrue(about.showsHeading)
+        XCTAssertEqual(about.reason, "你让这份动态盯着热榜。")
+        XCTAssertEqual(about.preciseTime, "星期五08:22")
+    }
+
+    func testAboutSectionWithoutReasonShowsTimeOnly() {
+        let p = post(id: "n", createdAt: date(2026, 11, 6, 8, 22))
+        let about = FeedBoard.aboutSection(
+            for: p, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
+        )
+        XCTAssertFalse(about.showsHeading)
+        XCTAssertNil(about.reason)
+        XCTAssertEqual(about.preciseTime, "星期五08:22")
+        // 空白理由同无理由，不许编
+        let blank = post(
+            id: "b", why: "  ",
+            createdAt: date(2026, 11, 6, 8, 22)
+        )
+        XCTAssertFalse(
+            FeedBoard.aboutSection(for: blank).showsHeading
+        )
     }
 
     // MARK: - 未读与胶囊

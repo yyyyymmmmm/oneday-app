@@ -16,6 +16,7 @@ import OneDayCore
 /// miss，下次可再试。
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：按文件逐项懒取元数据，非名单全量拉取（判定表见 DESIGN §416）
 final class DeliveryStore {
     static let shared = DeliveryStore()
 
@@ -32,6 +33,16 @@ final class DeliveryStore {
 
     func metaResult(for id: String) -> MetaResult? {
         metaResults[id]
+    }
+
+    /// 同步 peek（§329 行高合成用）：某档快照字节
+    /// 是否已在进程缓存——只读不取数、不触发网络；
+    /// 合成器据此判交付文件卡的封面形态（字节在
+    /// 缓存＝视图 .task 同步命中、封面必达）
+    func hasCachedImage(
+        id: String, variant: DeliveryImageVariant
+    ) -> Bool {
+        imageBytes["\(id)/\(variant.rawValue)"] != nil
     }
 
     func loadMeta(

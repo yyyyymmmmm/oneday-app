@@ -6,6 +6,9 @@ import XCTest
 /// 列表、无无分类区）、分类字段解码与新建请求携带。
 /// 动态两项（去日期分组/帖面同色）是纯视图结构，无
 /// Core 口径可钉，验收走真机与 DESIGN §177 记账。
+/// §459 增补：domain 十二值分节（节序/节名与服务端
+/// DOMAIN_LABELS 逐字同）、旧 category 折算兜底、
+/// kind 三态解码、categoryLabel 字段解码。
 final class FeedIdeasParityTests: XCTestCase {
 
     private let now: Double = 1_000_000
@@ -204,5 +207,155 @@ final class FeedIdeasParityTests: XCTestCase {
         ) ?? ""
         XCTAssertFalse(legacyJSON.contains("category"))
         XCTAssertNil(without.category)
+    }
+
+    // MARK: - §459 domain 分节
+
+    private func domainIdea(
+        _ id: String, domain: String?,
+        category: String? = nil,
+        status: IdeaStatus = .pending,
+        createdAt: Double = 100
+    ) -> BridgeIdea {
+        BridgeIdea(
+            id: id, title: id, detail: "", goalId: nil,
+            createdAt: createdAt, status: status,
+            category: category, domain: domain
+        )
+    }
+
+    func testDomainTitlesMatchServerLabels() {
+        // 与服务端 DOMAIN_LABELS 逐字同（十二值全集）
+        let expected: [(IdeaDomain, String)] = [
+            (.personalProductivity, "个人效率"),
+            (.entertainment, "娱乐"),
+            (.shopping, "购物"),
+            (.finance, "财务"),
+            (.relationships, "人际关系"),
+            (.health, "健康"),
+            (.career, "事业"),
+            (.homeAutomation, "智能家居"),
+            (.connectDevices, "设备连接"),
+            (.creationMedia, "创作媒体"),
+            (.family, "家庭"),
+            (.goalScoped, "目标相关"),
+        ]
+        XCTAssertEqual(IdeaDomain.allCases.count, 12)
+        for (domain, title) in expected {
+            XCTAssertEqual(domain.title, title)
+        }
+        // 节序＝声明序（CaseIterable 序）
+        XCTAssertEqual(
+            IdeaDomain.allCases.map(\.rawValue),
+            [
+                "personal_productivity", "entertainment",
+                "shopping", "finance", "relationships",
+                "health", "career", "home_automation",
+                "connect_devices", "creation_media",
+                "family", "goal_scoped",
+            ]
+        )
+    }
+
+    func testDomainResolvePrefersCardDomain() {
+        let idea = domainIdea(
+            "d1", domain: "shopping", category: "health"
+        )
+        XCTAssertEqual(IdeaDomain.resolve(idea), .shopping)
+    }
+
+    func testDomainResolveFoldsLegacyCategory() {
+        // 与服务端 _LEGACY_CATEGORY_DOMAIN 逐项同
+        let folds: [(String, IdeaDomain)] = [
+            ("health", .health),
+            ("relationships", .relationships),
+            ("finance", .finance),
+            ("career", .career),
+            ("efficiency", .personalProductivity),
+            ("interest", .entertainment),
+            ("other", .personalProductivity),
+        ]
+        for (category, domain) in folds {
+            XCTAssertEqual(
+                IdeaDomain.resolve(domainIdea("x", domain: nil, category: category)),
+                domain
+            )
+        }
+        // 未知 domain 值不直用、走 category 折算
+        XCTAssertEqual(
+            IdeaDomain.resolve(
+                domainIdea("y", domain: "nope", category: "finance")
+            ),
+            .finance
+        )
+        // 两字段皆缺：默认域（与服务端缺省同值），不丢卡
+        XCTAssertEqual(
+            IdeaDomain.resolve(domainIdea("z", domain: nil)),
+            .personalProductivity
+        )
+    }
+
+    func testDomainSectionsOrderAndNoCardDropped() {
+        let ideas = [
+            domainIdea("a", domain: "goal_scoped", createdAt: 90),
+            domainIdea("b", domain: "health", createdAt: 80),
+            domainIdea("c", domain: nil, createdAt: 70),
+            domainIdea("d", domain: "health", createdAt: 95),
+            domainIdea(
+                "e", domain: "finance", status: .dismissed
+            ),
+        ]
+        let sections = IdeaBoard.domainSections(ideas, now: now)
+        // 节序走十二域定序：个人效率（默认折算）→健康→目标相关
+        XCTAssertEqual(
+            sections.map(\.domain),
+            [.personalProductivity, .health, .goalScoped]
+        )
+        // 节内 createdAt 倒序
+        XCTAssertEqual(sections[1].ideas.map(\.id), ["d", "b"])
+        // 可见卡全数在节（已忽略的不进、其余不丢）
+        XCTAssertEqual(
+            sections.flatMap(\.ideas).map(\.id).sorted(),
+            ["a", "b", "c", "d"]
+        )
+    }
+
+    // MARK: - §459 kind 与 categoryLabel 解码
+
+    func testIdeaDecodesDomainLabelKind() throws {
+        let json = #"""
+        {"id": "k1", "title": "t", "detail": "",
+         "createdAt": 5, "domain": "career",
+         "categoryLabel": "服务器运维", "kind": "routine"}
+        """#
+        let idea = try JSONDecoder().decode(
+            BridgeIdea.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(idea.domain, "career")
+        XCTAssertEqual(idea.categoryLabel, "服务器运维")
+        XCTAssertEqual(idea.kind, .routine)
+    }
+
+    func testIdeaKindFoldsUnknownAndMissingToChat() throws {
+        let legacy = #"""
+        {"id": "k2", "title": "t", "detail": "", "createdAt": 5}
+        """#
+        let old = try JSONDecoder().decode(
+            BridgeIdea.self, from: Data(legacy.utf8)
+        )
+        XCTAssertEqual(old.kind, .chat)
+        XCTAssertNil(old.domain)
+        XCTAssertNil(old.categoryLabel)
+
+        let weird = #"""
+        {"id": "k3", "title": "t", "detail": "",
+         "createdAt": 5, "kind": "teleport"}
+        """#
+        let folded = try JSONDecoder().decode(
+            BridgeIdea.self, from: Data(weird.utf8)
+        )
+        XCTAssertEqual(folded.kind, .chat)
+        XCTAssertEqual(IdeaKind.from("goal"), .goal)
+        XCTAssertEqual(IdeaKind.from(nil), .chat)
     }
 }

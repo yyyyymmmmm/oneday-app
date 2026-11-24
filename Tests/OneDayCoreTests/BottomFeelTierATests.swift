@@ -86,167 +86,391 @@ final class BottomFeelTierATests: XCTestCase {
         )
     }
 
-    // MARK: - 复核序列·运动落定（BottomSettleRecheck.motionSettled）
+    // MARK: - 落定评估（BottomSettleEvaluation，R4 事件化）
 
-    func testMotionSettledUnanimatedIsAlwaysSettled() {
-        XCTAssertTrue(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: false, distance: 300,
-                previousDistance: nil
-            )
-        )
-        XCTAssertTrue(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: false, distance: 300,
-                previousDistance: 900
-            )
-        )
-    }
-
-    func testMotionSettledAnimatedNeedsStableSamples() {
-        // 首检无前值：弹簧途中，恒判未落定
-        XCTAssertFalse(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: true, distance: 300,
-                previousDistance: nil
-            )
-        )
-        // 相邻两检读数差 ≤ epsilon（1pt）→ 已落定
-        XCTAssertTrue(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: true, distance: 300,
-                previousDistance: 300.5
-            )
-        )
-        XCTAssertTrue(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: true, distance: 300,
-                previousDistance: 301
-            )
-        )
-        // 仍在大幅变化 → 未落定
-        XCTAssertFalse(
-            BottomSettleRecheck.motionSettled(
-                wasAnimated: true, distance: 300,
-                previousDistance: 380
-            )
-        )
-    }
-
-    // MARK: - 复核序列·裁决（BottomSettleRecheck.decision）
-
-    func testRecheckSettledWhenWithinRestickThreshold() {
+    func testSettleEvaluationSettledWithinThreshold() {
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: BottomSettle.restickThreshold,
-                motionSettled: false,
                 contentEndVisible: false,
-                isLastCheck: false
+                previousDistance: nil,
+                restickArmed: false
             ),
             .settled
         )
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 0,
-                motionSettled: false,
                 contentEndVisible: false,
-                isLastCheck: false
+                previousDistance: 400,
+                restickArmed: true
+            ),
+            .settled
+        )
+        // 达标优先于事实：两者同真取 settled
+        XCTAssertEqual(
+            BottomSettleEvaluation.decision(
+                distance: 3,
+                contentEndVisible: true,
+                previousDistance: nil,
+                restickArmed: false
             ),
             .settled
         )
     }
 
-    func testRecheckCalibratedWhenContentEndVisible() {
-        // 距底读数驻留迟滞带（96–176）而末端事实可见
-        // → 校准收官、不复贴
+    func testSettleEvaluationCalibratedWhenContentEndVisible() {
+        // 距底驻留中段而末端事实可见 → 校准收官
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 120,
-                motionSettled: false,
                 contentEndVisible: true,
-                isLastCheck: false
+                previousDistance: nil,
+                restickArmed: false
             ),
             .calibrated
         )
         // 事实优先于离底放弃：读数再大，末端可见即
         // 以事实为准
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 400,
-                motionSettled: true,
                 contentEndVisible: true,
-                isLastCheck: false
+                previousDistance: 400,
+                restickArmed: true
             ),
             .calibrated
         )
     }
 
-    func testRecheckRestickWhenSettledShortOfBottom() {
+    func testSettleEvaluationRestickWhenMotionStopped() {
+        // 相邻两事件读数差 ≤ epsilon（1pt）且挂账
+        // 在位 → 唯一一次复贴
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 57,
-                motionSettled: true,
                 contentEndVisible: false,
-                isLastCheck: false
+                previousDistance: 57.5,
+                restickArmed: true
+            ),
+            .restick
+        )
+        XCTAssertEqual(
+            BottomSettleEvaluation.decision(
+                distance: 57,
+                contentEndVisible: false,
+                previousDistance: 58,
+                restickArmed: true
             ),
             .restick
         )
     }
 
-    func testRecheckNeverResticksWhenUserWentAway() {
-        // 距底 ≥ 退出阈值（点钮后反悔上滑等）：运动
-        // 再「落定」也不许把用户拽回——整序放弃
+    func testSettleEvaluationWaitsWhileMotionInFlight() {
+        // 读数仍在大幅变化 → 等下一事件
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
-                distance: BottomProximity.exitDistance,
-                motionSettled: true,
-                contentEndVisible: false,
-                isLastCheck: false
-            ),
-            .exhausted
-        )
-        XCTAssertEqual(
-            BottomSettleRecheck.decision(
-                distance: 900,
-                motionSettled: true,
-                contentEndVisible: false,
-                isLastCheck: false
-            ),
-            .exhausted
-        )
-    }
-
-    func testRecheckWaitsWhileMotionInFlight() {
-        XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 120,
-                motionSettled: false,
                 contentEndVisible: false,
-                isLastCheck: false
+                previousDistance: 300,
+                restickArmed: true
             ),
             .wait
         )
-        // 末检仍在动 → 放弃（派生链逐帧自理，不留尾巴）
+        // 首个事件无前值可比 → 等（动画贴底的弹簧
+        // 不被首读误截）
         XCTAssertEqual(
-            BottomSettleRecheck.decision(
+            BottomSettleEvaluation.decision(
                 distance: 120,
-                motionSettled: false,
                 contentEndVisible: false,
-                isLastCheck: true
+                previousDistance: nil,
+                restickArmed: true
+            ),
+            .wait
+        )
+    }
+
+    func testSettleEvaluationWaitsWhenRestickNotArmed() {
+        // 运动已停但放行门未开（动画贴底尚未观测到
+        // 运动在途／挂账已被顶替）→ 只等、不复贴
+        XCTAssertEqual(
+            BottomSettleEvaluation.decision(
+                distance: 57,
+                contentEndVisible: false,
+                previousDistance: 57,
+                restickArmed: false
+            ),
+            .wait
+        )
+    }
+
+    func testSettleEvaluationNeverResticksWhenUserWentAway() {
+        // 距底 ≥ 退出阈值：读数再稳也不许把用户拽
+        // 回——离底收官优先于复贴
+        XCTAssertEqual(
+            BottomSettleEvaluation.decision(
+                distance: BottomProximity.exitDistance,
+                contentEndVisible: false,
+                previousDistance:
+                    BottomProximity.exitDistance,
+                restickArmed: true
+            ),
+            .exhausted
+        )
+        XCTAssertEqual(
+            BottomSettleEvaluation.decision(
+                distance: 900,
+                contentEndVisible: false,
+                previousDistance: 900,
+                restickArmed: true
             ),
             .exhausted
         )
     }
 
-    func testRecheckScheduleAlignsWithLegacyFirstCheck() {
-        // 首检沿 0.36.13 量实时点、四检短窗收官
+    func testRestickArmedPeekDoesNotConsume() {
+        var coordinator = BottomStickCoordinator()
+        guard case .perform(let generation) =
+            coordinator.requestStick(at: 100)
+        else {
+            return XCTFail("首请求应执行即时贴")
+        }
+        XCTAssertTrue(
+            coordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        // 窥视不消费：再窥仍在位、消费后才落空
+        XCTAssertTrue(
+            coordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        XCTAssertTrue(
+            coordinator.consumeRestick(
+                generation: generation
+            )
+        )
+        XCTAssertFalse(
+            coordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        // 过期代号恒不在位
+        XCTAssertFalse(
+            coordinator.isRestickArmed(
+                generation: generation + 99
+            )
+        )
+    }
+
+    // MARK: - 落定状态机（BottomSettleMachine，R4）
+
+    func testMachineSettlesOnFirstEventWithinThreshold() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: false)
         XCTAssertEqual(
-            BottomSettleRecheck.checkDelaysMilliseconds,
-            [120, 320, 640, 1100]
+            machine.step(
+                distance: 3, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .settled
+        )
+        XCTAssertFalse(machine.isWatching)
+        // 收官后步进惰性：恒 continue、不再裁决
+        XCTAssertEqual(
+            machine.step(
+                distance: 90, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+    }
+
+    func testMachineAnimatedWaitsForMotionThenResticks() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: true)
+        // 首事件无前值：等
+        XCTAssertEqual(
+            machine.step(
+                distance: 300, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+        // 大幅变化＝运动在途、仍在动：等
+        XCTAssertEqual(
+            machine.step(
+                distance: 120, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
         )
         XCTAssertEqual(
-            BottomSettleRecheck.checkDelaysMilliseconds.first ?? -1,
-            BottomStickCoordinator.restickDelayMilliseconds
+            machine.step(
+                distance: 60, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+        // 读数连稳且运动已观测：复贴收官
+        XCTAssertEqual(
+            machine.step(
+                distance: 60.5, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .restick
+        )
+        XCTAssertFalse(machine.isWatching)
+    }
+
+    func testMachineUnanimatedNeedsTwoStableReadings() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: false)
+        // 无动画贴底：首事件无前值不可判稳——等
+        XCTAssertEqual(
+            machine.step(
+                distance: 60, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+        // 第二事件读数不变＝已落定未达标：复贴
+        XCTAssertEqual(
+            machine.step(
+                distance: 60, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .restick
+        )
+    }
+
+    func testMachineAnimatedLateEventsFallbackByStableStreak() {
+        // 迟到事件：弹簧已近落定才来首事件、全程未
+        // 见大幅变化——连稳两拍后兜底放行
+        var machine = BottomSettleMachine()
+        machine.begin(animated: true)
+        _ = machine.step(
+            distance: 60, contentEndVisible: false,
+            restickArmed: true
+        )
+        _ = machine.step(
+            distance: 60.4, contentEndVisible: false,
+            restickArmed: true
+        )
+        XCTAssertEqual(
+            machine.step(
+                distance: 60.2, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .restick
+        )
+    }
+
+    func testMachineExhaustedWhenUserWentAway() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: false)
+        XCTAssertEqual(
+            machine.step(
+                distance: 240, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .exhausted
+        )
+        XCTAssertFalse(machine.isWatching)
+    }
+
+    func testMachineCalibratedByFact() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: true)
+        XCTAssertEqual(
+            machine.step(
+                distance: 130, contentEndVisible: true,
+                restickArmed: true
+            ),
+            .calibrated
+        )
+    }
+
+    func testMachineRespectsRestickArmedGate() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: false)
+        _ = machine.step(
+            distance: 60, contentEndVisible: false,
+            restickArmed: false
+        )
+        // 读数已稳但协调者挂账不在位：不复贴、继续
+        XCTAssertEqual(
+            machine.step(
+                distance: 60, contentEndVisible: false,
+                restickArmed: false
+            ),
+            .continue
+        )
+        XCTAssertTrue(machine.isWatching)
+    }
+
+    func testMachineCancelAndRebegin() {
+        var machine = BottomSettleMachine()
+        machine.begin(animated: true)
+        machine.cancel()
+        XCTAssertFalse(machine.isWatching)
+        XCTAssertEqual(
+            machine.step(
+                distance: 3, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+        // 顶替：begin 全量重置——新观察的首事件不
+        // 得吃上一笔的 previousDistance：上一笔在
+        // 100 处留了前值，新观察首读 100.4——若前
+        // 值泄漏，相邻差 0.4 会被判「已稳」直接复
+        // 贴；重置干净则首读数无前值、只能等
+        machine.begin(animated: false)
+        _ = machine.step(
+            distance: 100, contentEndVisible: false,
+            restickArmed: true
+        )
+        machine.begin(animated: false)
+        XCTAssertEqual(
+            machine.step(
+                distance: 100.4, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
+        )
+    }
+
+    func testMachineTimeoutStepForcesVerdict() {
+        // 零事件兜底：stepTimeout 以「无事件即静止」
+        // 喂回同一判定——动画观察也一评收官
+        var machine = BottomSettleMachine()
+        machine.begin(animated: true)
+        XCTAssertEqual(
+            machine.stepTimeout(
+                distance: 48, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .restick
+        )
+        var settled = BottomSettleMachine()
+        settled.begin(animated: true)
+        XCTAssertEqual(
+            settled.stepTimeout(
+                distance: 2, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .settled
+        )
+        // 未观察态喂兜底：惰性
+        var idle = BottomSettleMachine()
+        XCTAssertEqual(
+            idle.stepTimeout(
+                distance: 48, contentEndVisible: false,
+                restickArmed: true
+            ),
+            .continue
         )
     }
 

@@ -1,0 +1,218 @@
+import XCTest
+
+/// 抽屉行上下文菜单系统级验收：打 -odDemoMode 真 App
+/// 生产装配，按生产汉堡钮开抽屉，由 XCUITest 投递长按。
+final class DrawerRowContextMenuTests: XCTestCase {
+    private let sidePrefix = "drawer.row.side."
+    private let localRowPrefix = "drawer.row.side.local."
+    private let serverRowID =
+        "drawer.row.side.server.oneday-ai-drawer-longpress"
+    private let channelRowID = "drawer.row.channel.hermes"
+    /// 会话行四件的 SF Symbol 标识（改名/置顶/归档/删
+    /// 除——与区域无关的动作语义口径；置顶态切换时 pin
+    /// 变 pin.slash，演示行恒未置顶、取 pin）
+    private let sessionMenuSymbols = [
+        "pencil", "pin", "archivebox", "trash",
+    ]
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    func testLocalAndCurrentSelectedRowsExposeFourActions() throws {
+        let app = launchDemoApp()
+        openDrawer(app)
+        let localRow = try firstLocalRow(in: app)
+        assertMenu(on: localRow, items: sessionMenuSymbols, in: app)
+        dismissMenuAndDrawer(in: app)
+
+        // 点击旁聊行走生产选择路径；抽屉关闭后再由生产钮重开。
+        openDrawer(app)
+        let selectedRow = try firstLocalRow(in: app)
+        let selectedRowID = selectedRow.identifier
+        selectedRow.tap()
+        openDrawer(app)
+        let selected = app.buttons[selectedRowID]
+        reveal(selected, in: app)
+        assertMenu(on: selected, items: sessionMenuSymbols, in: app)
+        dismissMenuAndDrawer(in: app)
+    }
+
+    func testUnadoptedServerRowExposesFourActions() throws {
+        let app = launchDemoApp()
+        openDrawer(app)
+        let row = app.buttons[serverRowID]
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "演示未收养行未出现")
+        assertMenu(on: row, items: sessionMenuSymbols, in: app)
+        dismissMenuAndDrawer(in: app)
+    }
+
+    func testHermesChannelRowExposesOpenAction() throws {
+        let app = launchDemoApp()
+        openDrawer(app)
+        let row = app.buttons[channelRowID]
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "Hermes 频道行未出现")
+        assertMenu(on: row, items: ["arrow.up.right"], in: app)
+        dismissMenuAndDrawer(in: app)
+    }
+
+    func testSideListFirstAndLastRowsExposeContextMenu() throws {
+        let app = launchDemoApp()
+        openDrawer(app)
+        let rows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", sidePrefix)
+        )
+        XCTAssertGreaterThanOrEqual(rows.count, 3, "旁聊样本不足以验首、中、末行")
+
+        let orderedRows = rows.allElementsBoundByIndex.sorted {
+            $0.frame.minY < $1.frame.minY
+        }
+        let first = try XCTUnwrap(orderedRows.first)
+        assertMenu(on: first, items: ["pencil"], in: app)
+        dismissMenuAndDrawer(in: app)
+
+        openDrawer(app)
+        let refreshedRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", sidePrefix)
+        )
+        XCTAssertGreaterThanOrEqual(refreshedRows.count, 3)
+        let orderedRefreshedRows = refreshedRows.allElementsBoundByIndex.sorted {
+            $0.frame.minY < $1.frame.minY
+        }
+        let last = try XCTUnwrap(orderedRefreshedRows.last)
+        assertMenu(on: last, items: ["pencil"], in: app)
+        dismissMenuAndDrawer(in: app)
+    }
+
+    private func launchDemoApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-odDemoMode"]
+        app.launch()
+        return app
+    }
+
+    private func openDrawer(_ app: XCUIApplication) {
+        let openButton = app.buttons["drawer.open"]
+        XCTAssertTrue(
+            openButton.waitForExistence(timeout: 15), "生产抽屉入口未出现"
+        )
+        if openButton.isHittable {
+            openButton.tap()
+        }
+        let row = app.buttons[channelRowID]
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "生产抽屉未打开")
+    }
+
+    private func firstLocalRow(in app: XCUIApplication) throws -> XCUIElement {
+        let rows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", localRowPrefix)
+        )
+        XCTAssertGreaterThanOrEqual(rows.count, 1, "演示本地旁聊行未出现")
+        let row = rows.element(boundBy: 0)
+        reveal(row, in: app)
+        return row
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<8 where !element.isHittable {
+            scrollView.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable, "目标行滚动后仍不可命中：\(element.identifier)")
+        // 台账 194（名单变长后两轮 CI 实证）：首个
+        // 旁聊行在开抽屉首帧即「可命中」，却半压在
+        // 底条注册带下——长按落点（行中心）进底条
+        // 区、菜单不开（同轮未收养行因需滚动反而落
+        // 位干净、长按通过）。reveal 补安全带定位：
+        // 行中心须落在身份浮层之下（>130）、底条带
+        // 之上（名单底缘 −102＝安全区 34＋条高 68）
+        // 才算到位；菜单断言本体一字不动
+        let safeBottom = scrollView.frame.maxY - 102
+        for _ in 0..<8 {
+            let centerY = element.frame.midY
+            if centerY > 130 && centerY < safeBottom { break }
+            if centerY >= safeBottom {
+                scrollView.swipeUp()
+            } else {
+                scrollView.swipeDown()
+            }
+        }
+    }
+
+    /// 预注册判点：标题区坐标 1.5 秒系统长按后，要求菜单
+    /// 项存在且 hittable。菜单项按 **SF Symbol 标识**查
+    /// （pencil/pin/archivebox/trash），不按标题文字——
+    /// 标题随系统语言本地化（CI 英文区域快照实证菜单项
+    /// 是 Rename/Pin/Archive/Delete conversation，菜单本
+    /// 身真弹出了、按中文名断言必然查无此项）；标题文案
+    /// 本身由 Localizable 目录校验覆盖，不在本门职责。
+    /// 按压点取行宽 30% 处（标题区）而非行正中——正中是
+    /// 标题与行尾之间的 Spacer 死区。首项等不到时把当时
+    /// 全树按钮清单写进断言信息，分清「没弹」与「弹了没
+    /// 找到」。
+    private func assertMenu(
+        on row: XCUIElement, items: [String], in app: XCUIApplication
+    ) {
+        reveal(row, in: app)
+        let pressPoint = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)
+        )
+        pressPoint.press(forDuration: 1.5)
+        for (index, symbol) in items.enumerated() {
+            let item = app.buttons.matching(
+                NSPredicate(format: "identifier == %@", symbol)
+            ).firstMatch
+            let timeout: TimeInterval = index == 0 ? 10 : 5
+            if !item.waitForExistence(timeout: timeout) {
+                XCTFail(
+                    "长按菜单缺少动作「\(symbol)」；当时按钮树："
+                        + treeSnapshot(in: app)
+                )
+            }
+            XCTAssertTrue(item.isHittable, "长按菜单项不可达：「\(symbol)」")
+        }
+    }
+
+    /// 失败取证：全树按钮的标识/标签紧凑清单
+    private func treeSnapshot(in app: XCUIApplication) -> String {
+        let buttons = app.buttons.allElementsBoundByIndex.map {
+            "\($0.identifier)|\($0.label)"
+        }
+        return buttons.joined(separator: ", ")
+    }
+
+    /// 点抽屉外的生产前景窄条关菜单、关抽屉。顺序不能反：
+    /// 抽屉打开时容器把内容宿主整树 accessibilityEle-
+    /// mentsHidden（DrawerContainerView），drawer.open 在
+    /// 树里根本不存在——必须先点窄条把抽屉关掉，才等得到
+    /// 它重新出现且可命中（首轮 CI 断 :147 即此序错）。
+    private func dismissMenuAndDrawer(in app: XCUIApplication) {
+        let outside = app.windows.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)
+        )
+        outside.tap()
+        let menuDismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.buttons.matching(
+                NSPredicate(format: "identifier == %@", "pencil")
+            ).firstMatch
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [menuDismissed], timeout: 5), .completed,
+            "菜单外点击后上下文菜单仍在"
+        )
+
+        // 菜单已散，再点一次窄条关抽屉（若第一击已连抽屉
+        // 一并关掉，这击落在聊天页空白处、无副作用）
+        outside.tap()
+        let openButton = app.buttons["drawer.open"]
+        let drawerClosed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"),
+            object: openButton
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [drawerClosed], timeout: 10), .completed,
+            "菜单外点击后生产抽屉未关闭"
+        )
+    }
+}

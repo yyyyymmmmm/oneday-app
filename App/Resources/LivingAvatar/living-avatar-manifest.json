@@ -1,0 +1,164 @@
+{
+  "baseline": "baseline-20261124/（导入前 identity 资产目录清单 listing.txt＋index.json 副本＋当前头像 av_6199b491aa3e.jpg 副本）",
+  "bound_avatar": {
+    "bytes": 404199,
+    "dimensions": "1536x1536",
+    "face_check": "亲眼验图通过：与源图同一只毛绒小狗（牛仔外套＋帆布背包，'知'字牌）；服务器侧为 App 上传的 JPEG 重编码版，源图为 webp，形象一致",
+    "file": "av_6199b491aa3e.jpg",
+    "id": "av_6199b491aa3e",
+    "kind": "image",
+    "md5": "cdf0431957d349ebdb001140543bf4ff",
+    "set_at": "2026-11-24T05:20:00+08:00",
+    "sha256": "67df4da1f8dcf2c10654ac3df4d3cdf05e66f933cdb99aa6777e1b563bdcef30",
+    "source": "app-user",
+    "source_image_local": "avatar-1792296030262922639-7.webp",
+    "source_image_md5": "b11a88f18cfe9188bea562b429b4147d"
+  },
+  "clips": [
+    {
+      "bytes": 629977,
+      "duration_s": 8.0,
+      "file": "idle.mp4",
+      "md5": "9f9e24b0d7f55e41dc5caa0413e70fd6",
+      "role": "S1 空闲（浅色）"
+    },
+    {
+      "bytes": 558261,
+      "duration_s": 8.0,
+      "file": "idle-dark.mp4",
+      "md5": "559c81aea909f96ed7a085790e60d1b8",
+      "role": "S1 空闲（深色）"
+    },
+    {
+      "bytes": 428774,
+      "duration_s": 8.0,
+      "file": "working.mp4",
+      "md5": "849fa0b14ea46caf6a15b22101668ca2",
+      "role": "S4 干活·通用（浅色），兼 S4 委派同源"
+    },
+    {
+      "bytes": 601407,
+      "duration_s": 8.0,
+      "file": "working-dark.mp4",
+      "md5": "0bda31b095ffcc2977c9bcdaeb9d1b6d",
+      "role": "S4 干活·通用（深色），兼 S4 委派同源"
+    },
+    {
+      "bytes": 899268,
+      "duration_s": 8.0,
+      "file": "making_something.mp4",
+      "md5": "a84a55435787fbebf6c5064f6870cd50",
+      "role": "S4 干活·写（浅色）"
+    },
+    {
+      "bytes": 973187,
+      "duration_s": 8.0,
+      "file": "making_something-dark.mp4",
+      "md5": "5ae807a0ebdb4437d9cab90af6fbab58",
+      "role": "S4 干活·写（深色）"
+    },
+    {
+      "bytes": 861787,
+      "duration_s": 8.0,
+      "file": "milestone_level_up.mp4",
+      "md5": "59c6d7c18d37997bf2a7935bd7e54342",
+      "role": "S6 完成（浅色）"
+    },
+    {
+      "bytes": 893533,
+      "duration_s": 8.0,
+      "file": "milestone_level_up-dark.mp4",
+      "md5": "06a6e595c20c38e777b3c922116a85d1",
+      "role": "S6 完成（深色）"
+    },
+    {
+      "bytes": 772185,
+      "duration_s": 8.0,
+      "file": "waking-dark.mp4",
+      "md5": "13b520b4e5018a04cada0153c8dbc66e",
+      "role": "S9 睡着邻位（仅深色）"
+    },
+    {
+      "bytes": 1420982,
+      "duration_s": 8.72,
+      "file": "idle-call-light.mp4",
+      "md5": "fb6312023b4f7f1af16b9a36e55ca3a8",
+      "role": "通话面 idle（浅色）"
+    },
+    {
+      "bytes": 1555658,
+      "duration_s": 9.68,
+      "file": "idle-call-dark.mp4",
+      "md5": "f50a4deec449c8d3ac315c18b59042b1",
+      "role": "通话面 idle（深色）"
+    },
+    {
+      "bytes": 2094794,
+      "duration_s": 8.0,
+      "file": "blocked.mp4",
+      "md5": "02081c1acaa8a42171b924ef7eced971",
+      "role": "S7 卡住/出错（浅色）",
+      "loop_mode": "pingpong",
+      "batch": "batch2-20261124",
+      "note": "尾帧未回起始姿（双耳耷拉收尾），循环接缝靠播放器乒乓兜底；原生成文件带静音 AAC 轨，交付版已剥音轨（-an 重封装，视频流原样）"
+    }
+  ],
+  "duration_note": "服务器无 ffprobe/ffmpeg，时长为上传前本机 ffprobe 实测；服务器侧以 md5 逐字节对账 11/11 一致，同一文件时长相同。字节数为服务器侧 ls 实测。",
+  "gaps": [
+    "无 S3 思考",
+    "无 S5 说话",
+    "S7 卡住仅浅色版（blocked.mp4，batch2 已补），无深色版",
+    "S9 仅深色，无浅色版",
+    "S4 仅通用与写两个变体，无查/执行变体；委派与通用同源",
+    "S2 聆听、S8 等审批无专属片段（规格一期本就未排 S2/S8；S8 一期按规格代播 S3，但 S3 本套亦缺）"
+  ],
+  "generated_at": "2026-11-24T05:36:00+08:00",
+  "schema": "living-avatar-clips/1",
+  "spec": "living-avatar-spec-20261124.md",
+  "states": {
+    "S1_idle": {
+      "dark": "idle-dark.mp4",
+      "file": "idle.mp4"
+    },
+    "S4_working_delegate": {
+      "dark": "working-dark.mp4",
+      "file": "working.mp4",
+      "note": "同源注记：与 S4 通用共用同一段 working，未单独生成委派变体"
+    },
+    "S4_working_general": {
+      "dark": "working-dark.mp4",
+      "file": "working.mp4"
+    },
+    "S4_working_write": {
+      "dark": "making_something-dark.mp4",
+      "file": "making_something.mp4"
+    },
+    "S6_done": {
+      "dark": "milestone_level_up-dark.mp4",
+      "file": "milestone_level_up.mp4"
+    },
+    "S9_asleep_neighbor": {
+      "dark": "waking-dark.mp4",
+      "file": null,
+      "note": "仅深色一份，无浅色版"
+    },
+    "connecting": {
+      "call": {
+        "dark": "idle-call-dark.mp4",
+        "light": "idle-call-light.mp4"
+      },
+      "dark": "idle-dark.mp4",
+      "file": "idle.mp4",
+      "note": "连接态复用 idle；通话面 idle 另有专用两段"
+    },
+    "S7_blocked": {
+      "file": "blocked.mp4",
+      "dark": null,
+      "note": "浅色版 batch2 已补；深色版因视频生成上游故障未生成，留下一轮第一批"
+    }
+  },
+  "total_bytes": 11389604,
+  "total_clips": 12,
+  "upload_note": "前 8 段经 3130 隧道一次成功；后 3 段（waking-dark、idle-call-light、idle-call-dark）3130 断管失败，改走 3128 出口代理一次补传成功；服务器侧 md5 11/11 与本机一致，无截断残留。",
+  "batch2_note": "2026-11-24 batch2 补缺口轮：计划补 S3/S5/S7 三态×浅/深共 6 段；视频生成上游持续 502/503（service_overloaded），仅 S7 浅色 blocked.mp4 成功并验帧通过，其余 5 段（thinking.mp4、thinking-dark.mp4、speaking.mp4、speaking-dark.mp4、blocked-dark.mp4）未生成——留下一轮第一件事，连同 S9 浅色版（waking 浅色）一并补齐。S7 浅色交付落点：Mac ~/build/oneday-livingavatar/App/Resources/LivingAvatar-batch2/（与一期资源目录同旁新目录，含本 manifest 更新副本）。"
+}

@@ -13,6 +13,10 @@ import XCTest
 /// §95）。验收必含真机「从气泡上起手纵滚顺畅」
 /// 与「右滑途中过线触发引用带震」并列两条（见
 /// DESIGN §95 复验口径）
+/// §265（换代包 5）：识别层按大厂口径③换 UIKit
+/// 仲裁，方向门 passesDirectionGate 入本枚举
+/// （速度判据单源仍在 Core），测试面补方向门一
+/// 组；数值组逐字不变
 final class SwipeReplyMotionTests: XCTestCase {
 
     // MARK: - 参数单源（Stream 口径钉死）
@@ -197,6 +201,52 @@ final class SwipeReplyMotionTests: XCTestCase {
             SwipeReplyMotion.isExcluded(
                 startLocation: CGPoint(x: 20, y: 20),
                 frames: []
+            )
+        )
+    }
+
+    // MARK: - 方向门（§265，大厂口径③）
+
+    func testDirectionGateRequiresRightwardDominance() {
+        // 横向速度严格占优且向右——认
+        XCTAssertTrue(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 300, velocityY: 100
+            )
+        )
+        XCTAssertTrue(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 300, velocityY: -100
+            ),
+            "纵向分量只比绝对值、符号不论"
+        )
+        // 纵向占优（纵滚起手）——不认
+        XCTAssertFalse(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 100, velocityY: 300
+            )
+        )
+        // 恰好相等不算占优（严格大于）——不认
+        XCTAssertFalse(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 200, velocityY: 200
+            )
+        )
+        // 向左横滑——不认（右滑回复只有右向）
+        XCTAssertFalse(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: -300, velocityY: 100
+            )
+        )
+        // 静止/纯纵向——不认
+        XCTAssertFalse(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 0, velocityY: 0
+            )
+        )
+        XCTAssertFalse(
+            SwipeReplyMotion.passesDirectionGate(
+                velocityX: 0, velocityY: 400
             )
         )
     }

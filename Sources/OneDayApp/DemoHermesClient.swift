@@ -6,7 +6,9 @@ import UIKit
 
 /// 演示模式的假客户端：实现 HermesClientProtocol，不发出任何
 /// 网络请求。演示面自复杂化全清·第 4 项起冻结（口径见
-/// demo-surface-freeze-20261111.md）：只保冻结清单内的种子面
+/// demo-surface-freeze-20261111.md；C-13 接口面冻结收口见
+/// overcomplexity-audit-20261114.md 三之 C-13 与
+/// c13-demo-freeze-report-20261114.md）：只保冻结清单内的种子面
 /// 有本地静态样本——连接页探活（health/login/models）、对话
 /// 主面只读浏览（会话列表/详情/消息/搜索＋种子会话的 run 流
 /// 补完）、文件列表与数据、以及点子「开始吧」背后的任务板
@@ -16,12 +18,23 @@ import UIKit
 /// 演示，进演示须在施工单里点名。保留样本的读数口径对齐
 /// 2026-11-08 线上实测：版本 0.23.0、网关 running、模型
 /// deepseek-chat，时间相对当前时刻生成。
+///
+/// 【C-13 接口面冻结（2026-11-14 收口）】本类自此只跟
+/// HermesClientProtocol 的签名（编译器一致性兜底），不跟
+/// 真 Client 的接口演进做平行适配：①种子面以 2026-11-11
+/// 冻结清单为限，不再扩大；②协议新增方法在本类只许加
+/// 一行 `throw HermesError.demoLimitReached` 桩（流式口
+/// 许返回即时空流），写种子实现须施工单点名并说明理由；
+/// ③冻结面由 DemoFreezeGuardTests 钉测，清单外方法被改
+/// 成返种子会在 CI 红。新增桥 Client 不建 Demo 对应物
+/// （WriteGateClient 内 DemoWriteGateClient 为 C-13 前
+/// 存量、同冻）。
 struct DemoHermesClient: HermesClientProtocol {
     func health(config: ServerConfig) async throws -> HealthResponse {
         decode(HealthResponse.self, #"{"status": "ok", "platform": "hermes-agent", "version": "0.23.0"}"#)
     }
 
-    func login(config: ServerConfig, username: String, password: String) async throws {
+    func login(config: ServerConfig, password: String) async throws {
         // 演示探活：恒成功，不发请求
     }
 
@@ -41,6 +54,14 @@ struct DemoHermesClient: HermesClientProtocol {
         """)
     }
 
+    func updateCheck(config: ServerConfig) async throws -> UpdateCheckResponse {
+        throw HermesError.demoLimitReached
+    }
+
+    func updateReceipt(config: ServerConfig) async throws -> UpdateReceiptResponse {
+        throw HermesError.demoLimitReached
+    }
+
     func configSummary(config: ServerConfig) async throws -> ServerConfigSummary {
         decode(ServerConfigSummary.self, """
         {
@@ -54,6 +75,10 @@ struct DemoHermesClient: HermesClientProtocol {
     func models(config: ServerConfig, apiKey: String) async throws -> [String] {
         ["hermes-agent"]
     }
+
+    func capabilities(config: ServerConfig, apiKey: String) async throws -> CapabilitiesResponse { throw HermesError.demoLimitReached }
+    func settingsRegistry(config: ServerConfig, apiKey: String) async throws -> SettingsRegistryResponse { throw HermesError.demoLimitReached }
+    func healthDetailed(config: ServerConfig, apiKey: String) async throws -> HealthDetailedResponse { throw HermesError.demoLimitReached }
 
     /// 演示上游候选（与网关别名 hermes-agent 分开：选择器里
     /// 只该出现这一组，含一个别名 deepseek-chat 供标注演示）
@@ -278,6 +303,24 @@ struct DemoHermesClient: HermesClientProtocol {
 
     func resetMemory(config: ServerConfig, target: String) async throws { throw HermesError.demoLimitReached }
 
+    // 台账 164：演示态无学习图谱数据源——如实空图谱
+    // （呈现走空态），写口同其他演示写口径抛限
+    func learningGraph(config: ServerConfig) async throws -> LearningGraph { .empty }
+
+    func learningNode(
+        config: ServerConfig, id: String
+    ) async throws -> LearningNodeContent {
+        LearningNodeContent(id: id, content: nil)
+    }
+
+    func updateLearningNode(
+        config: ServerConfig, id: String, content: String
+    ) async throws { throw HermesError.demoLimitReached }
+
+    func deleteLearningNode(
+        config: ServerConfig, id: String
+    ) async throws { throw HermesError.demoLimitReached }
+
     // MARK: - 技能
 
     func skills(config: ServerConfig) async throws -> [SkillItem] { throw HermesError.demoLimitReached }
@@ -322,6 +365,9 @@ struct DemoHermesClient: HermesClientProtocol {
     func triggerCronJob(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
 
     func cronRuns(config: ServerConfig, id: String, limit: Int) async throws -> [ServerSession] { throw HermesError.demoLimitReached }
+    func cronBlueprints(config: ServerConfig) async throws -> [CronBlueprint] { throw HermesError.demoLimitReached }
+    func instantiateBlueprint(config: ServerConfig, blueprint: String, values: [String: JSONValue]) async throws { throw HermesError.demoLimitReached }
+    func cronDeliveryTargets(config: ServerConfig) async throws -> [CronDeliveryTarget] { throw HermesError.demoLimitReached }
 
     // MARK: - 服务端会话
 
@@ -386,6 +432,18 @@ struct DemoHermesClient: HermesClientProtocol {
              "started_at": \(now - 30 * 3600), "ended_at": \(now - 30 * 3600 + 240),
              "end_reason": "completed", "message_count": 4, "tool_call_count": 0,
              "input_tokens": 2100, "output_tokens": 480}
+            """),
+            // 抽屉长按 XCUITest 的未收养行样本：oneday-ai-
+            // 前缀按出生证明分类为 mine，且不关联本地线程。
+            ("oneday-ai-drawer-longpress", """
+            {"id": "oneday-ai-drawer-longpress", "source": "api_server",
+             "display_name": "演示未收养旁聊",
+             \(demoTitleFields(id: "oneday-ai-drawer-longpress", baseTitle: "演示未收养旁聊", baseSource: "llm")),
+             \(demoFlagFields(id: "oneday-ai-drawer-longpress")),
+             "model": "deepseek-chat", "profile": "default",
+             "started_at": \(now - 60 * 60), "ended_at": \(now - 60 * 60 + 30),
+             "end_reason": "completed", "message_count": 2, "tool_call_count": 0,
+             "input_tokens": 120, "output_tokens": 80}
             """),
         ]
         let visible = all.filter { item in
@@ -480,6 +538,19 @@ struct DemoHermesClient: HermesClientProtocol {
         """).messages
     }
 
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage] {
+        // §331：模拟服务端 latest 语义——offset 自
+        // 最新端量、取最新页、页内按 id 升序（时序）
+        // 返回（调用方本就按 id 重排落盘，编排等价）
+        let all = try await sessionMessages(config: config, id: id)
+        let ascending = all.sorted { $0.id < $1.id }
+        let end = max(ascending.count - max(offset, 0), 0)
+        let start = max(end - max(limit, 0), 0)
+        return Array(ascending[start..<end])
+    }
+
     /// 演示搜索（P10）：在演示会话标题/预览里按词过滤，
     /// 命中形态对齐生产实样（results 元素字段）
     func searchSessions(
@@ -509,12 +580,27 @@ struct DemoHermesClient: HermesClientProtocol {
         }
     }
 
-    func deleteServerSession(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
+    // 台账 161：演示会话无深历史——时间线/窗口如实
+    // 空（落点猎取在演示态自然收官、不假装定位）
+    func sessionTimeline(
+        config: ServerConfig, id: String,
+        afterRowID: Int64?, limit: Int
+    ) async throws -> SessionTimelinePage {
+        SessionTimelinePage(entries: [], nextCursor: nil)
+    }
 
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws { throw HermesError.demoLimitReached }
+    func sessionMessagesAround(
+        config: ServerConfig, id: String,
+        rowID: Int64, limit: Int
+    ) async throws -> SessionAroundPage {
+        SessionAroundPage(sessionID: id, messages: [])
+    }
+
+    func sessionMutationSnapshot(config: ServerConfig, id: String) async throws -> SessionMutationSnapshot { throw HermesError.demoLimitReached }
+    func deleteServerSession(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
+    func rewindSession(config: ServerConfig, id: String, targetMessageID: Int, predecessorRowID: Int?) async throws -> RewindReceipt { throw HermesError.demoLimitReached }
 
     func emptySessionCount(config: ServerConfig) async throws -> Int { throw HermesError.demoLimitReached }
-    func deleteEmptySessions(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
 
     /// 演示更新（0.18.0）：写回存记覆盖值，读面合并
     /// 呈现——回读对账在演示里同样成立
@@ -534,6 +620,8 @@ struct DemoHermesClient: HermesClientProtocol {
     func profiles(config: ServerConfig) async throws -> [ProfileItem] { throw HermesError.demoLimitReached }
 
     func activeProfileName(config: ServerConfig) async throws -> String? { throw HermesError.demoLimitReached }
+
+    func activeProfile(config: ServerConfig) async throws -> ActiveProfileResponse { throw HermesError.demoLimitReached }
 
     func setActiveProfile(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
 
@@ -571,6 +659,8 @@ struct DemoHermesClient: HermesClientProtocol {
     // 生产实样——插件预置；外加一条手动配置示例）
 
     func mcpServers(config: ServerConfig) async throws -> [MCPServerItem] { throw HermesError.demoLimitReached }
+    func mcpCatalog(config: ServerConfig) async throws -> MCPCatalogResponse { throw HermesError.demoLimitReached }
+    func installMCPCatalogEntry(config: ServerConfig, name: String, env: [String: String], enable: Bool) async throws -> MCPInstallReceipt { throw HermesError.demoLimitReached }
 
     func setMCPServerEnabled(
         config: ServerConfig, name: String, enabled: Bool
@@ -606,9 +696,51 @@ struct DemoHermesClient: HermesClientProtocol {
 
     // MARK: - 网关动作
 
+    func messagingPlatforms(config: ServerConfig) async throws -> MessagingPlatformsResponse { throw HermesError.demoLimitReached }
+    func updateMessagingPlatform(config: ServerConfig, platform: String, enabled: Bool, env: [String: String], clearEnv: [String]) async throws { throw HermesError.demoLimitReached }
+
     func gatewayRestart(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
     func gatewayStart(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
     func gatewayStop(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
+
+    func opsDoctor(config: ServerConfig) async throws -> OpsSpawnResponse { throw HermesError.demoLimitReached }
+
+    func opsSecurityAudit(config: ServerConfig) async throws -> OpsSpawnResponse { throw HermesError.demoLimitReached }
+
+    func opsActionStatus(config: ServerConfig, name: String, lines: Int) async throws -> OpsActionStatus { throw HermesError.demoLimitReached }
+
+    func opsBackup(config: ServerConfig) async throws -> OpsSpawnResponse { throw HermesError.demoLimitReached }
+
+    func opsCheckpoints(config: ServerConfig) async throws -> CheckpointsResponse { throw HermesError.demoLimitReached }
+
+    func voiceConfig(config: ServerConfig) async throws -> VoiceConfigResponse { throw HermesError.demoLimitReached }
+
+    func speak(config: ServerConfig, text: String) async throws -> SpeakResponse { throw HermesError.demoLimitReached }
+
+    func issueEnrollmentCode(config: ServerConfig, apiKey: String) async throws -> EnrollmentIssue { throw HermesError.demoLimitReached }
+
+    func claimEnrollment(config: ServerConfig, code: String) async throws -> EnrollmentClaim { throw HermesError.demoLimitReached }
+    func registerPushToken(config: ServerConfig, apiKey: String, body: PushTokenRegistrationBody) async throws -> PushTokenRegisteredResponse { throw HermesError.demoLimitReached }
+    func listGrants(config: ServerConfig, apiKey: String) async throws -> GrantsListResponse { throw HermesError.demoLimitReached }
+    func listApprovals(config: ServerConfig, apiKey: String) async throws -> ApprovalsListResponse { throw HermesError.demoLimitReached }
+    func routeProbe(config: ServerConfig, apiKey: String?, path: String) async -> RouteProbeResult? { nil }
+    func revokeGrant(config: ServerConfig, apiKey: String, patternKey: String) async throws -> GrantRevocationReceipt { throw HermesError.demoLimitReached }
+    func pairingList(config: ServerConfig) async throws -> PairingListResponse { throw HermesError.demoLimitReached }
+    func pairingApprove(config: ServerConfig, platform: String, requestID: String) async throws -> PairingApproveReceipt { throw HermesError.demoLimitReached }
+    func pairingRevoke(config: ServerConfig, platform: String, userID: String) async throws { throw HermesError.demoLimitReached }
+    func pairingClearPending(config: ServerConfig) async throws -> PairingClearPendingReceipt { throw HermesError.demoLimitReached }
+    func toolsets(config: ServerConfig, apiKey: String) async throws -> ToolsetsListResponse { throw HermesError.demoLimitReached }
+    func setToolsetEnabled(config: ServerConfig, apiKey: String, name: String, enabled: Bool) async throws -> ToolsetToggleReceipt { throw HermesError.demoLimitReached }
+    func toolsetConfig(config: ServerConfig, name: String) async throws -> ToolsetConfigPanel { throw HermesError.demoLimitReached }
+    func selectToolsetProvider(config: ServerConfig, name: String, provider: String) async throws { throw HermesError.demoLimitReached }
+    func toolsetModels(config: ServerConfig, name: String) async throws -> ToolsetModelCatalog { throw HermesError.demoLimitReached }
+    func selectToolsetModel(config: ServerConfig, name: String, model: String) async throws { throw HermesError.demoLimitReached }
+    func terminalBackends(config: ServerConfig) async throws -> TerminalBackends { throw HermesError.demoLimitReached }
+    func selectTerminalBackend(config: ServerConfig, backend: String) async throws { throw HermesError.demoLimitReached }
+    func setReaction(config: ServerConfig, apiKey: String, sessionID: String, rowID: Int, emoji: String) async throws -> ReactionUpdate { throw HermesError.demoLimitReached }
+    func clearReaction(config: ServerConfig, apiKey: String, sessionID: String, rowID: Int) async throws -> ReactionUpdate { throw HermesError.demoLimitReached }
+
+    func elevenLabsVoices(config: ServerConfig) async throws -> ElevenLabsVoicesResponse { throw HermesError.demoLimitReached }
 
     // MARK: - 工作区文件与系统（0.2.1 样本，结构对实查回执）
 
@@ -772,6 +904,18 @@ struct DemoHermesClient: HermesClientProtocol {
         config: ServerConfig, path: String, dataURL: String
     ) async throws -> ManagedFileUploadReceipt { throw HermesError.demoLimitReached }
 
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> ManagedFileUploadReceipt { throw HermesError.demoLimitReached }
+
+    // §410：原始字节版同口径（演示不落真实数据）
+    func uploadAttachment(
+        config: ServerConfig, path: String, fileName: String,
+        data: Data,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> ManagedFileUploadReceipt { throw HermesError.demoLimitReached }
+
     func makeDirectory(config: ServerConfig, path: String) async throws { throw HermesError.demoLimitReached }
 
     func fileData(config: ServerConfig, path: String) async throws -> Data {
@@ -791,6 +935,15 @@ struct DemoHermesClient: HermesClientProtocol {
             return Data("INFO demo log line\n".utf8)
         }
         return Data()
+    }
+
+    func fileDataWithProgress(
+        config: ServerConfig, path: String,
+        onProgress: @escaping @Sendable (_ received: Int64, _ expected: Int64) -> Void
+    ) async throws -> Data {
+        let data = try await fileData(config: config, path: path)
+        onProgress(Int64(data.count), Int64(data.count))
+        return data
     }
 
     /// 演示缩略图：纯色块＋文件名（UIKit 渲染，不连网）
@@ -1035,4 +1188,28 @@ final class DemoSessionWriteStore: @unchecked Sendable {
     func markDeleted(_ id: String) {
         lock.withLock { deletedIDs.insert(id) }
     }
+}
+
+// MARK: - 高级能力面（H8/H9/H11/H13，DESIGN §390）：演示
+// 模式不接真面，与其余管理面同口径报演示上限
+extension DemoHermesClient {
+    func delegationRouting(config: ServerConfig) async throws -> DelegationRouting { throw HermesError.demoLimitReached }
+    func setDelegationBackend(config: ServerConfig, backend: String) async throws { throw HermesError.demoLimitReached }
+    func setDelegationModelMap(config: ServerConfig, routes: [DelegationModelRoute], defaultRoute: String?) async throws { throw HermesError.demoLimitReached }
+    func setDelegationProfileRoutes(config: ServerConfig, routes: [DelegationProfileRoute], defaultRoute: String?) async throws { throw HermesError.demoLimitReached }
+    func moaConfig(config: ServerConfig) async throws -> MoaConfig { throw HermesError.demoLimitReached }
+    func setMoaConfig(config: ServerConfig, moa: MoaConfig) async throws -> MoaConfig { throw HermesError.demoLimitReached }
+    func auxiliaryTasks(config: ServerConfig) async throws -> AuxiliaryTasksResponse { throw HermesError.demoLimitReached }
+    func setModelAssignment(config: ServerConfig, scope: String, task: String?, provider: String, model: String, confirmExpensive: Bool) async throws -> ModelSetReceipt { throw HermesError.demoLimitReached }
+    func webhooksPage(config: ServerConfig) async throws -> WebhooksPage { throw HermesError.demoLimitReached }
+    func createWebhook(config: ServerConfig, input: WebhookCreateInput) async throws -> WebhookCreateReceipt { throw HermesError.demoLimitReached }
+    func deleteWebhook(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
+    func setWebhookEnabled(config: ServerConfig, name: String, enabled: Bool) async throws { throw HermesError.demoLimitReached }
+    func enableWebhooks(config: ServerConfig) async throws -> WebhooksEnableReceipt { throw HermesError.demoLimitReached }
+    func curatorStatus(config: ServerConfig) async throws -> CuratorStatus { throw HermesError.demoLimitReached }
+    func setCuratorPaused(config: ServerConfig, paused: Bool) async throws { throw HermesError.demoLimitReached }
+    func runCurator(config: ServerConfig, profile: String?) async throws -> OpsSpawnResponse { throw HermesError.demoLimitReached }
+    func sessionStoreStats(config: ServerConfig) async throws -> SessionStoreStats { throw HermesError.demoLimitReached }
+    func opsHooks(config: ServerConfig) async throws -> OpsHooksPage { throw HermesError.demoLimitReached }
+    func kanbanDecompose(config: ServerConfig, board: String, id: String) async throws -> KanbanDecomposeReceipt { throw HermesError.demoLimitReached }
 }

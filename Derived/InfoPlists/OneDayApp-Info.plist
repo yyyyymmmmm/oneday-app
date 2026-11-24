@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>OneDay</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.50.125</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>site.didichou.oneday.shortcut-callback</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>oneday</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>253</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>App-prefs</string>
+		<string>weixin</string>
+		<string>alipay</string>
+		<string>iosamap</string>
+		<string>maps</string>
+		<string>shortcuts</string>
+	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>OneDay 需要设定闹钟与倒计时：只有你在对话里确认、或在闹钟详情页亲手添加时才会设定；到点由系统响铃，能穿透静音与专注模式。</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>OneDay 需要读取你的媒体库书目：只有智能体在对话里请你查歌、建歌单或控制播放时才会用到；只回歌曲与歌单的书目信息，音频文件不会离开手机。</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>OneDay 需要读取你的日历：安排只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把过去 30 天到未来 90 天日程的标题与时间同步一份到你自己的服务器，供智能体整份查询。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>OneDay 需要使用相机：只有智能体在对话里请你拍照或扫描文档、你在相机详情页亲手点拍照、或你在连接页亲手点扫码连接服务器时才会打开取景框；拍到的图片只存进 OneDay 自己的文件夹，不进系统相册，扫码画面不拍照、不保存。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>OneDay 需要读取你的通讯录：搜索在手机上完成；开启智能体调用后，被问到时现查现回；只有你在连接器详情页亲手开启「数据同步」时，才会把姓名、电话、邮箱同步一份到你自己的服务器（不含备注、地址、生日、头像），供智能体整份查询。</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>OneDay 需要用面容 ID 确认是你在操作：只在重要操作前当面验一次，系统只告诉 OneDay 过没过，你的面容数据不会离开系统。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>OneDay 需要在你开着 App 时读取你的位置：只有智能体在对话里问你在哪、查附近地点时才现读一次，现读现回，不做后台定位，不保存你的位置记录。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OneDay 需要使用麦克风，把你说的话转成文字填入输入框；录音只在本机处理，不上传服务器。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>OneDay 需要读取手机计步的每日合计：只看每天的步数、距离和爬楼层数；只有你在连接器详情页亲手开启「数据同步」时，才会把每日合计同步一份到你自己的服务器，供智能体查询。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>OneDay 需要把图片存入你的相册：只在你在图片查看器里点「下载」时保存你选中的那一张图片，不会读取你的相册。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OneDay 需要读取你的照片清单：只看每项的拍摄时间、类型和大小，用来在手机上展示数量；只有你在连接器详情页亲手开启「数据同步」时，才会把这份清单（不含照片本身、不含拍摄地点）同步一份到你自己的服务器，供智能体查询。</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>OneDay 需要读取你的提醒事项：待办只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把没做完的提醒同步一份到你自己的服务器，供智能体整份查询。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>OneDay 使用语音识别把你的话转成文字；识别在你的 iPhone 本机完成，录音不会离开手机。</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

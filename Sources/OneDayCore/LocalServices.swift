@@ -94,7 +94,7 @@ public enum LocalServiceDirectory {
         LocalServiceDescriptor(
             serviceID: .overviewBridge,
             name: "总览数据",
-            blurb: "总览 · 总览页与通知角标的数据来源",
+            blurb: "总览数据 · 通知角标的数据来源",
             iconAssetName: "LocalOverviewBridge",
             evidenceLine: "检查的是总览数据能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),

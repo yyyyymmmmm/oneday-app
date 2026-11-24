@@ -96,12 +96,16 @@ struct SkillHubView: View {
                 .foregroundStyle(
                     selected ? Palette.primary : Palette.inkSecondary
                 )
-                .padding(.horizontal, 12)
+                .padding(.horizontal, OneDayMetrics.spacingSM)
                 .padding(.vertical, OneDayMetrics.rowInnerGap)
                 .background(
                     selected ? Palette.primaryTint : Palette.surface,
                     in: Capsule()
                 )
+                // HIG 全过第一波：胶囊视觉高约 30 不变、
+                // 命中域纵向扩到 minTapTarget（§485 同法）
+                .frame(minHeight: OneDayMetrics.minTapTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
     }
@@ -119,13 +123,13 @@ struct SkillHubView: View {
             EmptyState(
                 icon: "bag",
                 title: "搜索技能库",
-                message: "输入关键词搜索可安装的技能。服务端会直接连接外部技能库，网络不通时可能较慢或失败。"
+                message: "输入关键词搜索可安装的技能。"
             )
             .padding(.top, OneDayMetrics.spacingXXL)
         case .searching:
             HStack(spacing: OneDayMetrics.spacingS) {
                 ProgressView()
-                Text("正在连接技能库…服务端直连外部技能库，可能需要一会儿")
+                Text("正在连接技能库…")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -173,7 +177,7 @@ struct SkillHubView: View {
                         if installedNames.contains(skill.installedName) {
                             Text("已安装")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Palette.success)
+                                .foregroundStyle(Palette.successText)
                                 .padding(.horizontal, OneDayMetrics.rowInnerGap)
                                 .padding(.vertical, OneDayMetrics.spacingMicro)
                                 .background(
@@ -196,10 +200,7 @@ struct SkillHubView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
             .contentShape(Rectangle())
         }
@@ -334,7 +335,7 @@ struct HubSkillDetailView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Label("已安装", systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(Palette.success)
+                    .foregroundStyle(Palette.successText)
                 Spacer()
                 Button("卸载", role: .destructive) {
                     confirmUninstall = true
@@ -360,7 +361,7 @@ struct HubSkillDetailView: View {
     @ViewBuilder
     private var previewArea: some View {
         SectionLabel("技能说明")
-            .padding(.top, 28)
+            .padding(.top, OneDayMetrics.sectionOuterSpacing)
             .padding(.bottom, OneDayMetrics.spacingS)
         if let preview {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {

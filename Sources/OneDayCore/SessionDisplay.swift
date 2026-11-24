@@ -67,6 +67,41 @@ private func sessionSourceLabel(_ source: String?, locale: Locale) -> String {
 ///   以可证事实呈现（在线/待审批/联系不上）。
 /// - 来源：原始 source 标识一律译成人话标签，未知
 ///   来源只给「服务端」；原名只留设置详情页元信息组。
+/// 标题单管线核心（第 67 条包二，2026-11-15）：全
+/// App 标题优先级只此一处实现——本地手改名＞服务
+/// 端标题＞本地快照＞首条消息派生＞人话名兜底。旧
+/// 两条管线（ServerSession.resolvedTitle 的服务端
+/// 段与 DrawerThreadTitle 的本地线程段）自本包起
+/// 都是本核心的入参适配：服务端行喂（服务端标题、
+/// 派生、人话名），本地线程行喂（手改名、服务端标
+/// 题、本地快照），优先级不在各面重写。入参口径：
+/// serverTitle 须已清洗（空串归 nil，见 cleaned-
+/// ServerTitle）；localSnapshot 原样直通（旧本地段
+/// 末位回落逐字不变、空串也不改道派生）。
+public enum SessionTitlePipeline {
+    public static func resolve(
+        manualLocalTitle: String?,
+        serverTitle: String?,
+        localSnapshotTitle: String?,
+        derivedTitle: String?,
+        humanFallback: String
+    ) -> String {
+        if let manualLocalTitle {
+            return manualLocalTitle
+        }
+        if let serverTitle {
+            return serverTitle
+        }
+        if let localSnapshotTitle {
+            return localSnapshotTitle
+        }
+        if let derivedTitle {
+            return derivedTitle
+        }
+        return humanFallback
+    }
+}
+
 public extension ServerSession {
     /// 来源的人话标签（原始标识不上屏）
     var sourceLabel: String {
@@ -159,11 +194,17 @@ public extension ServerSession {
         firstUserMessage: String?,
         locale: Locale = AppLocale.uiLocale
     ) -> String {
-        if let title = cleanedServerTitle {
-            return title
-        }
-        return contentTitle(
-            firstUserMessage: firstUserMessage, locale: locale
+        // 第 67 条包二：优先级走单管线核心，本方法
+        // 只做服务端行入参适配（派生与人话名同旧
+        // contentTitle 两层）
+        SessionTitlePipeline.resolve(
+            manualLocalTitle: nil,
+            serverTitle: cleanedServerTitle,
+            localSnapshotTitle: nil,
+            derivedTitle: Self.contentSummaryTitle(
+                firstUserMessage
+            ),
+            humanFallback: humanTitle(locale: locale)
         )
     }
 
@@ -298,7 +339,7 @@ public enum LocalThreadSubtitle {
 /// 22:45 口径纠正）：抽屉只留**用户本人在 App 里开
 /// 的旁聊**；Hermes 内部的 worker/kanban 会话、验收
 /// 测试会话、微信/TG 等外部平台通道进来的会话一律
-/// 不进抽屉（它们仍在管理全部对话页全量可见）。
+/// 不进抽屉（它们仍在「全部对话」页全量可见）。
 ///
 /// 2026-11-09 只读实查（生产 state.db，28 条会话）
 /// 的字段事实：

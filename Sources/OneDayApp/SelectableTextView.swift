@@ -83,12 +83,36 @@ struct InlineTextParagraph {
 /// 屏视图、不再在布局期改写承载文本。
 struct SelectableInlineText: View {
     var paragraphs: [InlineTextParagraph]
-    var textStyle: UIFont.TextStyle = .callout
+    /// 聊天正文字阶（§263 升 .body；旧 .callout 是次
+    /// 级字阶、且实测行距连其规格行高都没到）
+    var textStyle: UIFont.TextStyle = .body
     var foreground: Color = Palette.bodyInk
     /// §168：次级墨色解析源（dimmed 段与列表标记
     /// 用）；默认与引用块前景同档
     var dimmedForeground: Color = Palette.inkSecondaryOnFill
     var onSelectionChange: ((Bool) -> Void)?
+    /// §471：列表呈现态传 false——正文禁长按直接
+    /// 选字（仲裁归消息菜单、选字只从菜单「选择」
+    /// 行进 sheet）；默认 true＝其余呈现面（选择
+    /// sheet 本体、动态/技能等无菜单竞争面）逐字
+    /// 不变
+    var allowsDirectSelection: Bool = true
+    /// 台账 190 留账②（§335）：排版产物段串直贴——
+    /// 非 nil 时呈现直用本串（与量测同一拼装、同一
+    /// 实例，入串色为 trait 动态色随承载 trait 解
+    /// 析）、跳过 §168 拼装缓存；nil 时走既有拼装
+    /// 路（产物未就绪回落＋非条目面）。串内容与
+    /// builtAttributedString 同源同式（同 build、
+    /// 同段落映射），承载/选区口径不因来源而异
+    var prebuiltAttributed: NSAttributedString?
+    /// §503：查找着色查询（对话内查找激活且本行在
+    /// 命中集内时由 ChatView 注入；其余消费面不传
+    /// ＝nil、行为逐字不变）——呈现串的副本上给全
+    /// 部命中词加 findMatchFill 底。着色只动背景属
+    /// 性、不动布局度量，量测台走 build 直拼不受
+    /// 影响；着色副本不进拼装缓存（缓存单源不被
+    /// 查找态污染，查找开关不使缓存失效）
+    var searchHighlightQuery: String? = nil
 
     @Environment(\.self) private var environment
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -97,13 +121,57 @@ struct SelectableInlineText: View {
 
     var body: some View {
         SelectableTextRepresentable(
-            attributed: builtAttributedString,
+            attributed: presentedAttributed,
             linkColor: UIColor(
                 cgColor: Palette.primary.resolve(in: environment).cgColor
             ),
             onSelectionChange: onSelectionChange,
-            openURL: openURL
+            openURL: openURL,
+            allowsDirectSelection: allowsDirectSelection
         )
+    }
+
+    /// §503：呈现串——拼装/产物串本体，查找着色在
+    /// 副本上施加（区间由 Core ChatFind 在呈现串本
+    /// 体上求，呈现所见即着色所及）
+    private var presentedAttributed: NSAttributedString {
+        let base = prebuiltAttributed ?? builtAttributedString
+        guard let query = searchHighlightQuery
+        else { return base }
+        return Self.applyingFindHighlight(
+            to: base, query: query,
+            color: UIColor(
+                cgColor: Palette.findMatchFill
+                    .resolve(in: environment).cgColor
+            )
+        )
+    }
+
+    /// §503：查找着色施加（放宽 internal 作装配钉
+    /// 接缝，与 build 同例）：命中区间在副本上加背
+    /// 景色后返回；无查询/无命中 → 原串原样返回
+    /// （同一实例，updateUIView 的 isEqual 短路不
+    /// 被无谓触发）；入参本体永不改写（拼装缓存
+    /// 实例可安全共享）
+    static func applyingFindHighlight(
+        to base: NSAttributedString, query: String,
+        color: UIColor
+    ) -> NSAttributedString {
+        guard ChatFind.normalizedQuery(query) != nil
+        else { return base }
+        let ranges = ChatFind.occurrenceRanges(
+            in: base.string, query: query
+        )
+        guard !ranges.isEmpty else { return base }
+        let copy = NSMutableAttributedString(
+            attributedString: base
+        )
+        for range in ranges {
+            copy.addAttribute(
+                .backgroundColor, value: color, range: range
+            )
+        }
+        return copy
     }
 
     // MARK: - 拼装
@@ -188,7 +256,10 @@ struct SelectableInlineText: View {
         return parts.joined(separator: "\u{1}") as NSString
     }
 
-    private static func build(
+    /// §251：放宽为 internal——排版产物层（Layout-
+    /// ProductService）按同一拼装产属性串作量测工
+    /// 件；拼装口径仍只此一份，产物层不另拼
+    nonisolated static func build(
         paragraphs: [InlineTextParagraph],
         baseFont: UIFont,
         overrideFont: (UIFont.TextStyle) -> UIFont,
@@ -207,6 +278,15 @@ struct SelectableInlineText: View {
             let style = NSMutableParagraphStyle()
             style.lineBreakMode = .byWordWrapping
             style.paragraphSpacing = paragraph.spaceAfter
+            // §263：行高不在段落样式里另设数值——text
+            // style 的规格 leading 由 preferredFont＋
+            // TextKit 布局管理器的默认行高交付（默认
+            // 档 .body pitch 实测 22＝HIG 表值）；首轮
+            // 曾试 min/max 钉 font.lineHeight，被 CI
+            // 实测证伪：font.lineHeight 是字体自然行
+            // 高（.body 20.29），不是规格值、且 TK2
+            // 并不据此给 pitch，已撤。lineHeightMul-
+            // tiple 同理不许设（自设比冒充规格）
             if let marker = paragraph.listMarker {
                 // 标记几何：首行自 levelIndent 起，
                 // \t 落右对齐制表位（标记收尾于列
@@ -270,7 +350,7 @@ struct SelectableInlineText: View {
         return result
     }
 
-    private static func attributedRun(
+    nonisolated private static func attributedRun(
         _ run: InlineRun, baseFont: UIFont, textColor: UIColor
     ) -> NSAttributedString {
         var attributes: [NSAttributedString.Key: Any] = [
@@ -295,7 +375,7 @@ struct SelectableInlineText: View {
     /// 的差异如实记：旧版 emphasis-only／code run
     /// 的字体由系统解析默认字号决定，本层起统一到
     /// 基字号（DESIGN §149.3 第 1 条注）
-    private static func font(
+    nonisolated private static func font(
         for run: InlineRun, baseFont: UIFont
     ) -> UIFont {
         if run.code {
@@ -335,31 +415,105 @@ private final class InlineTextRenderCache: @unchecked Sendable {
 }
 
 /// 字体构造单源（正文拼装与列表基线对齐共用）：
-/// 基字体＝系统字体按 Metrics 依字号档缩放；粗体
+/// 基字体＝preferredFont 本体按字号档直取；粗体
 /// 文本开启时基字重 semibold（BoldTextPolicy 根
-/// 口径＝未钉字重文本统一此档）
+/// 口径＝未钉字重文本统一此档），只换字重 trait、
+/// 保留 text style 描述符。
+/// §263 定因：旧法只摘 preferredFont 的 pointSize、
+/// 再以 systemFont 重构——systemFont 无 text style，
+/// 其自然行高（≈1.19×字号）顶替了规格 leading
+/// （.callout 实测 pitch 19.0＜规格 21），是行距
+/// 偏紧的根。规格 leading 的读口在 specLineHeight
+/// （与量测池同栈实量），不在 font.lineHeight
+/// （那是字体自然行高：.body 20.29≠规格 22，CI 实
+/// 测钉死、不许拿它冒充规格）
 enum InlineTextFonts {
     static func baseFont(
         textStyle: UIFont.TextStyle,
         category: UIContentSizeCategory,
         boldText: Bool
     ) -> UIFont {
-        let weight: UIFont.Weight = boldText ? .semibold : .regular
-        let standard = UIFont.preferredFont(
+        let preferred = UIFont.preferredFont(
             forTextStyle: textStyle,
-            compatibleWith: UITraitCollection(
-                preferredContentSizeCategory: .large
-            )
-        )
-        let unscaled = UIFont.systemFont(
-            ofSize: standard.pointSize, weight: weight
-        )
-        return UIFontMetrics(forTextStyle: textStyle).scaledFont(
-            for: unscaled,
             compatibleWith: UITraitCollection(
                 preferredContentSizeCategory: category
             )
         )
+        guard boldText else { return preferred }
+        let descriptor = preferred.fontDescriptor.addingAttributes([
+            UIFontDescriptor.AttributeName.traits: [
+                UIFontDescriptor.TraitKey.weight:
+                    UIFont.Weight.semibold.rawValue,
+            ],
+        ])
+        return UIFont(descriptor: descriptor, size: 0)
+    }
+
+    /// text style 规格行高（HIG Dynamic Type 表的
+    /// leading：.body 默认档 22、XXL 档 26、.callout
+    /// 默认档 21）。没有可直读的字体属性：font.line-
+    /// Height 是自然行高（20.29≠22），老读口 NSLay-
+    /// outManager.defaultLineHeight 在 iOS 26 SDK
+    /// 已无此成员（二轮 CI 编译实证）——故以与量
+    /// 测池/呈现同栈（TK2）同步实量一行的高为本体：
+    /// 定义即同源，行高模型下限与单测断言都从这
+    /// 里读（§263）。结果按（字阶×档×粗体）缓存
+    /// （盒＋锁，与 LayoutMeasurePool 的并发口径同
+    /// 形——静态可变字典本身过不了 Swift 6 并发检查）
+    private final class SpecCacheBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String: CGFloat] = [:]
+        func get(_ key: String) -> CGFloat? {
+            lock.lock()
+            defer { lock.unlock() }
+            return values[key]
+        }
+        func set(_ key: String, _ value: CGFloat) {
+            lock.lock()
+            defer { lock.unlock() }
+            values[key] = value
+        }
+    }
+
+    private static let specCache = SpecCacheBox()
+
+    static func specLineHeight(
+        textStyle: UIFont.TextStyle,
+        category: UIContentSizeCategory,
+        boldText: Bool
+    ) -> CGFloat {
+        let key = "\(textStyle.rawValue)|\(category.rawValue)|\(boldText)"
+        if let cached = specCache.get(key) { return cached }
+        let assembled = SelectableInlineText.build(
+            paragraphs: [.plain("测")],
+            baseFont: baseFont(
+                textStyle: textStyle, category: category,
+                boldText: boldText
+            ),
+            overrideFont: { style in
+                baseFont(
+                    textStyle: style, category: category,
+                    boldText: boldText
+                )
+            },
+            textColor: .label,
+            dimmedColor: .secondaryLabel
+        )
+        let storage = NSTextContentStorage()
+        let layoutManager = NSTextLayoutManager()
+        let container = NSTextContainer()
+        container.lineFragmentPadding = 0
+        container.size = CGSize(
+            width: 10_000,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        layoutManager.textContainer = container
+        storage.addTextLayoutManager(layoutManager)
+        storage.attributedString = assembled
+        layoutManager.ensureLayout(for: storage.documentRange)
+        let height = layoutManager.usageBoundsForTextContainer.height
+        specCache.set(key, height)
+        return height
     }
 
     /// 首行基线距视图顶（列表标记列 firstTextBase-
@@ -397,6 +551,46 @@ private extension UIFont {
 /// 会污染粘贴到别处的内容；系统「拷贝」走本覆盖，
 /// 选区与高亮行为全归系统
 final class SelectableUITextView: UITextView {
+    /// §471（长按三病过渡版·病一）：列表呈现态抑制
+    /// 直接选字——开启时内部长按选字链（放大镜/选
+    /// 区）与多击选词识别器在 shouldBegin 处被否、
+    /// 编辑菜单动作全关；触摸因此落回宿主的长按
+    /// 挂载点（浮排/系统菜单单点仲裁，与 iMessage
+    /// iOS 26「列表态禁直接选字、选字只从菜单
+    /// 『选择』行进入」口径同构）。选字能力只活在
+    /// 「选择」sheet 的独立实例（本旗默认关、逐字
+    /// 不变）。单点链接点按（tapsRequired==1）不
+    /// 在否决之列，shouldInteractWith 出口不变
+    var suppressesDirectSelection = false
+
+    override func gestureRecognizerShouldBegin(
+        _ gestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        if suppressesDirectSelection {
+            if gestureRecognizer
+                is UILongPressGestureRecognizer {
+                return false
+            }
+            if let tap = gestureRecognizer
+                as? UITapGestureRecognizer,
+                tap.numberOfTapsRequired >= 2 {
+                return false
+            }
+        }
+        return super.gestureRecognizerShouldBegin(
+            gestureRecognizer
+        )
+    }
+
+    override func canPerformAction(
+        _ action: Selector, withSender sender: Any?
+    ) -> Bool {
+        if suppressesDirectSelection { return false }
+        return super.canPerformAction(
+            action, withSender: sender
+        )
+    }
+
     override func copy(_ sender: Any?) {
         let range = selectedRange
         guard range.length > 0, let attributedText,
@@ -414,11 +608,17 @@ final class SelectableUITextView: UITextView {
     }
 }
 
-private struct SelectableTextRepresentable: UIViewRepresentable {
+/// §251：放宽为 internal——产物层对拍基准（measured-
+/// Size/referenceHeight）与单测要够得着现量测本体；
+/// 类型本身仍只在聊天文本面内使用
+struct SelectableTextRepresentable: UIViewRepresentable {
     let attributed: NSAttributedString
     let linkColor: UIColor
     let onSelectionChange: ((Bool) -> Void)?
     let openURL: OpenURLAction
+    /// §471：false＝列表态抑制直接选字（默认 true
+    /// 保持其余面逐字不变）
+    var allowsDirectSelection: Bool = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -441,7 +641,20 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
         textView.backgroundColor = .clear
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
-        textView.dataDetectorTypes = []
+        // §265（换代包 5·T4）：数据探测只开 [.link,
+        // .phoneNumber]——探针报告 gen5-t4-probe-
+        // 20261115 实证定案：两类命中干净、出口全走
+        // 既有 shouldInteractWith→openURL 通道（电话
+        // 的点按主动作走系统 UITextItem 默认动作＝
+        // 拨号确认，即目标行为、无需拦截）；.calen-
+        // darEvent/.address 在 en-US 口径下中文基本
+        // 不识别且裸时刻碎片会被错期链化、.all 会把
+        // 金额「¥1,299.00」链化，三者不开（日期/地址
+        // 挂 zh-Hans 真机复验账，翻案时出口须走
+        // UITextItem delegate 组、不是本处开关）
+        textView.dataDetectorTypes = [.phoneNumber, .link]
+        textView.suppressesDirectSelection =
+            !allowsDirectSelection
         textView.delegate = context.coordinator
         textView.attributedText = attributed
         textView.linkTextAttributes = [
@@ -458,6 +671,21 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
     ) {
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.openURL = openURL
+        // §471：抑制旗随呈现态更新；由开转关（抑制
+        // 生效）时若已有残留选区即刻清掉——列表态
+        // 不许有选区在场（与 presentReactionBar 的
+        // §152 让行守卫同口径：守卫对象自此只剩
+        // sheet 外的历史残留）
+        let suppresses = !allowsDirectSelection
+        if uiView.suppressesDirectSelection != suppresses {
+            uiView.suppressesDirectSelection = suppresses
+            if suppresses, uiView.selectedRange.length > 0 {
+                uiView.selectedRange = NSRange(
+                    location: uiView.selectedRange.location,
+                    length: 0
+                )
+            }
+        }
         // §168：拼装走进程内缓存、同内容恒同实例，
         // isEqual 在此实际为恒等短路——内容键未变
         // 绝不重设文本（重设即冲选区）；布局期量测
@@ -512,27 +740,129 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
         uiView: SelectableUITextView,
         context: Context
     ) -> CGSize? {
+        Self.measuredSize(
+            attributed: attributed, proposal: proposal
+        )
+    }
+
+    /// 量测备忘（143 根治）：（串实例身份 × 量化
+    /// 宽）→尺寸——SwiftUI 在滚动中对同一行反复布
+    /// 局、每次都全量 TextKit 现量是滚动路径同步量
+    /// 测的大头；§168 拼装缓存保证同内容恒同实例，
+    /// 身份键即内容键。备忘命中＝零量测（与 OB/
+    /// LegendList「滚动不现量、尺寸来自既有产物」
+    /// 同构）；未命中才真量一次并落账。容量有界、
+    /// 超限整表重置（尺寸可重算、不许备忘自带无界
+    /// 内存）
+    /// 备忘值持串本体：钉住实例身份——实例活着，
+    /// 其 ObjectIdentifier 就不会被新串复用（防地
+    /// 址回收串键）；命中时再以 === 复核一次
+    private static var measuredSizeCache: [
+        MeasuredSizeKey: (string: NSAttributedString, size: CGSize)
+    ] = [:]
+    private static let measuredSizeCacheLock = NSLock()
+    private static let measuredSizeCacheLimit = 1024
+
+    private struct MeasuredSizeKey: Hashable {
+        let instance: ObjectIdentifier
+        let length: Int
+        let widthBits: Int
+    }
+
+    /// 现量测本体（§168 离屏量测视图）：sizeThatFits
+    /// 与产物层对拍基准共用——基准与现行路径同源
+    /// 一台，不许有第二台「测试用量测」。143 根治
+    /// 后本体先查备忘：真量只在未命中时发生一次；
+    /// §251 影子对拍随之只在真量时记账（旧制每趟
+    /// sizeThatFits 都付一遍全串 FNV 哈希＋串拷贝
+    /// ——滚动路径的同步税，备忘命中后归零）
+    static func measuredSize(
+        attributed: NSAttributedString,
+        proposal: ProposedViewSize
+    ) -> CGSize {
+        let width = measuredWidth(proposal)
+        let key = MeasuredSizeKey(
+            instance: ObjectIdentifier(attributed),
+            length: attributed.length,
+            widthBits: Int((width * 2).rounded())
+        )
+        measuredSizeCacheLock.lock()
+        let cached = measuredSizeCache[key]
+        measuredSizeCacheLock.unlock()
+        if let cached, cached.string === attributed {
+            return cached.size
+        }
+        // §419 包 1 回归哨：量测台变异只许主线程——
+        // 后台量测一律走 ChatNativeTextMeasure 分发
+        // 落量测池；本段（setAttributedText＋size-
+        // ThatFits）被后台线程触达即线程禁闭破口。
+        // debug 断言、release 行为不变，保留一个版
+        // 本周期作哨
+        assert(
+            Thread.isMainThread,
+            "§419 量测台变异离主线程：measuredSize 变异段被后台线程触达"
+        )
         let measure = Self.measuringView
         if !measure.attributedText.isEqual(to: attributed) {
             measure.attributedText = attributed
         }
-        guard let proposedWidth = proposal.width,
-              proposedWidth > 0,
-              proposedWidth < .greatestFiniteMagnitude
-        else {
-            return measure.sizeThatFits(
-                CGSize(
-                    width: CGFloat(10_000),
-                    height: CGFloat.greatestFiniteMagnitude
-                )
-            )
-        }
-        return measure.sizeThatFits(
+        let size = measure.sizeThatFits(
             CGSize(
-                width: proposedWidth,
+                width: width,
                 height: CGFloat.greatestFiniteMagnitude
             )
         )
+        measuredSizeCacheLock.lock()
+        if measuredSizeCache.count
+            >= measuredSizeCacheLimit {
+            measuredSizeCache.removeAll()
+        }
+        measuredSizeCache[key] = (attributed, size)
+        measuredSizeCacheLock.unlock()
+        // §251 影子对拍：同串同宽投后台量测池复量、
+        // 与本值在 LayoutShadowLedger 记账比对——只
+        // 记账不消费，返回值仍是现量测（行高来源不
+        // 变、呈现零改动）；143 后只在真量时记（见上）
+        LayoutShadowLedger.shared.record(
+            attributed: attributed,
+            width: width,
+            referenceHeight: size.height
+        )
+        return size
+    }
+
+    /// 备忘命中读数（测试口：与布局匣计数口同式，
+    /// 生产路径只多一次加锁查表）
+    static var measuredSizeCacheCount: Int {
+        measuredSizeCacheLock.lock()
+        defer { measuredSizeCacheLock.unlock() }
+        return measuredSizeCache.count
+    }
+
+    /// 对拍基准高（产物层/单测入口）：按给定宽走现
+    /// 量测本体；宽为 nil 走自然宽口径（10_000）
+    static func referenceHeight(
+        attributed: NSAttributedString, width: CGFloat?
+    ) -> CGFloat {
+        measuredSize(
+            attributed: attributed,
+            proposal: ProposedViewSize(
+                width: width, height: nil
+            )
+        ).height
+    }
+
+    /// 本次量测的实际宽：提议宽合法用提议宽、无提
+    /// 议（或非法）按自然单行宽口径 10_000（与旧
+    /// sizeThatFits 逐字同口径）
+    static func measuredWidth(
+        _ proposal: ProposedViewSize
+    ) -> CGFloat {
+        guard let proposedWidth = proposal.width,
+              proposedWidth > 0,
+              proposedWidth < .greatestFiniteMagnitude
+        else { return 10_000 }
+        return proposedWidth
     }
 
     static func dismantleUIView(

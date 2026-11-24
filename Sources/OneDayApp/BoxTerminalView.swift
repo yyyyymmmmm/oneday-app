@@ -162,12 +162,10 @@ struct BoxTerminalView: View {
                 let response = try await client.run(
                     config: config, command: command
                 )
-                appState.overviewBridgeAuthFailed = false
                 updateExchange(id: exchangeID) { $0.response = response }
             } catch let error as BoxShellError {
                 switch error {
                 case .noKey, .unauthorized:
-                    appState.overviewBridgeAuthFailed = true
                     phase = .notConnected
                 case .notAvailable:
                     phase = .notAvailable

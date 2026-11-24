@@ -31,6 +31,15 @@ import Foundation
 /// 留。选型以墨迹密度量测为闸（RenderMeasureTests
 /// 同口径对照，数值与口径辨析见 §30.7）；变体锁
 /// （.symbolVariants .none）保留作第二道防线。
+/// §403（§382 B1，2026-11-23 定因后）：底栏呈现脱离
+/// symbol 身份——iOS 26 宿主在条目构建层注入 fill 变
+/// 体只作用于活 symbol image，三道 .none 防御全被绕
+/// 过（定因 DESIGN §403）。在栏五格改走模板图资产
+/// （asset 字段，资产由系统 CoreGlyphs 矢量母版按
+/// 24pt light 标定生成，Scripts/make-tab-assets.
+/// swift）；normal/selected 符号名保留作抽屉名单等
+/// 栏外消费者的符号源（彼处无宿主构建层、fill 注入
+/// 不发生），本表仍是名单单源。
 public struct TabSymbolPair: Equatable, Sendable {
     /// 条目标识（与无障碍标识 tab.<id> 共用）
     public let id: String
@@ -40,12 +49,15 @@ public struct TabSymbolPair: Equatable, Sendable {
     public let normal: String
     /// 选中态符号名（官方 .fill 对；无对时与 normal 同名）
     public let selected: String
+    /// 底栏模板图资产名（§403 B1；在栏五格必填、栏外条目为空）
+    public let asset: String
 
-    public init(id: String, title: String, normal: String, selected: String) {
+    public init(id: String, title: String, normal: String, selected: String, asset: String = "") {
         self.id = id
         self.title = title
         self.normal = normal
         self.selected = selected
+        self.asset = asset
     }
 
     /// 按选中态取符号名
@@ -59,7 +71,8 @@ public enum TabBarSymbols {
     public static let chat = TabSymbolPair(
         id: "chat", title: "聊天",
         normal: "message",
-        selected: "message"
+        selected: "message",
+        asset: "tab.chat"
     )
     /// 动态格（0.35.0 P3，拍板 1A 五格第二格）：动态
     /// 的本体是「个人报」（设计档第三章），取带字纸
@@ -71,7 +84,8 @@ public enum TabBarSymbols {
     public static let feed = TabSymbolPair(
         id: "feed", title: "动态",
         normal: "doc.text",
-        selected: "doc.text"
+        selected: "doc.text",
+        asset: "tab.feed"
     )
     public static let activity = TabSymbolPair(
         id: "activity", title: "活动",
@@ -81,12 +95,14 @@ public enum TabBarSymbols {
     public static let ideas = TabSymbolPair(
         id: "ideas", title: "点子",
         normal: "lightbulb",
-        selected: "lightbulb"
+        selected: "lightbulb",
+        asset: "tab.ideas"
     )
     public static let goals = TabSymbolPair(
         id: "goals", title: "目标",
         normal: "checklist",
-        selected: "checklist"
+        selected: "checklist",
+        asset: "tab.goals"
     )
     public static let apps = TabSymbolPair(
         id: "apps", title: "应用",
@@ -103,9 +119,10 @@ public enum TabBarSymbols {
         selected: "chart.xyaxis.line"
     )
     public static let files = TabSymbolPair(
-        id: "files", title: "文件",
+        id: "files", title: "资源库",
         normal: "tray",
-        selected: "tray"
+        selected: "tray",
+        asset: "tab.files"
     )
     public static let settings = TabSymbolPair(
         id: "settings", title: "设置",

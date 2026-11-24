@@ -7,6 +7,8 @@ import OneDayCore
 /// 鲜度行）。0.36.18 起不再有同步开关与说明已读标
 /// 记可存——授权即自动同步，旧键留在 defaults 里
 /// 不读不管（无副本数据、不必清理）
+/// §416 新鲜度普查豁免：本地同步回执落盘（UserDefaults），
+/// 无远端新鲜度问题（判定表见 DESIGN §416）
 extension DevicePreferences {
     private static var defaults: UserDefaults { .standard }
 
@@ -101,6 +103,65 @@ extension DevicePreferences {
     static func setContactsForceFull(_ on: Bool) {
         defaults.set(on, forKey: "device.sync.contacts.forceFull")
     }
+
+    /// 最近一次前台自检结论（§468，规格 A-6）：
+    /// 逐数据集一条，健康面诊断行回读它——自检
+    /// 不再只在内存里过一遍
+    static func selfCheckRecord(for dataset: DeviceSyncDataset)
+        -> SyncSelfCheckRecord?
+    {
+        guard let data = defaults.data(
+            forKey: syncKey(dataset, "selfCheck")
+        ) else { return nil }
+        return try? JSONDecoder().decode(
+            SyncSelfCheckRecord.self, from: data
+        )
+    }
+
+    static func setSelfCheckRecord(
+        _ record: SyncSelfCheckRecord?,
+        for dataset: DeviceSyncDataset
+    ) {
+        guard let record,
+              let data = try? JSONEncoder().encode(record)
+        else {
+            defaults.removeObject(
+                forKey: syncKey(dataset, "selfCheck")
+            )
+            return
+        }
+        defaults.set(data, forKey: syncKey(dataset, "selfCheck"))
+    }
+
+    /// 全量重同步退避状态（§468，规格 A-3）：逐
+    /// 数据集一份，跨启动保留——退避是按真实时间
+    /// 算的，重启 App 不许把账清掉重来
+    static func fullResyncBackoff(for dataset: DeviceSyncDataset)
+        -> FullResyncBackoff
+    {
+        guard let data = defaults.data(
+            forKey: syncKey(dataset, "backoff")
+        ) else { return FullResyncBackoff() }
+        return (try? JSONDecoder().decode(
+            FullResyncBackoff.self, from: data
+        )) ?? FullResyncBackoff()
+    }
+
+    static func setFullResyncBackoff(
+        _ backoff: FullResyncBackoff,
+        for dataset: DeviceSyncDataset
+    ) {
+        guard let data = try? JSONEncoder().encode(backoff)
+        else { return }
+        defaults.set(data, forKey: syncKey(dataset, "backoff"))
+    }
+}
+
+/// 前台自检落账的一条（§468）：时刻＋结论人话。
+/// 只存呈现所需的最小面，判定细节不必落盘
+struct SyncSelfCheckRecord: Codable, Equatable, Sendable {
+    let at: TimeInterval
+    let outcomeLine: String
 }
 
 /// 同步控制器（0.36.14 立制，0.36.18 改「权限即
@@ -117,7 +178,14 @@ extension DevicePreferences {
 /// 调只在观察者内转手，不进本类
 @MainActor
 @Observable
-final class DeviceSyncController {
+final class DeviceSyncController: PermissionSyncPerforming {
+    /// §261 ④：授权卡续办前的补课同步走这一口（来源
+    /// 恒 .chat——是对话里的事在续办，不是前台自刷）
+    func performPermissionSync(
+        dataset: DeviceSyncDataset, config: ServerConfig
+    ) async {
+        _ = await syncNow(dataset, config: config, origin: .chat)
+    }
     /// 桥 status 读到的逐件状态（真状态源）
     private(set) var statuses:
         [DeviceSyncDataset: DeviceSyncDatasetStatus] = [:]
@@ -131,6 +199,22 @@ final class DeviceSyncController {
     /// 逐件同步日志（新在上，与偏好同值落盘）
     private(set) var logs:
         [DeviceSyncDataset: [DeviceSyncLogEntry]] = [:]
+    /// 逐件最近一次前台自检结论（§468，规格 A-6；
+    /// 与偏好同值落盘，健康面诊断行读它）
+    private(set) var lastSelfChecks:
+        [DeviceSyncDataset: SyncSelfCheckRecord] = [:]
+    /// 逐件全量重同步退避状态（§468，规格 A-3）
+    private(set) var backoffs:
+        [DeviceSyncDataset: FullResyncBackoff] = [:]
+
+    /// 恒全量重推的数据集（退避只管这三件；通讯
+    /// 录是清单增量、步数是合并，失败重试自有节流）
+    private static let fullResyncDatasets: Set<DeviceSyncDataset> = [
+        .calendar, .reminders, .photos,
+    ]
+    /// lastErrors 里哪几条是自检写的权限账（非权
+    /// 限轮次要把自己写的旧账收走，不靠字符串比对）
+    private var permissionBlockedMarks: Set<DeviceSyncDataset> = []
 
     private let client = DeviceBridgeClient()
     let photosEngine = PhotosEngine()
@@ -156,6 +240,8 @@ final class DeviceSyncController {
         var receipts: [DeviceSyncDataset: DevicePreferences.SyncReceipt]
             = [:]
         var logs: [DeviceSyncDataset: [DeviceSyncLogEntry]] = [:]
+        var selfChecks: [DeviceSyncDataset: SyncSelfCheckRecord] = [:]
+        var backoffs: [DeviceSyncDataset: FullResyncBackoff] = [:]
         for dataset in DeviceSyncDataset.allCases {
             if let receipt = DevicePreferences.syncReceipt(
                 for: dataset
@@ -163,9 +249,19 @@ final class DeviceSyncController {
                 receipts[dataset] = receipt
             }
             logs[dataset] = DevicePreferences.syncLog(for: dataset)
+            if let record = DevicePreferences.selfCheckRecord(
+                for: dataset
+            ) {
+                selfChecks[dataset] = record
+            }
+            backoffs[dataset] = DevicePreferences.fullResyncBackoff(
+                for: dataset
+            )
         }
         self.receipts = receipts
         self.logs = logs
+        self.lastSelfChecks = selfChecks
+        self.backoffs = backoffs
         changeWatcher.onChange = { [weak self] dataset in
             // 观察者保证在主队列转手，这里再按本仓
             // 观察者惯例跳回 MainActor 落记
@@ -225,7 +321,11 @@ final class DeviceSyncController {
 
     /// 单件对账：先上报权限与范围变化（撤销→桥停
     /// 供、范围变→下轮整本重灌），再按计划器判定要
-    /// 不要真同步（节流/变更记号都在计划器里）
+    /// 不要真同步（节流/变更记号都在计划器里）。
+    /// §468 起判定不再只在内存里过：每轮自检都合
+    /// 成结论落账（规格 A-6），权限挡住把分型原因
+    /// 写进 lastErrors 显形（规格 A-5）——旧口径在
+    /// 这里静默 return，正是断供十二天零记录的成因
     private func reconcile(
         dataset: DeviceSyncDataset,
         permission: DevicePermissionState,
@@ -234,6 +334,7 @@ final class DeviceSyncController {
         await reportStateIfChanged(
             dataset: dataset, permission: permission, config: config
         )
+        let now = Date()
         let decision = DeviceSyncPlanner.foregroundDecision(
             dataset: dataset,
             permissionUsable: permission.isUsable,
@@ -243,11 +344,64 @@ final class DeviceSyncController {
                 },
             pendingWrite: statuses[dataset]?.pendingWrite ?? false,
             changePending: changePending,
-            now: Date()
+            now: now
         )
-        if decision == .sync {
+        let outcome = DeviceSyncSelfCheck.outcome(
+            permission: permission, decision: decision,
+            backoffNextAllowedAt: Self.fullResyncDatasets
+                .contains(dataset)
+                ? backoffs[dataset]?.nextAllowedAt : nil,
+            now: now
+        )
+        noteSelfCheck(dataset: dataset, outcome: outcome, now: now)
+        if outcome == .willSync {
             _ = await syncNow(dataset, config: config)
         }
+    }
+
+    /// 自检结论落账：内存＋落盘同值；权限挡住时把
+    /// 分型人话写进失败位显形（同步成功时由
+    /// syncNow 清理，见其落账段）
+    private func noteSelfCheck(
+        dataset: DeviceSyncDataset,
+        outcome: SyncSelfCheckOutcome, now: Date
+    ) {
+        let record = SyncSelfCheckRecord(
+            at: now.timeIntervalSince1970,
+            outcomeLine: outcome.line(now: now)
+        )
+        lastSelfChecks[dataset] = record
+        DevicePreferences.setSelfCheckRecord(record, for: dataset)
+        if case .blockedPermission(let state) = outcome {
+            lastErrors[dataset] = SyncSelfCheckOutcome.blockedLine(
+                state, locale: AppLocale.uiLocale
+            )
+            permissionBlockedMarks.insert(dataset)
+        } else if permissionBlockedMarks.remove(dataset) != nil {
+            // 权限已恢复：把自检写的那条旧账收走，
+            // 真同步失败的账不是自检写的、不动
+            lastErrors[dataset] = nil
+        }
+    }
+
+    /// 全量退避记账（§468）：只记引擎真启动后的
+    /// 成败（门前失败不算同步失败、不进退避）
+    private func recordBackoffSuccess(_ dataset: DeviceSyncDataset) {
+        guard Self.fullResyncDatasets.contains(dataset) else { return }
+        let cleared = (backoffs[dataset] ?? FullResyncBackoff())
+            .recordingSuccess()
+        backoffs[dataset] = cleared
+        DevicePreferences.setFullResyncBackoff(cleared, for: dataset)
+    }
+
+    private func recordBackoffFailure(
+        _ dataset: DeviceSyncDataset, at now: Date
+    ) {
+        guard Self.fullResyncDatasets.contains(dataset) else { return }
+        let updated = (backoffs[dataset] ?? FullResyncBackoff())
+            .recordingFailure(at: now)
+        backoffs[dataset] = updated
+        DevicePreferences.setFullResyncBackoff(updated, for: dataset)
     }
 
     /// 触发①（回前台/冷启/连接就绪时调）：逐件对
@@ -330,6 +484,9 @@ final class DeviceSyncController {
     enum SyncOrigin {
         case user
         case foreground
+        /// 聊天里授权卡续办前的补同步（§244 P-5）：用
+        /// 户在场触发，门前失败落日志待遇同 user
+        case chat
     }
 
     /// 一轮同步：权限门 → 组装 → 分批暂存 → 完成
@@ -345,7 +502,7 @@ final class DeviceSyncController {
     ) async -> Bool {
         guard let config else {
             lastErrors[dataset] = L10n.string("还没连上服务器，同步不了")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]
@@ -371,7 +528,7 @@ final class DeviceSyncController {
             lastErrors[dataset] = permission == .restricted
                 ? L10n.string("这件被系统限制住了（家长控制等），同步不了")
                 : L10n.string("系统权限还没开：打开这一页上方那一个开关就能开启")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]
@@ -381,7 +538,7 @@ final class DeviceSyncController {
         }
         guard let dispatcher else {
             lastErrors[dataset] = L10n.string("设备通道还没准备好，稍后再试")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]
@@ -443,6 +600,7 @@ final class DeviceSyncController {
             if dataset == .contacts {
                 DevicePreferences.setContactsForceFull(false)
             }
+            recordBackoffSuccess(dataset)
             lastErrors[dataset] = nil
             appendLog(
                 dataset, kind: .syncCompleted,
@@ -455,6 +613,7 @@ final class DeviceSyncController {
             await refreshStatus(config: config)
             return true
         } catch let error as DeviceBridgeError {
+            recordBackoffFailure(dataset, at: Date())
             lastErrors[dataset] = Self.humanError(error)
             appendLog(
                 dataset, kind: .syncFailed,
@@ -462,6 +621,7 @@ final class DeviceSyncController {
             )
             return false
         } catch {
+            recordBackoffFailure(dataset, at: Date())
             lastErrors[dataset] = L10n.format(
                 "同步没成：%@；服务器上的副本还是上一份",
                 error.localizedDescription
@@ -472,6 +632,42 @@ final class DeviceSyncController {
             )
             return false
         }
+    }
+
+    /// 单数据集手动同步（§468，规格 A-4）：健康面
+    /// 「立即同步」钮的落点。成败不看本地自说自
+    /// 话——同步前后各回读一次服务端副本时刻
+    /// （桥状态优先、本地回执兜底，两者同源于桥
+    /// 回执），时刻没往前走就是没成，原因写进
+    /// lastErrors 明说，不许报假成功
+    @discardableResult
+    func manualSync(
+        _ dataset: DeviceSyncDataset, config: ServerConfig?
+    ) async -> Bool {
+        func copyTime() -> Date? {
+            statuses[dataset]?.syncedAt
+                ?? receipts[dataset].map {
+                    Date(timeIntervalSince1970: $0.syncedAt)
+                }
+        }
+        let before = copyTime()
+        let started = await syncNow(
+            dataset, config: config, origin: .user
+        )
+        guard started else { return false }
+        await refreshStatus(config: config)
+        let after = copyTime()
+        guard let after, before.map({ after > $0 }) ?? true else {
+            lastErrors[dataset] = L10n.string(
+                "同步完回读对不上：服务器上的时刻没有变，这一轮不算数"
+            )
+            appendLog(
+                dataset, kind: .syncFailed,
+                reason: lastErrors[dataset]
+            )
+            return false
+        }
+        return true
     }
 
     private static func humanError(_ error: DeviceBridgeError)
@@ -551,7 +747,7 @@ final class DeviceSyncController {
                 aggregates: nil, removedIds: nil
             )
         case .reminders:
-            let snapshot = await dispatcher.events
+            let snapshot = try await dispatcher.events
                 .reminderSyncSnapshot()
             return Assembled(
                 records: snapshot.records.map(\.json), mode: "full",

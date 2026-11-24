@@ -288,8 +288,19 @@ final class RenderMeasureTests: XCTestCase {
     /// #F0F0F2＋双泡中性断言）；0.6.1 用户亲令配色改用
     /// OpenMuse，封存口径正式让位，本测试改钉它的令牌：
     /// ①浅色解析值＝OpenMuse 原值（助手泡 #EEEEF0＝
-    /// chat.tsx:593、用户泡 #C8E7FF＝colors.blue、
+    /// chat.tsx:593、用户泡原 #C8E7FF＝colors.blue、
     /// selectionFill #F0F1F2＝底栏激活 App.tsx:464）；
+    /// 【台账 184→188（2026-11-20 用户拍板）】用户
+    /// 泡浅色钉改从本值：184 曾设浓淡两式、默认实
+    /// 填档；188 定版收成单档（大厂标准），浅色定
+    /// 死＝同款 accentLight #1268B8（原 #C8E7FF
+    /// 退为主题表色板行、逐款实算与单档解析钉在
+    /// ChatThemeTests）；暗色定死＝原 bubbleDark
+    /// 不变、②的暗色钉不动；
+    /// 【台账 197（2026-11-21 用户拍板，§335）】
+    /// 浅档改判「浅填＋深字」：浅色钉再改从新解析
+    /// 值＝默认款 bubbleLight #C8E7FF（与本测 0.6.1
+    /// 原钉同值——绕回原貌）；暗色钉仍不动；
     /// ②暗色解析值——0.36.1 批一B 起助手泡改挂语义
     /// 三级面 #2C2C2E（旧派生 #272E33 退役，见下方语
     /// 义梯专钉）；用户泡取主题表 blueDark #1473C8；
@@ -311,7 +322,8 @@ final class RenderMeasureTests: XCTestCase {
             UIColor(
                 red: 0xC8 / 255.0, green: 0xE7 / 255.0,
                 blue: 0xFF / 255.0, alpha: 1
-            )
+            ),
+            "浅色用户泡定死＝默认款 bubbleLight #C8E7FF（台账 197／§335 浅填深字）"
         )
         XCTAssertEqual(
             UIColor(Palette.bubbleFill).resolvedColor(with: dark),
@@ -343,6 +355,70 @@ final class RenderMeasureTests: XCTestCase {
                 blue: 0xF2 / 255.0, alpha: 1
             )
         )
+    }
+
+    /// 抽屉专用选中填充：selectionFill 本体不动（上
+    /// 一测已钉 #F0F1F2），抽屉三行改走 drawerSelec-
+    /// tionFill。沿革：§225 钉 #E4E5E7（材质面板时
+    /// 代的加深档）；2026-11-21 样板对齐包改钉样板
+    /// 原值 #EEEFF1——面板已是 §318 实色 #FCFCFC、
+    /// 样板截图三点采样即此值，压实色面板逐通道
+    /// Δ14/13/11≥10；暗档解析钉三级面 #2C2C2E 不
+    /// 变、压纯黑面板（chatSurface 暗档）Δ44≥10。
+    /// Δ 以 0–255 通道值计
+    func testDrawerSelectionFillMatchesSampleOnSolidPanel() {
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
+        let pillLight = UIColor(Palette.drawerSelectionFill)
+            .resolvedColor(with: light)
+        XCTAssertEqual(
+            pillLight,
+            UIColor(
+                red: 0xEE / 255.0, green: 0xEF / 255.0,
+                blue: 0xF1 / 255.0, alpha: 1
+            )
+        )
+        let pillDark = UIColor(Palette.drawerSelectionFill)
+            .resolvedColor(with: dark)
+        XCTAssertEqual(
+            pillDark,
+            UIColor(
+                red: 0x2C / 255.0, green: 0x2C / 255.0,
+                blue: 0x2E / 255.0, alpha: 1
+            )
+        )
+        func channels(_ color: UIColor) -> [CGFloat] {
+            var r: CGFloat = 0, g: CGFloat = 0
+            var b: CGFloat = 0, a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+            return [r * 255, g * 255, b * 255]
+        }
+        // 面板参照随 §318 实色定案更新：浅 chatSur-
+        // face #FCFCFC／暗 systemBackground 纯黑（旧
+        // 材质合成面 #F2F2F2／二级面 #1C1C1E 参照退役）
+        let panelLight = channels(UIColor(
+            red: 0xFC / 255.0, green: 0xFC / 255.0,
+            blue: 0xFC / 255.0, alpha: 1
+        ))
+        let panelDark = channels(UIColor(
+            red: 0, green: 0, blue: 0, alpha: 1
+        ))
+        for (index, pair) in zip(
+            channels(pillLight), panelLight
+        ).enumerated() {
+            XCTAssertGreaterThanOrEqual(
+                abs(pair.0 - pair.1), 10,
+                "浅档选中垫压实色面板通道 \(index) Δ 须 ≥10"
+            )
+        }
+        for (index, pair) in zip(
+            channels(pillDark), panelDark
+        ).enumerated() {
+            XCTAssertGreaterThanOrEqual(
+                abs(pair.0 - pair.1), 10,
+                "暗档选中垫压纯黑面板通道 \(index) Δ 须 ≥10"
+            )
+        }
     }
 
     /// 分量级解析断言（0.36.1）：语义色含 α，逐分量带

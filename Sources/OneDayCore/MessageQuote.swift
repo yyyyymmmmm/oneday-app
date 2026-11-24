@@ -81,6 +81,46 @@ public struct MessageQuote: Equatable, Sendable {
         guard !userText.isEmpty else { return block }
         return block + "\n\n" + userText
     }
+
+    /// 引用分发收口（§208）：一条用户消息至多带一
+    /// 种引用——消息引用与动态引用在发送舱共用同
+    /// 一槽位、落盘互斥（ChatEntry 的 quote 两字段
+    /// 与 feedPost 四字段不同时有值）。动态引用在
+    /// 场走 FeedPostQuote 变体，否则走消息引用原
+    /// 口径。发送组装与同 key 重演组装共用本函数，
+    /// 口径全仓一处
+    public static func outgoingContent(
+        userText: String, quote: MessageQuote?,
+        feedQuote: FeedPostQuote?
+    ) -> String {
+        if let feedQuote {
+            return FeedPostQuote.outgoingContent(
+                userText: userText, feedQuote: feedQuote
+            )
+        }
+        return outgoingContent(userText: userText, quote: quote)
+    }
+
+    /// 引用分发收口·来源引用变体（§219，推广
+    /// §208 的 feed 专用三参变体）：来源引用（动
+    /// 态／点子／文件，SourceQuote 统一载荷）在
+    /// 场时优先于消息引用——一条用户消息至多带
+    /// 一种引用、槽位单一在场（发送舱互斥纪律）。
+    /// 发送组装与杀进程重演组装共用本函数，两处
+    /// 拼装口径不许分叉；上之三参变体保留（Core
+    /// 既有钉测与回放兼容面），新调用点一律走本
+    /// 变体
+    public static func outgoingContent(
+        userText: String, quote: MessageQuote?,
+        sourceQuote: SourceQuote?
+    ) -> String {
+        if let sourceQuote {
+            return sourceQuote.outgoingContent(
+                userText: userText
+            )
+        }
+        return outgoingContent(userText: userText, quote: quote)
+    }
 }
 
 /// 长按菜单四项的 SF Symbol 名（0.4.1）：符号名收敛在
@@ -93,6 +133,29 @@ public enum MessageActionSymbols {
     public static let share = "square.and.arrow.up"
     /// 0.7.0（M4 分流动作）：「在旁聊里接着问」
     public static let fork = "arrow.triangle.branch"
+    /// H2-a（台账 159）：助手消息「朗读／停止朗读」
+    public static let speak = "speaker.wave.2"
+    public static let speakStop = "stop.circle"
+    /// 台账 154（DESIGN §342）：发件箱三项——未发
+    /// 送条目动作面的重新发送／编辑／撤回
+    public static let resend = "arrow.clockwise"
+    public static let editUnsent = "pencil"
+    public static let withdrawUnsent = "trash"
+    /// D3（DESIGN §352）：已发消息「编辑」——与未发
+    /// 编辑同名同图符（两项互斥在席、永不并存）
+    public static let editSent = "pencil"
+    /// D2（DESIGN §352）：末轮回答「重新生成」
+    public static let regenerate = "arrow.counterclockwise"
+    /// 0.50.80 热修：长按菜单「添加反应」子菜单图符
+    public static let react = "face.smiling"
+    /// D1（台账 5）：播放条主钮——暂停/继续
+    public static let speakPause = "pause.fill"
+    public static let speakResume = "play.fill"
 
-    public static let all = [reply, copy, select, share, fork]
+    public static let all = [
+        reply, copy, select, share, fork, speak, speakStop,
+        speakPause, speakResume, react,
+        resend, editUnsent, withdrawUnsent,
+        editSent, regenerate,
+    ]
 }

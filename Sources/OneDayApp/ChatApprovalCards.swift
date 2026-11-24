@@ -23,14 +23,33 @@ struct ChatApprovalZone: View {
     /// 再重复出卡/出行；默认空集＝现行行为（预制合并
     /// 前的调用点零影响）
     var anchoredRecordIDs: Set<String> = []
+    /// §329 行状态账本：透传给就地卡（详情四态上
+    /// 提、合成器可见）；不传＝卡内 @State 原行为
+    var ledger: ChatRowStateLedger? = nil
 
     var body: some View {
         if case .ready(let records) = store.approvalState {
+            // D10 定版②（一次只活一张）：未锚待批
+            // 只出桥序第一条活卡，其余收成计数行；
+            // 派生走 Core ApprovalZoneQueue 单源，
+            // 与行高合成/facet 摘要同口径。锚定行
+            // 不入此口径（§165 自承载、主线裁定豁免）
+            let queue = ApprovalZoneQueue.derive(
+                recordIDs: records.map(\.id),
+                anchoredIDs: anchoredRecordIDs
+            )
             VStack(spacing: OneDayMetrics.spacingM) {
-                ForEach(records) { record in
-                    if !anchoredRecordIDs.contains(record.id) {
-                        ChatApprovalCard(store: store, record: record)
-                    }
+                if let activeID = queue.activeRecordID,
+                   let record = records.first(
+                       where: { $0.id == activeID }
+                   ) {
+                    ChatApprovalCard(
+                        store: store, record: record,
+                        ledger: ledger
+                    )
+                }
+                if queue.queuedCount > 0 {
+                    queuedRow(count: queue.queuedCount)
                 }
                 ForEach(store.resolvedLines) { line in
                     if !anchoredRecordIDs.contains(line.id) {
@@ -39,6 +58,29 @@ struct ChatApprovalZone: View {
                 }
             }
         }
+    }
+
+    /// 待批收纳计数行（D10 定版②）：与回执行同
+    /// 族形态（surface 底＋footnote），只报数、
+    /// 不出钮、不可点——点开若出带钮的卡即破
+    /// 「只活一张」（定版字面口径，不做展开预览）
+    private func queuedRow(count: Int) -> some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "tray.full")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            Text(L10n.format("还有 %lld 件待批", Int64(count)))
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer()
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+        )
     }
 
     /// 裁决结果行：卡收起后的原地痕迹——结论图标＋标
@@ -81,13 +123,95 @@ struct ChatApprovalZone: View {
 struct ChatApprovalCard: View {
     let store: AgentHubStore
     let record: WriteGateRecord
+    /// §329 行状态账本（聊天列表面传入）：详情四
+    /// 态（展开/详情/错误/加载中）改存账本——详情
+    /// 区高度对行高合成器可见（.absolute 回喂）；
+    /// 无账本环境回落本地 @State、四态语义逐字不
+    /// 变（确认弹窗两件与详情无关、恒本地）
+    var ledger: ChatRowStateLedger? = nil
 
-    @State private var detail: WriteGateDetail?
-    @State private var detailError: String?
-    @State private var detailExpanded = false
-    @State private var detailLoading = false
+    @State private var localDetail: WriteGateDetail?
+    @State private var localDetailError: String?
+    @State private var localDetailExpanded = false
+    @State private var localDetailLoading = false
     @State private var showRejectConfirm = false
     @State private var showAlwaysConfirm = false
+
+    private var detail: WriteGateDetail? {
+        if let ledger {
+            return ledger.approvalDetail(
+                for: record.id
+            ).detail
+        }
+        return localDetail
+    }
+
+    private var detailError: String? {
+        if let ledger {
+            return ledger.approvalDetail(
+                for: record.id
+            ).error
+        }
+        return localDetailError
+    }
+
+    private var detailExpanded: Bool {
+        if let ledger {
+            return ledger.approvalDetail(
+                for: record.id
+            ).expanded
+        }
+        return localDetailExpanded
+    }
+
+    private var detailLoading: Bool {
+        if let ledger {
+            return ledger.approvalDetail(
+                for: record.id
+            ).loading
+        }
+        return localDetailLoading
+    }
+
+    private func setDetail(_ value: WriteGateDetail?) {
+        if let ledger {
+            ledger.updateApprovalDetail(record.id) {
+                $0.detail = value
+            }
+        } else {
+            localDetail = value
+        }
+    }
+
+    private func setDetailError(_ value: String?) {
+        if let ledger {
+            ledger.updateApprovalDetail(record.id) {
+                $0.error = value
+            }
+        } else {
+            localDetailError = value
+        }
+    }
+
+    private func setDetailExpanded(_ value: Bool) {
+        if let ledger {
+            ledger.updateApprovalDetail(record.id) {
+                $0.expanded = value
+            }
+        } else {
+            localDetailExpanded = value
+        }
+    }
+
+    private func setDetailLoading(_ value: Bool) {
+        if let ledger {
+            ledger.updateApprovalDetail(record.id) {
+                $0.loading = value
+            }
+        } else {
+            localDetailLoading = value
+        }
+    }
 
     var body: some View {
         ApprovalCardFace(
@@ -129,7 +253,7 @@ struct ChatApprovalCard: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在枢纽「审批规则」里随时撤销。")
+            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。")
         }
     }
 
@@ -194,23 +318,23 @@ struct ChatApprovalCard: View {
 
     private func toggleDetail() {
         if detailExpanded {
-            detailExpanded = false
+            setDetailExpanded(false)
             return
         }
-        detailExpanded = true
+        setDetailExpanded(true)
         guard detail == nil, !detailLoading else { return }
-        detailLoading = true
-        detailError = nil
+        setDetailLoading(true)
+        setDetailError(nil)
         Task {
             switch await store.loadDetail(record) {
             case .success(let loaded):
-                detail = loaded
+                setDetail(loaded)
             case .failure(.recordGone):
-                detailError = "这条待批已被处理或已失效。"
+                setDetailError("这条待批已被处理或已失效。")
             case .failure:
-                detailError = "改动没读出来，可能是网络或服务暂时没响应"
+                setDetailError("改动没读出来，可能是网络或服务暂时没响应")
             }
-            detailLoading = false
+            setDetailLoading(false)
         }
     }
 }

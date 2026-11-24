@@ -268,6 +268,8 @@ public enum ToolCardClassifier {
         case "web_search": return L10n.string("联网搜索", locale: locale)
         case "tool_describe": return L10n.string("查阅工具说明", locale: locale)
         case "tool_call": return L10n.string("调用工具", locale: locale)
+        case "react_to_message":
+            return L10n.string("回应消息", locale: locale)
         case "read_file": return L10n.string("读取文件", locale: locale)
         case "write_file": return L10n.string("写入文件", locale: locale)
         case "kanban_complete": return L10n.string("完成任务", locale: locale)
@@ -308,6 +310,20 @@ public enum ToolCardClassifier {
         forToolName name: String, locale: Locale = AppLocale.uiLocale
     ) -> String {
         category(forToolName: name).fallbackTitle(locale: locale)
+    }
+
+    /// 活动短语（§449.9，2026-11-24 用户令「工具活动进
+    /// 胶囊、不进流」）：胶囊第二行与中枢状态行共用的
+    /// 当前活动人话短语——与卡面标题同一张映射表（逐
+    /// 工具标题优先、无参数通道时 memory/skill 回类内
+    /// 默认），未命中回分类短语，未知工具回「工具调
+    /// 用」类短语。直播 events 只有工具名、无参数全
+    /// 文，故此处以空参数取标题
+    public static func activityPhrase(
+        forToolName name: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        title(forToolName: name, arguments: "", locale: locale)
+            ?? fallbackTitle(forToolName: name, locale: locale)
     }
 
     /// 直播期摘要净化（0.36.10）：events 的 preview 原
@@ -1519,6 +1535,36 @@ public enum FileRefDetector {
                 || wordFollowingDelimiters.contains($0)
         }
         return clean ? pieces : nil
+    }
+
+    /// 整条消息即一条裸路径（聊天可靠性包，2026-11-13）：
+    /// 助手消息正文修剪后恰好是一行、且这一行过
+    /// §129 独立成行判据（整行恰一条路径、下载根
+    /// 内、允许一层行首/包裹剥离）时返回该路径；其
+    /// 余形态（多行、路径之外还有字、两条路径、根
+    /// 外、URL）一律 nil。用途与 §129/§143 分工不
+    /// 同：那两口管「正文里提到的路径」——提及可真
+    /// 可假，故成牌/出图要过存在性门、查无降纯文
+    /// 本；本口管「消息本身就是交付物」——AI 把文
+    /// 件路径当整条回复发出（如只回 /opt/data/…/
+    /// avatar_small.png），此时把路径原样当正文等
+    /// 于交付失败，App 层改走附件形态直取字节：取
+    /// 到出图/出卡、取不到出失效附件态，永不退回
+    /// 生路径正文。长度护栏：整条路径消息天然短，
+    /// 超 1024 字符不可能是这个形态、直接否决（也
+    /// 给渲染期调用封顶成本）
+    public static func wholeMessagePath(
+        in text: String
+    ) -> FileAnchoredRef? {
+        guard text.count <= 1024 else { return nil }
+        let trimmed = text.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !trimmed.isEmpty, !trimmed.contains("\n")
+        else { return nil }
+        let refs = detectStandaloneAnchored(in: trimmed)
+        guard refs.count == 1 else { return nil }
+        return refs.first
     }
 
     /// 摘除独立成行的路径行（§143）：paths 内的路

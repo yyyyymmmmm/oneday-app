@@ -9,13 +9,47 @@ import UIKit
 /// （左标题、右「查看全部」蓝链）＋横滑缩略图条
 /// （首格相机、其后最近照片）；下半动作行「添加文
 /// 件／添加视频」。§152 修订（用户 19:47 对照截图点
-/// 名）：定高贴内容（宿主 detent 量本视图内容高、
-/// 见 AttachmentPanelLayout）、照片格放大近方形、
-/// 照片条改多选——点照片切换选中态（右上角勾选标
-/// 记），选了至少一张时动作行上方出「添加 N 张」
-/// 确认行，点之批量入待发附件条；未选时无确认行
-/// （与 Core addSelectedTitle 的 nil 同源）。单张快
-/// 选不回退：选 1 张点添加即走，与旧直达同效。
+/// 名）：定高贴内容、照片格放大近方形、照片条改
+/// 多选——点照片切换选中态（右上角勾选标记），选
+/// 了至少一张时动作行上方出「添加 N 张」确认行，
+/// 点之批量入待发附件条；未选时无确认行（与 Core
+/// addSelectedTitle 的 nil 同源）。单张快选不回
+/// 退：选 1 张点添加即走，与旧直达同效。
+/// §303（A-08 定高收口）：定高机制自 §152/§154 的
+/// 自造量测回路（本视图经 PreferenceKey 回报内容
+/// 高→宿主状态→Core 决策→.height detent）改走
+/// UIKit custom detent resolver 在呈现控制器内定
+/// 高（本文件 AttachmentSheetDetentBridge）——高
+/// 度由系统布局按内容理想尺寸单源求解，量测回
+/// 路整套退役。SwiftUI .presentationSizing
+/// (.fitted) 先行试过、经装配实测在 iPhone 底部
+/// sheet 上不改变高度（§303.1），不取。
+/// §327（小修批①，用户 2026-11-17 拍板）：精确贴
+/// 合整套退役——custom detent resolver＋安全区反
+/// 向补偿＋指纹 invalidate＋§317 过渡守卫（桥本
+/// 体）全删，定高改系统 detent 档位 [.medium,
+/// .large]（呈现口径见 attachmentPanelPresentat-
+/// ion）；面板内容不再决定 sheet 高，确认行增减
+/// 只改内容不改高。代价如实记：无库态内容约
+/// 137pt、sheet 恒半高，内容顶锚、下方留白——
+/// 换来的是定高零自造、与系统 sheet 行为全同构。
+/// D5（台账 11）修订：定高条改系统 .height() 档
+/// 位＋Core 常量纯算贴合高（三态 137/305/373＋
+/// safeArea）——确认行增减时仅当用户停在贴合档
+/// 才跟随 ±68pt，手动拉到 .large 后保持不拽回；
+/// AX 大字体回落 [.medium, .large]。代价条（下方
+/// 留白）就此注销。§327 退役四件（custom detent
+/// resolver 桥、安全区反向补偿、指纹、§317 过渡
+/// 守卫）仍不得复活。
+/// §461（2026-11-24 用户对照 Muse 形态点定）：
+/// 确认动作换位——§152 的「添加 N 张」确认行退
+/// 役，同一动作（orderedSelection 批量入条）挪到
+/// 面板底部、改整宽大按钮「添加 N 个附件」，饱和
+/// 蓝底（Palette.primarySaturated）＋白字；呈现条
+/// 件与旧行同源（未选不呈现），高度跟随差由行高
+/// 52 改按钮高 56（D5 贴合档有库已选态 373→377）。
+/// 照片条、勾选标记、文件/视频动作行、标题行一
+/// 律不动。
 ///
 /// 授权纪律：照片条只同步读 PHPhotoLibrary 现态
 /// （系统授权铁律：已决定绝不重走请求、未决定也不
@@ -32,7 +66,8 @@ struct AttachmentPanelView: View {
     let onConfirmPhotos: ([String]) -> Void
     /// 「查看全部」（宿主收面板后开全量选图器）
     let onViewAll: () -> Void
-    /// 「添加文件」（宿主走 DocumentPickerBridge）
+    /// 「添加文件」（宿主收面板后开文件选择器，
+    /// §317 起走 DocumentPickerView 状态旗呈现）
     let onAddFile: () -> Void
     /// 「添加视频」（宿主收面板后开视频选图器）
     let onAddVideo: () -> Void
@@ -42,12 +77,21 @@ struct AttachmentPanelView: View {
     /// 照片条多选选中集（§152）：面板本地态，关面
     /// 板即弃——入条只认确认动作，不留半截选择
     @State private var selectedIDs: Set<String> = []
-
-    /// 照片条格边长（形态值，§152 修订：照 Muse 截
-    /// 图近方形大格口径自 §147 的 76 放大；对屏宽约
-    /// 390 的实测占比约 30%，一屏约 3 格＋露边引导横
-    /// 滑；间距仍走 OneDayMetrics 梯队）
-    private static let cellSize: CGFloat = 118
+    /// 照片条取数代次（§303／A-24 顺带）：每次
+    /// loadStrip 自增；PHImageManager 回调无取消
+    /// 句柄，迟到回写按代次丢弃——面板快速开关/
+    /// 重载后旧代的低清图不许覆写新代结果
+    @State private var stripLoadGeneration = 0
+    
+    /// D5：选档状态——初值回贴合档，内容态变化时
+    /// 仅当停在贴合档才跟随（确认行 ±68pt），手动
+    /// 拉到 .large 后保持、不拽回
+    @State private var selectedDetent: PresentationDetent = .medium
+    /// D5：用户是否已手动拉到 .large（开局重置、
+    /// 手动拉大后置真，用于判断内容变化时是否跟随）
+    @State private var userSelectedLarge = false
+    
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 同步读现态（不在此发任何授权请求）
     private var photoAccess: AttachmentPanel.PhotoAccess {
@@ -64,29 +108,71 @@ struct AttachmentPanelView: View {
     private var showsLibrary: Bool {
         AttachmentPanel.showsLibrary(access: photoAccess)
     }
+    
+    /// D5：贴合档位（按当前内容态算高）
+    private var fittedDetent: PresentationDetent {
+        let height = AttachmentPanel.fittedSheetHeight(
+            showsLibrary: showsLibrary,
+            hasSelection: !selectedIDs.isEmpty
+        )
+        return .height(height)
+    }
+    
+    /// D5：档位集（AX 大字体回落 [.medium, .large]、
+    /// 标准字阶用 [fitted, .large]）
+    private var detents: Set<PresentationDetent> {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [.medium, .large]
+        } else {
+            return [fittedDetent, .large]
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
             if showsLibrary {
                 librarySection
             }
+            actionRows
             if let confirmTitle = AttachmentPanel.addSelectedTitle(
                 count: selectedIDs.count
             ) {
-                confirmRow(title: confirmTitle)
+                confirmButton(title: confirmTitle)
             }
-            actionRows
         }
         .padding(OneDayMetrics.spacingM)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(GeometryReader { proxy in
-            Color.clear.preference(
-                key: AttachmentPanelHeightKey.self,
-                value: proxy.size.height
+        // D5：系统 detent 贴合档下内容恰满（不再留大
+        // 片空白），仍需顶锚防内容漂浮（.large 档下
+        // sheet 高仍大于内容）
+        .frame(
+            maxWidth: .infinity, maxHeight: .infinity,
+            alignment: .topLeading
+        )
+        .presentationDetents(
+            detents,
+            selection: Binding(
+                get: { selectedDetent },
+                set: { newValue in
+                    selectedDetent = newValue
+                    // D5：追踪用户是否手动拉到 .large
+                    userSelectedLarge = (newValue == .large)
+                }
             )
-        })
+        )
+        .presentationDragIndicator(.visible)
         .task {
             loadStrip()
+            // D5：开局回贴合档
+            userSelectedLarge = false
+            selectedDetent = fittedDetent
+        }
+        .onChange(of: selectedIDs.isEmpty) { _, _ in
+            // D5：确认按钮增减时，仅当用户停在贴合档才
+            // 跟随新高度（±72pt 系统动画过渡）；已拉到 .large
+            // 不拽回；AX 档不自动跟随（回落 .medium 固定高）
+            if !userSelectedLarge && !dynamicTypeSize.isAccessibilitySize {
+                selectedDetent = fittedDetent
+            }
         }
     }
 
@@ -128,7 +214,10 @@ struct AttachmentPanelView: View {
             Image(systemName: "camera")
                 .font(.system(size: 30, weight: .regular))
                 .foregroundStyle(Palette.ink)
-                .frame(width: Self.cellSize, height: Self.cellSize)
+                .frame(
+                    width: AttachmentPanel.Layout.cellSize,
+                    height: AttachmentPanel.Layout.cellSize
+                )
                 .background(
                     Palette.bubbleFill,
                     in: RoundedRectangle(
@@ -165,7 +254,10 @@ struct AttachmentPanelView: View {
                         Palette.bubbleFill
                     }
                 }
-                .frame(width: Self.cellSize, height: Self.cellSize)
+                .frame(
+                    width: AttachmentPanel.Layout.cellSize,
+                    height: AttachmentPanel.Layout.cellSize
+                )
                 .clipShape(
                     RoundedRectangle(
                         cornerRadius: OneDayMetrics.radiusCard
@@ -189,12 +281,14 @@ struct AttachmentPanelView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    // MARK: - 确认行（§152 多选）
+    // MARK: - 确认按钮（§152 多选、§461 底部大按钮）
 
-    /// 「添加 N 张」确认行：照动作行形态（图标＋标
-    /// 题行、minHeight 同档），标题带实时已选计数；
-    /// 点之按条内呈现序批量入条（Core 收口）
-    private func confirmRow(title: String) -> some View {
+    /// 「添加 N 个附件」确认按钮（§461）：§152 确认
+    /// 行的同一动作挪到面板底部、改整宽大按钮——
+    /// 饱和蓝底（Palette.primarySaturated）＋白字，
+    /// 标题带实时已选计数；点之按条内呈现序批量入
+    /// 条（Core 收口，与旧行接线逐字相同）
+    private func confirmButton(title: String) -> some View {
         Button {
             onConfirmPhotos(
                 AttachmentPanel.orderedSelection(
@@ -202,18 +296,24 @@ struct AttachmentPanelView: View {
                 )
             )
         } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 20, weight: .regular))
-                    .foregroundStyle(Palette.primary)
-                    .frame(width: 28)
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(Palette.primary)
-                Spacer()
-            }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(
+                    height: AttachmentPanel.Layout.confirmButtonHeight
+                )
+                .background(
+                    Palette.primarySaturated,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
         }
         .buttonStyle(.odPressable)
     }
@@ -248,7 +348,7 @@ struct AttachmentPanelView: View {
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
-            .frame(minHeight: 52)
+            .frame(minHeight: AttachmentPanel.Layout.rowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
@@ -262,6 +362,8 @@ struct AttachmentPanelView: View {
     /// 会式交付、先低清后高清同格替换
     private func loadStrip() {
         guard showsLibrary else { return }
+        stripLoadGeneration += 1
+        let generation = stripLoadGeneration
         let options = PHFetchOptions()
         options.sortDescriptors = [
             NSSortDescriptor(key: "creationDate", ascending: false)
@@ -279,7 +381,7 @@ struct AttachmentPanelView: View {
         let thumbOptions = PHImageRequestOptions()
         thumbOptions.deliveryMode = .opportunistic
         thumbOptions.resizeMode = .fast
-        let side = Self.cellSize * 2
+        let side = AttachmentPanel.Layout.cellSize * 2
         for id in ids {
             guard let asset = assets[id] else { continue }
             manager.requestImage(
@@ -290,9 +392,26 @@ struct AttachmentPanelView: View {
             ) { image, _ in
                 guard let image else { return }
                 Task { @MainActor in
+                    // A-24：代次已过（重载/快速开关后
+                    // 旧请求迟到）一律丢弃，不覆写新代
+                    guard generation == stripLoadGeneration
+                    else { return }
                     thumbnails[id] = image
                 }
             }
         }
+    }
+}
+
+extension View {
+    /// 附件面板呈现口径单源（D5 起弃用）——D5 起
+    /// presentation modifiers 在 AttachmentPanelView
+    /// 本体内施加（需访问视图状态算 fitted 档），
+    /// ChatView 呈现点只需 .sheet() 本体、不再调本
+    /// 方法。本方法保留供装配测试引用旧口径
+    func attachmentPanelPresentation() -> some View {
+        self
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
     }
 }

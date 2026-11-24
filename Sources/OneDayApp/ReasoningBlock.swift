@@ -49,6 +49,13 @@ struct ReasoningBlock: View {
     /// 用户点按覆盖（nil＝跟相位默认）：一旦点按，本
     /// 轮内不再被相位自动收/展覆盖
     @State private var userOverride: Bool?
+    /// §329 行状态账本（聊天列表面传入）：展开覆盖
+    /// 改存账本——行高合成器须看得见展开态（.abso-
+    /// lute 回喂）；无账本环境（其他表面）回落本地
+    /// @State、行为不变。键由调用点经 ChatRowState-
+    /// Keys 派生
+    var expansionKey: String? = nil
+    var ledger: ChatRowStateLedger? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var phase: ReasoningPhase {
@@ -56,9 +63,28 @@ struct ReasoningBlock: View {
         return contentStarted ? .contentStarted : .streaming
     }
 
+    private var overrideValue: Bool? {
+        if let ledger, let expansionKey {
+            return ledger.expansionOverride(
+                for: expansionKey
+            )
+        }
+        return userOverride
+    }
+
     private var expanded: Bool {
-        userOverride
+        overrideValue
             ?? ReasoningPresentation.defaultExpanded(phase: phase)
+    }
+
+    private func toggleExpanded() {
+        if let ledger, let expansionKey {
+            ledger.setExpansion(
+                !expanded, for: expansionKey
+            )
+        } else {
+            userOverride = !expanded
+        }
     }
 
     var body: some View {
@@ -124,7 +150,7 @@ struct ReasoningBlock: View {
     /// 统一驱动（0.25.0 收编，原 withAnimation(.default)）
     private var header: some View {
         Button {
-            userOverride = !expanded
+            toggleExpanded()
         } label: {
             if isStreaming {
                 TimelineView(

@@ -3,9 +3,11 @@ import OneDayCore
 
 /// 动态数据中枢（P3，0.35.0）：oneday-bridge /feed 的
 /// 状态面。口径：①桥未连接/未开通与 GoalsStore 同分
-/// 法（共用其静态映射）；②已读是服务端真源——打开
-/// 帖子走 POST /feed/{id}/read、以桥回执对账本地，
-/// 不自立本地已读账；③账面（generation）只供空态
+/// 法（共用其静态映射）；②§233 起轻动作改乐观时序：
+/// 已读与点赞都是本地先落呈现、后台以桥回执对账
+/// （桥仍是最终真源）——已读失败静默留下轮纠正、点
+/// 赞失败恢复原帖＋轻提醒，不再等回执才翻面、更不
+/// 许失败静默吞；③账面（generation）只供空态
 /// 口径（§126 起胶囊行已删、未读数不再上任何提醒
 /// 面，账面仅静默留存），拉不到时降级、不假造；
 /// ④帖子排序/分组/
@@ -20,18 +22,66 @@ final class FeedStore {
     /// 双生产者账面（汇编状态＋段二节奏＋未读数）；
     /// 旧桥无此端点时为 nil，对应呈现降级
     private(set) var generation: BridgeFeedGeneration?
-    /// 简报两层（0.38.0）：兴趣层＋执行层＋扩写状态；
+    /// 简报（§459 单层）：当前生效全文＋润色状态；
     /// 拉不到时为 nil，简报行与编辑器呈现降级
     private(set) var briefDoc: BridgeBriefDoc?
     private(set) var briefSaving = false
     /// 简报保存的就地错误（人话，呈现于编辑器内）
     private(set) var briefError: String?
+    /// 未保存的简报草稿（§459）：编辑器关掉再打开不
+    /// 丢字；与服务端回读不一致时编辑器先问用户、
+    /// 不许静默吞（判定在编辑器，Store 只留存）
+    private(set) var briefDraftText: String?
+    /// 点赞失败的轻提醒（§233）：乐观翻心被后台回执
+    /// 否掉时落此一句，视图层以轻提示呈现、用户点掉
+    /// 即清；成功路径恒 nil
+    private(set) var likeNotice: String?
 
-    private let client = OneDayBridgeClient()
+    private let client: OneDayBridgeClientProtocol
     private var loadInFlight = false
+    /// 新鲜度门（§367）：读触发先过门，TTL 内零请求
+    private var freshness = FreshnessGate(
+        ttl: FreshnessGate.standardListTTL
+    )
     /// 点赞在飞集（FA-1）：同帖连点防竞态——在飞期
     /// 间再点直接忽略，等回执落定后才接受下一次
     private var likeInFlight: Set<String> = []
+
+    // MARK: - FA-2 种子帖（本地账，不进桥）
+
+    /// 删过的种子帖 id（本地标记，删了不复活——规格
+    /// FA-2 写死）；UserDefaults 落盘，键只存 id 集合
+    private(set) var deletedSeedIDs: Set<String> = []
+    private static let seedDeletedKey = "feed.seed.deletedIDs.v1"
+
+    /// 当前可见的种子帖：从未产出且无真帖时才非空
+    /// （判定收口在 Core FeedSeedPosts.visible）
+    var seedPosts: [BridgeFeedPost] {
+        FeedSeedPosts.visible(
+            realPostCount: posts.count,
+            neverProduced: emptyKind == .neverProduced,
+            deletedIDs: deletedSeedIDs
+        )
+    }
+
+    /// 删一张种子帖：只落本地标记（种子帖不在桥上，
+    /// 没有服务端删除这回事），删后本机不再呈现
+    func deleteSeed(_ post: BridgeFeedPost) {
+        guard FeedSeedPosts.isSeed(post.id) else { return }
+        deletedSeedIDs.insert(post.id)
+        UserDefaults.standard.set(
+            Array(deletedSeedIDs), forKey: Self.seedDeletedKey
+        )
+    }
+
+    init(client: OneDayBridgeClientProtocol = OneDayBridgeClient()) {
+        self.client = client
+        if let saved = UserDefaults.standard.stringArray(
+            forKey: Self.seedDeletedKey
+        ) {
+            deletedSeedIDs = Set(saved)
+        }
+    }
 
     // MARK: - 呈现口径（收口在 Core FeedBoard）
 
@@ -61,12 +111,30 @@ final class FeedStore {
     }
 
     func post(id: String) -> BridgeFeedPost? {
+        // FA-2：详情解析同样认种子帖（它们只在本地）
         posts.first { $0.id == id }
+            ?? seedPosts.first { $0.id == id }
     }
 
     // MARK: - 加载
 
-    func load(appState: AppState) async {
+    /// 读触发入口（§367 新鲜度门）：TTL 内且配置没变
+    /// 直接用已载数据、零请求；首载/过期/换服务器才
+    /// 走 load 全量。下拉刷新与错误态重试不经此门、
+    /// 恒走 load 强制
+    func loadIfNeeded(appState: AppState) async {
+        await loadIfNeeded(appState: appState, now: Date())
+    }
+
+    /// 时刻注入的门控本体（钉测用：推进时刻验过期）
+    func loadIfNeeded(appState: AppState, now: Date) async {
+        guard !freshness.isFresh(
+            configKey: appState.config?.baseString, now: now
+        ) else { return }
+        await load(appState: appState, now: now)
+    }
+
+    func load(appState: AppState, now: Date = Date()) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
             loadState = .failed(L10n.string("尚未连接服务器。"))
@@ -75,8 +143,19 @@ final class FeedStore {
         loadInFlight = true
         defer { loadInFlight = false }
         do {
-            posts = try await client.feedPosts(config: config)
+            installLoadedPosts(
+                try await client.feedPosts(config: config)
+            )
             loadState = .ready
+            freshness.stamp(configKey: config.baseString, now: now)
+            // §208 包 3：名单到手即扫存量旧预填草稿
+            // ——逐字再生核验须拿原帖，本点是最早能
+            // 严格核验的时点；清扫幂等、逐字不符一
+            // 字不动（判定与留痕在 SideChatStore）
+            appState.sideChats.purgeLegacyFeedDiscussDrafts(
+                posts: posts,
+                links: appState.sessionLedger.feedDiscussPostIDs
+            )
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = GoalsStore.state(for: error)
@@ -90,35 +169,51 @@ final class FeedStore {
         ) {
             generation = fetched
         }
-        // 简报两层同为附带面：失败只降级简报行
+        // 简报同为附带面：失败只降级简报行（单读口径
+        // 与编辑器共用 loadBrief，§473 件一）
+        await loadBrief(appState: appState)
+    }
+
+    // MARK: - 简报单层（§459）
+
+    /// 简报单读（§473 件一）：只拉简报一面、不整表重
+    /// 载动态列表——编辑器打开必回读与 pending 期轻
+    /// 轮询共用本口；失败静默保留存量 briefDoc（编辑
+    /// 器见上次全文、不许空白冒充已同步）
+    func loadBrief(appState: AppState) async {
+        guard let config = appState.config else { return }
         if let doc = try? await client.feedBrief(config: config) {
             briefDoc = doc
         }
     }
 
-    // MARK: - 简报两层（0.38.0）
-
-    /// 保存兴趣层：回执即保存后全文；扩写在桥侧异步
-    /// 进行，回来时以 expandStarted 知会「已开始整理」，
-    /// 执行层与新帖在下次加载/回读时对账
+    /// 保存生效全文：只发 {text}；回执即保存后全文，
+    /// 润色在桥侧异步进行，回来时以 expandStarted 知
+    /// 会「已开始整理/调研」，润色稿与新帖在下次加
+    /// 载/回读时对账。保存成功即清草稿
     @discardableResult
-    func saveInterest(appState: AppState, _ text: String) async -> Bool {
-        await saveBrief(appState: appState) {
-            try await $0.saveFeedInterest(config: $1, interest: text)
+    func saveBriefText(appState: AppState, _ text: String) async -> Bool {
+        let ok = await saveBrief(appState: appState) {
+            try await $0.saveFeedText(config: $1, text: text)
         }
+        if ok { briefDraftText = nil }
+        return ok
     }
 
-    /// 保存执行层（用户在编辑器里直改正式简报）
-    @discardableResult
-    func savePrompt(appState: AppState, _ text: String) async -> Bool {
-        await saveBrief(appState: appState) {
-            try await $0.saveFeedPrompt(config: $1, brief: text)
-        }
+    /// 编辑器每次改字留存草稿；改回与服务端一致即清
+    func noteBriefDraft(_ text: String, serverText: String) {
+        briefDraftText = FeedBriefBoard.textChanged(serverText, text)
+            ? text : nil
+    }
+
+    /// 用户在冲突询问里选了服务端版本：草稿作废
+    func discardBriefDraft() {
+        briefDraftText = nil
     }
 
     private func saveBrief(
         appState: AppState,
-        _ call: (OneDayBridgeClient, ServerConfig) async throws
+        _ call: (OneDayBridgeClientProtocol, ServerConfig) async throws
             -> BridgeBriefDoc
     ) async -> Bool {
         guard let config = appState.config, !briefSaving else {
@@ -167,45 +262,106 @@ final class FeedStore {
         }
     }
 
-    // MARK: - 点赞（桥为真源，FA-1）
+    // MARK: - 点赞（§233 乐观时序：点即翻心，桥回执对账）
 
-    /// 点/取消点赞：目标态由当前桥下发态取反；回执
-    /// 到达以桥落字整帖替换本地行。失败不本地假装
-    /// ——行面保持原状，下次点按重试（契约 rev2
-    /// §1.9：无本地假账）
-    func toggleLiked(appState: AppState, post: BridgeFeedPost) async {
-        guard let config = appState.config,
-              !likeInFlight.contains(post.id) else { return }
-        likeInFlight.insert(post.id)
-        defer { likeInFlight.remove(post.id) }
-        if let settled = try? await client.setFeedPostLiked(
-            config: config, id: post.id, liked: !post.isLiked
-        ) {
-            posts = posts.map { $0.id == settled.id ? settled : $0 }
+    /// 名单装载收口（load 与测试共用一个落点）：整表
+    /// 替换，附带清扫仍由 load 在装载后单独走
+    func installLoadedPosts(_ loaded: [BridgeFeedPost]) {
+        posts = loaded
+    }
+
+    /// 乐观翻心（同步落点，点按当拍生效）：只改目标
+    /// 帖的 likedAt，其余帖原样；帖不在名单里不动
+    func applyOptimisticLike(
+        postID: String, liked: Bool, at ts: Double
+    ) {
+        posts = posts.map {
+            $0.id == postID
+                ? $0.withLikedAt(liked ? ts : nil)
+                : $0
         }
     }
 
-    // MARK: - 已读（服务端真源）
+    /// 回执落定（整帖替换，桥的最终形态为准）
+    func settlePost(_ settled: BridgeFeedPost) {
+        posts = posts.map { $0.id == settled.id ? settled : $0 }
+    }
 
-    /// 打开帖子即标记：回执到达以桥落字替换本地行；
-    /// 失败不本地造已读（下次打开重试，列表未读数以
-    /// 服务端口径为准）
+    /// 失败恢复（以动作前的原帖整帖放回，呈现回到点
+    /// 按前；帖已被新名单换掉时不强插）
+    func restorePost(_ original: BridgeFeedPost) {
+        posts = posts.map { $0.id == original.id ? original : $0 }
+    }
+
+    func clearLikeNotice() {
+        likeNotice = nil
+    }
+
+    /// 点/取消点赞：目标态由当前态取反——**点按当拍
+    /// 先翻本地呈现**，后台走桥幂等写（契约 rev2
+    /// §1.9），回执到达整帖替换对账；失败恢复原帖＋
+    /// 落轻提醒（likeNotice），不许再 try? 静默吞。
+    /// 在飞期同帖连点忽略（防两次相反写竞态）
+    func toggleLiked(appState: AppState, post: BridgeFeedPost) async {
+        // FA-2（§239）：种子帖没有桥行，点赞回写短路
+        // ——不许拿本地 id 去打桥（行面本地态由视图层管）
+        guard !FeedSeedPosts.isSeed(post.id),
+              let config = appState.config,
+              !likeInFlight.contains(post.id),
+              let current = self.post(id: post.id) else { return }
+        likeInFlight.insert(post.id)
+        defer { likeInFlight.remove(post.id) }
+        let target = !current.isLiked
+        applyOptimisticLike(
+            postID: post.id, liked: target,
+            at: Date().timeIntervalSince1970
+        )
+        do {
+            let settled = try await client.setFeedPostLiked(
+                config: config, id: post.id, liked: target
+            )
+            settlePost(settled)
+        } catch {
+            restorePost(current)
+            likeNotice = L10n.string("点赞没成功，请稍后再试。")
+        }
+    }
+
+    // MARK: - 已读（§233 本地先行：先落呈现，后台确认）
+
+    /// 本地先落已读（同步落点）：目标帖换已读副本＋
+    /// 账面未读数即时按本地名单重算；重复调用幂等
+    func applyLocalRead(postID: String, at ts: Double) {
+        guard let current = post(id: postID), !current.isRead
+        else { return }
+        settlePost(current.markedRead(at: ts))
+        if let gen = generation {
+            generation = BridgeFeedGeneration(
+                assembly: gen.assembly,
+                morning: gen.morning,
+                research: gen.research,
+                unread: FeedBoard.unreadCount(posts)
+            )
+        }
+    }
+
+    /// 打开帖子即标记：**本地先落已读**（呈现与未读
+    /// 数当拍生效），再向桥确认——回执到达整帖替换
+    /// 对账；确认失败静默保留本地已读（低危纯呈现
+    /// 态，下轮 load 以服务端名单纠正，不打扰用户）
     func markRead(appState: AppState, post: BridgeFeedPost) async {
-        guard !post.isRead, let config = appState.config else {
+        // FA-2（§239）：种子帖没有桥行，已读回写短路
+        guard !FeedSeedPosts.isSeed(post.id), !post.isRead else {
             return
         }
+        applyLocalRead(
+            postID: post.id, at: Date().timeIntervalSince1970
+        )
+        guard let config = appState.config else { return }
         if let settled = try? await client.markFeedPostRead(
             config: config, id: post.id
         ) {
-            posts = posts.map { $0.id == settled.id ? settled : $0 }
-            if let gen = generation {
-                generation = BridgeFeedGeneration(
-                    assembly: gen.assembly,
-                    morning: gen.morning,
-                    research: gen.research,
-                    unread: FeedBoard.unreadCount(posts)
-                )
-            }
+            settlePost(settled)
         }
     }
 }

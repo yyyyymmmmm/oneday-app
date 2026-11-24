@@ -31,6 +31,10 @@ final class WeakAppStateBox: @unchecked Sendable {
     }
 }
 
+/// （§210：FeedDiscussSeed 已随种子机制退役——待发
+/// 引用改挂 AppState.pendingQuotes.feedQuotesByThread 按线
+/// 程寻址，见该字段注与定因报告）
+
 /// 连接状态单点：持有当前服务器配置与客户端，负责
 /// 启动恢复、三步探活、凭据存取、会话过期自动重登、断开连接。
 /// 凭据只经 Keychain 进出，本类不落任何明文副本到磁盘。
@@ -44,7 +48,78 @@ final class AppState {
 
     private(set) var phase: Phase = .needsConnection
     private(set) var config: ServerConfig?
-    private(set) var username: String?
+    /// 连接状态快照（总表 156，DESIGN §394）：阶段＋尝
+    /// 试次数＋人话原因的单源持有点——OverviewBridge-
+    /// Store 探活链唯一喂入、自检面等呈现层只读；判定
+    /// 口径在 Core ConnectionStatus
+    var connectionStatus = ConnectionStatus()
+    /// 当前工具活动短语（§449.9）：聊天运行驱动在工
+    /// 具开始/结束事件处单点写入（Core ToolCardClas-
+    /// sifier.activityPhrase 派生），聊天页头身份胶囊
+    /// 第二行与中枢状态行同读此值——两面同源同口径；
+    /// 无工具在飞恒 nil，两面各自回落既有状态口径
+    var liveActivityPhrase: String?
+    /// AI 自反应能力结论（DESIGN §432）：外观页
+    /// 「AI 反应」开关行的显隐单读此值——判定单源
+    /// 在 Core CapabilityNegotiation，本处只持有最
+    /// 近一次回读结论（按服务器落盘，换服务器不
+    /// 串）；未探得恒 unknown＝行不出（僵尸禁令）
+    private(set) var selfReactionsAvailability:
+        CapabilityAvailability = .unknown
+
+    private static let selfReactionsAvailabilityKey =
+        "selfReactionsAvailability.v1"
+
+    private static func storedSelfReactionsAvailability(
+        for base: String?
+    ) -> CapabilityAvailability {
+        guard let base,
+              let dict = UserDefaults.standard.dictionary(
+                forKey: selfReactionsAvailabilityKey
+              ) as? [String: String]
+        else { return .unknown }
+        switch dict[base] {
+        case "available": return .available
+        case "unavailable": return .unavailable
+        default: return .unknown
+        }
+    }
+
+    private static func storeSelfReactionsAvailability(
+        _ verdict: CapabilityAvailability, for base: String
+    ) {
+        guard verdict != .unknown else { return }
+        var dict = (UserDefaults.standard.dictionary(
+            forKey: selfReactionsAvailabilityKey
+        ) as? [String: String]) ?? [:]
+        dict[base] = verdict == .available
+            ? "available" : "unavailable"
+        UserDefaults.standard.set(
+            dict, forKey: selfReactionsAvailabilityKey
+        )
+    }
+
+    /// AI 自反应能力回读（§432）：外观页出现时
+    /// 调——已判 available 不重探（省一记 GET），
+    /// 其余态（未探/曾判无）每次重探：服务端后升
+    /// 级（部署包 1.8.0 应用）时用户重进外观即自
+    /// 愈见行。失败静默保旧结论（呈现降级不报
+    /// 错，§394 口径）；演示模式假客户端抛错同理
+    /// 恒保 unknown、行不出
+    func refreshSelfReactionsAvailability() async {
+        guard selfReactionsAvailability != .available,
+              let config, let apiKey,
+              let caps = try? await client.capabilities(
+                config: config, apiKey: apiKey
+              )
+        else { return }
+        let verdict =
+            CapabilityNegotiation.selfReactionsAvailability(caps)
+        selfReactionsAvailability = verdict
+        Self.storeSelfReactionsAvailability(
+            verdict, for: config.baseString
+        )
+    }
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
     // MARK: - §153 本会话模型（顶栏包 B1/B2/B4）
@@ -98,8 +173,21 @@ final class AppState {
         let key = Self.sessionModelKey(
             serverSessionID: serverSessionID, threadID: threadID
         )
+        let stored = sessionModelChoices[key]
+        let effectiveStored: ChatModelChoice?
+        if let serverSessionID,
+           !serverSessionID.isEmpty,
+           serverSessionID == sessionLedger.mainServerSessionID,
+           let serverModel = sessionLedger.visibleSessions
+                .first(where: { $0.id == serverSessionID })?.model {
+            effectiveStored = SessionModelAccount.effectiveStored(
+                stored: stored, serverReportedModel: serverModel
+            )
+        } else {
+            effectiveStored = stored
+        }
         if let resolved = SessionModelResolution.resolve(
-            stored: sessionModelChoices[key],
+            stored: effectiveStored,
             groups: chatModelGroups,
             serverDefault: SessionModelResolution.serverDefaultChoice(
                 in: chatModelGroups, defaultModel: defaultModel
@@ -190,6 +278,34 @@ final class AppState {
         persistSessionModelChoices()
     }
 
+    /// 会话账迁键（§227 模型账合一）：主线链接改绑
+    /// （服务端改派/收养回执）落定新 id 时，旧键下的
+    /// 存量选择迁到新键下——不迁则用户的既有选择被
+    /// 留在旧键发霉、新键回落默认，呈现为「换了会话
+    /// 模型就变了」。语义：目标键已有存量时不覆盖
+    /// （那是新会话自己的账）；源账保留不删（旧 id
+    /// 若仍是活会话，它的账不许被主线迁账误伤）。
+    /// 返回是否实际迁入
+    @discardableResult
+    func migrateSessionModelChoice(
+        fromServerSessionID: String?, toServerSessionID: String?
+    ) -> Bool {
+        guard let from = fromServerSessionID, !from.isEmpty,
+              let to = toServerSessionID, !to.isEmpty,
+              from != to else { return false }
+        let fromKey = Self.sessionModelKey(
+            serverSessionID: from, threadID: nil
+        )
+        let toKey = Self.sessionModelKey(
+            serverSessionID: to, threadID: nil
+        )
+        guard let choice = sessionModelChoices[fromKey],
+              sessionModelChoices[toKey] == nil else { return false }
+        sessionModelChoices[toKey] = choice
+        persistSessionModelChoices()
+        return true
+    }
+
     private func persistSessionModelChoices() {
         let dict: [String: [String: String]] = sessionModelChoices
             .mapValues { choice in
@@ -235,6 +351,21 @@ final class AppState {
         modelFallbackNotice = nil
     }
 
+    /// 乐观删除协调器（§232）：本地先删/后台删/失
+    /// 败恢复的唯一执行件，全 App 只此一份（队列落
+    /// 盘在协调器内）
+    let sessionDeletions = SessionDeletionCoordinator()
+
+    /// 乐观删除最终失败的恢复提醒（§232）：协调器
+    /// 在恢复落定后置位，ChatView 提示条消费后清；
+    /// 文案人话、不露接口原文（消费口径与模型落回
+    /// 提示同式）
+    var sessionDeletionFailureNotice: String?
+
+    func consumeSessionDeletionFailureNotice() {
+        sessionDeletionFailureNotice = nil
+    }
+
     /// 抽屉数据刷新令牌（0.21.0）：已链接旁聊标题
     /// 回流的触发通道——服务端 llm 标题在首轮回复
     /// 后数秒才升级，抽屉须在一轮落地后主动重拉服
@@ -247,6 +378,10 @@ final class AppState {
     private(set) var drawerRefreshTick = 0
 
     func noteLinkedSideChatTurnFinished() {
+        // §370：新会话/服务端新标题的事实在本拍成立
+        // ——名单新鲜度同步作废（抽屉未挂载时令牌无
+        // 人消费，靠失效保下次打开必真拉）
+        sessionLedger.invalidateListFreshness()
         drawerRefreshTick += 1
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(6))
@@ -276,18 +411,28 @@ final class AppState {
     /// 会话派生标题解析器（0.6.1）：抽屉行/活动行共用
     /// 的首条消息缓存与预算拉取，全 App 只此一份
     let sessionTitles = SessionTitleResolver()
-    /// 服务端会话全量目录（§198）：全部对话页分页拉
-    /// 全的可见集共享缓存，全 App 只此一份——抽屉频
-    /// 道显行闸改读它判显隐（与管理页频道段同源），
-    /// 不再共用开抽屉的 100 条名单窗口
-    let serverSessionCatalog = ServerSessionCatalog()
+    /// 会话账本（第 67 条包一，2026-11-15）：「我有
+    /// 哪些会话」的单店——全 App 唯一拉取者与合并
+    /// 名单持有者，管理页自持名单与抽屉自拉第一页
+    /// 同批退役。第 90 条收尾起兼持主线钦定/归档列/
+    /// 三张关联表与分页装配核，原 ServerSession-
+    /// Catalog 转发壳整件删除（B-07）
+    let sessionLedger: SessionLedger
 
-    /// 旁聊语义状态（0.7.0）：主线钦定/归档/标题覆盖/轻保活，
-    /// 演示模式纯内存不落盘（见 SideChatStore）
+    /// 旁聊呈现保活状态（0.7.0）：标题覆盖/落点记忆/
+    /// 草稿/滚动锚，演示模式纯内存不落盘（见
+    /// SideChatStore）；主线钦定/归档/关联三账已迁
+    /// 账本（第 90 条收尾）
     let sideChats: SideChatStore
     /// 未落定 run 账本（0.31.0）：生成中切后台/杀进程
     /// 后靠它恢复对账（ChatView 驱动消费）
     let runLedger: RunLedgerStore
+    /// 发件箱自动重试记账（台账 154，DESIGN §336）
+    let outboxRetry: OutboxRetryStore
+    /// 推送登记（总表 138，DESIGN §397）：远程推送的
+    /// App 侧准备面——登记状态机＋令牌快照＋就绪报告；
+    /// RootView 三处与伴生探测同拍 synchronize
+    let pushRegistration = PushRegistrationStore()
     /// 设备会话控制器（0.34.0，本机连接器批一）：前
     /// 台＋已连接时向 device-bridge 注册会话、领智能
     /// 体的设备工具调用现读现回；生命周期由 RootView
@@ -300,12 +445,6 @@ final class AppState {
     /// 台检查由 RootView 与设备会话同拍驱动
     let deviceSync: DeviceSyncController
 
-    /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
-    /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
-    /// （401）为 true，桥取数成功清零，网络类失败不动
-    /// 本旗（不把抖动说成钥匙问题）。设置页据此露
-    /// 「桥未连接」提示，胶囊状态行不读本旗
-    var overviewBridgeAuthFailed = false
     /// 本人裁决集（0.36.5，审批联动 C 部）：本人在
     /// App 内批准/驳回过的 write-gate 记录 id——其裁
     /// 决回执通知一到即自动消账（Core ApprovalReso-
@@ -327,6 +466,12 @@ final class AppState {
     /// AgentHubView 注入 store.onApprovalChanged
     private var hubStoreInstance: AgentHubStore?
 
+    /// 选择框瞬态覆盖层（总表 203／§441）：AppState
+    /// 持有单例——聊天面（呈现/点选）与历史回补器
+    /// （播种）共达；真源在服务端消息行，本层只持
+    /// 呈现态，突变随条目/线程变更的重建趟消费
+    let optionsOverlay = OptionsCardOverlay()
+
     func sharedHubStore() -> AgentHubStore {
         if let hubStoreInstance { return hubStoreInstance }
         let store = AgentHubStore(
@@ -334,6 +479,95 @@ final class AppState {
             gateClient: isDemo ? DemoWriteGateClient() : WriteGateClient()
         )
         hubStoreInstance = store
+        return store
+    }
+
+    /// 全局共享的定时任务店（台账 198 收敛·普查
+    /// R4/D2）：同一份服务端定时数据此前三路取数
+    /// （枢纽段/管理页/状态页各拉一份），自此由本单
+    /// 例一口出（与 sharedHubStore 同形态），三面只
+    /// 消费、写动作后经店 refresh 同步
+    private var cronStoreInstance: CronStore?
+
+    func sharedCronStore() -> CronStore {
+        if let cronStoreInstance { return cronStoreInstance }
+        let store = CronStore(appState: self)
+        cronStoreInstance = store
+        return store
+    }
+
+    /// 全局共享的台账/任务/监测三店（§259 枢纽台账
+    /// 三店合一）：三店此前在各面各自 @State 私建——
+    /// KanbanStore 全 App 五份、MonitorsStore 三份、
+    /// LedgerStore 两份，互不相通（同物多账的实例级
+    /// 变体，普查 app-wide-assembly-audit 枢纽节）。
+    /// 自此由 AppState 持有单例、懒建（与 sharedHub-
+    /// Store 同形态），各面只消费同一份；三店 load
+    /// 均有在飞守卫，多面同呼安全。枢纽台账段的条
+    /// 目只从 sharedLedgerStore 一口出。
+    private var ledgerStoreInstance: LedgerStore?
+    private var kanbanStoreInstance: KanbanStore?
+    private var monitorsStoreInstance: MonitorsStore?
+
+    func sharedLedgerStore() -> LedgerStore {
+        if let ledgerStoreInstance { return ledgerStoreInstance }
+        let store = LedgerStore()
+        ledgerStoreInstance = store
+        return store
+    }
+
+    func sharedKanbanStore() -> KanbanStore {
+        if let kanbanStoreInstance { return kanbanStoreInstance }
+        let store = KanbanStore()
+        kanbanStoreInstance = store
+        return store
+    }
+
+    func sharedMonitorsStore() -> MonitorsStore {
+        if let monitorsStoreInstance {
+            return monitorsStoreInstance
+        }
+        let store = MonitorsStore()
+        monitorsStoreInstance = store
+        return store
+    }
+
+    /// 全局共享的点子/目标两店（台账 199，随 §259
+    /// 先例补齐合一）：两店此前在点子格／目标格／
+    /// 动态格／目标详情四面各自 @State 私建（普查
+    /// D3：同桥数据源、两份内存缓存），自此由
+    /// AppState 持有单例、懒建（与 §259 三店同形
+    /// 态），各面只消费同一份；两店 load 均有在飞
+    /// 守卫，多面同呼安全
+    private var ideasStoreInstance: IdeasStore?
+    private var goalsStoreInstance: GoalsStore?
+
+    func sharedIdeasStore() -> IdeasStore {
+        if let ideasStoreInstance { return ideasStoreInstance }
+        let store = IdeasStore()
+        ideasStoreInstance = store
+        return store
+    }
+
+    func sharedGoalsStore() -> GoalsStore {
+        if let goalsStoreInstance { return goalsStoreInstance }
+        let store = GoalsStore()
+        goalsStoreInstance = store
+        return store
+    }
+
+    /// 文件库名单店（§369 缓存 C4）：资源库／影音名
+    /// 单走 AppState 共享单例＋落盘快照（LibraryList-
+    /// Store），与 §259 三店同形态；名单不再随文件格
+    /// 视图生死、冷启先显快照后台对账
+    private var libraryListStoreInstance: LibraryListStore?
+
+    func sharedLibraryListStore() -> LibraryListStore {
+        if let libraryListStoreInstance {
+            return libraryListStoreInstance
+        }
+        let store = LibraryListStore()
+        libraryListStoreInstance = store
         return store
     }
 
@@ -361,19 +595,24 @@ final class AppState {
     /// 暂停任务派发）。任务段据此禁用派发类动作并明示
     /// 原因；服务端真联动（派发层真暂停）待生产验收轮
     var boxTakeoverActive = false
-    /// 智能体身份名（0.6.1，用户真机点名）：全局唯一解
-    /// 析点——胶囊/抽屉/活动页三处显示名都读这里；值由
-    /// soul 一级标题经 OneDayCore.AgentName.resolve 得
-    /// 出，取不到为 nil、显示层回落 AgentName.fallback；
-    /// 旧「档案名翻译当标题」（default→默认档案）口径
-    /// 退役
-    private(set) var identityName: String?
+    /// 智能体身份名（0.6.1 立、§253 改缓存镜像）：全
+    /// 局唯一呈现出口——胶囊/抽屉/活动页三处显示名都
+    /// 读这里。真值在服务端 SOUL、本机只存带时间戳
+    /// 的缓存副本（AgentProfileStore.nameCache），本
+    /// 属性是缓存的只读镜像；刷新链以 Dashboard 回
+    /// 读整份替换缓存，App 改名走写穿（renameAgent）。
+    /// 旧「档案名翻译当标题」（default→默认档案）与
+    /// 本机改名覆盖两套口径均已退役
+    var identityName: String? { agentProfileStore.cachedName }
     private var identityNameResolved = false
 
-    /// 身份名拉取（数据链：档案列表 → 默认档案 →
-    /// 其 soul → AgentName）；任一步失败回 nil，调用
-    /// 方保现状不回落假名
-    private func fetchResolvedIdentityName() async -> String? {
+    /// 身份名拉取（A2 直连，§253：档案列表 → 默认档
+    /// 案 → 其 soul，全程 Hermes Dashboard 管理口、
+    /// 不经桥）→ 解析名＋文档时刻（缓存的时间戳凭
+    /// 据）；任一步失败回 nil，调用方保现状不回落
+    /// 假名
+    private func fetchResolvedIdentityName() async
+        -> (name: String, updatedAt: Date?)? {
         guard let profiles = try? await performAdmin({ client, config in
             try await client.profiles(config: config)
         }),
@@ -383,16 +622,48 @@ final class AppState {
                   try await client.profileSoul(config: config, name: profile.name)
               })
         else { return nil }
-        return AgentName.resolve(soulContent: document.content)
+        // AgentName.resolve 非可选：无名标题时其自身回
+        // 落 Hermes（与旧呈现口径逐字一致）
+        return (AgentName.resolve(soulContent: document.content),
+                document.updatedAt)
     }
 
-    /// 服务器名确认后的统一收尾：记对账基准＋跑覆盖
-    /// 对账（裁决在 Core AgentNameReconciliation）；
-    /// 身份反映修复前这里只有赋值一步——服务器改名
-    /// 与本机残留覆盖谁也不让谁，用户看到的是旧名
-    private func noteIdentityNameResolved(_ name: String) {
-        agentProfileStore.noteSoulName(name)
-        agentProfileStore.reconcileNameOverride(currentSoulName: name)
+    /// 服务器名回读后的统一收尾（§253）：先处置迁移
+    /// 待推——§253 迁移时本机旧改名胜出且与回读名不
+    /// 同时，先直连写穿服务端（§383 包一），成功后重读一次以
+    /// 服务端回读为准落缓存；写穿失败保留缓存里的待
+    /// 推值呈现、本次回读不覆盖（下个触发点再试）。
+    /// 无待推时整份替换名字缓存
+    private func adoptFetchedIdentityName(
+        _ fetched: (name: String, updatedAt: Date?)
+    ) async {
+        if agentProfileStore.namePushPending,
+           let pending = agentProfileStore.cachedName {
+            if pending == fetched.name {
+                agentProfileStore.markNamePushed()
+            } else if config != nil {
+                let pushed = (try? await writeAgentNameDirect(
+                    pending
+                )) != nil
+                if pushed {
+                    agentProfileStore.markNamePushed()
+                    if let again = await fetchResolvedIdentityName() {
+                        agentProfileStore.applyName(
+                            again.name, serverUpdatedAt: again.updatedAt
+                        )
+                    } else {
+                        agentProfileStore.applyName(
+                            pending, serverUpdatedAt: nil
+                        )
+                    }
+                    return
+                }
+                return
+            }
+        }
+        agentProfileStore.applyName(
+            fetched.name, serverUpdatedAt: fetched.updatedAt
+        )
     }
 
     /// 解析身份名（幂等：只真正拉取一次；失败也记已解
@@ -400,9 +671,9 @@ final class AppState {
     func resolveIdentityNameIfNeeded() async {
         guard !identityNameResolved, config != nil else { return }
         identityNameResolved = true
-        guard let name = await fetchResolvedIdentityName() else { return }
-        identityName = name
-        noteIdentityNameResolved(name)
+        guard let fetched = await fetchResolvedIdentityName()
+        else { return }
+        await adoptFetchedIdentityName(fetched)
     }
 
     /// 上次刷新尝试时刻（身份反映修复）：回前台/连接
@@ -414,38 +685,41 @@ final class AppState {
     /// 名，App 要等冷重启才跟上（2026-11-13 改名事
     /// 故的第二断点）。刷新失败保旧值不翻假名；演示
     /// 模式不连真服务端、跳过
+/// §416 新鲜度普查豁免：单值尝试节流（尝试计时、保旧值），非名单新鲜度判定，与门口径分离（判定表见 DESIGN §416）
     func refreshIdentityName() async {
         guard config != nil, !isDemo else { return }
         if let last = lastIdentityRefreshAt,
            Date().timeIntervalSince(last) < 30 { return }
         lastIdentityRefreshAt = Date()
-        guard let name = await fetchResolvedIdentityName() else { return }
+        guard let fetched = await fetchResolvedIdentityName()
+        else { return }
         identityNameResolved = true
-        identityName = name
-        noteIdentityNameResolved(name)
+        await adoptFetchedIdentityName(fetched)
     }
 
-    /// soul 编辑保存后的身份名重解析（§155 HUB-1）：内
-    /// 容已由保存方重新取回并比对确认，直接以确认内容
-    /// 重算显示名，不再走一次性解析的网络链；本机改名
-    /// 覆盖仍优先于它（覆盖在呈现收敛口处理），这里只
-    /// 更新服务端名字这一份事实——更新后同样过覆盖对
-    /// 账：经 soul 编辑的改名也是服务器改名，旧覆盖按
-    /// 对账口径退场（身份反映修复）
+    /// soul 编辑保存后的身份名重解析（§155 HUB-1）：
+    /// 内容已由保存方重新取回并比对确认，直接以确认
+    /// 内容重算显示名并整份替换名字缓存，不再走一次
+    /// 性解析的网络链。§253：这次编辑本身就是一次服
+    /// 务端写入（服务器收到时刻＝当下），迁移待推就
+    /// 此作废——末写胜按时间裁决，这次写最晚
     func reresolveIdentityName(soulContent: String) {
-        identityName = AgentName.resolve(soulContent: soulContent)
         identityNameResolved = true
-        if let name = identityName {
-            noteIdentityNameResolved(name)
-        }
+        agentProfileStore.markNamePushed()
+        agentProfileStore.applyName(
+            AgentName.resolve(soulContent: soulContent),
+            serverUpdatedAt: Date()
+        )
     }
 
-    /// 智能体本地档案（0.36.22，枢纽页对齐包）：用户
-    /// 在本机改的显示名覆盖与头像，全 App 露脸面经下
-    /// 方收敛口读，不再各自拼 identityName 回落链、更
-    /// 不许写死字面名。档案只管呈现：identityName 仍
-    /// 是 soul 解析的服务端真源，覆盖没设时自动跟随
+    /// 智能体身份缓存（§253）：名字/头像的服务端单真
+    /// 值在本机只剩带时间戳的缓存副本，全 App 露脸面
+    /// 经下方收敛口读缓存，不再各自拼回落链、更不许
+    /// 写死字面名
     let agentProfileStore = AgentProfileStore()
+    /// 活头像控制器（§479）：状态机＋片段目录持有；
+    /// 绑定读口在 init 末尾回接档案仓（现读不缓存）
+    let livingAvatar = LivingAvatarController()
 
     /// 伴生探测（本包，DESIGN §110）：登录后自动探
     /// 测伴生存在与版本（/api/companion/info），派生
@@ -454,31 +728,246 @@ final class AppState {
     /// 与缓存口径在 Core CompanionProbe 一件
     let companionProbe = CompanionProbeStore()
 
-    /// 头像仓同步（P1 身份包）：触发点与伴生探测同拍
-    /// （OneDayApp 的连接成立/回前台/冷启恢复），把
-    /// identity 桥头像仓当前头像投影进档案 AI 档槽
-    /// 位；演示模式不连真仓；失败静默保现状，口径在
-    /// AgentAvatarSync
-    func syncAgentAvatarFromBridge() async {
+    /// 上次头像仓同步尝试时刻（呈现跟随节流）：开枢
+    /// 纽/开抽屉也成了触发点后防高频打仓，30 秒内不
+    /// 重打（与身份名刷新同口径）
+    private var lastAvatarSyncAt: Date?
+
+    /// 头像仓同步（P1 身份包、§253 改镜像口径）：触
+    /// 发点与伴生探测同拍（OneDayApp 的连接成立/回前
+    /// 台/冷启恢复），另加开枢纽/开抽屉（经 refresh-
+    /// IdentitySurfaces）——2026-11-13 事故里 App 全
+    /// 程在前台聊天、三触发点一个都没响，AI 换完头像
+    /// 8 分钟没人重拉。把头像仓当前指针整份替换进缓
+    /// 存；演示模式不连真仓；失败静默保现状，口径在
+    /// AgentAvatarSync。force＝写穿链回读（刚写完必
+    /// 须立刻以仓指针为准刷新缓存，绕过节流）
+    func syncAgentAvatarFromBridge(force: Bool = false) async {
         guard let config, !isDemo else { return }
+        if !force, let last = lastAvatarSyncAt,
+           Date().timeIntervalSince(last) < 30 { return }
+        lastAvatarSyncAt = Date()
         await AgentAvatarSync.run(
             config: config, store: agentProfileStore
         )
     }
 
-    /// 露脸面显示名单一出口：档案覆盖 → soul 解析名
-    /// → Hermes 回落（OneDayCore.AgentDisplayName）
+    /// 露脸面呈现跟随总口：用户正要看身份的面打开时
+    /// （枢纽/抽屉）重拉名字与头像——服务器刚被改过
+    /// 就当场跟上，不等下一次回前台/冷启。两路各自
+    /// 带 30 秒节流，高频开合不打爆服务端
+    func refreshIdentitySurfaces() async {
+        await refreshIdentityName()
+        await syncAgentAvatarFromBridge()
+    }
+
+    /// 露脸面显示名单一出口：名字缓存 → Hermes 回落
+    /// （OneDayCore.AgentDisplayName，§253 收敛后只剩
+    /// 这一级链）
     var agentDisplayName: String {
         AgentDisplayName.resolve(
-            override: agentProfileStore.profile.displayNameOverride,
-            soulName: identityName
+            cachedName: agentProfileStore.cachedName
         )
     }
 
-    /// 档案改名覆盖原值（枢纽店头的多源链还要再叠一
-    /// 层本店 soul 解析，故单独出口）
-    var profileNameOverride: String? {
-        agentProfileStore.profile.displayNameOverride
+    /// 改名直连写（§383 包一）：校验（Core，与
+    /// 桥规则同口径）→ 默认档案 soul 读改写（与
+    /// 名读同源：profiles 取默认档）→ 留痕自报。
+    /// 桥 _set_name 的备份/name-state 账随迁退
+    /// 出 App 写路（桥侧对他路写入有 mtime 兜底，
+    /// §383.2 记账）；写后回读验名由调用方的回
+    /// 读尾链承接。错误口径与 §253 写穿一致：校
+    /// 验失败给具体人话、401 映射未授权、余皆通
+    /// 用失败文案不露原文
+    private func writeAgentNameDirect(
+        _ rawName: String
+    ) async throws {
+        guard let config else {
+            throw IdentityBridgeError.noKey
+        }
+        let name: String
+        do {
+            name = try AgentName.validatedNewName(rawName)
+        } catch let error as AgentNameWriteError {
+            throw IdentityBridgeError.failed(
+                Self.agentNameWriteMessage(error)
+            )
+        }
+        let outcome: (previousName: String, replacedTitle: Bool)
+        do {
+            let profiles = try await performAdmin { client, config in
+                try await client.profiles(config: config)
+            }
+            guard let profile = profiles.first(where: {
+                $0.isDefault == true
+            }) ?? profiles.first else {
+                throw IdentityBridgeError.failed(
+                    L10n.string("身份名保存失败，请稍后再试。")
+                )
+            }
+            outcome = try await performAdmin { client, config in
+                let document = try await client.profileSoul(
+                    config: config, name: profile.name
+                )
+                let previous = AgentName.resolve(
+                    soulContent: document.content
+                )
+                let replaced = AgentName.hasIdentityTitle(
+                    in: document.content
+                )
+                guard let updated = AgentName.applyingNewName(
+                    name, to: document.content
+                ) else {
+                    throw IdentityBridgeError.failed(
+                        L10n.string("身份名保存失败，请稍后再试。")
+                    )
+                }
+                try await client.updateProfileSoul(
+                    config: config, name: profile.name,
+                    content: updated
+                )
+                return (previousName: previous,
+                        replacedTitle: replaced)
+            }
+        } catch let error as IdentityBridgeError {
+            throw error
+        } catch HermesError.sessionExpired {
+            throw IdentityBridgeError.unauthorized
+        } catch {
+            throw IdentityBridgeError.failed(
+                L10n.string("身份名保存失败，请稍后再试。")
+            )
+        }
+        await reportAgentNameTrace(
+            config: config, name: name,
+            previousName: outcome.previousName,
+            replacedTitle: outcome.replacedTitle
+        )
+    }
+
+    /// 改名留痕自报（§383 包一，best-effort）：
+    /// 五要素与桥 _set_name 自记同形（action=
+    /// identity.set_name、actor=user、target 为
+    /// soul 名位、result 摘要同桥文案式样），
+    /// detail 标 via=app-direct 以别于桥内改名；
+    /// 自报失败不回滚改名——落本地诊断留痕（对
+    /// 齐「留痕不许静默消失」口径的 App 侧等价物）
+    private func reportAgentNameTrace(
+        config: ServerConfig, name: String,
+        previousName: String, replacedTitle: Bool
+    ) async {
+        let mode = replacedTitle ? "replace" : "insert"
+        let summary = "智能体改名为「\(name)」"
+            + "（\(mode) 标题行，"
+            + "原 soul 名「\(previousName)」）"
+        do {
+            try await OneDayBridgeClient().recordTrace(
+                config: config, action: "identity.set_name",
+                actor: "user", targetKind: "identity",
+                targetID: "soul-name", targetLabel: name,
+                targetRef: "oneday://identity/name",
+                status: "ok", result: summary, error: nil,
+                detail: ["via": "app-direct"]
+            )
+        } catch {
+            ChatDiagTrace.record(
+                "改名留痕自报失败 [identity.set_name] \(error)"
+            )
+        }
+    }
+
+    /// 改名校验人话（与桥 _validate_new_name 的
+    /// 拒绝文案同义，编辑器经 identityWriteErrorText 呈现）
+    private static func agentNameWriteMessage(
+        _ error: AgentNameWriteError
+    ) -> String {
+        switch error {
+        case .empty:
+            return L10n.string("名字不能为空。")
+        case .tooLong:
+            return L10n.string("名字超过 20 字了。")
+        case .punctuation:
+            return L10n.string("名字不能含句读标点。")
+        case .structural:
+            return L10n.string("这个名字是文档结构词，换一个。")
+        case .illegalCharacter:
+            return L10n.string("名字含非法字符。")
+        }
+    }
+
+    // MARK: - 身份写穿（§253：App 改名/换头像直达服务端单真值）
+    //
+    // 写口共用口径：成功后以服务端回读/仓指针整份
+    // 替换缓存——App 不留第二真值。失败原样抛回编辑
+    // 器呈现（IdentityBridgeError 文案已过 §232 安全
+    // 门）。演示模式无真服务端：只动缓存演示、不发网
+    // 络（与演示数据同性子）。改名面 §383 包一修订：
+    // 改名走 Dashboard 直连写（校验与标题行手术在
+    // Core、与桥规则同口径；留痕经桥 POST /traces
+    // 自报补账）；换头像仍走服务端既有窄口写穿。
+
+    /// App 改名（§253 立口、§383 包一迁 Dashboard 直连写）
+    func renameAgent(to newName: String) async throws {
+        if isDemo {
+            agentProfileStore.applyName(newName, serverUpdatedAt: nil)
+            return
+        }
+        try await writeAgentNameDirect(newName)
+        if let fetched = await fetchResolvedIdentityName() {
+            agentProfileStore.applyName(
+                fetched.name, serverUpdatedAt: fetched.updatedAt
+            )
+        } else {
+            agentProfileStore.applyName(newName, serverUpdatedAt: nil)
+        }
+    }
+
+    /// App 换预置头像写穿（成功后强制同步刷新缓存）
+    func selectAvatarPreset(id: String) async throws {
+        if isDemo {
+            agentProfileStore.applyAvatarFromSync(
+                cache: IdentityAvatarCache(
+                    selection: .preset(
+                        id: AgentAvatarPreset.resolve(id: id).id
+                    ),
+                    itemID: nil, serverUpdatedAt: nil, cachedAt: Date()
+                ),
+                imageData: nil
+            )
+            return
+        }
+        guard let config else { throw IdentityBridgeError.noKey }
+        try await IdentityBridgeClient().addAvatarPreset(
+            config: config, presetID: id
+        )
+        await syncAgentAvatarFromBridge(force: true)
+    }
+
+    /// App 换图片头像写穿：制备 JPEG → 上仓 → 强制
+    /// 同步（同步按新条目整份替换缓存并落盘缓存图）
+    func setCustomAvatar(imageData: Data) async throws {
+        guard let jpeg = AgentProfileStore.preparedAvatarJPEG(
+            from: imageData
+        ) else {
+            throw IdentityBridgeError.failed(
+                L10n.string("这张图片读不了，换一张试试。")
+            )
+        }
+        if isDemo {
+            agentProfileStore.applyAvatarFromSync(
+                cache: IdentityAvatarCache(
+                    selection: .image(itemID: ""),
+                    itemID: nil, serverUpdatedAt: nil, cachedAt: Date()
+                ),
+                imageData: jpeg
+            )
+            return
+        }
+        guard let config else { throw IdentityBridgeError.noKey }
+        try await IdentityBridgeClient().addAvatarImage(
+            config: config, imageData: jpeg
+        )
+        await syncAgentAvatarFromBridge(force: true)
     }
 
     /// 露脸面头像单一出口：档案解析图（预置/符号盘/
@@ -496,146 +985,20 @@ final class AppState {
         )
     }
 
-    /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
-    var pendingAgentRoute: AgentRoute?
-    var pendingSettingsRoute: SettingsRoute?
-    /// 设置 sheet 打开请求（0.20.0）：抽屉齿轮置位，
-    /// ContentView 消费呈现根级设置 sheet 后置 false。
-    /// 0.6.0 的 pendingAppsPage 通道随应用格退役一并
-    /// 删除——应用格页面已各有新家（总览/电脑/服务器
-    /// 文件进设置「管理」组、文件格升底栏），不再有
-    /// 「切格落位」这回事
-    var settingsSheetRequested = false
-    /// 底栏切格请求（0.29.0）：设置内页面（如连接器目
-    /// 录的本机服务详情）要把用户送到目标/点子底栏格
-    /// 时置位，ContentView 消费后关设置 sheet 并切格
-    /// 并清零——置位—消费—清零与 settingsSheet-
-    /// Requested 同式；目标格枚举与底栏本体同源
-    /// （ContentView.MainTab），不另立第二套格名
-    var mainTabSwitchRequest: ContentView.MainTab?
-    /// 文件页定位请求（§131，D8「在文件页中打开」）：
-    /// 打开页动作置位目标路径并同行置 mainTabSwitch-
-    /// Request=.files 切格，DeliverablesView 消费后
-    /// 滚动定位＋高亮该行并清零——置位—消费—清零与
-    /// pendingChatSessionID 同式
-    var fileRevealPath: String?
+    /// 全 App 唯一导航真值（§305，横扫 A-03）：跨页
+    /// 路由信箱群（0.4.0–§219 六代、约 20 字段）已整
+    /// 组迁入 AppRouter，本类不再自持任何导航请求字
+    /// 段——消费方一律经 appState.router 读写（字段
+    /// 名与置位—消费—清零协议逐项不变、只换持有者）
+    let router = AppRouter()
+    /// 线程待发引用（§305）：草稿数据非导航，自顶层
+    /// 迁出独立持有（见 PendingThreadQuotes），不随
+    /// 路由走；写入/消费口径逐项不变
+    let pendingQuotes = PendingThreadQuotes()
     /// 文件库内容修订号（§131）：打开页改名成功后递
     /// 增，文件页以此为 .task(id:) 键重聚合——改名
     /// 结果不在文件页留旧名残影
     var fileLibraryRevision = 0
-    /// 待续聊的服务端会话 id（0.4.0，审计 §3.4）：四处
-    /// 入口（抽屉／服务端会话页／状态页／定时运行记录）
-    /// 置位，ContentView 据此切聊天格、ChatView 消费后
-    /// 导入历史并置 nil。不再走设置格的只读详情页
-    var pendingChatSessionID: String?
-    /// 待续聊会话的频道来源标记（0.36.29，频道规格
-    /// §10.3）：频道页点行时与 pendingChatSessionID
-    /// 同行置位（先标记、后置 id），ChatView 消费时
-    /// 据此把抽屉当前对象置为 .channel 并落频道观
-    /// 看出处；其他入口打开会话不置此标记，消费口
-    /// 径据「无标记」清旧出处。消费后清零
-    var pendingChatChannelID: String?
-    /// 频道观看出处（0.36.29，§10.2）：当前线程是
-    /// 从哪个频道的哪条会话打开的——ChatView 当前
-    /// 线程同步据此维持 .channel 对象引用（导入线
-    /// 程渲染期间不派生成 .side）；线程切离该会话
-    /// 或从旁聊区/主线行重进同一条时由各置位点清
-    /// 除。只存呈现出处、不参与分类（分类归属与选
-    /// 择归属是两件事）
-    var channelViewingOrigin: ChannelViewingOrigin?
-    /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
-    var cronCreateRequested = false
-    /// 点子底栏角标已整套退役（§177，用户 2026-11-12
-    /// 亲定点子不出现「待阅」呈现——分区/状态字/角标
-    /// 一并下线）：§123 M3 的 ideasUnread 计数、已见
-    /// 水位落盘与刷新/清零方法随角标删除，Core
-    /// IdeasBadge 同步退役；旧落盘键 ideas.seenWatermark
-    /// 不再读写（残值无害、不做迁移）
-
-    /// 通知落点请求（§123 H2）：通知中心点条目时置位
-    /// （落点解析在 Core NotificationDestination），
-    /// AgentHubView 开枢纽时消费段位、对应段消费各自
-    /// 的聚焦字段，消费后清零——置位—消费—清零与
-    /// hubOpenRequested 同式
-    var hubDestinationRequest: NotificationDestination?
-    /// 审批段聚焦的已决记录 id（approvalDecision 携带来）
-    var hubApprovalFocusID: String?
-    /// 监测段深链：直达的监测 id 与变化 id（变化 id 为
-    /// nil 时只达监测详情）
-    var monitorDeepLink: (monitorID: String, changeID: String?)?
-    /// 锚点点达请求（§165）：枢纽记录行/通知回执命中本
-    /// 机锚时置位——目标线程＋锚定键（键为 nil＝只切线
-    /// 程不定位）；ChatView 消费（切线程→滚动定位→点
-    /// 亮→清零），与 hubDestinationRequest 分家：锚点
-    /// 落点不在枢纽里、不经枢纽开启接力
-    var approvalAnchorRequest: (
-        threadID: UUID, approvalKey: String?
-    )?
-
-    /// 通知条目落点分发：把落点拆成各消费方能消费的
-    /// 字段；返回 false 表示无落点（调用方不导航）。
-    /// §165：锚点落点（approvalAnchor/approvalThread）
-    /// 不进 hubDestinationRequest——它由通知页直接切聊
-    /// 天格＋置 approvalAnchorRequest，ChatView 消费；
-    /// 返回 true 表示落点成立（调用方关通知页即可，不
-    /// 走枢纽接力）
-    @discardableResult
-    func requestHubDestination(
-        _ destination: NotificationDestination
-    ) -> Bool {
-        switch destination {
-        case .approvalDecision(let id):
-            hubApprovalFocusID = id
-        case .monitorChange(let monitorID, let changeID):
-            monitorDeepLink = (monitorID, changeID)
-        case .approvalAnchor(let threadID, let key):
-            approvalAnchorRequest = (threadID, key)
-            return destination.hasDestination
-        case .approvalThread(let threadID):
-            approvalAnchorRequest = (threadID, nil)
-            return destination.hasDestination
-        case .approvalHome, .monitorsHome, .none:
-            break
-        }
-        guard destination.hasDestination else { return false }
-        hubDestinationRequest = destination
-        return true
-    }
-    /// 抽屉「枢纽」导航行的开枢纽请求（0.19.0）：抽屉置
-    /// 位（先切聊天格再置位），ChatView 消费后开枢纽
-    /// sheet 并清零——置位—消费—清零与 cronCreate-
-    /// Requested 同式。枢纽 sheet 本体长在聊天页（胶囊
-    /// 入口同处），不在抽屉另立第二份承载
-    var hubOpenRequested = false
-    /// 聊天抽屉开合的语义状态（0.2.2 立；0.4.5 改口径，
-    /// §30）：壳层 ContentView 是执行者（覆盖式动画与跟手
-    /// 状态在壳层），任何视图想开/关抽屉只写这里、壳层
-    /// onChange 执行；DrawerView 据此在打开时补拉服
-    /// 务端会话 source 映射（0.19.0 返工瘦身：只喂旁
-    /// 聊行显的来源过滤判定，不再拉名单成行——名单
-    /// 本体是本地线程）。（0.2.2–0.4.4 的旧注「Con-
-    /// tentView 据此隐藏自绘底栏」随自绘底栏与覆盖式
-    /// 抽屉一并作废）
-    var drawerPresented = false
-    /// 抽屉与 ChatView 之间的通道（0.4.5，抽屉提到
-    /// 壳层后立；模式与 pendingChatSessionID 一致：置位
-    /// 方写、消费方读后清零）
-    /// 抽屉当前对象引用（0.36.7，频道规格 §10.2/§10.3）：
-    /// 全抽屉唯一选择源——写入点只有导航动作（抽屉主
-    /// 线行→.main、旁聊行→.side）与 ChatView 的当前线
-    /// 程同步（落点/切换/新建/导入都经它派生）；抽屉
-    /// 胶囊只许问 Core DrawerSelectionPolicy，不许再
-    /// 私读页签或线程 id 自画。页签切走不清、回切恢
-    /// 复。0.4.5 的 activeThreadID 随本引用落地退役
-    /// （其消费面——胶囊判定与删当前线程判定——已全
-    /// 部改读本引用经政策解析）
-    var currentDrawerObject: DrawerCurrentObject?
-    /// 抽屉点选/新建的线程 id（DrawerView 写，ChatView
-    /// 消费后切 currentThreadID 并清零）
-    var drawerThreadSelection: UUID?
-    /// 抽屉刚删掉的线程 id（DrawerView 写，ChatView 若
-    /// 正显示该线程则置空 currentThreadID 并清零）
-    var drawerDeletedThreadID: UUID?
 
     /// 业务成功信号代次（0.36.20，§86.2）：HermesClient
     /// 任一业务请求收到 HTTP 响应即经回调递增，壳层观
@@ -661,19 +1024,27 @@ final class AppState {
         self.client = client
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
+        sessionLedger = SessionLedger(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
+        outboxRetry = OutboxRetryStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
+        // 第 67 条包二：删除协调器壳接线账本引擎——
+        // 删除自此走账本单管线
+        sessionDeletions.ledger = sessionLedger
+        // §244 P-5／§261 ④：授权卡续办前的补同步接线
+        // 收编为具名协议口——把同步控制器挂上即完，
+        // 不再有无名闭包接线点
+        deviceSession.permissionFlow.syncProvider = deviceSync
         // 供给收敛（0.36.18）：五件记录型的「允许调
         // 用」不再有独立开关与镜像——会话每次重读权
         // 限时一律对齐真实权限（refreshPermissions
         // 内落），本处不再接线
         switch demoMode {
         case .connected:
-            // 演示会话：地址与账号只是展示数据，密钥由假客户端消化
+            // 演示会话：地址只是展示数据，密钥由假客户端消化
             config = ServerConfig(rawInput: "https://your-hermes.example.com")
-            username = "admin"
             // 演示口径：模型名与总览「当前配置」同为 deepseek-chat，
             // 三处展示（顶栏副题/抽屉服务器行/设置）一致；假客户端
             // 不校验模型名，生产路径的 modelID 仍以 /v1/models 为准
@@ -700,6 +1071,12 @@ final class AppState {
             // 方法须在全部存储属性初始化之后（二轮 CI
             // 实证：前置调用报 self 未完全初始化）
             loadSessionModelChoices()
+            // §432：AI 自反应能力结论按当前服务器回
+            // 读落盘值播种（未连接/无记录恒 unknown）
+            selfReactionsAvailability =
+                Self.storedSelfReactionsAvailability(
+                    for: config?.baseString
+                )
         }
         let signalBox = WeakAppStateBox(self)
         if let hermesClient = client as? HermesClient {
@@ -713,6 +1090,11 @@ final class AppState {
             Task { @MainActor in
                 signalBox.value?.noteNetworkPathRecovered()
             }
+        }
+        // §479：活头像绑定读口回接档案仓（呈现时现
+        // 读当前条目 id，不缓存第二份真值）
+        livingAvatar.avatarItemIDProvider = { [weak self] in
+            self?.agentProfileStore.avatarCache?.itemID
         }
     }
 
@@ -731,7 +1113,6 @@ final class AppState {
             return
         }
         self.config = config
-        username = KeychainStore.read(account: CredentialKey.username)
         phase = .connected
     }
 
@@ -753,7 +1134,6 @@ final class AppState {
     /// HermesError，凭据不落盘（不存坏凭据）。
     func connect(
         config: ServerConfig,
-        username: String,
         password: String,
         apiKey: String,
         onStep: @escaping (ProbeStep) -> Void = { _ in }
@@ -764,7 +1144,7 @@ final class AppState {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.login)
-        try await client.login(config: config, username: username, password: password)
+        try await client.login(config: config, password: password)
         onStep(.apiKey)
         let ids = try await client.models(config: config, apiKey: apiKey)
         if let first = ids.first {
@@ -773,12 +1153,12 @@ final class AppState {
         // 演示模式不落 Keychain：假凭据写进去会污染真实连接
         if !isDemo {
             KeychainStore.save(config.baseString, account: CredentialKey.baseURL)
-            KeychainStore.save(username, account: CredentialKey.username)
             KeychainStore.save(password, account: CredentialKey.password)
             KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+            // §244：账号键退役（面板密码无账号概念），存量值清掉
+            KeychainStore.delete(account: CredentialKey.username)
         }
         self.config = config
-        self.username = username
         phase = .connected
     }
 
@@ -811,28 +1191,25 @@ final class AppState {
             KeychainStore.delete(account: CredentialKey.password)
         }
         self.config = config
-        username = nil
         phase = .connected
     }
 
     // MARK: - 引导四步连接（欢迎/登录/连接中/成功面）
 
     /// 引导·密码登录一步制（用户 2026-11-11 定版，覆盖
-    /// 原型两步）：地址＋账号＋密码一步连上。链路全是现
-    /// 行生产端点——健康检查（兼量延迟）→ Hermes 本体
-    /// password-login 验密码 → /api/env/reveal 换取登录
-    /// 密钥 API_SERVER_KEY（服务端代管下发）→ 用该钥验
-    /// /v1/models 并读服务信息。伴生 front 8650 的双方式
-    /// 登录查毕不可复用：它只发面板会话 cookie、明文凭
-    /// 据从不出其 API、且其密码无账号概念（查证见
-    /// DESIGN 引导线记账）。全过才落 Keychain（四件套，
-    /// 与 connect 同口径，performAdmin 静默重登靠它）；
-    /// 本方法不置 phase——成功面先行展示，用户点「开
-    /// 始聊天」再由 activatePreparedConnection 进主界面
-    /// （杀进程在成功面时 restore 照样凭 Keychain 成立）。
+    /// 原型两步）：地址＋密码一步连上。链路全是现行生产
+    /// 端点——健康检查（兼量延迟）→ 伴生登录桥
+    /// web-login 验面板密码（§244 一把密码统一，桥在服
+    /// 务器内部换 dashboard 会话 cookie）→
+    /// /api/env/reveal 换取登录密钥 API_SERVER_KEY（服
+    /// 务端代管下发）→ 用该钥验 /v1/models 并读服务信
+    /// 息。全过才落 Keychain（三件套，与 connect 同口
+    /// 径，performAdmin 静默重登靠它）；本方法不置
+    /// phase——成功面先行展示，用户点「开始聊天」再由
+    /// activatePreparedConnection 进主界面（杀进程在成
+    /// 功面时 restore 照样凭 Keychain 成立）。
     func connectWithPassword(
         config: ServerConfig,
-        username: String,
         password: String,
         onStep: @escaping (OnboardingStep) -> Void = { _ in }
     ) async throws -> ConnectionServiceInfo {
@@ -850,7 +1227,7 @@ final class AppState {
             step = .credentialValid
             onStep(step)
             try await client.login(
-                config: config, username: username, password: password
+                config: config, password: password
             )
             step = .serviceInfo
             onStep(step)
@@ -882,12 +1259,12 @@ final class AppState {
                 KeychainStore.save(
                     config.baseString, account: CredentialKey.baseURL
                 )
-                KeychainStore.save(username, account: CredentialKey.username)
                 KeychainStore.save(password, account: CredentialKey.password)
                 KeychainStore.save(fetchedKey, account: CredentialKey.apiKey)
+                // §244：账号键退役（面板密码无账号概念）
+                KeychainStore.delete(account: CredentialKey.username)
             }
             self.config = config
-            self.username = username
             return ConnectionServiceInfo(
                 host: config.host,
                 hermesVersion: status?.version ?? health.version,
@@ -939,7 +1316,6 @@ final class AppState {
                 KeychainStore.delete(account: CredentialKey.password)
             }
             self.config = config
-            username = nil
             return ConnectionServiceInfo(
                 host: config.host,
                 hermesVersion: status?.version ?? health.version,
@@ -958,15 +1334,15 @@ final class AppState {
         phase = .connected
     }
 
-    /// 设置页「重新测试连接」：存量四件套走三步探活；
+    /// 设置页「重新测试连接」：存量三件套走三步探活；
     /// 直登连接（无面板密码）走两步（健康＋密钥），不改状态。
     func retestConnection(onStep: @escaping (ProbeStep) -> Void = { _ in }) async throws {
         guard let config, let apiKey else {
             throw HermesError.sessionExpired
         }
-        if let username, let password {
+        if let password {
             try await connect(
-                config: config, username: username, password: password,
+                config: config, password: password,
                 apiKey: apiKey, onStep: onStep
             )
         } else {
@@ -994,10 +1370,10 @@ final class AppState {
         do {
             return try await operation(client, config)
         } catch HermesError.unexpectedStatus(_, let status) where status == 401 {
-            guard let username, let password else {
+            guard let password else {
                 throw HermesError.sessionExpired
             }
-            try await client.login(config: config, username: username, password: password)
+            try await client.login(config: config, password: password)
             do {
                 return try await operation(client, config)
             } catch HermesError.unexpectedStatus(_, let retryStatus) where retryStatus == 401 {
@@ -1008,17 +1384,108 @@ final class AppState {
 
     // MARK: - 模型目录（0.2.2 获取制）
 
+    /// §368 新鲜度门 TTL：300 秒。定档理由（§368.2）：
+    /// 模型目录的变更源最窄——本机写全部走显式失效、
+    /// 不靠 TTL 兜底；服务端侧变更低频且后果轻（目录
+    /// 晚换新，顶栏回退链兜底、已选会话执行不受影响）。
+    /// 仓内先例（身份 30s／伴生探测 60s／名单类 60s）
+    /// 都是变更源更宽的面，不可比照短定
+    static let modelCatalogTTL: TimeInterval = 300
+
+    /// §368 载入时刻＋配置键（CronStore 的 hasLoaded/
+    /// loadedForConfig 范本再加时刻件，凑成新鲜判定三
+    /// 件套）；internal 供钉测拨时刻模拟过期
+    var modelCatalogLoadedAt: Date?
+    var modelCatalogLoadedForConfig: String?
+    /// §368 失效代次：写/强制刷新递增；一轮载入只服
+    /// 务于它的起始代次——载入期间被失效的轮次，落地
+    /// 也不算新鲜
+    private var modelCatalogEpoch = 0
+    private var modelCatalogLoadedEpoch = -1
+    private var modelCatalogAttemptEpoch = -1
+    /// §368 单飞句柄：并发触发搭同一轮，不各拉各的
+    private var modelCatalogLoadTask: Task<Void, Never>?
+
+    /// §368 目录失效：模型写路径的成功点与强制刷新
+    /// 调用；只动取数时机，目录消费语义一字不变
+    func invalidateModelCatalog() {
+        modelCatalogEpoch += 1
+        modelCatalogLoadedAt = nil
+    }
+
+/// §416 新鲜度普查豁免：§368 已是门同口径（TTL＋配置键＋只许成功落账＋写失效），判定与 epoch/单飞焊死且有专属钉测，机械替换无口径收益（判定表见 DESIGN §416）
+    private var modelCatalogIsFresh: Bool {
+        guard modelCatalogLoadedEpoch == modelCatalogEpoch,
+              modelCatalogLoadedForConfig == config?.baseString,
+              let modelCatalogLoadedAt
+        else { return false }
+        return Date().timeIntervalSince(modelCatalogLoadedAt)
+            < Self.modelCatalogTTL
+    }
+
+    /// 冷口（§368）：新鲜即 0 请求返回；过期/配置键
+    /// 变才起一轮；在飞则搭在飞的一轮
+    func refreshModelCatalog() async {
+        guard phase == .connected else { return }
+        if modelCatalogIsFresh { return }
+        await awaitOneModelCatalogLoad()
+    }
+
+    /// 强制口（§368）：手动刷新/测连通走它——先失效，
+    /// 再确保「失效后的一轮」落地，不许被 TTL 吞、
+    /// 也不许被失效前已在飞的旧轮冒充
+    func refreshModelCatalogForced() async {
+        guard phase == .connected else { return }
+        invalidateModelCatalog()
+        let target = modelCatalogEpoch
+        while modelCatalogLoadedEpoch != target,
+              modelCatalogAttemptEpoch < target {
+            await awaitOneModelCatalogLoad()
+            guard phase == .connected else { return }
+        }
+    }
+
+    /// 起一轮（或搭在飞的一轮）并等它落地；落 stamp
+    /// 只在本轮有应答时（成功口径见 fetchModelCatalog）
+    private func awaitOneModelCatalogLoad() async {
+        if let task = modelCatalogLoadTask {
+            await task.value
+            return
+        }
+        let epochAtStart = modelCatalogEpoch
+        let keyAtStart = config?.baseString
+        modelCatalogAttemptEpoch = epochAtStart
+        let task = Task { @MainActor in
+            let answered = await self.fetchModelCatalog()
+            if answered {
+                self.modelCatalogLoadedAt = Date()
+                self.modelCatalogLoadedForConfig = keyAtStart
+                self.modelCatalogLoadedEpoch = epochAtStart
+            }
+        }
+        modelCatalogLoadTask = task
+        await task.value
+        modelCatalogLoadTask = nil
+    }
+
     /// 刷新默认模型与可切换目录（0.2.4）：当前值来自
     /// /api/config；候选只来自上游（ModelCatalog 口径）：
     /// /api/model/options 优先，为空回落近 30 天用量 ∪
     /// 当前值；网关 /v1/models 的返回只作别名集用于排除，
-    /// 本身永不进候选（0.2.2 的并集口径是 bug 源头）
-    func refreshModelCatalog() async {
-        guard phase == .connected else { return }
+    /// 本身永不进候选（0.2.2 的并集口径是 bug 源头）。
+    /// §368：本函数只管取数与落值，新鲜度门/单飞在
+    /// refreshModelCatalog 两口；返回本轮是否有应答
+    /// （rawConfig 与 modelOptionsRaw 任一成功）——两
+    /// 口全灭（离线）不落 stamp，下次触发照旧重试，
+    /// 失败恢复与修前一致
+    private func fetchModelCatalog() async -> Bool {
+        var answered = false
         var registryEntries: [ProviderRegistry.Entry] = []
-        if let raw = try? await performAdmin({ client, config in
+        let rawResult = try? await performAdmin { client, config in
             try await client.rawConfig(config: config)
-        }), let current = raw["model"]?.stringValue {
+        }
+        if rawResult != nil { answered = true }
+        if let raw = rawResult, let current = raw["model"]?.stringValue {
             defaultModel = current
             // §119 未配模型判定输入：具名服务商的模型
             // 总数（读到配置才有值；未知时判定不报）
@@ -1040,6 +1507,7 @@ final class AppState {
         if let root = try? await performAdmin({ client, config in
             try await client.modelOptionsRaw(config: config)
         }) {
+            answered = true
             optionsRoot = root
             options = ModelCatalog.extractModelIDs(from: root)
         }
@@ -1074,6 +1542,18 @@ final class AppState {
             // 选择器消费端过 Core visibleGroups；含默
             // 认的组结构上不许被滤掉（Core 闸）
             chatModelGroups = groups
+            // §390 H9：会商组同轮追加——拉到 MoA 配置
+            // 且有预设时在目录尾加「多模型会商」组
+            // （逐请求 provider=moa）；拉不到/无预设
+            // 就不加，不拖垮目录（同拼装失败不覆盖）
+            if !isDemo {
+                let moa = try? await performAdmin { client, config in
+                    try await client.moaConfig(config: config)
+                }
+                if let moa, !moa.presets.isEmpty {
+                    chatModelGroups = groups + [moa.pickerGroup()]
+                }
+            }
         }
         // §153 旧全局选择一次性迁移：chatModelID 旧值
         // 播种给主线会话键（升级不丢用户既有选择）；
@@ -1094,6 +1574,7 @@ final class AppState {
                 persistSessionModelChoices()
             }
         }
+        return answered
     }
 
     /// 切换服务端默认模型：读全量 config → 只改 model 键 →
@@ -1116,6 +1597,9 @@ final class AppState {
         if !availableModels.contains(model) {
             availableModels.insert(model, at: 0)
         }
+        // §368：写后失效——下次触发必真拉（新值已同步
+        // 进内存，失效只影响取数时机）
+        invalidateModelCatalog()
     }
 
     /// 设置页在本页内写回 config 后同步内存态（避免两处口径漂移）。
@@ -1125,6 +1609,9 @@ final class AppState {
         if !availableModels.contains(model), !gatewayAliases.contains(model) {
             availableModels.insert(model, at: 0)
         }
+        // §368：本口是写回后的同步口（三处调用全为写
+        // 后），同步内存态的同时失效目录新鲜度
+        invalidateModelCatalog()
     }
 
     /// 拉配置摘要（总览旧路径，走统一通道）
@@ -1142,7 +1629,6 @@ final class AppState {
         if isDemo {
             // 演示模式只复位状态：不动 Keychain、不清 cookie
             config = nil
-            username = nil
             phase = .needsConnection
             return
         }
@@ -1151,7 +1637,6 @@ final class AppState {
         }
         KeychainStore.clearAll()
         config = nil
-        username = nil
         phase = .needsConnection
     }
 }

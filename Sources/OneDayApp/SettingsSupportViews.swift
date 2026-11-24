@@ -8,8 +8,27 @@ import UIKit
 /// （版本源第五处自此收敛为本常量，grep 校验照旧
 /// 命中版本号字面）
 enum OneDayVersionLabel {
-    static let full = "OneDay v0.50.29 (157)"
-    static let hero = "v0.50.29 (157)"
+    /// 现读 Bundle 真值（台账 175/§391 纠偏：旧字面量
+    /// 停在 v0.50.78、与发货版本脱节——版本显示自此只
+    /// 认包内 CFBundle 值，读不到才回落字面量兜底）
+    private static var bundleVersion: (String, String)? {
+        guard let info = Bundle.main.infoDictionary,
+              let short = info["CFBundleShortVersionString"]
+                as? String,
+              let build = info["CFBundleVersion"] as? String
+        else { return nil }
+        return (short, build)
+    }
+
+    static var full: String {
+        bundleVersion.map { "OneDay v\($0.0) (\($0.1))" }
+            ?? "OneDay v0.50.78 (206)"
+    }
+
+    static var hero: String {
+        bundleVersion.map { "v\($0.0) (\($0.1))" }
+            ?? "v0.50.78 (206)"
+    }
 }
 
 /// App 图标位图（§188）：经 Info.plist 的 CFBundleIcons
@@ -23,11 +42,22 @@ enum AppIconBitmap {
             "CFBundleIcons"
         ] as? [String: Any],
         let primary = icons["CFBundlePrimaryIcon"]
-            as? [String: Any],
-        let files = primary["CFBundleIconFiles"]
+            as? [String: Any] else { return nil }
+        if let files = primary["CFBundleIconFiles"]
             as? [String],
-        let name = files.last else { return nil }
-        return UIImage(named: name)
+            let name = files.last,
+            let image = UIImage(named: name) {
+            return image
+        }
+        // §489（HIG 批 A／P2-04 连带）：图标集转单尺寸
+        // 格式后 Info.plist 只写 CFBundleIconName、无
+        // CFBundleIconFiles 数组；actool 仍把主尺寸位
+        // 图以 AppIcon60x60 loose 文件落在包根，按约
+        // 定名取（与旧通道同为包内位图、同源桌面图标）
+        if primary["CFBundleIconName"] != nil {
+            return UIImage(named: "AppIcon60x60")
+        }
+        return nil
     }()
 }
 
@@ -58,16 +88,14 @@ struct AppIconView: View {
     }
 }
 
-/// 支持组共用行盒（与设置首页/外观页同口径复刻）
-private var supportRowInsets: EdgeInsets {
-    EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
-}
+// 支持组行盒已于台账 198 收敛 B7 上收设计层
+// OneDayMetrics.settingsRowInsets 单源（口径不变）
 
+/// 支持组组头（台账 198 收敛 B7：走设计层共用件
+/// SettingsSectionHeader，本文件只留转发壳保既有
+/// 调用点不动；题在此处先经 L10n 取词）
 private func supportHeader(_ title: String) -> some View {
-    Text(L10n.string(title))
-        .font(.sectionLabel)
-        .foregroundStyle(Palette.inkSecondary)
-        .textCase(nil)
+    SettingsSectionHeader(L10n.string(title))
 }
 
 // MARK: - 帮助与反馈
@@ -76,6 +104,8 @@ private func supportHeader(_ title: String) -> some View {
 /// help 页）：连接帮助两条如实口径（地址形态、双方式
 /// 登录凭据）＋反馈外链两条（OneDay 议题、Hermes 项
 /// 目）。全部是静态真内容，不接任何假表单
+/// §493（D5）：关于页的「更新说明」全表迁入本页末
+/// 节——更新日志归帮助、不归关于
 struct HelpView: View {
     var body: some View {
         List {
@@ -92,7 +122,7 @@ struct HelpView: View {
                 supportHeader("连接帮助")
             }
             .listRowBackground(Palette.surface)
-            .listRowInsets(supportRowInsets)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
 
             Section {
                 linkRow(
@@ -113,7 +143,9 @@ struct HelpView: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
             .listRowBackground(Palette.surface)
-            .listRowInsets(supportRowInsets)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            releaseNotesSection
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -175,7 +207,7 @@ struct HelpView: View {
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.system(size: FrameworkIcon.composerGlyphSize))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -183,31 +215,62 @@ struct HelpView: View {
             .contentShape(Rectangle())
         }
     }
+
+    /// 当前安装版本（更新说明段的对账锚：只认包内真值）
+    private static var appVersion: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? ""
+    }
+
+    /// 更新说明段（台账 175，OB-U3 App 侧；§391；
+    /// §493 自关于页迁入）：当前版本在首（带「当前
+    /// 版本」标）、此前版本随后；内容走 Core
+    /// ReleaseNotes 随包表（只记已发货版本），当前
+    /// 版本不在表中时整表呈现、不冒充
+    private var releaseNotesSection: some View {
+        Section {
+            ForEach(
+                ReleaseNotes.entries(currentVersion: Self.appVersion)
+            ) { entry in
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingXS
+                ) {
+                    Text(
+                        entry.version == Self.appVersion
+                            ? "v\(entry.version)（当前版本）"
+                            : "v\(entry.version)"
+                    )
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                    ForEach(entry.highlights, id: \.self) { line in
+                        Text("· \(line)")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .padding(.vertical, OneDayMetrics.spacingMicro)
+            }
+        } header: {
+            supportHeader("更新说明")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
 }
 
 // MARK: - 关于
 
-/// 关于 OneDay（设置页重塑 §164；蓝本＝用户亲递原型
-/// about 页）：版本 hero＋服务两行（Hermes/伴生——原
-/// 设置首页版本组整组迁入，数值由 SettingsView 已加
-/// 载的 status 与伴生探测派生注入，本页不另发请求）
-/// ＋法律与隐私（隐私政策/用户协议正式全文两页）＋开源与署名（原
-/// 关于组两条外链迁入＋OneDay 仓库一条）。组脚注＝
-/// 三层命名分工句（2026-11-11 21:06 定案）与原隐私
-/// 说明合并
+/// 关于 OneDay（设置页重塑 §164；§493 瘦身，D5）：
+/// 只留版本 hero＋法律与隐私＋开源与署名——原服务
+/// 组（Hermes/伴生，与网关页状态、根页 notice 三处
+/// 重复）删、更新说明全表迁帮助与反馈页、内部实验
+/// 整节迁聊天诊断页末节；本页自此无注入参数
 struct AboutView: View {
-    /// Hermes 版本位（读不到如实显「未知」，口径同原
-    /// 版本组，不许拿已知生产版本冒充现读）
-    let hermesVersionText: String
-    /// 伴生副行（Core CompanionStatus 派生整行）
-    let companionLine: String
-    /// 伴生组脚注（缺失/需升级时的一句可行动人话）
-    let companionNote: String?
-
     var body: some View {
         List {
             heroSection
-            serviceSection
             legalSection
             openSourceSection
         }
@@ -239,40 +302,7 @@ struct AboutView: View {
             .accessibilityElement(children: .combine)
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(supportRowInsets)
-    }
-
-    private var serviceSection: some View {
-        Section {
-            LabeledContent("Hermes") {
-                Text(hermesVersionText)
-                    .font(.system(.callout, design: .monospaced))
-            }
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("伴生服务")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(companionLine)
-                        .font(.rowSubtitle)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: OneDayMetrics.spacingS)
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
-        } header: {
-            supportHeader("服务")
-        } footer: {
-            if let companionNote {
-                Text(companionNote)
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(supportRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var legalSection: some View {
@@ -283,7 +313,7 @@ struct AboutView: View {
             supportHeader("法律与隐私")
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(supportRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func legalRow(
@@ -325,13 +355,9 @@ struct AboutView: View {
             )
         } header: {
             supportHeader("开源与署名")
-        } footer: {
-            Text("OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(supportRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func linkRow(title: String, url: String) -> some View {
@@ -345,7 +371,7 @@ struct AboutView: View {
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.system(size: FrameworkIcon.composerGlyphSize))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -353,6 +379,7 @@ struct AboutView: View {
             .contentShape(Rectangle())
         }
     }
+
 }
 
 // MARK: - 法律文档页
@@ -472,7 +499,7 @@ struct LegalDocumentView: View {
                     .padding(.vertical, OneDayMetrics.spacingXS)
             }
             .listRowBackground(Palette.surface)
-            .listRowInsets(supportRowInsets)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
 
             ForEach(
                 Array(kind.sections.enumerated()), id: \.offset
@@ -507,6 +534,6 @@ struct LegalDocumentView: View {
             supportHeader(L10n.string(heading))
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(supportRowInsets)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 }

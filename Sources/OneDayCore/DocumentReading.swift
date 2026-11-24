@@ -1,12 +1,14 @@
 import Foundation
 
-/// 可进文档阅读页的文本类（0.36.31，资料库层）：阅读
-/// 页只收能确定性读出文字的形态——Markdown 走 Core
-/// 块解析、纯文本按空行分段、CSV 成表、JSON/YAML/XML
-/// 按代码块整段呈现。HTML 不在此列：它的「阅读」是
-/// 渲染成页（QuickLook 的活），不是读源文字；DOCX/
-/// PDF 的文字提取另走宿主提取器（PDFKit 等），不冒充
-/// 本表的纯文本路。
+/// 文本类判定（0.36.31，资料库层）：能确定性读出
+/// 文字的形态——Markdown 走 Core 块解析、纯文本按
+/// 空行分段、CSV 成表、JSON/YAML/XML 按代码块整
+/// 段呈现。本表供文件分类（FileActionPolicy .text
+/// 档）与导出 PDF 的块模型输入；§259 起文件预览
+/// 一律走 QuickLook，本表不再是预览分流依据。
+/// HTML 不在此列：它渲染成页是 QuickLook 的活；
+/// DOCX/PDF 的文字提取另走宿主提取器（PDFKit
+/// 等），不冒充本表的纯文本路。
 public enum DocumentTextKind: Sendable {
     case markdown
     case plain
@@ -26,10 +28,10 @@ public enum DocumentTextKind: Sendable {
     }
 }
 
-/// 文档阅读页块模型（纯函数）：文本→[MarkdownBlock]，
-/// 与聊天渲染共用同一块结构、呈现各走各的（聊天对标
-/// Muse、阅读页对标飞书文档的块式呼吸感，见规格
-/// 2026-11-11 附记）。
+/// 文本块模型（纯函数）：文本→[MarkdownBlock]，
+/// 与聊天渲染共用同一块结构。§259 后唯一消费方是
+/// 导出 PDF（块→A4 文本 PDF 排版）；原文档阅读页
+/// 呈现已随双轨合一退役。
 public enum DocumentReading {
     public static func blocks(
         for text: String, kind: DocumentTextKind
@@ -113,46 +115,5 @@ public enum DocumentReading {
         line.components(separatedBy: ",").map {
             $0.trimmingCharacters(in: .whitespaces)
         }
-    }
-
-    /// 段落行段（§125 锚点定位）：plain 口径每段所占
-    /// 的行段（1 起、含两端），与 plainBlocks 的段落
-    /// 序一一对应——分段口径与 plainBlocks 逐字同
-    /// 规（空行分段、段＝连续非空行），阅读页据此把
-    /// `#L` 锚点落到具体段落高亮
-    public static func plainParagraphLineRanges(
-        for text: String
-    ) -> [ClosedRange<Int>] {
-        var ranges: [ClosedRange<Int>] = []
-        var start: Int?
-        let lines = text.components(separatedBy: "\n")
-        for (index, line) in lines.enumerated() {
-            let lineNumber = index + 1
-            if line.trimmingCharacters(in: .whitespaces).isEmpty {
-                if let currentStart = start {
-                    ranges.append(currentStart...(lineNumber - 1))
-                    start = nil
-                }
-            } else if start == nil {
-                start = lineNumber
-            }
-        }
-        if let start {
-            ranges.append(start...lines.count)
-        }
-        return ranges
-    }
-
-    /// 锚点摘录（§125）：取行段原文，越界部分收敛到
-    /// 文本实际行数；行段完全落在文本外回 nil（宿主
-    /// 据此不摆摘录卡，不编造定位）
-    public static func excerpt(
-        for text: String, anchor: FileLineAnchor
-    ) -> String? {
-        let lines = text.components(separatedBy: "\n")
-        guard anchor.startLine <= lines.count else { return nil }
-        let end = min(anchor.endLine, lines.count)
-        return lines[(anchor.startLine - 1)..<end]
-            .joined(separator: "\n")
     }
 }

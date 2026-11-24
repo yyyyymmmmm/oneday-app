@@ -40,23 +40,30 @@ public enum LibrarySort: String, CaseIterable, Sendable {
     case lastOpened
     case lastModified
     case title
+    /// 大小档（§452 资源库定版②补：排序菜单含名称/大小；
+    /// 大到小、未知大小沉底，平局回标题序保稳定）
+    case size
 
     public var label: String {
         switch self {
         case .lastOpened: return "上次打开"
         case .lastModified: return "上次修改"
         case .title: return "标题"
+        case .size: return "大小"
         }
     }
 
     /// 落盘原值解析（同 LibraryDisplayMode.resolved
-    /// 口径）：未知/空/缺失回落默认档「上次打开」
+    /// 口径）：未知/空/缺失回落默认档。§452 资源库定
+    /// 版②「排列最近在前」：默认档改「上次修改」（新
+    /// 产生的文件天然在前；旧注「默认上次打开」就此
+    /// 修订，已落盘的显式选择不受影响）
     public static func resolved(
         rawValue: String?
     ) -> LibrarySort {
         guard let rawValue,
               let option = Self(rawValue: rawValue)
-        else { return .lastOpened }
+        else { return .lastModified }
         return option
     }
 }
@@ -81,31 +88,82 @@ public enum LibraryOrdering {
         openedAt: [String: TimeInterval],
         pinned: Set<String> = []
     ) -> [WorkspaceFileEntry] {
-        entries.sorted { a, b in
-            if !pinned.isEmpty {
-                let ap = pinned.contains(a.path)
-                let bp = pinned.contains(b.path)
-                if ap != bp { return ap }
+        // F1（手感快速项，2026-11-23）：排序键按需预
+        // 计算——旧形态每次比较现算两遍 displayTitle
+        // （NSString 扩名处理）＋一遍 ICU collation，
+        // N=2000 标题序一趟约 37ms（审计实测）。两
+        // 路落法：标题序下标题是主键、每比较必走——
+        // upfront 全算入账（标题计算从约 2.2 万次降
+        // 到 N 次、实测全序 36.2ms→12.3ms）；时间序
+        // 下标题仅平局兜底——懒备忘（TitleKeyMemo，
+        // 同条目一次排序内只算一次、无平局零计算，
+        // 不为 upfront 全算白付约 1.4ms）。比较语义
+        // 逐字不变：同键同较、标题较仍由 localized-
+        // StandardCompare 唯一裁决（排序口味是用户
+        // 待裁项，本包只降本、不改判）
+        switch sort {
+        case .title:
+            let keyed = entries.map { entry in
+                (
+                    entry: entry,
+                    title: DeliverableFileType.displayTitle(
+                        forFileName: entry.name
+                    )
+                )
             }
-            switch sort {
-            case .lastOpened:
-                let ao = openedAt[a.path] ?? 0
-                let bo = openedAt[b.path] ?? 0
-                if ao != bo { return ao > bo }
-                let am = a.mtime ?? 0
-                let bm = b.mtime ?? 0
-                if am != bm { return am > bm }
-            case .lastModified:
-                let am = a.mtime ?? 0
-                let bm = b.mtime ?? 0
-                if am != bm { return am > bm }
-            case .title:
-                break
+            return keyed.sorted { a, b in
+                if !pinned.isEmpty {
+                    let ap = pinned.contains(a.entry.path)
+                    let bp = pinned.contains(b.entry.path)
+                    if ap != bp { return ap }
+                }
+                return a.title.localizedStandardCompare(b.title)
+                    == .orderedAscending
+            }.map(\.entry)
+        case .size:
+            let titleMemo = TitleKeyMemo()
+            return entries.sorted { a, b in
+                if !pinned.isEmpty {
+                    let ap = pinned.contains(a.path)
+                    let bp = pinned.contains(b.path)
+                    if ap != bp { return ap }
+                }
+                let asz = a.size ?? -1
+                let bsz = b.size ?? -1
+                if asz != bsz { return asz > bsz }
+                return titleMemo.title(for: a)
+                    .localizedStandardCompare(
+                        titleMemo.title(for: b)
+                    ) == .orderedAscending
             }
-            return DeliverableFileType.displayTitle(forFileName: a.name)
-                .localizedStandardCompare(
-                    DeliverableFileType.displayTitle(forFileName: b.name)
-                ) == .orderedAscending
+        case .lastOpened, .lastModified:
+            let titleMemo = TitleKeyMemo()
+            return entries.sorted { a, b in
+                if !pinned.isEmpty {
+                    let ap = pinned.contains(a.path)
+                    let bp = pinned.contains(b.path)
+                    if ap != bp { return ap }
+                }
+                switch sort {
+                case .lastOpened:
+                    let ao = openedAt[a.path] ?? 0
+                    let bo = openedAt[b.path] ?? 0
+                    if ao != bo { return ao > bo }
+                    let am = a.mtime ?? 0
+                    let bm = b.mtime ?? 0
+                    if am != bm { return am > bm }
+                case .lastModified:
+                    let am = a.mtime ?? 0
+                    let bm = b.mtime ?? 0
+                    if am != bm { return am > bm }
+                case .title, .size:
+                    break
+                }
+                return titleMemo.title(for: a)
+                    .localizedStandardCompare(
+                        titleMemo.title(for: b)
+                    ) == .orderedAscending
+            }
         }
     }
 
@@ -189,6 +247,24 @@ public enum LibraryOrdering {
             Section(title: "最近", entries: recent),
             Section(title: "全部", entries: rest),
         ]
+    }
+}
+
+/// 标题键懒备忘（F1）：一次 sorted 调用内同条目
+/// 只算一次 displayTitle——时间序下标题仅作平局
+/// 兜底，多数条目根本不触发计算；全平局时退化为
+/// 每条目各算一次（与标题序 upfront 同界）。只在
+/// 单次排序内使用、不跨调用存活
+private final class TitleKeyMemo {
+    private var cache: [String: String] = [:]
+
+    func title(for entry: WorkspaceFileEntry) -> String {
+        if let cached = cache[entry.path] { return cached }
+        let value = DeliverableFileType.displayTitle(
+            forFileName: entry.name
+        )
+        cache[entry.path] = value
+        return value
     }
 }
 

@@ -27,6 +27,7 @@ struct ChatModelPickerView: View {
     var onHideGroup: ((ChatModelGroup) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
     /// 分组折叠账（§158）：与设置面共账同键（键＝组
     /// 标题），Core SectionCollapseState 唯一口径
@@ -116,6 +117,9 @@ struct ChatModelPickerView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        // §489（HIG 批 A／P1-02）：可调 sheet 补抓手
+        //（HIG Sheets：Include a grabber in a resizable sheet）
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - §158 折叠与隐藏
@@ -158,7 +162,11 @@ struct ChatModelPickerView: View {
     }
 
     private func toggleGroup(_ display: DisplayGroup) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+            )
+        ) {
             collapseData = SectionCollapseState.encode(
                 SectionCollapseState.toggled(
                     key: display.group.title,
@@ -180,24 +188,32 @@ struct ChatModelPickerView: View {
     @ViewBuilder
     private func groupHeader(_ display: DisplayGroup) -> some View {
         let collapsed = isGroupCollapsed(display)
-        let header = HStack(spacing: 6) {
-            Text(display.group.title)
-            Text("\(display.rows.count)")
-                .foregroundStyle(Palette.inkSecondary)
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.down")
-                .font(.caption2.weight(.semibold))
-                .rotationEffect(.degrees(collapsed ? -90 : 0))
-                .animation(.smooth(duration: 0.25), value: collapsed)
+        // §379：段头迁原生 Button＋.odPressable
+        // （原点按手势＋自研按压修饰退役）
+        let header = Button {
+            toggleGroup(display)
+        } label: {
+            HStack(spacing: 6) {
+                Text(display.group.title)
+                Text("\(display.rows.count)")
+                    .foregroundStyle(Palette.inkSecondary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .rotationEffect(.degrees(collapsed ? -90 : 0))
+                    .animation(
+                        MotionTokens.resolved(
+                            MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+                        ),
+                        value: collapsed
+                    )
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture { toggleGroup(display) }
-        .accessibilityElement(children: .ignore)
+        .buttonStyle(.odPressable)
         .accessibilityLabel(display.group.title)
         .accessibilityValue(collapsed ? "已折叠" : "已展开")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { toggleGroup(display) }
         if let onHideGroup {
             if display.isBuiltinBucket {
                 header.contextMenu {
@@ -236,37 +252,19 @@ struct ChatModelPickerView: View {
     /// 模型行：名（执行值原文——具名服务商的模型名
     /// 就是它在自家目录里的名字）＋副行（来源标注，
     /// 默认行加「默认」），当前行尾系统 checkmark；
-    /// 收纳组内的行副行带原服务商名（origin 非 nil）
+    /// 收纳组内的行副行带原服务商名（origin 非 nil）。
+    /// 行渲染走全 App 共用行件 ModelListRow（台账
+    /// 199，与设置侧治理清单同一套）
     private func row(
         _ choice: ChatModelChoice, origin: String?
     ) -> some View {
-        let isCurrent = choice == current
-        return Button {
-            onSelect(choice)
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(choice.model)
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(2)
-                    if let subline = subline(for: choice, origin: origin) {
-                        Text(subline)
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-                Spacer()
-                if isCurrent {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Palette.primary)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+        ModelListRow(
+            title: choice.model,
+            subline: subline(for: choice, origin: origin),
+            isCurrent: choice == current,
+            titleLineLimit: 2,
+            onSelect: { onSelect(choice) }
+        )
     }
 
     /// 副行拼装：「经网关」/「直连 · 名」＋默认标记；

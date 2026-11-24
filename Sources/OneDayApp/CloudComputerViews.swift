@@ -24,7 +24,7 @@ struct CloudComputerDetailView: View {
         List {
             if let connection {
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                         Text(connection.name)
                             .font(.title3)
                             .foregroundStyle(Palette.ink)
@@ -42,7 +42,7 @@ struct CloudComputerDetailView: View {
                         Spacer()
                         Text(status.text)
                             .foregroundStyle(
-                                status.tone == .ok ? Palette.success
+                                status.tone == .ok ? Palette.successText
                                     : status.tone == .bad ? Palette.danger
                                     : Palette.inkSecondary
                             )
@@ -122,7 +122,7 @@ struct CloudComputerDetailView: View {
         }
         .listStyle(.insetGrouped)
         .background(Palette.settingsBG)
-        .navigationTitle("云电脑")
+        .navigationTitle("远程电脑")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "断开这台电脑？",
@@ -192,7 +192,7 @@ struct CredentialFormView: View {
             case .verified(let detail):
                 Text("已连上：\(detail)")
                     .font(.footnote)
-                    .foregroundStyle(Palette.success)
+                    .foregroundStyle(Palette.successText)
             case .failed(let detail):
                 Text(detail)
                     .font(.footnote)
@@ -225,6 +225,11 @@ struct CredentialFormView: View {
             id: connection.id, body: body, appState: appState
         )
         if case .verified = store.credentialPhase {
+            // F6：simular_box 验活成功后写入 MCP 凭据
+            if connection.provider == "simular_box" {
+                KeychainStore.save(apiKey, account: "box.mcp.key")
+                BoxMCPClientFactory.reset()
+            }
             onVerified()
         }
     }

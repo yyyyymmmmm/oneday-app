@@ -21,10 +21,25 @@ struct IdentityAvatarState: Decodable, Sendable {
         let bytes: Int?
         let sha256: String?
         let current: Bool
+        /// 条目写入时刻（epoch 秒，桥侧账；末写胜用）
+        let createdAt: Double?
+        /// 写入来源（ai/app…）：只留痕、不参与裁决
+        let source: String?
+
+        var createdAtDate: Date? {
+            createdAt.map { Date(timeIntervalSince1970: $0) }
+        }
     }
 
     let currentId: String?
     let items: [Item]
+    /// 当前指针最后一次被设定的时刻（epoch 秒）：设
+    /// 当前的那次写入（新增设当前/重选）落账；旧桥
+    /// 无此字段时为 nil，调用方以当前条目 createdAt
+    /// 兜底
+    let currentUpdatedAt: Double?
+    /// 设定当前指针的来源：只留痕、不参与裁决
+    let currentSource: String?
 
     /// 当前条目：优先信条目自带的 current 标记，缺失
     /// 时按 currentId 兜底查
@@ -32,38 +47,44 @@ struct IdentityAvatarState: Decodable, Sendable {
         items.first(where: { $0.current })
             ?? items.first(where: { $0.id == currentId })
     }
+
+    /// AI 档的写入时刻（末写胜凭据）：指针时刻优先，
+    /// 缺失时回落当前条目的写入时刻，再缺失为 nil
+    var currentUpdatedAtDate: Date? {
+        if let currentUpdatedAt {
+            return Date(timeIntervalSince1970: currentUpdatedAt)
+        }
+        return currentItem?.createdAtDate
+    }
 }
 
-/// 身份桥客户端（P1 身份包）：App 侧只读头像仓——写
-/// 口（改名/换头像）是智能体经 MCP 工具走的，不在
-/// App 侧开第二条写路。路径挂当前服务器根下
+
+/// 身份桥客户端（P1 身份包）：头像仓读面＋§253 起
+/// 的换头像写穿面（服务端单真值：校验、备份、留
+/// 痕全在桥侧收口）。App 改名已随 §383 包一迁
+/// Dashboard 直连写（Core 校验＋soul 直写＋留痕
+/// 自报），本类不再有改名写口；桥侧改名口只余
+/// AI 侧 MCP 工具与面板在用。路径挂当前服务器根下
 /// /api/identity-bridge，Bearer 只从 BridgeCredential
 /// 统一读（与全 App 桥客户端同口径，0.33.1）。
+/// C-10 收敛：连接/单钥/管线/文案走统一基座，本类只
+/// 留路径、DTO 与状态口径。
 final class IdentityBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        configuration.waitsForConnectivity = true
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private let base = BridgeClientBase<IdentityBridgeError>(
+        pathPrefix: "/api/identity-bridge", timeout: 15,
+        waitsForConnectivity: true,
+        noKey: .noKey, failed: IdentityBridgeError.failed
+    )
 
     func avatarState(config: ServerConfig) async throws -> IdentityAvatarState {
         let data = try await get(
             config: config, path: "/identity/avatar",
             endpoint: L10n.string("头像仓")
         )
-        do {
-            return try decoder.decode(IdentityAvatarState.self, from: data)
-        } catch {
-            throw IdentityBridgeError.failed(L10n.string("头像仓返回格式无法识别"))
-        }
+        return try base.decode(
+            data,
+            orThrow: IdentityBridgeError.failed(L10n.string("头像仓返回格式无法识别"))
+        )
     }
 
     func avatarImage(config: ServerConfig, id: String) async throws -> Data {
@@ -73,18 +94,88 @@ final class IdentityBridgeClient: @unchecked Sendable {
         )
     }
 
+    // MARK: - 写穿（§253：App 换头像直达服务端真值）
+    //
+    // 判读口径（§232 安全门）：2xx 过；401 未授权；
+    // 其余取服务端 error 文案先过 ServerErrorText.
+    // userSafe 才许带出，不过门/解不出落本类通用人
+    // 话（只报是哪件失败、带状态码定位），绝不露服
+    // 务端原文。
+
+    /// 预置头像写穿：POST /identity/avatar kind=preset
+    /// （append-only 新条目并设为当前；服务端回 201）
+    func addAvatarPreset(
+        config: ServerConfig, presetID: String
+    ) async throws {
+        try await post(
+            config: config, path: "/identity/avatar",
+            body: [
+                "kind": "preset",
+                "presetId": presetID,
+                "source": "app-user",
+                "makeCurrent": true,
+            ],
+            endpoint: L10n.string("头像仓")
+        )
+    }
+
+    /// 图片头像写穿：POST /identity/avatar imageBase64
+    /// （制备 JPEG 字节；服务端硬顶 2MB、魔数校验）
+    func addAvatarImage(
+        config: ServerConfig, imageData: Data
+    ) async throws {
+        try await post(
+            config: config, path: "/identity/avatar",
+            body: [
+                "imageBase64": imageData.base64EncodedString(),
+                "source": "app-user",
+                "makeCurrent": true,
+            ],
+            endpoint: L10n.string("头像仓")
+        )
+    }
+
+    private func post(
+        config: ServerConfig, path: String,
+        body: [String: Any], endpoint: String
+    ) async throws {
+        guard let bodyData = try? JSONSerialization.data(
+            withJSONObject: body
+        ) else {
+            throw IdentityBridgeError.failed(
+                L10n.format("%@保存失败。", endpoint)
+            )
+        }
+        let (data, http) = try await base.perform(
+            config: config, path: path, method: "POST",
+            bodyData: bodyData, endpoint: endpoint
+        )
+        if (200..<300).contains(http.statusCode) { return }
+        if http.statusCode == 401 {
+            throw IdentityBridgeError.unauthorized
+        }
+        if let raw = base.serverMessage(data),
+           let safe = ServerErrorText.userSafe(raw) {
+            throw IdentityBridgeError.failed(safe)
+        }
+        throw IdentityBridgeError.failed(
+            L10n.format(
+                "%@保存失败（错误 %@）。", endpoint,
+                String(http.statusCode)
+            )
+        )
+    }
+
     private func get(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> Data {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw IdentityBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/identity-bridge" + path)
+        let request = try base.makeRequest(
+            config: config, path: path, method: "GET",
+            cachePolicy: .reloadIgnoringLocalCacheData
         )
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, http) = try await send(request, endpoint: endpoint)
+        let (data, http) = try await base.data(
+            for: request, endpoint: endpoint
+        )
         if http.statusCode == 401 {
             throw IdentityBridgeError.unauthorized
         }
@@ -94,21 +185,5 @@ final class IdentityBridgeClient: @unchecked Sendable {
             )
         }
         return data
-    }
-
-    private func send(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw IdentityBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as IdentityBridgeError {
-            throw error
-        } catch {
-            throw IdentityBridgeError.failed(L10n.format("%@网络不可达", endpoint))
-        }
     }
 }

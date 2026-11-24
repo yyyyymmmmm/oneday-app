@@ -113,7 +113,7 @@ import UIKit
 /// 役、第一版不缩放。位移三件与弹簧口径全部沿用
 /// （DrawerMotion 纯逻辑＋DrawerSpringTiming 换算
 /// MotionTokens.drawerSpring），本层只剩 presented
-/// 入参对账（appState.drawerPresented 在 body 读出
+/// 入参对账（appState.router.drawerPresented 在 body 读出
 /// 喂桥、观察成立）。三轮验收与行为差异清单见
 /// DESIGN §156。
 struct ContentView: View {
@@ -149,17 +149,45 @@ struct ContentView: View {
     /// ——角标轮询、AppState 水位与 .badge 一并下线，
     /// 本客户端不再为任何角标取数（合并对账见
     /// DESIGN §126.10 与 §177）
-    /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
-    /// 理全部对话」行置位，全屏页自带导航栈呈现
+    /// 「全部对话」页呈现（0.18.0，A.3）：全屏页自带
+    /// 导航栈呈现。入口沿革：0.18.0 起由抽屉「管理
+    /// 全部对话」行置位；管理收口包补件改由设置页
+    /// 「全部对话」行经 AfterSettings 链置位（用户
+    /// 2026-11-13 18:57 拍板「挪进设置页、抽屉不再
+    /// 放」），呈现路本体（本旗＋下方 cover 装配）
+    /// 自始至终未变。结构归位第二批（2026-11-20，
+    /// 纲要 D2-1，用户亲批逐页归位、新令覆盖 11-13
+    /// 旧拍板）：入口升一级——抽屉名单收尾行「全部
+    /// 对话」经 allConversationsRequested 直置本旗
+    /// （消费点见 body）。设置行入口与 AfterSettings
+    /// 链已于归位合流（2026-11-20）摘除：列表只住一
+    /// 级面（纲要终局），设置页不再设第二扇门
+    /// 台账 199（2026-11-21，用户裁）补记：设置
+    /// 「服务端会话」行改深链经本旗直达本页（旧设
+    /// 置内名单页已删、名单实现只剩本页一份，设置
+    /// 行只是深链不是第二扇门）；置位时设置 sheet
+    /// 还在场，AfterSettings 序随之复活——消费点
+    /// 先收设置、下方暂存旗落位，sheet onDismiss
+    /// 后再升全屏页（见 body 的 sheet 装配）
     @State private var showAllConversations = false
-    /// Hermes 频道页呈现（0.36.29，频道规格 §4.1）：
-    /// 抽屉频道行置位，全屏页承载与管理页同通道（本
-    /// 层 fullScreenCover）；管理页频道段的同名行走
+    /// 设置行深链的 AfterSettings 暂存（台账 199）
+    @State private var allConversationsAfterSettings = false
+    /// 频道页呈现（0.36.29，频道规格 §4.1；2026-11
+    /// -13 频道一期扩为按频道 id 路由）：抽屉频道行
+    /// 置位，全屏页承载与管理页同通道（本层
+    /// fullScreenCover）；Hermes 走 HermesChannel-
+    /// View，平台频道走 ChannelEntryView（内部分发
+    /// 频道页/配对引导页）；管理页频道段的同名行走
     /// 管理页内部呈现，目的地是同一个 HermesChannel-
     /// View，不许两套频道页
-    @State private var showHermesChannel = false
+    @State private var channelRoute: ChannelRoute?
+
+    /// 频道路由值（fullScreenCover item 承载）
+    private struct ChannelRoute: Identifiable {
+        let id: String
+    }
     /// 设置 sheet 呈现（0.20.0 第六条）：抽屉齿轮经
-    /// AppState.settingsSheetRequested 置位、本层消费
+    /// AppState.router.settingsSheetRequested 置位、本层消费
     /// 呈现；设置页本体内带大标题＋圆 X 头（照 Muse
     /// 设置页图形态）
     /// 2026-11-13（用户 15:52 亲令）：自抽屉点设置时
@@ -174,9 +202,8 @@ struct ContentView: View {
     var body: some View {
         DrawerContainer(
             selection: $selection,
-            presented: appState.drawerPresented,
-            onManageAll: { showAllConversations = true },
-            onOpenChannel: { showHermesChannel = true }
+            presented: appState.router.drawerPresented,
+            onOpenChannel: { channelRoute = ChannelRoute(id: $0) }
         ) {
             tabView
         }
@@ -206,33 +233,65 @@ struct ContentView: View {
                     // 聊通道（ChatView 消费导入）
                     showAllConversations = false
                     selection = .chat
-                    appState.pendingChatSessionID = id
+                    appState.router.pendingChatSessionID = id
+                },
+                onOpenSearchHit: { hit in
+                    // 台账 150：搜索命中打开——同路打开
+                    // 会话，另置落点请求（先置摘要/角
+                    // 色、后置会话 id，与频道标记同式），
+                    // ChatView 消费导入后回找命中消息收
+                    // 敛落点
+                    showAllConversations = false
+                    selection = .chat
+                    appState.router.pendingSearchFocusSnippet =
+                        hit.snippet
+                    appState.router.pendingSearchFocusRole =
+                        hit.role
+                    appState.router.pendingChatSessionID =
+                        hit.sessionID
                 },
                 onClose: { showAllConversations = false }
             )
         }
         // 0.36.29：Hermes 频道页（抽屉频道行入口）；
         // 页内打开会话与管理页同走法（关页＋切聊天格
-        // ＋续聊通道，频道标记由频道页点行时已置位）
-        .fullScreenCover(isPresented: $showHermesChannel) {
-            HermesChannelView(
-                onOpenSession: { id in
-                    showHermesChannel = false
-                    selection = .chat
-                    appState.pendingChatSessionID = id
-                },
-                onClose: { showHermesChannel = false }
-            )
+        // ＋续聊通道，频道标记由频道页点行时已置位）。
+        // 2026-11-13 频道一期：同一封皮按 id 分发——
+        // Hermes 本体走原频道页，平台频道走入口分发
+        // 器（已配对直达频道页、未配对落引导页）
+        .fullScreenCover(item: $channelRoute) { route in
+            if route.id == ChannelRegistry.hermesChannelID {
+                HermesChannelView(
+                    onOpenSession: { id in
+                        channelRoute = nil
+                        selection = .chat
+                        appState.router.pendingChatSessionID = id
+                    },
+                    onClose: { channelRoute = nil }
+                )
+            } else if let descriptor = ChannelRegistry.descriptor(
+                for: route.id
+            ) {
+                ChannelEntryView(
+                    channel: descriptor,
+                    onOpenSession: { id in
+                        channelRoute = nil
+                        selection = .chat
+                        appState.router.pendingChatSessionID = id
+                    },
+                    onClose: { channelRoute = nil }
+                )
+            }
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
         // （ChatView 侧消费切换；含从其他格开抽屉的情形）
-        .onChange(of: appState.drawerThreadSelection) { _, id in
+        .onChange(of: appState.router.drawerThreadSelection) { _, id in
             if id != nil { selection = .chat }
         }
         // 0.4.0（§3.4）：任一入口置位待续聊会话 → 切聊天格
         // （ChatView 侧消费导入；已在聊天格时 onChange 同样
         // 触发、由 ChatView 直接消费）
-        .onChange(of: appState.pendingChatSessionID) { _, id in
+        .onChange(of: appState.router.pendingChatSessionID) { _, id in
             if id != nil {
                 selection = .chat
                 // 2026-11-13：置位即「现在就去看这个
@@ -244,34 +303,62 @@ struct ContentView: View {
                 // onOpenSession、枢纽下钻）触发时抽屉
                 // 已由各自行 onClose 收过、或本就关
                 // 着，写 false 只是无副作用对账
-                appState.drawerPresented = false
+                appState.router.drawerPresented = false
             }
         }
         // 0.20.0：抽屉齿轮置位设置请求 → 呈现根级设置
         // sheet（0.6.0 的 pendingAppsPage 切格落位通道
         // 随应用格退役删除）
-        .onChange(of: appState.settingsSheetRequested) { _, requested in
+        .onChange(of: appState.router.settingsSheetRequested) { _, requested in
             if requested {
-                appState.settingsSheetRequested = false
+                appState.router.settingsSheetRequested = false
                 showSettings = true
+            }
+        }
+        // 结构归位第二批（2026-11-20，纲要 D2-1）：
+        // 抽屉名单收尾行「全部对话」置位请求 → 直开
+        // 全屏页（抽屉已由行动作先行收回、cover 升起
+        // 时名单不在场）。台账 199（2026-11-21）起
+        // 置位链两条：抽屉行（直开）与设置「服务端
+        // 会话」深链行（设置 sheet 在场时先收设置、
+        // 暂存 AfterSettings 旗，onDismiss 后升页）
+        .onChange(of: appState.router.allConversationsRequested) { _, requested in
+            if requested {
+                appState.router.allConversationsRequested = false
+                if showSettings {
+                    allConversationsAfterSettings = true
+                    showSettings = false
+                } else {
+                    showAllConversations = true
+                }
             }
         }
         // 0.29.0：设置内页面置位的切格请求（连接器目
         // 录本机服务详情的「目标/点子」入口）→关设置
         // 并切到目标格，消费后清零
-        .onChange(of: appState.mainTabSwitchRequest) { _, tab in
+        .onChange(of: appState.router.mainTabSwitchRequest) { _, tab in
             if let tab {
-                appState.mainTabSwitchRequest = nil
+                appState.router.mainTabSwitchRequest = nil
                 showSettings = false
                 selection = tab
                 // 2026-11-13：切格是「跳走」出口——自
                 // 抽屉进设置时抽屉还开着，一并收回，
                 // 落点格才看得见（口径见 showSettings
                 // 声明注）；抽屉本关着时为无副作用对账
-                appState.drawerPresented = false
+                appState.router.drawerPresented = false
             }
         }
-        .sheet(isPresented: $showSettings) {
+        .sheet(
+            isPresented: $showSettings,
+            onDismiss: {
+                // 台账 199：设置行深链的 AfterSettings
+                // 落点——设置收尽后才升全部对话全屏页
+                if allConversationsAfterSettings {
+                    allConversationsAfterSettings = false
+                    showAllConversations = true
+                }
+            }
+        ) {
             SettingsView(
                 onClose: { showSettings = false },
                 onRequestChat: {
@@ -282,7 +369,7 @@ struct ContentView: View {
                     // 一并收回，聊天面才看得见（口径见
                     // showSettings 声明注）；抽屉本关着
                     // 时为无副作用对账
-                    appState.drawerPresented = false
+                    appState.router.drawerPresented = false
                 }
             )
         }
@@ -298,7 +385,7 @@ struct ContentView: View {
         // 0.36.20（§86.2）：业务成功信号一到即把在线判
         // 定清零回写——不等 30 秒轮询，胶囊与事实同拍
         .onChange(of: appState.hermesBusinessSuccessTick) {
-            overviewStore.noteBusinessSuccess()
+            overviewStore.noteBusinessSuccess(appState: appState)
         }
         // 0.36.20（§86.4）：网络路径恢复/切换即刻重探
         // 一轮（触发器语义：只催办、不下结论）
@@ -327,8 +414,14 @@ struct ContentView: View {
             // 镜、字形才吃 tint，0.33.0 默认蓝 tint 下垫
             // 仍浅灰为证）
             Tab(value: MainTab.chat) {
-                ChatView(overviewStore: overviewStore)
-                    .tint(.primary)
+                // §434：聊天格包 NavigationStack——中枢
+                // 页改导航 push＋系统 zoom 转场的宿主栈
+                // （目的地注册在 ChatView 内）；栈只包
+                // 本格，其余格与壳层结构不动
+                NavigationStack {
+                    ChatView(overviewStore: overviewStore)
+                }
+                .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.chat)
             }
@@ -437,31 +530,27 @@ struct ContentView: View {
     /// 内容根、栏件回系统默认中性着色（见 tabView 内
     /// 0.32.0 注）；「tint 不改灰」的理由仍成立，故采
     /// 收窄作用域而非改色
+    /// §403 口径更新（§382 定因后）：本函数图标已改
+    /// 模板图资产（见 icon 处注）；标题/无障碍口径不
+    /// 变。符号名（pair.normal）自此只供抽屉名单等栏
+    /// 外消费者，底栏呈现与符号身份脱钩。
     private func tabLabel(_ pair: TabSymbolPair) -> some View {
         Label {
             Text(pair.title)
         } icon: {
-            Image(systemName: pair.normal)
-                .symbolVariant(.none)
-                // 0.33.1：渲染模式钉 monochrome（系统栏件
-                // 惯例）——单色模板渲染，杜绝 hierarchical/
-                // palette 派生让字形发实发花的余地；符号名
-                // 全表本就是 outline 原名（TabBarSymbols-
-                // Tests 钉死禁 .fill、两态同名），选中态的
-                // 填充观感来自宿主对栏件的自动 .fill 变体
-                // 派生，变体锁（本处＋根环境）双锁保留
-                .symbolRenderingMode(.monochrome)
-                // 0.22.0 字形定版（审计 T1 复量）：符号
-                // 不换、字重 regular→light 一档——探针实
-                // 测（24pt 紧致密度）：message .270→.222、
-                // lightbulb .340→.288、checklist .296→
-                // .272、tray .383→.329；候选 checkmark
-                // .square（.404）比现行 checklist 更浓、
-                // 否决（§49）。字体直接钉在图上随图进宿
-                // 主构建（与 0.4.3 的子树环境到不了构建
-                // 处是两回事）；底栏呈现终由系统介导，
-                // 落档以真机终审 V3 并排为准
-                .font(.system(size: 24, weight: .light))
+            // §403（§382 B1 落地）：图标脱离 symbol 身
+            // 份、改模板图资产——iOS 26 宿主在条目构建
+            // 层注入的 fill 变体只作用于活 symbol image
+            // （定因 DESIGN §403），普通模板图无从替
+            // 换。资产由系统 CoreGlyphs 矢量母版按
+            // 24pt light 标定生成（Scripts/make-tab-
+            // assets.swift），画布＝符号原布局框、两态
+            // 同图；原 L3 的 symbol 专属修饰（symbol-
+            // Variant/symbolRenderingMode/.font）随之
+            // 退役。结构钉测 TabBarTemplateAsset-
+            // StructureTests 把守本处不得回归
+            // Image(systemName:)。
+            Image(pair.asset)
         }
         .labelStyle(.iconOnly)
         // 0.34.0（底栏填充正解，论坛调研 tabbar-fill-
@@ -484,6 +573,11 @@ struct ContentView: View {
         // CI 侧无法证伪/证实此项，终审仍以 JJ 真机逐
         // 格对 Muse 为准；本版判死则转备选 B（四字
         // 形导出模板图资产、脱离 symbol 身份）
+        // §403 后记：预注册决策树已走完——真机定因判
+        // A 案（环境直赋）不足恃、B1 模板资产已落地
+        // （见 tabLabel icon 处注），本行自此降为防线
+        // 保留（对资产图无作用、对未来混入的 symbol
+        // 仍生效），与 TabView 外层 L1 同口径。
         .environment(\.symbolVariants, .none)
         .accessibilityLabel(pair.title)
     }

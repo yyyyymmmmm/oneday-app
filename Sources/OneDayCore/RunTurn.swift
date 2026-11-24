@@ -453,26 +453,96 @@ public struct RunLedgerEntry: Codable, Sendable, Equatable {
 }
 
 public enum RunLedger {
-    /// 同线程只留一条（新一轮覆盖旧账——发送互斥保
-    /// 证同线程同时至多一轮未落定）
+    /// §451（发送机制换代）：同线程多条并存——身份
+    /// 键＝(threadID, userEntryID)。提交可先行多轮
+    /// （服务端 FIFO 排班），账本逐条记各轮凭据；同
+    /// 键 upsert 原位更新（提交前落账→受理后补
+    /// runID 是同一条的两写，不许换位改序）。旧单
+    /// 条口径（同线程只留一条、新轮覆盖旧账）随发
+    /// 送互斥退役而作废；存量落盘数据同为数组、读
+    /// 入天然兼容。
     public static func upsert(
         _ entries: [RunLedgerEntry], _ entry: RunLedgerEntry
     ) -> [RunLedgerEntry] {
-        var next = entries.filter { $0.threadID != entry.threadID }
-        next.append(entry)
+        var next = entries
+        if let index = next.firstIndex(where: {
+            $0.threadID == entry.threadID
+                && $0.userEntryID == entry.userEntryID
+        }) {
+            next[index] = entry
+        } else {
+            next.append(entry)
+        }
         return next
     }
 
+    /// 线程内最早一条未落定账（提交序 FIFO 头）：
+    /// 恢复/对账的接管点恒取它——后条再急也不许越
+    /// 过头条落定（消费按提交序，§451 App-3）
     public static func entry(
         forThreadID id: String, in entries: [RunLedgerEntry]
     ) -> RunLedgerEntry? {
-        entries.first { $0.threadID == id }
+        RunLedger.entries(forThreadID: id, in: entries).first
     }
 
+    /// 线程内全部未落定账，按提交序（submittedAt）
+    public static func entries(
+        forThreadID id: String, in entries: [RunLedgerEntry]
+    ) -> [RunLedgerEntry] {
+        entries
+            .filter { $0.threadID == id }
+            .sorted { $0.submittedAt < $1.submittedAt }
+    }
+
+    /// 整线程清账（线程删除等全清口径才用；单轮落
+    /// 定清账走 removing(userEntryID:)——多条并存
+    /// 后按线程删会误清同线程其他未落定轮）
     public static func removing(
         threadID: String, from entries: [RunLedgerEntry]
     ) -> [RunLedgerEntry] {
         entries.filter { $0.threadID != threadID }
+    }
+
+    /// 单轮清账：只删本轮这一条
+    public static func removing(
+        userEntryID: String, from entries: [RunLedgerEntry]
+    ) -> [RunLedgerEntry] {
+        entries.filter { $0.userEntryID != userEntryID }
+    }
+}
+
+/// §451 提交错误分型（与 driveRun 提交段同口径单
+/// 源）：提交泵 performSubmit 与 driveRun 共用同一
+/// 分型——确定未发出（设备无网、请求没出设备）折
+/// 回待发巷；瞬断（transientNetwork）有界重试、同
+/// key 重演回原 run；其余（鉴权/状态码/解码）为明
+/// 确拒绝。非 HermesError 照 driveRun 口径归结果
+/// 未知（瞬态档：重试耗尽后账本留席交对账，不定
+/// 性为错误）。429（全局并发帽）/409（queue_full）
+/// 经客户端 unexpectedStatus 到达、归明确拒绝：
+/// 条目落 .failed 未受理失败，堵泵走发件箱重试轨
+/// （DESIGN §451）。
+public enum RunSubmitRetry {
+    public enum Classification: Sendable {
+        case notSentOffline
+        case transient
+        case rejected
+    }
+
+    /// 瞬态重试上限（driveRun 同值：首投之外至多
+    /// 再试 2 次，恒同幂等键）
+    public static let maxTransientRetries = 2
+
+    public static func classify(
+        _ error: Error
+    ) -> Classification {
+        guard let hermesError = error as? HermesError
+        else { return .transient }
+        if case .notSentOffline = hermesError {
+            return .notSentOffline
+        }
+        if hermesError.isTransient { return .transient }
+        return .rejected
     }
 }
 
@@ -496,10 +566,31 @@ public struct SettledRunTurn: Sendable, Equatable {
     public var failed: Bool
     /// 服务端失败边界行原文（横幅文案兜底）
     public var failureText: String?
+    /// 台账 187：本轮锚点 user 行的服务端行 id（段
+    /// 定位键：§451 起即入参锚行本身、无锚口径下
+    /// 为末条 user 行——恒精确）：
+    /// 落定点据此给本地 user 条目钉 serverRowID（反
+    /// 应寻址坐标）；取不到（异常 id）为 nil
+    public var userRowID: Int?
+    /// 台账 187：终答正文的服务端行 id——仅当正文
+    /// 恰出自段内一条 assistant 行时给出；多行拼接
+    /// 成文时钉任一行都是错址，恒 nil（那类条目的
+    /// 钉桩留给导入/回补路径，行被拆开落盘后各自成
+    /// 条目、坐标自明）
+    public var assistantRowID: Int?
+    /// 总表 203／§441：本轮最终 assistant 行的选
+    /// 择框载荷与行 id——提取口在段内取带 options
+    /// 的最后一条 assistant 行（终态 attach 每轮
+    /// 至多挂一行）；落定点据此播种本机覆盖层。
+    /// 失败轮恒 nil（失败分支先行返回）
+    public var options: MessageOptions?
+    public var optionsRowID: Int?
 
     public init(
         found: Bool, toolCards: [ToolCard], reasoning: String?,
-        finalText: String?, failed: Bool, failureText: String?
+        finalText: String?, failed: Bool, failureText: String?,
+        userRowID: Int? = nil, assistantRowID: Int? = nil,
+        options: MessageOptions? = nil, optionsRowID: Int? = nil
     ) {
         self.found = found
         self.toolCards = toolCards
@@ -507,6 +598,10 @@ public struct SettledRunTurn: Sendable, Equatable {
         self.finalText = finalText
         self.failed = failed
         self.failureText = failureText
+        self.userRowID = userRowID
+        self.assistantRowID = assistantRowID
+        self.options = options
+        self.optionsRowID = optionsRowID
     }
 
     public static let notFound = SettledRunTurn(
@@ -519,10 +614,40 @@ public enum RunTranscriptSettle {
     public static func settle(
         messages: [SessionMessage]
     ) -> SettledRunTurn {
-        guard let lastUserIndex = messages.lastIndex(
-            where: { $0.role == "user" }
-        ) else { return .notFound }
-        let segment = Array(messages[(lastUserIndex + 1)...])
+        settle(messages: messages, anchorRowID: nil)
+    }
+
+    /// §451（发送机制换代）锚定提取：本轮 user 行以
+    /// 服务端行 id 定位，段＝锚行之后、下一条 user
+    /// 行之前——多轮已受理时，后轮的 user/assistant
+    /// 行不许串进本轮段（旧「末条 user 行」锚在多
+    /// 轮并存、对账迟到时必串段，本函数是其替代）。
+    /// 锚已给出但 transcript 无此行＝本轮段尚未落
+    /// 盘：回 .notFound 由对账重试，绝不回落末条锚
+    /// （宁迟勿错）。anchorRowID 为 nil 沿旧口径
+    /// （锚＝末条 user 行、段至 transcript 末尾），
+    /// 供尚无服务端行 id 的调用方兼容。
+    public static func settle(
+        messages: [SessionMessage], anchorRowID: Int?
+    ) -> SettledRunTurn {
+        let anchorIndex: Int
+        if let anchorRowID {
+            guard let index = messages.firstIndex(where: {
+                $0.role == "user" && Self.rowID($0) == anchorRowID
+            }) else { return .notFound }
+            anchorIndex = index
+        } else {
+            guard let index = messages.lastIndex(
+                where: { $0.role == "user" }
+            ) else { return .notFound }
+            anchorIndex = index
+        }
+        let segmentEnd = messages[(anchorIndex + 1)...]
+            .firstIndex { $0.role == "user" }
+            ?? messages.endIndex
+        let segment = Array(
+            messages[(anchorIndex + 1)..<segmentEnd]
+        )
         let hasTurnRows = segment.contains {
             $0.role == "assistant" || $0.role == "tool"
         }
@@ -537,7 +662,8 @@ public enum RunTranscriptSettle {
             return SettledRunTurn(
                 found: true, toolCards: [], reasoning: nil,
                 finalText: nil, failed: true,
-                failureText: text.isEmpty ? nil : text
+                failureText: text.isEmpty ? nil : text,
+                userRowID: Self.rowID(messages[anchorIndex])
             )
         }
 
@@ -557,17 +683,21 @@ public enum RunTranscriptSettle {
                     )
             }
             .filter { !$0.isEmpty }
-        let textParts = segment
+        let textRows = segment
             .filter {
                 $0.role == "assistant"
                     && $0.displayKind != "hidden"
             }
             .map {
-                $0.content.trimmingCharacters(
-                    in: .whitespacesAndNewlines
+                (
+                    row: $0,
+                    text: $0.content.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
                 )
             }
-            .filter { !$0.isEmpty }
+            .filter { !$0.text.isEmpty }
+        let textParts = textRows.map(\.text)
         guard !cards.isEmpty || !textParts.isEmpty
                 || !reasoningParts.isEmpty
         else { return .notFound }
@@ -578,8 +708,24 @@ public enum RunTranscriptSettle {
                 ? nil : reasoningParts.joined(separator: "\n\n"),
             finalText: textParts.isEmpty
                 ? nil : textParts.joined(separator: "\n\n"),
-            failed: false, failureText: nil
+            failed: false, failureText: nil,
+            userRowID: Self.rowID(messages[anchorIndex]),
+            assistantRowID: textRows.count == 1
+                ? Self.rowID(textRows[0].row) : nil,
+            options: segment.last(where: {
+                $0.role == "assistant" && $0.options != nil
+            })?.options,
+            optionsRowID: segment.last(where: {
+                $0.role == "assistant" && $0.options != nil
+            }).flatMap { Self.rowID($0) }
         )
+    }
+
+    /// 服务端行 id 的整数形（台账 187，与 Session-
+    /// HistoryImport 的钉桩口径同）：正整数才成坐标
+    private static func rowID(_ message: SessionMessage) -> Int? {
+        guard message.id > 0 else { return nil }
+        return Int(exactly: message.id)
     }
 
     /// 落定对账补缺（0.36.29，题 B 自愈）：服务端存档
@@ -677,13 +823,62 @@ public enum RunTranscriptSettle {
         )],
         timeWindow: TimeInterval = 600
     ) -> UserMessageReconcile {
+        pairUserMessages(
+            messages: messages,
+            localUserEntries: localUserEntries,
+            timeWindow: timeWindow
+        ) { _, _ in }
+    }
+
+    /// §451：配对图——本地条目下标（入参序位）→ 服
+    /// 务端 user 行 id。与 reconcileUserMessages 共
+    /// 用同一贪心配对回路（pairUserMessages），判同
+    /// 口径逐字一致：落定提取改锚时 App 凭本地条目
+    /// 查本轮 user 行 id（条目 serverRowID 尚未回填
+    /// 时的解析路）。配不上（服务端尚无此行）即无键。
+    public static func pairedRowIDs(
+        messages: [SessionMessage],
+        localUserEntries: [(
+            content: String, createdAt: Date,
+            filePaths: [String], imagePaths: [String]
+        )],
+        timeWindow: TimeInterval = 600
+    ) -> [Int: Int] {
+        var result: [Int: Int] = [:]
+        _ = pairUserMessages(
+            messages: messages,
+            localUserEntries: localUserEntries,
+            timeWindow: timeWindow
+        ) { localIndex, server in
+            if let rowID = Self.rowID(server) {
+                result[localIndex] = rowID
+            }
+        }
+        return result
+    }
+
+    /// 贪心配对回路本体：服务端 user 行（滤隐藏/
+    /// 空文）按 transcript 序，本地条目按时间序逐
+    /// 条配对（规范化正文全等＋路径集规则＋时间窗
+    /// 内）。产出缺行与路径回填（对账口径），每配
+    /// 上一对回调 onPair（本地入参序位，服务端行）。
+    private static func pairUserMessages(
+        messages: [SessionMessage],
+        localUserEntries: [(
+            content: String, createdAt: Date,
+            filePaths: [String], imagePaths: [String]
+        )],
+        timeWindow: TimeInterval,
+        onPair: (Int, SessionMessage) -> Void
+    ) -> UserMessageReconcile {
         let serverUsers = messages.filter {
             $0.role == "user" && $0.displayKind != "hidden"
                 && !$0.content.trimmingCharacters(
                     in: .whitespacesAndNewlines
                 ).isEmpty
         }
-        var locals = localUserEntries.map { entry in
+        var locals = localUserEntries.enumerated().map {
+            offset, entry in
             let normalized = SessionHistoryImport
                 .normalizedUserContent(entry.content)
             return (
@@ -697,7 +892,8 @@ public enum RunTranscriptSettle {
                     .union(entry.filePaths),
                 imagePaths: Set(normalized.imagePaths)
                     .union(entry.imagePaths),
-                createdAt: entry.createdAt
+                createdAt: entry.createdAt,
+                originalIndex: offset
             )
         }.sorted { $0.createdAt < $1.createdAt }
         var missing: [SessionMessage] = []
@@ -725,6 +921,7 @@ public enum RunTranscriptSettle {
             }
             if let pairedIndex {
                 let local = locals.remove(at: pairedIndex)
+                onPair(local.originalIndex, server)
                 // 配上对：服务端路径本地未全持有才回填
                 // （fileRefs/imagePaths 分开核，任一缺
                 // 即整条产出，App 侧按字段各自补缺）

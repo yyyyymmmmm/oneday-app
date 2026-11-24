@@ -12,6 +12,9 @@ import OneDayCore
 @Observable
 final class ModelManagementStore {
     private(set) var rawConfig: [String: JSONValue] = [:]
+    /// §390：辅助端点贵模型待确认三元组（槽位＋服务商＋
+    /// 模型）——用户再存一次同值即带确认重发
+    var pendingAuxConfirm: (key: String, provider: String, model: String)?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     var notice: String?
@@ -84,7 +87,8 @@ final class ModelManagementStore {
 
     // MARK: - 加载
 
-    func load(appState: AppState) async {
+/// §416 新鲜度普查豁免：config 编辑面——写回纪律要求读全量现值；模型目录已走 AppState §368 门口径（判定表见 DESIGN §416）
+    func load(appState: AppState, forceCatalog: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
@@ -96,7 +100,14 @@ final class ModelManagementStore {
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? L10n.string("配置没读出来，可能是网络或服务暂时没响应")
         }
-        await appState.refreshModelCatalog()
+        // §368：目录取数收口 AppState 新鲜度门——冷口
+        // 在 TTL 内 0 请求；下拉刷新经 forceCatalog 走
+        // 强制口必真拉
+        if forceCatalog {
+            await appState.refreshModelCatalogForced()
+        } else {
+            await appState.refreshModelCatalog()
+        }
         if appState.config != nil {
             let names = providers.map(\.name)
             let fetched = try? await appState.performAdmin {
@@ -387,6 +398,9 @@ final class ModelManagementStore {
             try await client.updateConfig(config: config, newConfig: updated)
         }
         rawConfig = updated
+        // §368：config 写成功即失效目录（服务商增删/
+        // 辅助分配都经此底座，目录分组随注册表变）
+        appState.invalidateModelCatalog()
     }
 }
 
@@ -419,10 +433,17 @@ extension ModelManagementStore {
         return PresetSnapshot.usesMoA(active)
     }
 
-    /// 保存一行辅助分配：走 Dashboard config 全量写
-    /// 回（通道选型见 DESIGN §119——与服务商/默认模
-    /// 型同一条既有写路，不给伴生加新端点）；写回文
-    /// 案如实标重启生效（热生效未验，§103.6 旧账③）
+    /// 保存一行辅助分配（§390 H9 对齐，取代 §119 写路）：
+    /// provider/model 改走 Hermes 本体专用端点
+    /// POST /api/model/set（scope=auxiliary，与网页端同
+    /// 一写口；§119「不给伴生加新端点」是伴生口径、本体
+    /// 专用端点不在此列）；写后以 GET /api/model
+    /// /auxiliary 回读该行对账，本地 rawConfig 只做镜像
+    /// 同步、不再发第二次网络写。贵模型未确认时端点回
+    /// confirm_required——原话提示、再存一次同值即确认。
+    /// enabled 开关端点无此字段，仍走 config 写回（两
+    /// 个带开关的槽才走这条罕见路径，且写在端点写之前、
+    /// 端点是 provider/model 的最后写者，不互相覆盖）
     func saveAux(
         slot key: String, assignment: AuxAssignment,
         enabled: Bool?, appState: AppState
@@ -430,12 +451,47 @@ extension ModelManagementStore {
         let staged = AuxAssignments.applying(
             assignment, enabled: enabled, slot: key, to: rawConfig
         )
+        let choice = assignment.slotChoice
+        let confirming = pendingAuxConfirm.map {
+            $0.key == key && $0.provider == choice.provider
+                && $0.model == choice.model
+        } ?? false
         do {
-            try await writeBack(appState: appState) { config in
-                config["auxiliary"] = staged["auxiliary"]
+            if enabled != nil {
+                try await writeBack(appState: appState) { config in
+                    config["auxiliary"] = staged["auxiliary"]
+                }
             }
+            let receipt = try await appState.performAdmin { client, config in
+                try await client.setModelAssignment(
+                    config: config, scope: "auxiliary", task: key,
+                    provider: choice.provider, model: choice.model,
+                    confirmExpensive: confirming
+                )
+            }
+            if receipt.confirmRequired {
+                pendingAuxConfirm = (
+                    key: key, provider: choice.provider, model: choice.model
+                )
+                notice = (receipt.confirmMessage ?? L10n.string("这个模型比较贵。"))
+                    + L10n.string("确认要用，再点一次保存。")
+                return
+            }
+            pendingAuxConfirm = nil
+            let page = try await appState.performAdmin { client, config in
+                try await client.auxiliaryTasks(config: config)
+            }
+            // 本地镜像同步（端点已写服务端 config 同一
+            // 文件；这里只让呈现层跟上，不发第二次写）
+            rawConfig = staged
             recomputeAux()
-            notice = L10n.string("已保存，下次重启 Hermes 后生效。")
+            let readBack = page.tasks.first { $0.task == key }?
+                .assignment(namedProviders: providers.map(\.name))
+            if readBack == assignment {
+                notice = L10n.string("已保存，新会话起生效。")
+            } else {
+                notice = L10n.string("服务端受理了保存，但回读对不上，先按服务端原样显示。")
+            }
         } catch {
             notice = (error as? HermesError)?.userMessage
                 ?? L10n.string("保存失败，请稍后再试。")
@@ -499,7 +555,9 @@ extension ModelManagementStore {
     func testMainEndpoint(
         appState: AppState
     ) async -> ProviderConnectionOutcome {
-        await appState.refreshModelCatalog()
+        // §368：测连通以目录刷新结果为准，走强制口——
+        // 被 TTL 吞了就是拿旧清单冒充连通
+        await appState.refreshModelCatalogForced()
         return appState.availableModels.isEmpty
             ? .failed(message: L10n.string("没能读到网关的模型清单，检查网络与登录状态后再试。"))
             : .connected(modelCount: appState.availableModels.count)

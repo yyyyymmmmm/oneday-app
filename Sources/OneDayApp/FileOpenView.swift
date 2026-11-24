@@ -29,11 +29,13 @@ enum FileOpenOrigin {
 struct FileOpenView: View {
     let target: FileOpenTarget
     var origin: FileOpenOrigin = .serverFile
-    /// §129：404 时「让智能体重新发」的宿主落点
-    /// （聊天来源由 ChatView 注入：预填落当前线程
-    /// 输入舱）；不注入时 FileOpenContent 走新建
-    /// 对话同制（文件页/资料库来源）
-    var onRequestResend: ((String) -> Void)? = nil
+    /// §129 落点、§219 改通道：404 时「让智能体重
+    /// 新发」的宿主落点（聊天来源由 ChatView 注
+    /// 入：文件引用挂当前线程发送舱）；不注入时
+    /// FileOpenContent 走新建对话＋按线程寻址直写
+    /// 同制（文件页/资料库来源）。回调载荷自 §219
+    /// 起是 FileQuote 值快照，不再是整段预填文
+    var onRequestResend: ((FileQuote) -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -58,13 +60,13 @@ struct FileOpenContent: View {
     private var target: FileOpenTarget { currentTarget }
     var origin: FileOpenOrigin = .serverFile
     var showsCloseButton: Bool = false
-    var onRequestResend: ((String) -> Void)? = nil
+    var onRequestResend: ((FileQuote) -> Void)? = nil
 
     init(
         target: FileOpenTarget,
         origin: FileOpenOrigin = .serverFile,
         showsCloseButton: Bool = false,
-        onRequestResend: ((String) -> Void)? = nil
+        onRequestResend: ((FileQuote) -> Void)? = nil
     ) {
         _currentTarget = State(initialValue: target)
         self.origin = origin
@@ -79,9 +81,7 @@ struct FileOpenContent: View {
     }
 
     private enum Destination: Hashable {
-        case reader
         case quickLook
-        case spreadsheet
     }
 
     @State private var phase: Phase = .ready
@@ -220,8 +220,6 @@ struct FileOpenContent: View {
         }
         .navigationDestination(item: $destination) { dest in
             switch dest {
-            case .reader:
-                DocumentReaderView(entry: entry, anchor: target.anchor)
             case .quickLook:
                 if let previewItem {
                     QuickLookHostView(
@@ -229,8 +227,6 @@ struct FileOpenContent: View {
                         data: downloadedData
                     )
                 }
-            case .spreadsheet:
-                SpreadsheetReaderView(target: target)
             }
         }
         .sheet(item: $shareItem) { item in
@@ -501,25 +497,31 @@ struct FileOpenContent: View {
         return actions
     }
 
-    /// 「让智能体重新发」落点（§129）：宿主注入了
-    /// 落点（聊天来源）就交给宿主（预填落当前线程
-    /// 输入舱）；没有注入（文件页/资料库来源）照
-    /// §123 讨论同制——新建一条对话、预填进草稿、
-    /// 切到聊天格。两路都只预填不代发；执行后关
+    /// 「让智能体重新发」落点（§129 立形、§219 引
+    /// 用化）：宿主注入了落点（聊天来源）就把文件
+    /// 引用交给宿主挂当前线程发送舱；没有注入（文
+    /// 件页/资料库来源）照讨论同制——新建一条对
+    /// 话、引用直写新线程的待发状态（按线程寻址、
+    /// 落点决定与写入同动作）、切到聊天格。两路都
+    /// 只挂引用不代发。§219 前两路都是机器文直落
+    /// 亲笔面（宿主路直写 input、同线程回存时进草
+    /// 稿账；无宿主路经 setDraft 直写草稿账），与
+    /// 动态讨论同病（定性见 §208），本包一并堵死。
+    /// 重发话术三要点（名／原路径／确认后重发）由
+    /// FileQuote 的组装承接、语义零丢失。执行后关
     /// 本页（push 形态下 dismiss 即返回上一层）
     private func requestResend() {
-        let prefill = FileResendPrefill.make(
-            name: target.name, path: target.path
-        )
+        let quote = FileQuote(target: target)
         if let onRequestResend {
-            onRequestResend(prefill)
+            onRequestResend(quote)
         } else {
             let thread = ChatThread()
             modelContext.insert(thread)
             try? modelContext.save()
-            appState.sideChats.setDraft(prefill, for: thread.id)
-            appState.drawerThreadSelection = thread.id
-            appState.mainTabSwitchRequest = .chat
+            appState.pendingQuotes.sourceQuotesByThread[thread.id] =
+                .file(quote)
+            appState.router.drawerThreadSelection = thread.id
+            appState.router.mainTabSwitchRequest = .chat
         }
         dismiss()
     }
@@ -539,10 +541,6 @@ struct FileOpenContent: View {
     private func runPrimary(_ action: FileLandingAction) {
         notice = nil
         switch route {
-        case .reader:
-            destination = .reader
-        case .spreadsheet:
-            destination = .spreadsheet
         case .quickLook:
             startPreviewDownload()
         case .saveOnly:
@@ -620,7 +618,7 @@ struct FileOpenContent: View {
         case .preview, .delete, .pin, .unpin, .rename, .openInFiles:
             // readingActions 不含这几项（后四项由顶栏菜
             // 单 performMenu 分发），落到即策略表漂移
-            // ——静默不执行（与阅读页同口径）
+            // ——静默不执行（与预览面同口径）
             break
         }
     }
@@ -641,9 +639,9 @@ struct FileOpenContent: View {
         case .openInFiles:
             // 回指文件页：先置定位请求、再切格、本页
             // 退场——DeliverablesView 消费后滚动高亮
-            // （跨面通道口径见 AppState.fileRevealPath）
-            appState.fileRevealPath = target.path
-            appState.mainTabSwitchRequest = .files
+            // （跨面通道口径见 AppState.router.fileRevealPath）
+            appState.router.fileRevealPath = target.path
+            appState.router.mainTabSwitchRequest = .files
             dismiss()
         case .copyText, .exportPDF, .share, .download:
             performSecondary(action)
@@ -732,7 +730,13 @@ struct FileOpenContent: View {
                 notice = L10n.string(
                     "改名没完成：新文件没有确认成功，原文件保持不变。"
                 )
-                Haptics.error()
+                // §488 触感分拣改判 warning 档：本支不是
+                // 真失败——改名链已走完、回读没能确认新
+                // 文件落定（原文件未动），属表 D 本义的
+                // 「结果未确认」；与删除未生效等同类落点
+                // 同档。请求抛错的真失败在下方 catch 支
+                // 仍归 error 档
+                Haptics.warning()
                 return
             }
             var oldRemoved = true
@@ -759,6 +763,11 @@ struct FileOpenContent: View {
                 mimeType: target.mimeType, anchor: target.anchor
             )
             appState.fileLibraryRevision += 1
+            // §416：改名是名单外写动作——名单店新鲜
+            // 度同步失效，下轮读触发必真拉（与修订号
+            // 同拍，文件页重跑过门也不许跳）
+            appState.sharedLibraryListStore()
+                .invalidateFreshness()
             if oldRemoved {
                 notice = L10n.format("已改名为「%@」", newName)
                 Haptics.success()
@@ -931,12 +940,44 @@ struct QuickLookHostView: View {
                 notice = "已复制全文。"
                 Haptics.success()
             }
-        case .exportPDF, .preview, .delete,
+        case .exportPDF:
+            exportPDF()
+        case .preview, .delete,
              .pin, .unpin, .rename, .openInFiles:
             // readingActions 不出这几项（后四项是打开
             // 页专属），落到即策略表漂移——静默不执行
             break
         }
+    }
+
+    /// 导出 PDF（§259 补齐）：文本类 §259 起进本 QL
+    /// 承载面、readingActions 会出导出 PDF——与打开
+    /// 页 exportPDF 同链（块模型排版），不许留死按钮
+    private func exportPDF() {
+        guard let data,
+              let kind = DocumentTextKind.kind(
+                  forFileName: entry.name
+              ),
+              let text = FileTextExtractor.plainText(
+                  from: data, entry: entry
+              ),
+              let pdf = DocumentPDFExporter.pdfData(
+                  title: DeliverableFileType.displayTitle(
+                      forFileName: entry.name
+                  ),
+                  blocks: DocumentReading.blocks(
+                      for: text, kind: kind
+                  )
+              )
+        else {
+            notice = "导出 PDF 失败，请稍后再试。"
+            Haptics.error()
+            return
+        }
+        shareItem = try? FileShareItem.write(
+            data: pdf,
+            name: "\(DeliverableFileType.displayTitle(forFileName: entry.name)).pdf"
+        )
     }
 }
 

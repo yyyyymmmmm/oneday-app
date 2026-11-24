@@ -124,6 +124,44 @@ public enum Palette {
     public static let chatSurface = appleColor(
         light: 0xFCFCFC, dark: .systemBackground
     )
+    /// 聊天页背景（台账 179，OB-I1，DESIGN §391）：只供
+    /// 聊天页背景层现读——默认档与 chatSurface 逐值相
+    /// 同；雾灰/石板为冷中性灰阶（浅/暗成对）。抽屉、
+    /// 接缝等共用 chatSurface 的面不读本口、恒守定版
+    public static var chatBackground: Color {
+        switch AppearancePreferences.backgroundStyle() {
+        case .standard:
+            return chatSurface
+        case .mist:
+            return appleColor(
+                light: 0xF0F0F2,
+                dark: UIColor(
+                    red: 0x11 / 255.0, green: 0x11 / 255.0,
+                    blue: 0x13 / 255.0, alpha: 1
+                )
+            )
+        case .slate:
+            return appleColor(
+                light: 0xE6E6EA,
+                dark: UIColor(
+                    red: 0x1A / 255.0, green: 0x1A / 255.0,
+                    blue: 0x1E / 255.0, alpha: 1
+                )
+            )
+        }
+    }
+    /// 抽屉接缝中间层底（§351）：深色开态卡面横向
+    /// 内缩露出的中间带读本色——深 #191919 出处＝
+    /// 2026-11-22 用户 Muse 真机视频定格量测
+    /// （接缝三段台阶：抽屉面 #000000 → 中间带
+    /// lum≈24 ≈ #191919、宽约 14–16pt → 卡面
+    /// #2C2C2E，见 DrawerCardGeometry.darkCard-
+    /// LeadingInset）；浅档与 pageBG 同值 #FCFCFC
+    /// ——浅色该带即旧容器底色、视觉零变化（浅色
+    /// 接缝层次走 §345 柔影、不走本层）
+    public static let drawerBackdrop = appleColor(
+        light: 0xFCFCFC, dark: UIColor(white: 25.0 / 255.0, alpha: 1)
+    )
     /// 选中填充（OpenMuse 底栏激活项 #F0F1F2，App.tsx:
     /// 464；暗档 0.36.1 改挂 systemFill (120,120,128，
     /// α 为系统常量、暗档实测 0.36)——压卡面合成实算
@@ -132,6 +170,54 @@ public enum Palette {
     /// 方 fillPrimary）
     public static let selectionFill = appleColor(
         light: 0xF0F1F2, dark: .systemFill
+    )
+    /// 抽屉专用选中填充（§225，Muse 对齐三项包）：
+    /// 本令牌只供抽屉三行（导航/频道/旁聊当前行）
+    /// 选中垫。浅档沿革：§225 取 #E4E5E7（当时面板
+    /// 为 thinMaterial 合成面、需加深才立得住）；
+    /// 2026-11-21 抽屉样板对齐包改 #EEEFF1——§318
+    /// 后面板已是 chatSurface 实色 #FCFCFC，用户亲
+    /// 递 Muse 现行版截图三点采样选中胶囊正是
+    /// #EEEFF1 压 #FCFCFC（逐通道 Δ14/13/11），直
+    /// 接落样板原值、不再加深。暗档挂 tertiary-
+    /// SystemBackground #2C2C2E 不变——压纯黑面板
+    /// Δ44、与浅档「面上一档灰」语义等值（样板无
+    /// 深色图、按角色等值口径，见交卷报告）。selec-
+    /// tionFill 本体与其余消费面不动
+    public static let drawerSelectionFill = appleColor(
+        light: 0xEEEFF1, dark: .tertiarySystemBackground
+    )
+    /// 抽屉分区头墨（2026-11-21 样板对齐包）：只供
+    /// 抽屉分区头与折叠态「显示」字样。浅档 #9D9DA2
+    /// ——样板分组头核心色三点采样 #9FA0A2/#9D9DA2、
+    /// 「显示」#9B9C9E，同值落点。明示代价：本色压
+    /// 面板 #FCFCFC 对比约 2.6:1、不达 4.5 文字线
+    /// ——0.22.0 审计 G1/D2 正是因此把分区头自弱墨
+    /// 换到 inkSecondary（5.27:1）；本包按用户
+    /// 2026-11-21「颜色也要学」亲令只在**抽屉分区
+    /// 头**这一处回退到样板原值（装饰性导航标签、
+    /// 非正文），其余一切要读的字仍守 inkSecondary
+    /// 纪律、本令牌不许外溢。暗档挂 secondaryLabel
+    /// （压纯黑合成约 #8E8E96、对比约 6.9:1 自达
+    /// 标）——样板无深色图、按角色等值口径
+    public static let drawerSectionInk = appleColor(
+        light: 0x9D9DA2, dark: .secondaryLabel
+    )
+    /// 抽屉组间发丝线色（2026-11-21 样板对齐包）：
+    /// 只供抽屉 drawerDivider。浅档 #E3E3E3——样板
+    /// 分隔线核心色采样 #E2E2E2/#E3E3E3，压实色面
+    /// 板 #FCFCFC 逐通道 Δ25/25/25、淡但可辨
+    /// （样板本体即此观感）。沿革：抽屉线旧挂
+    /// Palette.separator（α 语义、压本面合成约
+    /// #C4C4C8、Δ约 56）——那是 0.36.x 材质面板时
+    /// 代「发丝线不可见」（用户 05:34 点题）后的加
+    /// 强档；§318 面板改实色后前提已变、本包按样
+    /// 板原值回落本令牌，全 App 其余分隔仍走
+    /// separator 单源不动。暗档挂 opaqueSeparator
+    /// #38383A（与 hairline 暗档同值、压纯黑 Δ56
+    /// 同级可辨）
+    public static let drawerHairline = appleColor(
+        light: 0xE3E3E3, dark: .opaqueSeparator
     )
     /// 设置页底（0.20.0，用户给的 Muse 设置页真机图
     /// 口径：浅灰底托白色分组卡，图中约 #F2F2F4 级）：
@@ -184,9 +270,14 @@ public enum Palette {
     /// 0.26.0 起主题化：值自当前主题表——默认「三狗」
     /// 行与上述旧值逐字相同，切回默认即回原貌。
     public static var userBubbleFill: Color {
+        // 台账 197 定版（§335）：处理经 Core 解析
+        // 出口（浅档浅填＋深字／暗档深饱维持）——
+        // 本层只取解析结果，不自算混色、不硬编码
+        // 色值
         let theme = currentChatTheme
         return themedColor(
-            light: theme.bubbleLight, dark: theme.bubbleDark
+            light: theme.bubbleFill(dark: false),
+            dark: theme.bubbleFill(dark: true)
         )
     }
 
@@ -196,10 +287,12 @@ public enum Palette {
     /// #EDF1F3、对暗泡实算对比仅 4.28 压线，本版随主
     /// 题表修正为 4.87（§53 登记）
     public static var userBubbleText: Color {
+        // 台账 197 定版（§335）：与 userBubbleFill
+        // 同一解析出口成对取值（浅深字/暗现泡字）
         let theme = currentChatTheme
         return themedColor(
-            light: theme.bubbleTextLight,
-            dark: theme.bubbleTextDark
+            light: theme.bubbleText(dark: false),
+            dark: theme.bubbleText(dark: true)
         )
     }
 
@@ -309,8 +402,10 @@ public enum Palette {
     /// 接/图标/角标/光标的实色；暗色派生亮化 #5EB1EF）
     /// 0.26.0 起主题化：值自当前主题强调行——默认
     /// 「三狗」行浅档 0.41.0 起按浅档专项加深一档
-    /// （0x1473C8→0x136FC1，见 ChatTheme 注），与上
-    /// 述旧值脱钩是本意；暗档仍逐字相同。
+    /// （0x1473C8→0x136FC1，2026-11-15 第 85 条再深
+    /// 一档至 0x1268B8——压助手泡面 #EEEEF0 4.45 差
+    /// 线 0.05，见 ChatTheme 注），与上述旧值脱钩是
+    /// 本意；暗档仍逐字相同。
     public static var primary: Color {
         let theme = currentChatTheme
         return themedColor(
@@ -320,16 +415,38 @@ public enum Palette {
     /// 强调实填：与 primary 同源同值（0.26.0 前即同
     /// 值双名，本版直接别名化，语义不变）
     public static var primaryFill: Color { primary }
+    /// 主钮饱和蓝（2026-11-24 用户亲裁新增）：饱和
+    /// 蓝底＋白字，对位 Muse 点子 sheet 样张（采样
+    /// 自用户 2026-11-24 04:06 附件图一「开始吧」钮
+    /// 面，钮面像素中位 #0064D4）；初落仅点子详情
+    /// sheet「开始吧」一钮（推翻第 85 条 BC-1 在该
+    /// 钮的 primaryPale＋onPrimary 口径），同日主线
+    /// 裁决扩为全 App 主按钮统一面：点子「打开对
+    /// 话」、目标介绍卡「开始吧」、审批卡「批准」、
+    /// 通用主钮组件 PrimaryButtonStyle 全部消费本
+    /// 令牌。ChatView 输入栏圆形钮等非主钮形态与
+    /// primaryPale 其余消费面（面色/浅底）不动。
+    /// 暗档同值（该蓝压暗面白字对比仍足）
+    public static let primarySaturated = appleColor(
+        light: 0x0064D4,
+        dark: UIColor(
+            red: 0x00 / 255.0, green: 0x64 / 255.0,
+            blue: 0xD4 / 255.0, alpha: 1
+        )
+    )
     /// 主填充蓝（OpenMuse blue #C8E7FF，ui.tsx:24——它
     /// 的主按钮面色：浅蓝填充＋深墨字，与用户泡同源；
     /// 暗色取 blueDark #1473C8 作深档）
     /// 0.26.0 起主题化＝主题气泡行（同源关系的字面
     /// 落实：与 userBubbleFill 恒同值）
     public static var primaryPale: Color {
-        let theme = currentChatTheme
-        return themedColor(
-            light: theme.bubbleLight, dark: theme.bubbleDark
-        )
+        // 台账 184/188/197：「与 userBubbleFill 恒
+        // 同值」的既有不变量由别名构造保全——主按
+        // 钮面与用户泡恒同值，不许两路各解析一份漂
+        // 移；197 定版后该值即各款定死处理（浅
+        // bubbleLight 浅填/暗 bubbleDark），无切档
+        // 漂移面
+        userBubbleFill
     }
     /// 强调弱面（OpenMuse sky #EDF7FD，ui.tsx:26——图
     /// 标盒/附件牌/聚焦钮面；取代旧 accentColor 12% 透
@@ -347,11 +464,12 @@ public enum Palette {
     /// 0.26.0 起主题化＝主题泡字行（浅档与旧值同；
     /// 暗档随泡字修正 #EDF1F3→#FFFFFF，§53）
     public static var onPrimary: Color {
-        let theme = currentChatTheme
-        return themedColor(
-            light: theme.bubbleTextLight,
-            dark: theme.bubbleTextDark
-        )
+        // 台账 184/188/197：消费面恒骑 primaryPale
+        // ——字色随之别名 userBubbleText（与泡字恒
+        // 同值，主按钮字/面配对不脱钩；197 定版后
+        // 配对恒为定死填充＋其上字色：浅填＋深字/
+        // 暗深饱＋现泡字）
+        userBubbleText
     }
 
     // pastel 点缀家族（OpenMuse 图标盒/chip/状态卡的轮
@@ -380,6 +498,15 @@ public enum Palette {
         light: 0xFDF0DF,
         dark: UIColor.systemOrange.withAlphaComponent(0.20)
     )
+    /// 查找命中词底（§503）：对话内查找激活时正文
+    /// 命中词的着色面——成熟会话内查找的通行黄标
+    /// （WhatsApp/TG 同族）；浅档实色 #FBE38A、暗
+    /// 档随 pastel 家族同构造走系统黄 α0.40（压暗
+    /// 泡面仍可辨）
+    public static let findMatchFill = appleColor(
+        light: 0xFBE38A,
+        dark: UIColor.systemYellow.withAlphaComponent(0.40)
+    )
     /// 代码面（OpenMuse 行内/块代码底 #E2E4E7，
     /// assistant-response.tsx:17-18；暗档 0.36.1 改走
     /// fill 阶梯二级 secondarySystemFill——压泡面/卡
@@ -391,19 +518,25 @@ public enum Palette {
     /// 代码高亮三色（0.36.25，对话渲染补全包）：只分
     /// 关键词／字符串／数字三类着色＋注释走 inkSec-
     /// ondaryOnFill、正文走 bodyInk——克制口径，不设
-    /// 彩虹板。取值按代码面（浅 #FFFFFF 字段面／暗
-    /// #2C2C2E 三级面）实算对比：关键词紫浅 #A626A4
-    /// （对白 6.1:1）／暗 #C792EA（5.8:1）；字符串绿
-    /// 浅 #116329（7.4:1）／暗 #98C379（6.9:1）；数字
-    /// 蓝浅 #0550AE（7.6:1）／暗 #79B8FF（6.7:1），
-    /// 全过 4.5 小字线（WCAGContrast 同式心算，落法
-    /// 与 D3 派生档同机制：浅档字面、暗档 UIColor
-    /// 字面经 appleColor 解析）
+    /// 彩虹板。实算口径（2026-11-15 第 85 条收口回填，
+    /// WCAGContrast 同式）：浅档基面＝codeFill 实色
+    /// #E2E4E7——关键词 #A626A4 4.80／字符串 #116329
+    /// 5.80／数字 #0550AE 5.96；暗档基面＝codeFill
+    /// （secondarySystemFill α0.32）压所托面的合成色
+    /// ——压黑 (38,38,41)：7.47／7.49／7.27；压
+    /// #1C1C1E (57,57,61)：5.69／5.70／5.54；压
+    /// #2C2C2E (68,68,72)：4.80／4.81／4.67，全过
+    /// 4.5 小字线。旧注「对白 6.1／暗按 #2C2C2E 实色
+    /// 5.8」口径有误（浅档基面错位、暗档漏算 α 叠
+    /// 层——关键词旧值 #C792EA 在三级面合成上实算
+    /// 仅 4.03），本版一并纠正、关键词暗档同色相提
+    /// 亮至 #D0A6F0（落法与 D3 派生档同机制：浅档
+    /// 字面、暗档 UIColor 字面经 appleColor 解析）
     public static let codeKeyword = appleColor(
         light: 0xA626A4,
         dark: UIColor(
-            red: 0xC7 / 255.0, green: 0x92 / 255.0,
-            blue: 0xEA / 255.0, alpha: 1
+            red: 0xD0 / 255.0, green: 0xA6 / 255.0,
+            blue: 0xF0 / 255.0, alpha: 1
         )
     )
     /// 代码高亮·字符串绿
@@ -441,12 +574,44 @@ public enum Palette {
     /// 「提亮且保饱和」路线（对卡面实算 4.99:1）
     public static let success = Color(UIColor.systemGreen)
     public static let warning = Color(UIColor.systemOrange)
+    /// 状态文字绿（2026-11-15，第 85 条对比度收口）：
+    /// success 本职是状态点/图标色，浅档 systemGreen
+    /// 作可读文字仅 2.22:1——一切要读的状态字（「通
+    /// 过」「使用中」「已安装」等）走本令牌：浅档同
+    /// 色相深值 #1A7431（实算：对白 5.86／页底 5.71
+    /// ／设置底 5.25／tintGreen 面 5.09／success
+    /// α0.12 胶囊合成面 5.30，全过 4.5）；暗档随
+    /// success 同挂 systemGreen（对黑 10.39、本已
+    /// 达标）。状态点/纯图标位继续走 success、不动
+    public static let successText = appleColor(
+        light: 0x1A7431, dark: .systemGreen
+    )
+    /// 状态文字橙（同上收口）：浅档同色相深值
+    /// #9C5700（实算：对白 5.56／页底 5.42／设置
+    /// 底 4.98）；暗档随 warning 同挂 systemOrange
+    /// （对黑 10.22）。点/图标位继续走 warning
+    public static let warningText = appleColor(
+        light: 0x9C5700, dark: .systemOrange
+    )
     /// 0.43.0（A11Y-S5）：浅档高对比变体 #8C332C
     /// ——对卡面 8.00:1、对 errorSurface 7.11:1，
     /// 双面过 7:1；默认解析不变
     public static let danger = appleColor(
         light: 0xAA4A45, dark: .systemRed,
         lightHighContrast: 0x8C332C
+    )
+    /// 角标填充红（2026-11-15，第 85 条收口）：danger
+    /// 本职文字/图标色——暗档 systemRed 提亮保饱和，
+    /// 白字压之作角标填充仅 3.41:1；角标填充专用本
+    /// 令牌：浅档与 danger 同值 #AA4A45（白字实算
+    /// 5.56），暗档深红 #D92B1F（白字实算 4.87）。
+    /// danger 本体不动（作文字对 #1C1C1E 4.99 达标）
+    public static let dangerFill = appleColor(
+        light: 0xAA4A45,
+        dark: UIColor(
+            red: 0xD9 / 255.0, green: 0x2B / 255.0,
+            blue: 0x1F / 255.0, alpha: 1
+        )
     )
 
     /// 阴影基色：取 OpenMuse 浮动底栏阴影色 #132631
@@ -474,6 +639,27 @@ public enum Palette {
             return inkMuted
         }
     }
+
+    /// 状态文字色（2026-11-15，第 85 条收口）：state-
+    /// Color 的文字位姊妹——状态点继续走 stateColor，
+    /// 状态词上屏走本函数：success/warning 换文字档
+    /// （successText/warningText，浅档 2.22/2.20 的
+    /// 不达标组合就此退出文字位），danger 作文字双
+    /// 档本已达标（5.56/4.99）直用，未知态回落
+    /// inkSecondary（stateColor 的 inkMuted 回落只
+    /// 许点位、不许文字位）
+    public static func stateTextColor(_ state: String?) -> Color {
+        switch state?.lowercased() {
+        case "connected", "running", "ok", "ready":
+            return successText
+        case "error", "failed", "disconnected", "stopped":
+            return danger
+        case "degraded", "warning", "restarting":
+            return warningText
+        default:
+            return inkSecondary
+        }
+    }
 }
 
 // MARK: - 度量（定版 §3.2/§3.4：4pt 网格、圆角梯队、行高与对齐线）
@@ -496,19 +682,20 @@ public enum OneDayMetrics {
     public static let drawerInset: CGFloat = 20
     /// 名单导航行高（0.3.6 实测约 47）
     public static let navRowHeight: CGFloat = 47
-    /// 抽屉导航/旁聊行高（0.20.0，用户给的 Muse 抽屉
-    /// 真机图推算：选中垫行高约 53、旁聊行距约 58，
-    /// 取 58 统一抽屉行档；推算锚点见 DESIGN-V4 §47）
-    /// §157 起本档只管旁聊会话行（56–60 区间内取 58
-    /// 不动），导航簇改走 drawerNavRowHeight
-    public static let drawerRowHeight: CGFloat = 58
+    /// 抽屉旁聊会话行高。沿革：0.20.0 按当时 Muse 图
+    /// 推算取 58；2026-11-21 抽屉样板对齐包改 44——
+    /// 用户亲递现行版截图五连行＋空间五行逐行实测
+    /// 行距恒 44.0pt（选中胶囊高＝行高 44），全抽屉
+    /// 行档自此统一 44（导航簇同值，见下）；仍是
+    /// minHeight 语义，大字体时随内容增长
+    public static let drawerRowHeight: CGFloat = 44
     /// 抽屉导航簇行高（§157，用户 2026-11-11 21:01 补
-    /// 充方案②）：导航行/频道行/管理行的最小行高——
-    /// 导航紧一点、把空间让给会话。54 是设计起点值
-    /// （建议区间 52–56 的中点），不是 Muse 实测参
-    /// 数；仍是 minHeight 语义，大字体时行高随内容
-    /// 增长，不钉死
-    public static let drawerNavRowHeight: CGFloat = 54
+    /// 充方案②）：导航行/频道行/管理行的最小行高。
+    /// 沿革：§157 取 54（设计起点值、非实测）；2026-
+    /// 11-21 样板对齐包改 44——样板导航行与会话行
+    /// 同距 44.0pt 实测，两档自此同值（量测全表见
+    /// 交卷报告）；仍是 minHeight 语义
+    public static let drawerNavRowHeight: CGFloat = 44
     /// 设置页行最小高（0.20.0，Muse 设置图推算行距
     /// 约 63 含卡内呼吸，行本体取 60）
     public static let settingsRowHeight: CGFloat = 60
@@ -519,14 +706,37 @@ public enum OneDayMetrics {
     /// App 设置型页面的组距随之统一小收 4pt，真机若
     /// 觉挤可单独回 28 并入宪法修订，本批先入梯队）
     public static let settingsSectionSpacing: CGFloat = 24
+    /// 设置页统一行盒（台账 198 收敛 B7）：纵向 0
+    /// （行高只由行内容 minHeight 决定）、横向 20 与
+    /// 页 gutter 对齐线一致。此前设置首页/外观页/支
+    /// 持组三页各复刻一份同值 EdgeInsets（审计 B7），
+    /// 自此单源住令牌层，各页不许再自备
+    public static var settingsRowInsets: EdgeInsets {
+        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+    }
+    /// 分区外距（组节奏定版，DESIGN-V2 §3.2「分区标题
+    /// 上 28 下 8」）：手搓页 SectionLabel 之上的留白
+    /// 与页末最后一组之下的收尾留白同值同族——下 8
+    /// 即 spacingS、本值管 28 一侧。此前 38 处以字
+    /// 面量散写于 14 个管理面文件（PM/UI 复盘点名的
+    /// 「组顶距 28 复发」即此），本批（UI 台账余项＋
+    /// 深色批，2026-11-14）收编入令牌：数值不变、版
+    /// 式零变化，变的只是出处归一。28 不在间距梯队
+    /// 内的处置同 pageGutter/cardPadding 的 20——
+    /// 有定版出处（组节奏）的具名值，记账保留
+    public static let sectionOuterSpacing: CGFloat = 28
     /// 名单行图标字形（0.23.0 单源化：改引用 Core
     /// FrameworkIcon，本处只留别名、不再自带数值）
     public static let navGlyph: CGFloat = FrameworkIcon.navGlyphSize
     /// 底栏字形（0.23.0 单源化：同上，值 22 不变）
     public static let tabGlyph: CGFloat = FrameworkIcon.tabGlyphSize
-    /// 抽屉底部浮动条圆钮边长（0.3.6 实测约 52；搜索
-    /// 胶囊同高）
-    public static let drawerBarButton: CGFloat = 52
+    /// 抽屉底部浮动条圆钮边长（搜索胶囊同高）。沿
+    /// 革：0.3.6 取 52；2026-11-21 样板对齐包改
+    /// 45——样板圆钮 Ø45pt、搜索胶囊高 45 实测（±1）；
+    /// 控件居中于 52 行盒（Core DrawerGeometry.
+    /// bottomBarRowHeight），落位中心距屏底 64.0 与
+    /// 样板 64.2 同归一线
+    public static let drawerBarButton: CGFloat = 45
     /// 输入字段（0.6.1 改挂 OpenMuse input 圆角 19，
     /// ui.tsx:58）
     public static let fieldCorner: CGFloat = 19
@@ -535,13 +745,24 @@ public enum OneDayMetrics {
     public static let buttonCorner: CGFloat = 24
     /// 消息气泡（0.6.1：与 OpenMuse 气泡圆角 22 同值，
     /// chat.tsx:590，出处自本版换为它的令牌）
-    public static let bubbleCorner: CGFloat = 22
+    /// 台账 179（OB-I1，DESIGN §391）：改现读个性化档
+    /// ——未设（定版 standard）时逐值回 22、与旧常量恒
+    /// 等；用户在外观页改选后新求值即新值（读口与
+    /// currentChatTheme 同制：现读 UserDefaults）
+    public static var bubbleCorner: CGFloat {
+        AppearancePreferences.bubbleStyle().bubbleCorner
+    }
     /// 助手消息气泡（0.6.1：改同 22——OpenMuse 双泡同
-    /// 圆角，旧「助手略收 18」口径让位）
-    public static let assistantBubbleCorner: CGFloat = 22
+    /// 圆角，旧「助手略收 18」口径让位）；§391 同上现读
+    public static var assistantBubbleCorner: CGFloat {
+        AppearancePreferences.bubbleStyle()
+            .assistantBubbleCorner
+    }
     /// 气泡尾角（0.6.1 新增：OpenMuse 靠己侧底角收 7，
-    /// chat.tsx:591-592）
-    public static let bubbleTailCorner: CGFloat = 7
+    /// chat.tsx:591-592）；§391 同上现读
+    public static var bubbleTailCorner: CGFloat {
+        AppearancePreferences.bubbleStyle().bubbleTailCorner
+    }
     /// 输入区胶囊（多行态圆角矩形的圆角，单行态走 Capsule）
     public static let composerCorner: CGFloat = 24
     /// 代码块（正文区内的内容面）
@@ -563,13 +784,49 @@ public enum OneDayMetrics {
     /// 勾选框（24pt 方框的形状圆角，与 AppSymbolTile
     /// 的 size×0.26 比例画法同源量级）
     public static let radiusCheckbox: CGFloat = 6
+    /// 小徽标描边圆角（台账「补记」徽标等 caption2 级
+    /// 微形标签；HIG 全过第一波具名收编，值 4 不变）
+    public static let radiusBadge: CGFloat = 4
 
     /// 页面左右边距（内容页）
     public static let pageGutter: CGFloat = 20
+    /// 中枢页局部边距（§477，2026-11-24 全抄参照量
+    /// 测 ≈16–17）：只许中枢页头/分段条/三子页消费，
+    /// pageGutter 全局口径不动、不许外溢其他页面
+    public static let hubGutter: CGFloat = 16
+    /// 中枢段头与行标题字号（§477 立、§500 订正：
+    /// §477 注记的参照量测 ≈20 系误记——用户参照截
+    /// 图逐像素实测 ≈17 semibold（Headline 档），见
+    /// hub-type-measurement-20261124.md；段头三页单
+    /// 源、行标题同档）
+    public static let hubTitleSize: CGFloat = 17
+    /// 中枢页头大名字号（§477 立、§500 订正：§477
+    /// 注记的参照 ≈32 系误记，实测 ≈25 bold；仅页
+    /// 头 hero 消费）
+    public static let hubHeroNameSize: CGFloat = 25
     /// 列表行图标槽宽：全页同一条对齐线（0.24.0 与
     /// 设置/抽屉统一取 30，ListRowSpec.iconSlotWidth
     /// 同值，见 §51）
     public static let iconSlot: CGFloat = 30
+    /// 智能体头像尺寸三档（§224，头像呈现 harmonize）：
+    /// 全 App 渲染智能体头像的位点只许取这三档，不许
+    /// 再散写字面量——页头档＝枢纽页头与身份详情页
+    /// hero（110/88 两处旧值收敛至 90，对齐 Muse 档
+    /// 案页页头盘实测）；段头档＝枢纽身份段段头（52
+    /// 沿用 §218 定版）；列表行档＝抽屉身份行/设置身
+    /// 份卡/编辑器行（36/44 两值收敛至 44）。用户自选
+    /// 的形象档（Core AvatarSizeTier，顶簇/空态/锚点
+    /// 三面）是用户偏好、不在此列。
+    public static let avatarPageHead: CGFloat = 90
+    public static let avatarSectionHead: CGFloat = 45
+    public static let avatarListRow: CGFloat = 44
+    /// 页头改版档（§434，参照截图工具采样定值）：
+    /// 聊天页居中身份区头像 67／中枢页 hero 头像
+    /// 85——照抄参照量测，不与页头盘 90 档混用
+    /// §477（2026-11-24 全抄复量）：中枢 hero 头像
+    /// 85→95（参照档案页大头实测 ≈95），仅本档改值
+    public static let avatarChatHero: CGFloat = 67
+    public static let avatarHubHero: CGFloat = 95
     /// 分隔线起点（0.36.0，宪法 §3／审计 C1 定版）：
     /// 整行贯通——起点＝容器左缘、全 App 一个 x
     /// 值，恒 0。旧值 62（边距 20＋槽 30＋间距 12、
@@ -594,6 +851,15 @@ public enum OneDayMetrics {
     /// 卡内边距（0.6.1 新增：OpenMuse card padding 20，
     /// ui.tsx:52）
     public static let cardPadding: CGFloat = 20
+    /// 枢纽分段条高（§222，2026-11-14 对 Muse 智能
+    /// 体页真机图量测：整条胶囊 ≈48；系统 segmented
+    /// 轨道 32 不可调、自绘条按此值落）
+    public static let hubSegBarHeight: CGFloat = 48
+    /// 枢纽分段选中胶囊高（§222，同上量测 ≈36；条内
+    /// 上下各留 6）
+    public static let hubSegCapsuleHeight: CGFloat = 36
+    /// 枢纽分段图标字形（§222，同上量测 ≈22）
+    public static let hubSegGlyphSize: CGFloat = 22
 
     // —— 气泡内边距（0.6.1 改挂 OpenMuse 气泡内边距
     // 16/13，chat.tsx:588-589；0.3.2 收编的 14/10 让位）——
@@ -604,6 +870,16 @@ public enum OneDayMetrics {
     /// 气泡靠边让位：对侧 Spacer 的最小让宽（用户泡左让/
     /// 助手泡右让同值，0.2.5 对齐口径）
     public static let bubbleSideInset: CGFloat = 44
+    /// 助手正文段间额外距（§263：对齐 Muse 同机实测
+    /// 16pt；消费单源＝MarkdownText.proseParagraphs 的
+    /// 段后距，不再借间距梯队的 spacingSM）
+    public static let paragraphSpacing: CGFloat = 16
+    /// 助手正文左缘占屏比（§263：Muse 同机实测左缘
+    /// 33pt／402pt 屏宽；气泡布局与量测喂入同源消费）
+    public static let assistantTextLeadingFraction: CGFloat = 0.082
+    /// 助手正文文宽占屏比（§263：Muse 同机实测文宽
+    /// ≈309pt／402pt 屏宽；气泡列宽封顶与量测喂入同值）
+    public static let assistantTextWidthFraction: CGFloat = 0.769
 
     // —— 梯外具名值（审查 T-4 收编：光学/手势/设备驱动）——
     /// 流式词元流布局的词间/行间距（光学值，TokenFlow 用）
@@ -611,9 +887,13 @@ public enum OneDayMetrics {
     /// 抽屉左缘唤出热区宽（手势值：够拇指起滑、不挡正文滚动）
     public static let drawerEdgeZone: CGFloat = 24
     /// 抽屉宽占屏比（0.3.6 立宪 peek 口径约 79%；
-    /// 0.4.1 第 10 修按用户逐像素采样改约 75%——
-    /// Muse 本体抽屉实测占比，§26.10）
-    public static let drawerWidthFraction: CGFloat = 0.75
+    /// 0.4.1 第 10 修按用户逐像素采样改约 75%；
+    /// 2026-11-21 样板对齐包改回 0.79——现行版截图
+    /// 实测 317.0pt/402pt＝0.7886，与 Core Drawer-
+    /// CardGeometry.travelWidthFraction 单源同值；
+    /// 本令牌现无消费面（容器走 Core 派生）、留作
+    /// 口径档案，两处不许再分叉）
+    public static let drawerWidthFraction: CGFloat = 0.79
     /// 抽屉宽上限（设备值，大屏不无限拉宽）
     public static let drawerMaxWidth: CGFloat = 340
     /// （tabBarZone 已于 0.4.0 删除，审计 §3.2：底栏回

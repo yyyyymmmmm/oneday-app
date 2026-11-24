@@ -11,10 +11,34 @@ struct CronJobsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
-    @State private var jobs: [CronJob] = []
-    @State private var errorMessage: String?
-    @State private var isLoading = false
     @State private var showCreate = false
+    @State private var showBlueprints = false
+
+    /// 名单走共享 CronStore（台账 198 收敛·普查
+    /// R4/D2）：与枢纽定时段、状态页摘录同一份取数
+    /// 与缓存，本页不再自拉自存
+    private var store: CronStore { appState.sharedCronStore() }
+    private var jobs: [CronJob] { store.jobs }
+
+    /// 接入组行（与技能页商店行同形：标题＋说明＋箭头）
+    private func accessRow(title: String, detail: String) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
+        }
+        .contentShape(Rectangle())
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+    }
 
     var body: some View {
         ScrollView {
@@ -24,12 +48,12 @@ struct CronJobsView: View {
                     summaryCard
                     jobGroup(title: "开着的", jobs: jobs.filter(\.enabled))
                     jobGroup(title: "停着的", jobs: jobs.filter { !$0.enabled })
-                } else if let errorMessage {
+                } else if !store.hasLoaded, let errorMessage = store.errorMessage {
                     InlineError(errorMessage)
-                    Button("重试") { Task { await load() } }
+                    Button("重试") { Task { await store.refresh() } }
                         .buttonStyle(.odSecondary)
                         .padding(.top, OneDayMetrics.spacingSM)
-                } else if isLoading {
+                } else if !store.hasLoaded {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取任务…")
@@ -38,13 +62,40 @@ struct CronJobsView: View {
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 } else {
-                    EmptyState(
-                        icon: "clock.arrow.2.circlepath",
-                        title: "还没有定时任务",
-                        message: "点右上角新建，让 Hermes 按计划自动干活。"
+                    ODEmptyState(
+                        "还没有定时任务",
+                        systemImage: "clock.arrow.2.circlepath",
+                        description: "点右上角新建，让 Hermes 按计划自动干活。"
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 }
+                // 接入组（H11/H13，DESIGN §390）：外部事件
+                // 与钩子只读——与定时任务同属自动化面
+                SectionLabel("接入")
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                VStack(spacing: 0) {
+                    NavigationLink {
+                        WebhooksView()
+                    } label: {
+                        accessRow(
+                            title: "外部事件",
+                            detail: "GitHub、监控、表单的事件直达触发 Hermes"
+                        )
+                    }
+                    .buttonStyle(.odPressable)
+                    GroupDivider()
+                    NavigationLink {
+                        OpsHooksView()
+                    } label: {
+                        accessRow(
+                            title: "钩子",
+                            detail: "服务器上已配的自动命令，只看不改"
+                        )
+                    }
+                    .buttonStyle(.odPressable)
+                }
+                .odGroup()
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
@@ -54,6 +105,21 @@ struct CronJobsView: View {
         .navigationTitle("定时任务")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("模板") { showBlueprints = true }
+                    .accessibilityLabel("从模板新建定时任务")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    CronRelationGraphView()
+                } label: {
+                    Image(
+                        systemName:
+                            "point.3.connected.trianglepath.dotted"
+                    )
+                }
+                .accessibilityLabel("关系图")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showCreate = true
@@ -65,15 +131,20 @@ struct CronJobsView: View {
         }
         .sheet(isPresented: $showCreate) {
             CronJobFormView(job: nil) {
-                Task { await load() }
+                Task { await store.refresh() }
             }
         }
-        .refreshable { await load() }
-        .task { await load() }
+        .sheet(isPresented: $showBlueprints) {
+            CronBlueprintPickerView {
+                Task { await store.refresh() }
+            }
+        }
+        .refreshable { await store.refresh() }
+        .task { await store.loadIfNeeded() }
         .onAppear {
             // 总览快捷动作深链：消费「新建」请求
-            if appState.cronCreateRequested {
-                appState.cronCreateRequested = false
+            if appState.router.cronCreateRequested {
+                appState.router.cronCreateRequested = false
                 showCreate = true
             }
         }
@@ -113,7 +184,7 @@ struct CronJobsView: View {
         if !groupJobs.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 SectionLabel(title)
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     ForEach(Array(groupJobs.enumerated()), id: \.element.id) { index, job in
@@ -131,7 +202,7 @@ struct CronJobsView: View {
     private func jobRow(_ job: CronJob) -> some View {
         NavigationLink {
             CronJobDetailView(job: job) {
-                Task { await load() }
+                Task { await store.refresh() }
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
@@ -154,17 +225,14 @@ struct CronJobsView: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if job.lastError != nil {
                     Image(systemName: "exclamationmark.circle")
-                        .font(.system(size: 15))
+                        .font(.system(size: FrameworkIcon.composerGlyphSize))
                         .foregroundStyle(Palette.danger)
                         .accessibilityLabel("上次运行有错误")
                 }
                 Text(job.enabled ? "启用" : "已暂停")
                     .font(.footnote)
-                    .foregroundStyle(job.enabled ? Palette.success : Palette.inkSecondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                    .foregroundStyle(job.enabled ? Palette.successText : Palette.inkSecondary)
+                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -174,19 +242,6 @@ struct CronJobsView: View {
         .buttonStyle(.odPressable)
     }
 
-    private func load() async {
-        guard !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            jobs = try await appState.performAdmin { client, config in
-                try await client.cronJobs(config: config)
-            }
-            errorMessage = nil
-        } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "定时任务没读出来，可能是网络或服务暂时没响应"
-        }
-    }
 }
 
 /// 任务详情：信息、动作（暂停/恢复/触发/编辑/删除）、运行记录。
@@ -259,20 +314,18 @@ struct CronJobDetailView: View {
     }
 
     /// 附则（卡 15）：状态/计划/下次运行升摘要卡置顶
+    /// （键值行走 KeyValueRow，台账 198 收敛 S5）
     private var summaryGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("任务")
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                LabeledContent("状态", value: current.enabled ? "启用" : "已暂停")
+                KeyValueRow("状态", value: current.enabled ? "启用" : "已暂停")
                 GroupDivider()
-                LabeledContent("计划") {
-                    Text(current.scheduleText)
-                        .font(.system(.callout, design: .monospaced))
-                }
+                KeyValueRow("计划", value: current.scheduleText)
                 if let next = AdminFormat.iso(current.nextRunAt) {
                     GroupDivider()
-                    LabeledContent("下次运行", value: AdminFormat.short(next))
+                    KeyValueRow("下次运行", value: AdminFormat.short(next))
                 }
             }
             .odGroup()
@@ -288,109 +341,134 @@ struct CronJobDetailView: View {
             || (current.lastError?.isEmpty == false)
     }
 
+    /// 详情组块集（台账 198 收敛 S5）：原实现每块以
+    /// GroupDivider 开头——首块在位时卡顶悬一条发丝
+    /// 线；改块集枚举＋索引分隔（与 CronJobsView 组
+    /// 内同式），线只出现在块间。键值块走 KeyValueRow
+    private enum InfoBlock {
+        case keyValue(label: String, value: String)
+        case prompt(String)
+        case error(String)
+    }
+
+    private var infoBlocks: [InfoBlock] {
+        var blocks: [InfoBlock] = []
+        if let last = AdminFormat.iso(current.lastRunAt) {
+            blocks.append(.keyValue(label: "上次运行", value: AdminFormat.short(last)))
+        }
+        // §123（N2）：投递目标走值域译名，原始
+        // deliver 值（origin/local/平台:会话 id）不上行面
+        if let deliverText = CronPresentation.deliverLabel(current.deliver) {
+            blocks.append(.keyValue(label: "投递到", value: deliverText))
+        }
+        if let model = current.model, !model.isEmpty {
+            // 0.4.0（审计 §3.3 #7）：只读行走显示名
+            // 映射，未知 id 回落原文
+            blocks.append(.keyValue(
+                label: "模型",
+                value: ModelDisplayNames.displayName(for: model) ?? model
+            ))
+        }
+        if let prompt = current.prompt, !prompt.isEmpty {
+            blocks.append(.prompt(prompt))
+        }
+        if let error = current.lastError, !error.isEmpty {
+            blocks.append(.error(error))
+        }
+        return blocks
+    }
+
     private var infoGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("详情")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                if let last = AdminFormat.iso(current.lastRunAt) {
-                    GroupDivider()
-                    LabeledContent("上次运行", value: AdminFormat.short(last))
-                }
-                if let deliverText = CronPresentation.deliverLabel(
-                    current.deliver
-                ) {
-                    GroupDivider()
-                    // §123（N2）：投递目标走值域译名，
-                    // 原始 deliver 值（origin/local/平台
-                    // :会话 id）不上行面
-                    LabeledContent("投递到", value: deliverText)
-                }
-                if let model = current.model, !model.isEmpty {
-                    GroupDivider()
-                    LabeledContent("模型") {
-                        // 0.4.0（审计 §3.3 #7）：只读行走显示
-                        // 名映射，未知 id 回落原文
-                        Text(ModelDisplayNames.displayName(for: model) ?? model)
-                            .font(.system(.callout, design: .monospaced))
+                ForEach(Array(infoBlocks.enumerated()), id: \.offset) { index, block in
+                    if index > 0 {
+                        GroupDivider()
                     }
-                }
-                if let prompt = current.prompt, !prompt.isEmpty {
-                    GroupDivider()
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                        Text("指令")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                        Text(prompt)
-                            .font(.callout)
-                            .foregroundStyle(Palette.ink)
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingSM)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if let error = current.lastError, !error.isEmpty {
-                    GroupDivider()
-                    // §123（N2）：错误正文位只留摘要（原文
-                    // 第一行限长，Core CronPresentation），
-                    // 全文进折叠——长堆栈不再整段直铺主区
-                    VStack(
-                        alignment: .leading,
-                        spacing: OneDayMetrics.spacingXS
-                    ) {
-                        HStack(
-                            alignment: .top,
-                            spacing: OneDayMetrics.spacingS
-                        ) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(.system(size: 15))
-                                .foregroundStyle(Palette.danger)
-                                .accessibilityHidden(true)
-                            Text(CronPresentation.errorSummary(error))
-                                .font(.subheadline)
-                                .foregroundStyle(Palette.ink)
-                        }
-                        Button {
-                            showErrorRaw.toggle()
-                        } label: {
-                            HStack(
-                                spacing: OneDayMetrics.spacingXS
-                            ) {
-                                Text("原始信息（排障用）")
-                                    .font(.footnote)
-                                    .foregroundStyle(Palette.inkSecondary)
-                                Image(
-                                    systemName: showErrorRaw
-                                        ? "chevron.up" : "chevron.down"
-                                )
-                                .font(.system(size: 10, weight: .regular))
-                                .foregroundStyle(Palette.inkMuted)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.odPressable)
-                        if showErrorRaw {
-                            Text(error)
-                                .font(.footnote)
-                                .monospaced()
-                                .foregroundStyle(Palette.inkSecondary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingSM)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    infoBlockView(block)
                 }
             }
             .odGroup()
         }
     }
 
+    @ViewBuilder
+    private func infoBlockView(_ block: InfoBlock) -> some View {
+        switch block {
+        case let .keyValue(label, value):
+            KeyValueRow(label, value: value)
+        case let .prompt(prompt):
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text("指令")
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                Text(prompt)
+                    .font(.callout)
+                    .foregroundStyle(Palette.ink)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case let .error(error):
+            // §123（N2）：错误正文位只留摘要（原文
+            // 第一行限长，Core CronPresentation），
+            // 全文进折叠——长堆栈不再整段直铺主区
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingXS
+            ) {
+                HStack(
+                    alignment: .top,
+                    spacing: OneDayMetrics.spacingS
+                ) {
+                    Image(systemName: "exclamationmark.circle")
+                        .font(.system(size: FrameworkIcon.composerGlyphSize))
+                        .foregroundStyle(Palette.danger)
+                        .accessibilityHidden(true)
+                    Text(CronPresentation.errorSummary(error))
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.ink)
+                }
+                Button {
+                    showErrorRaw.toggle()
+                } label: {
+                    HStack(
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        Text("原始信息（排障用）")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Image(
+                            systemName: showErrorRaw
+                                ? "chevron.up" : "chevron.down"
+                        )
+                        .font(.system(size: FrameworkIcon.badgeGlyphSize, weight: .regular))
+                        .foregroundStyle(Palette.inkMuted)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+                if showErrorRaw {
+                    Text(error)
+                        .font(.footnote)
+                        .monospaced()
+                        .foregroundStyle(Palette.inkSecondary)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .frame(maxWidth: .infinity, alignment: .leading)
+}
+    }
+
     private var actionsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("动作")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 actionRow(
@@ -419,7 +497,7 @@ struct CronJobDetailView: View {
     private var runsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("运行记录")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if runs.isEmpty {
@@ -444,7 +522,7 @@ struct CronJobDetailView: View {
         // 0.4.0（§3.4）：运行记录点按改道聊天页续聊（运行
         // 记录本体即服务端会话），不再进只读详情页
         Button {
-            appState.pendingChatSessionID = run.id
+            appState.router.pendingChatSessionID = run.id
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -456,10 +534,7 @@ struct CronJobDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -494,7 +569,7 @@ struct CronJobDetailView: View {
     private var dangerGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("危险操作")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 Button(role: .destructive) {
@@ -516,7 +591,8 @@ struct CronJobDetailView: View {
         }
     }
 
-    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
+    // （键值行沿革：infoRow（0.4.0 删）→ LabeledContent
+    // → KeyValueRow（台账 198 收敛 S5：组卡内键值行单源件））
 
     private func actionRow(
         title: String, icon: String, action: @escaping () -> Void
@@ -552,10 +628,13 @@ struct CronJobDetailView: View {
         }
     }
 
+    /// 动作后取鲜（台账 198 收敛）：全量重拉改走共享
+    /// CronStore——本页取鲜值的同时枢纽段/状态页摘录
+    /// 同帧同步，不再各拉一份
     private func reloadJob() async {
-        if let jobs = try? await appState.performAdmin({ client, config in
-            try await client.cronJobs(config: config)
-        }), let fresh = jobs.first(where: { $0.id == current.id }) {
+        let store = appState.sharedCronStore()
+        await store.refresh()
+        if let fresh = store.jobs.first(where: { $0.id == current.id }) {
             current = fresh
         }
         onChange()
@@ -614,18 +693,34 @@ struct CronJobFormView: View {
 
     let job: CronJob?
     var onSaved: () -> Void = {}
+    /// 新建建成回执（§459 点子建为例行用）：只在新建
+    /// 分支、服务端回执到手时以新 job 本体回调，供调
+    /// 用方做名单回读确认；编辑分支不触发
+    var onCreated: (CronJob) -> Void = { _ in }
 
     @State private var name: String
     @State private var prompt: String
     @State private var schedule: String
+    /// 投递目标（§388 H6）：服务端单源拉取，""＝不指定
+    /// （沿服务端默认）；拉不到时只剩「默认」一档、不假造
+    @State private var deliveryTargets: [CronDeliveryTarget] = []
+    @State private var selectedDeliver: String
     @State private var errorMessage: String?
     @State private var isSaving = false
 
-    init(job: CronJob?, onSaved: @escaping () -> Void = {}) {
+    init(
+        job: CronJob?,
+        onSaved: @escaping () -> Void = {},
+        prefillName: String = "",
+        prefillPrompt: String = "",
+        onCreated: @escaping (CronJob) -> Void = { _ in }
+    ) {
         self.job = job
         self.onSaved = onSaved
-        _name = State(initialValue: job?.name ?? "")
-        _prompt = State(initialValue: job?.prompt ?? "")
+        self.onCreated = onCreated
+        _name = State(initialValue: job?.name ?? prefillName)
+        _prompt = State(initialValue: job?.prompt ?? prefillPrompt)
+        _selectedDeliver = State(initialValue: job?.deliver ?? "")
         // 编辑态预填：schedule 是字符串时原样，对象时用展示串
         // 兜底（服务端能解析展示串之外的表达式才建议改动）
         if case .string(let raw) = job?.scheduleRaw {
@@ -670,6 +765,23 @@ struct CronJobFormView: View {
                         presetButton("每周一 9 点", "0 9 * * 1")
                     }
                     .padding(.top, OneDayMetrics.spacingM)
+                    SectionLabel("投递")
+                        .padding(.top, OneDayMetrics.spacingL)
+                        .padding(.bottom, OneDayMetrics.spacingS)
+                    VStack(spacing: 0) {
+                        FieldRow(label: "投递目标") {
+                            Picker("", selection: $selectedDeliver) {
+                                Text("默认（按服务器设置）").tag("")
+                                ForEach(deliveryTargets) { target in
+                                    Text(deliveryTargetTitle(target))
+                                        .tag(target.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                        }
+                    }
+                    .odGroup()
                     if let errorMessage {
                         InlineError(errorMessage)
                             .padding(.top, OneDayMetrics.spacingM)
@@ -682,6 +794,7 @@ struct CronJobFormView: View {
             .background(Palette.pageBG)
             .navigationTitle(job == nil ? "新建定时任务" : "编辑定时任务")
             .navigationBarTitleDisplayMode(.inline)
+            .task { await loadDeliveryTargets() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -716,26 +829,54 @@ struct CronJobFormView: View {
                     "schedule": .string(trimmedSchedule),
                 ]
                 updates["name"] = .string(trimmedName)
+                // 投递目标改了才带（清空回默认的语义服务端
+                // 未定，只许改到具体目标、不许假装能清空）
+                if !selectedDeliver.isEmpty,
+                   selectedDeliver != (job.deliver ?? "") {
+                    updates["deliver"] = .string(selectedDeliver)
+                }
                 try await appState.performAdmin { client, config in
                     try await client.updateCronJob(
                         config: config, id: job.id, updates: updates
                     )
                 }
             } else {
-                _ = try await appState.performAdmin { client, config in
+                let created = try await appState.performAdmin {
+                    client, config in
                     try await client.createCronJob(
                         config: config,
                         name: trimmedName.isEmpty ? nil : trimmedName,
                         prompt: trimmedPrompt,
                         schedule: trimmedSchedule,
-                        deliver: nil
+                        deliver: selectedDeliver.isEmpty
+                            ? nil : selectedDeliver
                     )
                 }
+                onCreated(created)
             }
             onSaved()
             dismiss()
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "保存失败，请稍后再试。"
+        }
+    }
+
+    /// 投递目标行题：名字＋未设主频道的如实标注
+    private func deliveryTargetTitle(_ target: CronDeliveryTarget) -> String {
+        if let note = target.availabilityNote {
+            return "\(target.name)（\(note)）"
+        }
+        return target.name
+    }
+
+    /// 投递目标取数：失败静默降级为仅「默认」一档（表单
+    /// 本体可用优先，不拿投递名单的失败拦住建任务）
+    private func loadDeliveryTargets() async {
+        guard deliveryTargets.isEmpty else { return }
+        if let targets = try? await appState.performAdmin({ client, config in
+            try await client.cronDeliveryTargets(config: config)
+        }) {
+            deliveryTargets = targets
         }
     }
 }

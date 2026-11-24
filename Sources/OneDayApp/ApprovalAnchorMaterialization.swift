@@ -52,11 +52,11 @@ enum ApprovalAnchorMaterialization {
                 }
             }
         }
-        // 回溯已决走大窗口拉取（store 侧缓存，本步只在
-        // 其就绪后消费——首轮未就绪时 decisions 以日常
-        // 历史代用，带锚回溯随缓存到位后的刷新补齐）
-        let decisions = store.anchorDecisions
-            ?? store.decisionHistory
+        // 已决集读 store 单源合成面（§259：近窗∪宽窗
+        // 一处合成；旧「宽窗就绪只读宽窗、未就绪以近
+        // 窗代用」的二选一口径退役——合成集只增不减，
+        // 带锚回溯随任一窗到位即在本轮补齐）
+        let decisions = store.decidedRecords
         let planned = ApprovalAnchor.plan(
             pending: pending, decisions: decisions,
             existingKeys: existingKeys, now: Date()

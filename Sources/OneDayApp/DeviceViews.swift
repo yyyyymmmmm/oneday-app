@@ -855,6 +855,23 @@ struct DeviceStatusHeader: View {
     }
 }
 
+/// 授权卡相位在总览镜像行上的状态字（§244）
+private func permissionCardPhaseLine(
+    _ phase: PermissionCardPhase
+) -> String {
+    switch phase {
+    case .primer, .asking: return "等你确认"
+    case .blocked: return "还没打开"
+    case .parked: return "先放着了"
+    case .switchOff: return "差开开关"
+    case .resuming: return "正在接着办"
+    case .done: return "已办完"
+    case .declined: return "已算了"
+    case .expired: return "已作废"
+    case .failed: return "没办成"
+    }
+}
+
 private func headerText(_ title: String) -> some View {
     Text(title)
         .font(.sectionLabel)
@@ -1019,10 +1036,9 @@ struct CalendarDetailView: View {
     private var agendaSections: some View {
         if days.isEmpty {
             Section {
-                Text("接下来 14 天没有安排。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label("接下来 14 天没有安排。", systemImage: "calendar")
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1232,10 +1248,9 @@ struct RemindersDetailView: View {
     private var reminderSections: some View {
         if incomplete.isEmpty {
             Section {
-                Text("没有未完成的提醒。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label("没有未完成的提醒。", systemImage: "checklist")
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1260,7 +1275,7 @@ struct RemindersDetailView: View {
                 Task { await toggle(item) }
             } label: {
                 Image(systemName: "circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: FrameworkIcon.tabGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
             }
             .buttonStyle(.plain)
@@ -1455,10 +1470,12 @@ struct ContactsDetailView: View {
             .listRowInsets(deviceRowInsets)
         } else if items.isEmpty {
             Section {
-                Text(query.isEmpty ? "没有联系人。" : "没有匹配「\(query)」的联系人。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label(
+                        query.isEmpty ? "没有联系人。" : "没有匹配「\(query)」的联系人。",
+                        systemImage: "person.crop.circle"
+                    )
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1482,10 +1499,7 @@ struct ContactsDetailView: View {
                                 }
                             }
                             Spacer(minLength: 0)
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Palette.inkSecondary)
-                                .accessibilityHidden(true)
+                            DisclosureChevron(font: .footnote.weight(.semibold))
                         }
                         .frame(
                             minHeight: OneDayMetrics.settingsRowHeight
@@ -1571,8 +1585,13 @@ struct ContactsDetailView: View {
 
 // MARK: - 设备与权限总览（设置页入口，设计档 §6.3）
 
-/// 五件总览：授权状态＋调用开关汇总一张表，被拒在
-/// 这里一眼可见；批二两件只显待权益、不给假入口
+/// 设备与权限页（台账 198 收敛 S1 后）：只管本页的
+/// 授权/数据切面——等你确认的授权卡镜像、通道状态、
+/// 数据同步总览（五件副本状态与删除入口，行点进各
+/// 件详情走共用 DeviceDetailDestination）。「你的设
+/// 备」名单不在本页复刻：名单正主是连接器页（同一
+/// 份 DeviceSourceDirectory 名单数据、详情同源），
+/// 本页旧名单段（第二张列表页）已撤除
 struct DevicePermissionsView: View {
     @Environment(AppState.self) private var appState
     @State private var showDeleteAllConfirm = false
@@ -1582,26 +1601,36 @@ struct DevicePermissionsView: View {
 
     var body: some View {
         List {
-            Section {
-                ForEach(DeviceSourceDirectory.roster) { descriptor in
-                    if descriptor.isWired {
-                        NavigationLink {
-                            detailDestination(descriptor.sourceID)
-                        } label: {
-                            overviewRow(descriptor)
+            // §244 P-6 镜像：有授权卡等着时总览页如实
+            // 显形（只读镜像，处理在对话里）——不让卡
+            // 只活在聊天流里就找不回来
+            if controller.permissionFlow.hasVisibleCards {
+                Section {
+                    ForEach(controller.permissionFlow.cards) { card in
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Image(
+                                systemName: DeviceSourceDirectory
+                                    .descriptor(card.source).tileSymbol
+                            )
+                            .foregroundStyle(Palette.primary)
+                            Text(DeviceSourceDirectory.descriptor(card.source).name)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Spacer(minLength: OneDayMetrics.spacingS)
+                            Text(permissionCardPhaseLine(card.phase))
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
-                    } else {
-                        overviewRow(descriptor)
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
                     }
+                } header: {
+                    headerText("等你确认")
+                } footer: {
+                    Text("在任意对话里就能处理这些授权卡，处理完会自动接着办刚才的事。")
                 }
-            } header: {
-                headerText("你的设备")
-            } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。相机有系统权限，拍照与扫文档都要你当面操作；识别、翻译、端上智能与本人确认没有系统权限，开关就是唯一的门，其中端上智能只在支持的机型上出现。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
             }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(deviceRowInsets)
-
             Section {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Text("设备会话")
@@ -1621,40 +1650,57 @@ struct DevicePermissionsView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } header: {
                 headerText("通道状态")
+            } footer: {
+                // §244 P-6 本页定位句（原在已撤的名单段
+                // 段脚，台账 198 收敛 S1 随段撤除迁此保
+                // 留）：只做管理面、不兼任使用教程
+                Text("这里只管状态和开关：权限要改在系统设置里，副本和日志在各件详情页里。智能体要用哪件，都是在对话里当场问你。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
 
             // 数据同步总览（0.36.14）：五件副本各一行
-            // 状态字＋删除全部副本的总入口
+            // 状态字＋删除全部副本的总入口。§468 起
+            // 兼作逐数据集健康面（规格 A-1/A-4）：行
+            // 头健康点（绿/黄/红）、行尾失败原因优先
+            // 于状态字、行内「立即同步」只推这一件；
+            // 打开本页即回读刷新（下方 .task）
             Section {
                 ForEach(
                     DeviceSyncDataset.allCases, id: \.self
                 ) { dataset in
-                    NavigationLink {
-                        detailDestination(dataset.sourceID)
-                    } label: {
-                        HStack(
-                            spacing: OneDayMetrics.spacingSM
-                        ) {
-                            Text(dataset.label)
-                                .font(.rowTitleL)
-                                .foregroundStyle(Palette.ink)
-                            Spacer(
-                                minLength: OneDayMetrics.spacingS
+                    HStack(
+                        spacing: OneDayMetrics.spacingSM
+                    ) {
+                        healthDot(dataset)
+                        NavigationLink {
+                            DeviceDetailDestination(
+                                source: dataset.sourceID
                             )
-                            Text(syncSegment(dataset))
-                                .font(.footnote)
-                                .foregroundStyle(
-                                    Palette.inkSecondary
+                        } label: {
+                            HStack(
+                                spacing: OneDayMetrics.spacingSM
+                            ) {
+                                Text(dataset.label)
+                                    .font(.rowTitleL)
+                                    .foregroundStyle(Palette.ink)
+                                Spacer(
+                                    minLength: OneDayMetrics.spacingS
                                 )
-                                .lineLimit(1)
+                                Text(healthLine(dataset))
+                                    .font(.footnote)
+                                    .foregroundStyle(
+                                        healthLineColor(dataset)
+                                    )
+                                    .lineLimit(1)
+                            }
                         }
-                        .frame(
-                            minHeight: OneDayMetrics
-                                .settingsRowHeight
-                        )
+                        manualSyncButton(dataset)
                     }
+                    .frame(
+                        minHeight: OneDayMetrics
+                            .settingsRowHeight
+                    )
                 }
                 Button(role: .destructive) {
                     showDeleteAllConfirm = true
@@ -1718,76 +1764,81 @@ struct DevicePermissionsView: View {
         )
     }
 
-    private func overviewRow(
-        _ descriptor: DeviceSourceDescriptor
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            DeviceAppIconView(source: descriptor.sourceID, size: 40)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(descriptor.name)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                Text(overviewStatus(descriptor))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        .contentShape(Rectangle())
-    }
+    // MARK: 健康面（§468，规格 A-1/A-4/A-5）
 
-    private func overviewStatus(
-        _ descriptor: DeviceSourceDescriptor
-    ) -> String {
-        let permission = controller.permissions[descriptor.sourceID]
+    /// 健康级取数：时刻以服务端副本回读为准（桥
+    /// 状态优先、本地回执兜底，两者同源于桥回执），
+    /// 权限以系统现读为准
+    private func healthLevel(
+        _ dataset: DeviceSyncDataset
+    ) -> SyncHealthLevel {
+        let sync = appState.deviceSync
+        let syncedAt = sync.statuses[dataset]?.syncedAt
+            ?? sync.receipts[dataset].map {
+                Date(timeIntervalSince1970: $0.syncedAt)
+            }
+        let permission = controller.permissions[dataset.sourceID]
             ?? .notDetermined
-        let dataset = DeviceSyncDataset.fromSource(descriptor.sourceID)
-        return DeviceRowStatus.line(
-            descriptor: descriptor,
-            permission: permission,
-            agentCallEnabled:
-                controller.agentCallEnabled[descriptor.sourceID] ?? false,
-            sessionOnline: controller.sessionOnline,
-            metric: nil,
-            syncSegment: dataset.map { syncSegment($0) },
-            // 照片/步数没有现读现回的通道，不拼调用态
-            showsCallState: dataset == nil
-                || descriptor.sourceID == .calendar
-                || descriptor.sourceID == .reminders
-                || descriptor.sourceID == .contacts
+        return DeviceSyncHealth.level(
+            syncedAt: syncedAt,
+            permissionUsable: permission.isUsable, now: Date()
         )
     }
 
+    private func healthDot(_ dataset: DeviceSyncDataset) -> some View {
+        let color: Color = switch healthLevel(dataset) {
+        case .green: Palette.success
+        case .yellow: Palette.warning
+        case .red: Palette.dangerFill
+        }
+        return Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .accessibilityHidden(true)
+    }
+
+    /// 行尾文案：最近失败的人话原因优先（规格
+    /// A-1），没有失败才回状态字
+    private func healthLine(_ dataset: DeviceSyncDataset) -> String {
+        if let error = appState.deviceSync.lastErrors[dataset],
+           !error.isEmpty
+        {
+            return error
+        }
+        return syncSegment(dataset)
+    }
+
+    private func healthLineColor(
+        _ dataset: DeviceSyncDataset
+    ) -> Color {
+        appState.deviceSync.lastErrors[dataset] != nil
+            ? Palette.danger : Palette.inkSecondary
+    }
+
+    /// 行内「立即同步」（规格 A-4）：只推这一件；
+    /// 同步中转圈，完成回读时刻判成败、失败原因
+    /// 落本行红字（manualSync 内落账）
     @ViewBuilder
-    private func detailDestination(
-        _ source: DeviceSourceID
+    private func manualSyncButton(
+        _ dataset: DeviceSyncDataset
     ) -> some View {
-        switch source {
-        case .calendar: CalendarDetailView()
-        case .reminders: RemindersDetailView()
-        case .contacts: ContactsDetailView()
-        case .photos: PhotosDetailView()
-        case .motion: MotionDetailView()
-        case .clipboard: ClipboardDetailView()
-        case .files: FilesDetailView()
-        case .alarm: AlarmDetailView()
-        case .notifications: NotificationsDetailView()
-        case .opener: OpenTargetDetailView()
-        case .camera: CameraDetailView()
-        case .vision: VisionDetailView()
-        case .translate: TranslateDetailView()
-        case .ondevice: OnDeviceDetailView()
-        case .biometric: BiometricDetailView()
-        case .location: LocationDetailView()
-        case .media: MediaDetailView()
-        case .compose: ComposeDetailView()
-        case .shortcuts: ShortcutsDetailView()
-        case .deviceinfo: DeviceInfoDetailView()
-        case .health, .home: EmptyView()
+        if appState.deviceSync.isRunning(dataset) {
+            ProgressView()
+        } else {
+            Button {
+                Task {
+                    await appState.deviceSync.manualSync(
+                        dataset, config: appState.config
+                    )
+                }
+            } label: {
+                Text("立即同步")
+                    .font(.footnote)
+            }
+            .buttonStyle(.borderless)
         }
     }
+
 }
 
 // MARK: - 剪贴板详情（设备扩容批一）
@@ -1875,14 +1926,14 @@ struct FilesDetailView: View {
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                 } else if items.isEmpty {
-                    Text(
-                        currentPath.isEmpty
-                            ? "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
-                            : "这个文件夹是空的。"
-                    )
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                    ContentUnavailableView {
+                        Label(
+                            currentPath.isEmpty
+                                ? "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
+                                : "这个文件夹是空的。",
+                            systemImage: "folder.fill"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     fileRow(item)
@@ -1961,10 +2012,7 @@ struct FilesDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .footnote.weight(.semibold))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -2050,12 +2098,12 @@ struct AlarmDetailView: View {
             if permission.isUsable {
                 Section {
                     if items.isEmpty {
-                        Text("现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(
-                                .vertical, OneDayMetrics.spacingS
+                        ContentUnavailableView {
+                            Label(
+                                "现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。",
+                                systemImage: "alarm"
                             )
+                        }
                     }
                     ForEach(items) { item in
                         alarmRow(item)
@@ -2093,15 +2141,24 @@ struct AlarmDetailView: View {
             }
             Spacer(minLength: 0)
             Button("取消") {
-                controller.dispatcher.alarms.cancelLocal(
-                    id: item.id
-                )
-                reload()
+                cancel(item)
             }
             .font(.callout)
             .foregroundStyle(Palette.danger)
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                cancel(item)
+            } label: {
+                Label("取消", systemImage: "xmark")
+            }
+        }
+    }
+
+    private func cancel(_ item: DeviceAlarmItem) {
+        controller.dispatcher.alarms.cancelLocal(id: item.id)
+        reload()
     }
 
     private func rowSubtitle(_ item: DeviceAlarmItem) -> String {
@@ -2143,12 +2200,12 @@ struct NotificationsDetailView: View {
             if permission.isUsable {
                 Section {
                     if items.isEmpty {
-                        Text("现在没有待发的通知。在对话里让智能体按你的确认发一条试试。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(
-                                .vertical, OneDayMetrics.spacingS
+                        ContentUnavailableView {
+                            Label(
+                                "现在没有待发的通知。在对话里让智能体按你的确认发一条试试。",
+                                systemImage: "bell.fill"
                             )
+                        }
                     }
                     ForEach(items) { item in
                         VStack(
@@ -2249,14 +2306,7 @@ struct OpenTargetDetailView: View {
                             .foregroundStyle(
                                 Palette.inkSecondary
                             )
-                            Image(systemName: "chevron.right")
-                                .font(
-                                    .footnote.weight(.semibold)
-                                )
-                                .foregroundStyle(
-                                    Palette.inkSecondary
-                                )
-                                .accessibilityHidden(true)
+                            DisclosureChevron(font: .footnote.weight(.semibold))
                         }
                         .frame(
                             minHeight: OneDayMetrics
@@ -2308,9 +2358,12 @@ struct CameraDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 if items.isEmpty {
-                    Text("还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label(
+                            "还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。",
+                            systemImage: "camera.fill"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     HStack(
@@ -2391,9 +2444,12 @@ struct VisionDetailView: View {
             DeviceStatusHeader(source: .vision)
             Section {
                 if items.isEmpty {
-                    Text("OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label(
+                            "OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。",
+                            systemImage: "text.viewfinder"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     Button {
@@ -2780,9 +2836,9 @@ struct MediaDetailView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     if playlists.isEmpty && note == nil {
-                        Text("资料库里还没有歌单。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
+                        ContentUnavailableView {
+                            Label("资料库里还没有歌单。", systemImage: "music.note")
+                        }
                     }
                     ForEach(
                         Array(playlists.enumerated()),

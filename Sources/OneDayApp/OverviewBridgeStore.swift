@@ -1,5 +1,6 @@
 import Foundation
 import OneDayCore
+import SwiftData
 
 /// 总览桥状态持有（0.6.0 一期）：ContentView 壳层持有，
 /// 聊天页顶栏（状态行＋铃铛角标）与通知 sheet 共同消费。
@@ -12,9 +13,11 @@ import OneDayCore
 /// 与 Hermes API 通道是两条独立链——每轮刷新除桥取数
 /// 外另直探 Hermes /health（hermesChannelUp），状态行
 /// 的「联系不上」只认通道探活（见 Core 的
-/// OverviewStatusLine 新口径）；桥鉴权失败（未粘钥匙/
-/// 401）只回写 AppState.overviewBridgeAuthFailed 供设
-/// 置页露「桥未连接」，不许污染胶囊状态。
+/// OverviewStatusLine 新口径）；桥鉴权失败不许污染
+/// 胶囊状态。§259（2026-11-14）续：当年回写
+/// AppState 的 overviewBridgeAuthFailed 旗经实查全
+/// 仓无读者（设置页早已改走自有状态面），旗与全部
+/// 写入点退役；在线结论收成本类 channelUp 单源。
 @MainActor
 @Observable
 final class OverviewBridgeStore {
@@ -36,9 +39,90 @@ final class OverviewBridgeStore {
     private let client = OverviewBridgeClient()
     private var isRefreshing = false
 
+    /// 回告本机存档（§241 留存）：桥窗口只有最近 50
+    /// 条且随桥易失——凡本机见过的通知都落进本档，
+    /// 已读只翻标记、记录不清。通知面板的历史面读
+    /// 本档与现行合并（ReportCardHistory），聊天页回
+    /// 告卡仍只读现行未读，两面分工不混
+    @ObservationIgnored private var archive: [OverviewNotification] = []
+    @ObservationIgnored private var archiveLoaded = false
+    /// 演示态不读存档、不露真实历史（演示分支置位）
+    @ObservationIgnored private var demoMode = false
+
+    /// 历史面数据源：现行 ∪ 存档（现行优先），演示
+    /// 态退回现行（恒空）。通知面板列表/计数/详情取
+    /// 数走本面；角标与回告卡不走本面
+    var historyNotifications: [OverviewNotification] {
+        guard !demoMode else { return notifications }
+        loadArchiveIfNeeded()
+        return ReportCardHistory.merge(
+            live: notifications, archived: archive)
+    }
+
+    private static var archiveFileURL: URL {
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        )[0]
+        let dir = base.appendingPathComponent(
+            "ReportCards", isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("archive.json")
+    }
+
+    private func loadArchiveIfNeeded() {
+        guard !archiveLoaded else { return }
+        archiveLoaded = true
+        guard let data = try? Data(contentsOf: Self.archiveFileURL),
+              let items = try? JSONDecoder().decode(
+                [OverviewNotification].self, from: data)
+        else { return }
+        archive = items
+    }
+
+    private func persistArchive() {
+        guard let data = try? JSONEncoder().encode(archive)
+        else { return }
+        try? data.write(to: Self.archiveFileURL, options: .atomic)
+    }
+
+    /// 把一轮现行通知吸收进存档（加载成功即调用）：
+    /// 合并后存档即历史全集，已读态以现行为准
+    private func absorbIntoArchive(
+        _ items: [OverviewNotification]
+    ) {
+        loadArchiveIfNeeded()
+        archive = ReportCardHistory.merge(
+            live: items, archived: archive)
+        persistArchive()
+    }
+
+    /// 存档侧已读回写：现行标已读成功后同翻存档副本；
+    /// 条目已滑出桥窗口（现行查无）时，存档副本就是
+    /// 唯一记录面，直接翻本档
+    private func markArchiveRead(id: String) {
+        loadArchiveIfNeeded()
+        guard let index = archive.firstIndex(where: { $0.id == id }),
+              !archive[index].read else { return }
+        archive[index].read = true
+        persistArchive()
+    }
+
+    /// 在线结论单源（§259）：全 App 凡问「通道在不
+    /// 在」只认本值。主源＝直探 /health 的探活结论
+    /// （hermesChannelUp，迟滞记账只服务它一个输入）；
+    /// 探活尚无结论（冷启未探到）时回落桥快照的
+    /// hermesUp 字段——回落只在本处发生一次，派生层
+    /// （OverviewStatusLine）不再双源仲裁。桥快照的
+    /// 其余字段（待审批数等）是数据、不是结论来源
+    var channelUp: Bool? {
+        hermesChannelUp ?? snapshot?.hermesUp
+    }
+
     var statusLine: String {
         OverviewStatusLine.resolve(
-            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+            channelUp: channelUp,
+            pendingApprovals: snapshot?.pendingApprovals ?? 0
         )
     }
 
@@ -48,7 +132,8 @@ final class OverviewBridgeStore {
     /// 「在线」点落灰，用户 22:26 真机点名）
     var statusTone: OverviewStatusLine.Tone {
         OverviewStatusLine.tone(
-            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+            channelUp: channelUp,
+            pendingApprovals: snapshot?.pendingApprovals ?? 0
         )
     }
 
@@ -56,6 +141,7 @@ final class OverviewBridgeStore {
         OverviewBadge.count(snapshot: snapshot)
     }
 
+/// §416 新鲜度普查豁免：30 秒前台轮询自带节奏，门不介入（判定表见 DESIGN §416）
     /// 前台轮询主循环：立即一轮，之后每 30 秒一轮；
     /// 任务取消（退后台/壳层消失）即停。
     func poll(appState: AppState) async {
@@ -71,7 +157,9 @@ final class OverviewBridgeStore {
             snapshot = nil
             hermesChannelUp = nil
             liveness = ConnectionLiveness()
-            appState.overviewBridgeAuthFailed = false
+            updateConnectionStatus(in: appState) {
+                $0.markNotConnected(at: Date())
+            }
             return
         }
         if appState.isDemo {
@@ -83,6 +171,9 @@ final class OverviewBridgeStore {
             )
             liveness.recordSuccess()
             hermesChannelUp = true
+            updateConnectionStatus(in: appState) {
+                $0.probeSucceeded(at: Date())
+            }
             return
         }
         isRefreshing = true
@@ -92,15 +183,10 @@ final class OverviewBridgeStore {
         await probeChannel(appState: appState, config: config)
         do {
             snapshot = try await client.overview(config: config)
-            appState.overviewBridgeAuthFailed = false
-        } catch let error as OverviewBridgeError {
-            snapshot = nil
-            // 只有钥匙类失败（未粘/被拒）才点「桥未连接」
-            // 旗；网络类失败不归因于钥匙、旗保持原值
-            if error == .noKey || error == .unauthorized {
-                appState.overviewBridgeAuthFailed = true
-            }
         } catch {
+            // §259：桥失败只落 snapshot 本面——旧
+            // overviewBridgeAuthFailed 旗全仓无读者、
+            // 已随单源化退役，不再回写 AppState
             snapshot = nil
         }
     }
@@ -114,6 +200,9 @@ final class OverviewBridgeStore {
         appState: AppState, config: ServerConfig
     ) async {
         var failuresThisRound = 0
+        updateConnectionStatus(in: appState) {
+            $0.beginProbe(at: Date())
+        }
         while true {
             do {
                 let health = try await appState.client.health(
@@ -128,11 +217,23 @@ final class OverviewBridgeStore {
                 }
                 liveness.recordSuccess()
                 hermesChannelUp = true
+                updateConnectionStatus(in: appState) {
+                    $0.probeSucceeded(at: Date())
+                }
                 return
             } catch {
                 if Task.isCancelled { return }
                 failuresThisRound += 1
                 let verdict = liveness.recordFailure()
+                updateConnectionStatus(in: appState) {
+                    $0.probeFailed(
+                        attempt: failuresThisRound,
+                        reason: ConnectionSelfCheckStore.classify(error)
+                            .reasonText,
+                        settledOffline: verdict == false,
+                        at: Date()
+                    )
+                }
                 if verdict == false {
                     hermesChannelUp = false
                     return
@@ -153,20 +254,42 @@ final class OverviewBridgeStore {
         }
     }
 
+    /// 连接状态快照发布（总表 156，DESIGN §394）：探
+    /// 活链是唯一喂入方，判定口径在 Core Connection-
+    /// Status；值未变不回写，防 @Observable 无谓重渲
+    private func updateConnectionStatus(
+        in appState: AppState,
+        _ mutate: (inout ConnectionStatus) -> Void
+    ) {
+        var next = appState.connectionStatus
+        mutate(&next)
+        if next != appState.connectionStatus {
+            appState.connectionStatus = next
+        }
+    }
+
     /// 业务成功回写（0.36.20，§86.2）：Hermes 通道上任
     /// 一真实业务收到响应即算通道活证——计数清零、状
     /// 态立即回「在线」，不等下一轮探活（治审计 R4：
     /// 聊天明明刚收发成功、胶囊还挂着旧探活失败的
     /// 「联系不上」最长约 30 秒）
-    func noteBusinessSuccess() {
+    func noteBusinessSuccess(appState: AppState) {
         liveness.recordSuccess()
         if hermesChannelUp != true {
             hermesChannelUp = true
         }
+        updateConnectionStatus(in: appState) {
+            $0.probeSucceeded(at: Date())
+        }
     }
 
-    func loadNotifications(appState: AppState) async {
+    func loadNotifications(
+        appState: AppState,
+        foregroundServerSessionID: String? = nil,
+        userSessionIDs: Set<String> = []
+    ) async {
         notificationsFailed = false
+        demoMode = appState.isDemo
         guard let config = appState.config else {
             notifications = []
             notificationsLoaded = true
@@ -179,13 +302,46 @@ final class OverviewBridgeStore {
             return
         }
         do {
-            notifications = try await client.notifications(config: config)
+            let loaded = try await client.notifications(
+                config: config
+            )
+            // §454 入账收口：三级条目（前台会话的正
+            // 常完成）在入账口拦下——不入名单、不入
+            // 存档、不进下方的消账与提醒规划；只向
+            // 桥确认已读，保桥侧未读口径（runs 轴）
+            // 不虚高。判定在 Core（Notification-
+            // IntakePolicy），只认 refId 命中用户在
+            // 场会话链的正向识别；认不出的照旧留底。
+            // 历史存量不回溯、不删（本轮之前已入存
+            // 档的同类条目原样保留）
+            let suppressed = Set(
+                NotificationIntakePolicy.suppressedIDs(
+                    notifications: loaded,
+                    userSessionIDs: userSessionIDs
+                )
+            )
+            installLoadedNotifications(
+                loaded.filter { !suppressed.contains($0.id) }
+            )
             notificationsLoaded = true
-            appState.overviewBridgeAuthFailed = false
+            // §241 留存：先吸收进存档再走自动消账——被
+            // 消账的回执也已在历史里，不因已读而丢记录
+            absorbIntoArchive(notifications)
+            // §454：被压条目逐条向桥确认已读（最佳
+            // 努力：失败不打扰，下轮拉取会再压再确
+            // 认、自愈）；本地无其记录可翻，不走
+            // markRead 的存档通道
+            for item in loaded
+            where suppressed.contains(item.id) && !item.read {
+                _ = try? await client.markRead(
+                    config: config, id: item.id
+                )
+            }
             // 0.36.5（联动 C 部）：本人裁决的回执一到
             // 即自动消账——按 refId 命中本人裁决集的
-            // 未读回执逐条走既有 markRead 通道（桥确
-            // 认后才改本地态、角标同步减一）；角标/
+            // 未读回执逐条走既有 markRead 通道（§233
+            // 起本地先落已读、角标同步减一，再向桥确
+            // 认）；角标/
             // 通知列表/聊天回告卡读同一份状态、三处
             // 同消。桥未带 refId（未升级）时判定恒空、
             // 本段无动作
@@ -195,13 +351,27 @@ final class OverviewBridgeStore {
             ) {
                 await markRead(appState: appState, id: id)
             }
-        } catch let error as OverviewBridgeError {
-            notifications = []
-            notificationsLoaded = true
-            notificationsFailed = true
-            if error == .noKey || error == .unauthorized {
-                appState.overviewBridgeAuthFailed = true
+            // §426（缺陷二）：当前正打开会话的运行
+            // 终态同式消账——终态已在聊天里当面呈
+            // 现，同会话的完成/失败通知不再弹卡、
+            // 不占角标，记录仍留在通知中心。判定在
+            // Core（RunCompletionResolution），只认
+            // refId 与前台会话 id 的结构对位；调用
+            // 方（ChatView）不在场时不传 id、本段恒
+            // 空转
+            for id in RunCompletionResolution.receiptsToResolve(
+                notifications: notifications,
+                foregroundServerSessionID: foregroundServerSessionID
+            ) {
+                await markRead(appState: appState, id: id)
             }
+            // §385（总表 162）：新到未读按分级矩阵发
+            // 本地提醒——规划/去重/投递在提醒器内；
+            // 本人回执已在上方消账（read 已翻真、不
+            // 入提醒规划）
+            await NotificationTierAlerter.consume(
+                items: notifications
+            )
         } catch {
             notifications = []
             notificationsLoaded = true
@@ -209,41 +379,88 @@ final class OverviewBridgeStore {
         }
     }
 
-    /// 全部已读（0.36.7，规格 §3.5）：桥只有单条接
-    /// 口，客户端对未读条目逐条顺序确认——只改确认
-    /// 成功的本地态，返回是否全部成功；任一条失败
-    /// 即 false、该条保持未读（不许假装全清），提
-    /// 示文案归视图层按 S10 呈现。
+    /// 全部已读（0.36.7，规格 §3.5；§233 改本地先行）：
+    /// 桥只有单条接口——**本地先把未读条目全标已读
+    /// （角标同步清）**，再逐条向桥确认；返回值＝桥
+    /// 确认是否全部成功，任一条没确认上即 false（本
+    /// 地已读态不回滚，下轮名单以服务端为准纠正），
+    /// 视图层据此给一句同步未成的提示
     func markAllRead(appState: AppState) async -> Bool {
         let pending = notifications.filter { !$0.read }.map(\.id)
+        for id in pending { applyLocalRead(id: id) }
+        guard let config = appState.config, !appState.isDemo
+        else { return true }
         var allSucceeded = true
         for id in pending {
-            await markRead(appState: appState, id: id)
-            let item = notifications.first(where: { $0.id == id })
-            if let item, !item.read {
-                allSucceeded = false
-            }
+            let ok = (try? await client.markRead(
+                config: config, id: id
+            )) ?? false
+            if !ok { allSucceeded = false }
         }
         return allSucceeded
     }
 
-    /// 点开一条通知：先向桥确认已读，成功才改本地态与
-    /// 角标（快照未读数同步减一）；失败保留未读，不假报。
-    func markRead(appState: AppState, id: String) async {
-        guard let config = appState.config,
-              let index = notifications.firstIndex(where: { $0.id == id }),
-              !notifications[index].read else { return }
-        if appState.isDemo { return }
-        do {
-            let ok = try await client.markRead(config: config, id: id)
-            guard ok else { return }
-            notifications[index].read = true
-            if var current = snapshot, current.unreadNotifications > 0 {
-                current.unreadNotifications -= 1
-                snapshot = current
-            }
-        } catch {
-            // 已读没发出去：保持未读，下次点开重试
+    /// 本地先落已读（§233 同步落点）：目标条换已读＋
+    /// 快照未读数即时减一（封底 0）；条不在名单/已读
+    /// 时返回 false 不动。通知已读是纯呈现态，先行不
+    /// 等桥确认
+    @discardableResult
+    func applyLocalRead(id: String) -> Bool {
+        guard let index = notifications.firstIndex(
+                  where: { $0.id == id }
+              ),
+              !notifications[index].read else { return false }
+        notifications[index].read = true
+        if var current = snapshot, current.unreadNotifications > 0 {
+            current.unreadNotifications -= 1
+            snapshot = current
         }
+        return true
+    }
+
+    /// 名单装载收口（load/测试共用一个落点）
+    func installLoadedNotifications(
+        _ loaded: [OverviewNotification]
+    ) {
+        notifications = loaded
+    }
+
+    /// 点开一条通知：**本地先落已读＋角标先减**，再向
+    /// 桥确认（§233）；确认失败静默保留本地已读（纯
+    /// 呈现态，下轮名单以服务端为准纠正，不打扰用
+    /// 户），桥回执不成功同理
+    func markRead(appState: AppState, id: String) async {
+        guard applyLocalRead(id: id) else {
+            // §241：条目已滑出桥窗口时存档是唯一记录
+            // 面——桥无可确认，直接翻本档副本
+            if !appState.isDemo { markArchiveRead(id: id) }
+            return
+        }
+        guard let config = appState.config else { return }
+        if appState.isDemo { return }
+        // §241：本地已读同拍翻存档副本（存档＝历史
+        // 面，与本地呈现态同源；桥确认仍走 §233 纪律）
+        markArchiveRead(id: id)
+        _ = try? await client.markRead(config: config, id: id)
+    }
+}
+
+/// 用户在场会话链（§454）：本机线程已关联的服务端
+/// 会话 id 全集——铃铛入账三级判定的正向识别名单。
+/// 调用方（ChatView/NotificationsView）以各自的
+/// modelContext 现取现传：不落盘、不缓存，线程收
+/// 养随时发生、名单以当轮为准
+@MainActor
+enum ChatSessionScope {
+    static func userSessionIDs(
+        from context: ModelContext
+    ) -> Set<String> {
+        let threads = (try? context.fetch(
+            FetchDescriptor<ChatThread>()
+        )) ?? []
+        return Set(
+            threads.compactMap(\.serverSessionID)
+                .filter { !$0.isEmpty }
+        )
     }
 }

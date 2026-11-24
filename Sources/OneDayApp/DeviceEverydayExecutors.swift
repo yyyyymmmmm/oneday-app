@@ -2164,6 +2164,17 @@ final class FilePresenceEngine: @unchecked Sendable {
         let url = try files.urlForPreview(
             relativePath: args.path
         )
+        // 资格门（§380 R2，与下方 print 的 canPrint
+        // 门同式）：QL 不认的类型硬呈只剩空白死页，
+        // 先验资格、不过即报人话、不呈
+        let previewable = await MainActor.run {
+            QLPreviewController.canPreview(url as NSURL)
+        }
+        guard previewable else {
+            throw DeviceToolError.failed(
+                "这个文件手机预览不了：\(args.path)"
+            )
+        }
         try await DeviceFilePresenceBridge.presentPreview(
             url: url
         )

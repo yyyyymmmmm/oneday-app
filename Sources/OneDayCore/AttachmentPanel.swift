@@ -1,12 +1,11 @@
 import Foundation
 
 /// 附件面板拼装口径（§147，用户 2026-11-11 19:01 点题
-/// 改版）：「+」自浮窗小卡菜单改为 Muse 式底部附件
-/// 面板——「资源库」照片条＋动作行。照片条的数据源
-/// 拼装、相册授权政策、选图/选视频的接入判定全在此
-/// 处纯函数化（PHAsset 读取与呈现动作在 App 层），
+/// 改版）：「＋」自浮窗小卡菜单改为 Muse 式底部附仴
+/// 面板——「资源库」照片条＋动作行。照片条的数据洐
+/// 拼装、相册授权政策、选图/选视颙的接入判定全在此/// 处纯函数化（PHAsset 读取与呈现动作在全层），
 /// 选中后一律汇入现行附件管线（附件条筹码、上传链、
-/// 发送拼装不动）。§152 修订二在此续：照片条多选的
+/// 发送拼装不动）＂§152 修订二在此续：照片条多选的
 /// 切换/排序/确认文案纯函数（选中态本体在 App 层）。
 public enum AttachmentPanel {
 
@@ -67,7 +66,7 @@ public enum AttachmentPanel {
 
     // MARK: - 图片接入判定（选图器与照片条共用）
 
-    /// 单张图片大小闸（字节）：图片走多模态内嵌发
+    /// 单张图片大小闸（字节）：图片走多模态册发
     /// 送、不经文件上传契约，故闸独立于 FileIntake
     /// 的 100MiB（0.36.23 立、0.36.31 文件闸抬升时
     /// 明示不牵动本闸）；自 ChatView 内联常量收编至
@@ -120,12 +119,13 @@ public enum AttachmentPanel {
         stripOrder.filter { selected.contains($0) }
     }
 
-    /// 「添加 N 张」确认行文案：未选任何照片回 nil
-    /// （确认行不呈现、动作不可用同源）；有选时逐字
-    /// 点数
+    /// 确认按钮文案（§152 立、§461 改文案）：未选
+    /// 任何照片回 nil（确认按钮不呈现、动作不可用
+    /// 同源）；有选时逐字点数，文案随 §461 目标图
+    /// 作「添加 N 个附件」
     public static func addSelectedTitle(count: Int) -> String? {
         guard count > 0 else { return nil }
-        return "添加 \(count) 张"
+        return "添加 \(count) 个附件"
     }
 
     // MARK: - 视频接入命名
@@ -140,45 +140,90 @@ public enum AttachmentPanel {
         return "视频.\(cleaned.isEmpty ? "mov" : cleaned)"
     }
 
-    // MARK: - 定高决策（§154 热修收口）
+    // MARK: - 布局常量与定高（D5，台账 11）
 
-    /// detent 钳顶占屏比：内容再高也不许把 sheet
-    /// 撑过宿主高度的四分之三
-    public static let detentMaxScreenFraction: CGFloat = 0.75
-
-    /// 量测可信下限（pt）：面板最矮形态（无资源库
-    /// 区、无确认行）的内容高是上下内边距 32＋动作
-    /// 行两行 104＝136，低于 120 的「内容高」不可能是
-    /// 真量测——只能是量测链坏掉时的伪值（见
-    /// detentHeight 的热修记账），一律按量测失败处
-    /// 理、回落默认档
-    public static let detentMinimumPlausibleHeight: CGFloat = 120
-
-    /// 量得内容高 → detent 高（§152 立、§154 热修）：
-    /// 零/负/低于可信下限的量测与无效屏高一律回
-    /// nil——宿主据此回落 .medium，面板照常打开，
-    /// 绝不许拿伪值当 detent 把 sheet 压没；有效
-    /// 量测按屏高比例钳顶后原样返回。
-    ///
-    /// §154 定因（0.50.16 真机「+」点开无反应）：
-    /// 本函数的 screenHeight 必须是**宿主真高**
-    /// （呈现方整页几何）——§152 施工时误把 sheet
-    /// 内容里的 GeometryReader 所量当作屏高，那量
-    /// 到的其实是 detent 驱动的 sheet 自身高度 s：
-    /// detent＝min(量测, 0.75·s) 每过一轮布局至多
-    /// 剩 0.75 倍，几何衰减塌到近零，sheet 等于没
-    /// 出现。入参口径自此钉死：screenHeight 只许
-    /// 来自 sheet 之外的呈现方几何；量测本身须取
-    /// 内容理想高（App 层 fixedSize 保真），与当
-    /// 前 detent 无关——本函数对同一 (measured,
-    /// screenHeight) 恒回同值，是不动点，宿主回路
-    /// 不再自激。
-    public static func detentHeight(
-        measured: CGFloat, screenHeight: CGFloat
-    ) -> CGFloat? {
-        guard screenHeight > 0,
-              measured >= detentMinimumPlausibleHeight
-        else { return nil }
-        return min(measured, screenHeight * detentMaxScreenFraction)
+    /// 布局常量单源（D5 收编）：面板内容形态值——照
+    /// 片格边长、行高、标题行高。间距仍引用 OneDayMetrics
+    /// （spacingM 16 / spacingSM 12），不另立
+    public enum Layout {
+        /// 照片格边长（§152 定版：照 Muse 近方形大格）
+        public static let cellSize: CGFloat = 118
+        /// 行高（动作行用）
+        public static let rowHeight: CGFloat = 52
+        /// 确认按钮高（§461：确认动作改底部整宽大
+        /// 按钮，独立于动作行高定版）
+        public static let confirmButtonHeight: CGFloat = 56
+        /// 资源库标题行高（.headline 字体实测约值）
+        public static let titleRowHeight: CGFloat = 22
     }
+
+    /// 贴合档理想高度纯算（D5 立）：按与内容同一组常
+    /// 量算内容理想高——无状态、无量
+    /// 测、无回调。装配测试逐值对账防漂移
+    ///
+    /// - Parameters:
+    ///   - showsLibrary: 资源库区是否呈现（授权相关）
+    ///   - hasSelection: 是否有照片选中（确认行是否在场）
+    ///
+    /// SwiftUI `.height()` detent 参数是 detent 解析高度
+    /// （相当于 sheetHeight - safeAreaInsets.bottom），
+    /// 系统会自动加上安全区得到实际帧高，故此函数只返回
+    /// 纯内容高，不包含安全区。
+    ///
+    /// - Returns: detent 高度（纯内容高，系统自动加安全区）
+    public static func fittedSheetHeight(
+        showsLibrary: Bool,
+        hasSelection: Bool
+    ) -> CGFloat {
+        // 上下 padding：各 spacingM(16)
+        let verticalPadding: CGFloat = 16 * 2
+        
+        // 资源库区：标题行 + spacingSM(12) + 照片格
+        let libraryHeight: CGFloat = showsLibrary 
+            ? (Layout.titleRowHeight + 12 + Layout.cellSize) 
+            : 0
+        
+        // 确认按钮（§461：有选时在场，底部整宽大按钮）
+        let confirmHeight: CGFloat = hasSelection
+            ? Layout.confirmButtonHeight : 0
+        
+        // 动作行：两行 + Divider(~1)
+        let actionHeight: CGFloat = Layout.rowHeight * 2 + 1
+        
+        // 区段间 spacingM(16) 计数：
+        // - 有库未选：library + 16 + action
+        // - 有库已选：library + 16 + confirm + 16 + action
+        // - 无库态：action（padding 已含，无额外间距）
+        var spacingCount = 0
+        if showsLibrary {
+            spacingCount += 1  // library 与下方间距
+            if hasSelection {
+                spacingCount += 1  // confirm 与 action 间距
+            }
+        }
+        let interSpacing: CGFloat = CGFloat(spacingCount) * 16
+        
+        let contentHeight = verticalPadding + libraryHeight + confirmHeight + actionHeight + interSpacing
+        
+        return contentHeight
+    }
+
+    // MARK: - 定高注释续（D5 修订条）
+
+    // §152/§154 的定高决策（detentHeight＋可信下限
+    // ＋75% 钳顶）已随 A-08 收口整节退役：面板高度
+    // 先改由系统 fitted 尺寸按内容理想尺寸单源决定
+    // （§303 custom detent），§327 再退役精确贴合、
+    // 改系统 detent 档位 [.medium, .large]（App 层
+    // attachmentPanelPresentation），Core 不再参与
+    // 定高、不留任何量测判据。
+    //
+    // D5（台账 11）修订：定高条以常量纯算有限回归——
+    // fittedSheetHeight 按与内容同一组 Layout 常量
+    // 纯函数算出三态理想高（137/305/373＋safeArea），
+    // App 层配成系统 .height() 贴合档；与 §303 量测
+    // 回路的区别：无 PreferenceKey、无宿主状态、无
+    // 指纹 invalidate。§327 退役清单（custom detent
+    // resolver 桥、安全区反向补偿、指纹、§317 过渡
+    // 守卫）仍不得复活
 }

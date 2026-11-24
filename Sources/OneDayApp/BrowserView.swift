@@ -116,6 +116,16 @@ struct BrowserFaceView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .medium))
+                        // 第 83 条（命中域收口）：字形不变、
+                        // 命中域外扩 44；负内边距按字形名义
+                        // 14 抵消（(44−14)/2），状态行高由同
+                        // 排标题文本主导、布局不动
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Rectangle())
+                        .padding(-(OneDayMetrics.minTapTarget - 14) / 2)
                 }
                 .buttonStyle(.odPressable)
                 .foregroundStyle(Palette.inkSecondary)
@@ -158,7 +168,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 
@@ -196,7 +207,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 
@@ -372,7 +384,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 

@@ -68,38 +68,6 @@ public enum BottomFollowPolicy {
     }
 }
 
-/// 流式跟随滚动节流闸（0.4.2，§27）：流式文本每个
-/// 增量都变化一次，逐次触发贴底滚动等于让滚动动画
-/// 无限追逐随文本生长移动的底部。本闸按已跟随到的
-/// 字符数记账：新增 ≥40 字才放行一次跟随；流结束的
-/// 最后一贴由落盘条目变化事件承担，不经本闸。
-public struct StreamFollowGate: Equatable {
-    /// 放行一次跟随所需的最小新增字符数
-    public static let minimumGrowth = 40
-    /// 已跟随到的流式全文长度
-    public private(set) var followedCount = 0
-
-    public init() {}
-
-    /// currentCount 为当前流式全文长度。放行时记账
-    /// 到当前长度并返回 true；增量不足返回 false。
-    /// 长度比已跟随数还小（新一轮流未经 reset 直接
-    /// 开始）按从零计，不卡死
-    public mutating func shouldFollow(currentCount: Int) -> Bool {
-        let baseline = currentCount >= followedCount ? followedCount : 0
-        guard currentCount - baseline >= Self.minimumGrowth else {
-            return false
-        }
-        followedCount = currentCount
-        return true
-    }
-
-    /// 一轮流结束／切换会话时归零
-    public mutating func reset() {
-        followedCount = 0
-    }
-}
-
 /// 最后一个渲染项的滚动目标 id（0.36.13，诊断
 /// chat-bottom-geometry §2.3 事实路堵洞；§135 起
 /// App 侧消费退役——事实信号链随发送空屏诊断 A 案
@@ -242,6 +210,133 @@ public enum BottomFactCalibration {
     }
 }
 
+/// 回底钮显隐的定版判定（键盘整包 R2，2026-11-13）：
+/// 旧口径是几何迟滞带（≤96 进、≥176 出）再叠事实
+/// 覆盖——喂带宽的 contentSize 是 LazyVStack 估算
+/// 总高，两带全被估算误差点亮/熄灭（症②：末条全
+/// 文已在屏、估算距底仍报带外、箭头不消）。定版
+/// 改事实优先（证据分级注记：此为本包对自家估
+/// 算病的对症判定、非照搬某家原形——主报告 §1
+/// 的四家形态里，或无此钮、或靠列表反转使距底
+/// 恒为原点事实、或用距离阈值而其距离取自量实
+/// 几何；正向列表＋回底钮＋事实信号三件同备者
+/// 未见）：
+/// - 尾条在屏（事实）∨ 距底 ≤ 7pt（§176 冻结阈
+///   值）→ 在底、箭头消；
+/// - 距底 ≥ 176pt（§27 迟滞退出值）→ 离底、箭
+///   头显；
+/// - 两者之间且尾条不在屏 → 保持上一判定（防中
+///   段抖闪，迟滞只留这一段）。
+/// 边界口径（评审合成条目 6）：「尾条在屏」按有
+/// 效视口判——视口高扣除底留位遮挡带（尾锚落在
+/// 舱后方不算在屏，判定在 ChatView 尾锚回调按记
+/// 录的底 inset 收紧）；尾锚未被 Lazy 实例化时
+/// 事实恒缺位、判定回落几何距底（未实例化只发
+/// 生在内容未滚到尾部时，届时距底本就大、不误
+/// 判在底）；短内容（内容高 ≤ 视口）距底恒 ≤0、
+/// 恒在底；overscroll 橡皮筋段距底为负、同按
+/// ≤7 在底。初始态由 ChatView 持 isNearBottom
+/// 种子 true（新线程开在底部，与落点恢复同口径）
+public enum BottomArrowVisibility {
+    public static func isNearBottom(
+        distance: CGFloat,
+        contentEndVisible: Bool,
+        wasNearBottom: Bool
+    ) -> Bool {
+        if contentEndVisible { return true }
+        if BottomSettle.shouldRestick(distance: distance)
+            == false {
+            return true
+        }
+        if distance >= BottomProximity.exitDistance {
+            return false
+        }
+        return wasNearBottom
+    }
+}
+
+/// 键盘几何单一快照（键盘整包 R1，2026-11-13）：
+/// 主报告 R1 的「持有者」值形态——键盘几何、动画
+/// 参数与派生量同居一枚不可变快照、由持有者在键
+/// 盘事件的同一拍整体替换，输入舱/列表/顶簇/坞只
+/// 消费、不各自采样。旧形态是五个数五套机制五个
+/// 时钟（舱走通知常量、列表留位走托管帧跨拍回报
+/// 链、顶留位走另一条回报链、坞显隐走焦点状态、
+/// 落定走定时器）——症③的记账分量与症④的落定尾
+/// 巴皆出于此。派生 bottomSpace 与既有实测回报同
+/// 义（舱顶→窗口底的距离）：键盘态舱底贴键盘
+/// 顶、静息态舱底贴坞顶，两态同式。
+public struct KeyboardGeometrySnapshot: Equatable, Sendable {
+    /// 键盘顶（窗口坐标）；nil＝键盘不在场（静息）
+    public var keyboardTopInWindow: CGFloat?
+    /// 键盘动画时长（秒，取自通知 userInfo 原值）
+    public var animationDuration: TimeInterval
+    /// 键盘动画曲线原始值（UIView.AnimationCurve
+    /// 的 rawValue，取自通知 userInfo 原值）
+    public var animationCurveRawValue: Int
+    /// 窗口高（窗口坐标系基准）
+    public var windowHeight: CGFloat
+    /// 坞顶（窗口坐标）：静息态输入舱底的落点
+    public var dockTopInWindow: CGFloat
+    /// 输入舱栈高（卡＋钮行＋错误排的全栈高）
+    public var pocketHeight: CGFloat
+
+    public init(
+        keyboardTopInWindow: CGFloat? = nil,
+        animationDuration: TimeInterval = 0,
+        animationCurveRawValue: Int = 0,
+        windowHeight: CGFloat,
+        dockTopInWindow: CGFloat,
+        pocketHeight: CGFloat
+    ) {
+        self.keyboardTopInWindow = keyboardTopInWindow
+        self.animationDuration = animationDuration
+        self.animationCurveRawValue = animationCurveRawValue
+        self.windowHeight = windowHeight
+        self.dockTopInWindow = dockTopInWindow
+        self.pocketHeight = pocketHeight
+    }
+
+    /// 键盘是否在场（坞让位与留位分支的唯一读法）
+    public var isKeyboardUp: Bool {
+        keyboardTopInWindow != nil
+    }
+
+    /// 列表底部留位（不含行距）：舱顶→窗口底的距
+    /// 离。锚点在窗口内时为锚点下段高＋舱栈高；
+    /// 锚点报出窗外（异常帧）时下段高钳 0、不出
+    /// 负数
+    public var bottomSpace: CGFloat {
+        let anchorTop = keyboardTopInWindow
+            ?? dockTopInWindow
+        return max(0, windowHeight - anchorTop)
+            + pocketHeight
+    }
+}
+
+/// 键盘帧更新（R1 快照的键盘输入包）：通知的结
+/// 束帧已经持有者（ComposerGuideHost 控制器，
+/// 唯一解析点）以 window.convert 转成窗口坐标，
+/// 动画参数取 userInfo 原值——三者一包同拍到达，
+/// 消费方（ChatView）以参数原值 withAnimation 写
+/// 进快照。topInWindow＝nil 表示键盘不在场或非
+/// 停靠形态（浮动/分离不驱动留位，评审条目 3）
+public struct KeyboardFrameUpdate: Equatable, Sendable {
+    public var topInWindow: CGFloat?
+    public var duration: TimeInterval
+    public var curveRawValue: Int
+
+    public init(
+        topInWindow: CGFloat?,
+        duration: TimeInterval,
+        curveRawValue: Int
+    ) {
+        self.topInWindow = topInWindow
+        self.duration = duration
+        self.curveRawValue = curveRawValue
+    }
+}
+
 /// 离底未读计数（0.41.0，全局收口批·聊天细节余项正
 /// 修，台账 H 节）：用户上翻离开底部后，新到条目计在
 /// 回底钮的角标上；回到底部、自发发送、切换线程即清
@@ -318,4 +413,32 @@ public struct AwayUnreadCounter: Equatable, Sendable {
         guard count > 0 else { return nil }
         return count > Self.displayCap ? "\(Self.displayCap)+" : "\(count)"
     }
+}
+
+/// 贴底跟随触发源枚举（台账 149，学 OpenBot 的
+/// maintainScrollAtEnd 触发清单——其 FOLLOW_END
+/// 把「保持贴底」的触发写死四源：dataChange／
+/// itemLayout／footerLayout／layout；OneDay 侧四
+/// 源不在一个框架开关里、分布在不同机制，本枚举
+/// 即验收清单本体：逐源构造用例钉住「在底时该源
+/// 触发后仍在底、离底时不被拽回」，清单增删必须
+/// 过本枚举（防验收口径静默漂移）。各源在原生面
+/// 的落点：
+/// - dataChange：条目增删/流式生长——ChatView 条
+///   目数与流式两条 onChange 跟随链在「在底」时下
+///   达贴底命令（句柄 scrollToBottom 重立落点意
+///   图、落定拍钉底）；控制器内冷开首装同路。
+/// - itemLayout：单行量实高变化——回喂高落写→布
+///   局失效记账→布局拍以变化前在底事实钉底。
+/// - footerLayout：输入舱高变化（键盘/多行生长）
+///   ——容器布局拍同 itemLayout 一路钉底＋落定拍
+///   inset 实测对账。
+/// - layout：整体布局变化（旋转/壳层帧变）——
+///   viewDidLayoutSubviews 以旧帧在底事实钉底、
+///   不在底者原样不动。
+public enum BottomFollowTrigger: String, CaseIterable, Sendable {
+    case dataChange
+    case itemLayout
+    case footerLayout
+    case layout
 }

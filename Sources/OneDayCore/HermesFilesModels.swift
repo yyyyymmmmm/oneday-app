@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 // MARK: - 工作区文件（GET /api/files，2026-11-08 生产实查）
 //
@@ -52,27 +53,58 @@ public struct WorkspaceFileEntry: Decodable, Sendable, Identifiable, Hashable {
         mtime.map { Date(timeIntervalSince1970: $0) }
     }
 
-    /// 影音分类：先看 mime_type，缺失时按扩展名兜底
+    /// 影音分类（§473 件三，改走平台原生 UTType 单
+    /// 源）：mime 在位先经 UTType(mimeType:) 判
+    /// conformance；mime 缺失、或 mime 对应的类型不
+    /// 属媒体（octet-stream 等）时，再以文件扩展名
+    /// 经 UTType(filenameExtension:) 判——旧手工扩
+    /// 展名全表与「mime 非媒体前缀即 return nil」的
+    /// 短路一并退役
     public enum MediaKind: Sendable {
         case image, video, audio
     }
 
     public var mediaKind: MediaKind? {
         guard !isDirectory else { return nil }
-        if let mimeType {
-            if mimeType.hasPrefix("image/") { return .image }
-            if mimeType.hasPrefix("video/") { return .video }
-            if mimeType.hasPrefix("audio/") { return .audio }
-            return nil
+        if let mimeType,
+           let type = UTType(mimeType: mimeType),
+           let kind = Self.kind(of: type) {
+            return kind
         }
-        let ext = (name as NSString).pathExtension.lowercased()
+        let ext = (name as NSString).pathExtension
+        if !ext.isEmpty,
+           let type = UTType(filenameExtension: ext),
+           let kind = Self.kind(of: type) {
+            return kind
+        }
+        return Self.fallbackKind(forExtension: ext.lowercased())
+    }
+
+    /// UTType conformance → 媒体种类（.movie/.audio/
+    /// .image 三族即分类口径）
+    private static func kind(of type: UTType) -> MediaKind? {
+        if type.conforms(to: .movie) { return .video }
+        if type.conforms(to: .audio) { return .audio }
+        if type.conforms(to: .image) { return .image }
+        return nil
+    }
+
+    /// 极小兜底（§473 件三）：只收 UTType 数据库查
+    /// 不到的遗留格式，逐条注明实测依据（iOS 26 模
+    /// 拟器 UTType(filenameExtension:) 与 UTType
+    /// (mimeType:) 双路实测，2026-11-24，矩阵见
+    /// MediaKindUTTypeMatrixTests）；新格式先查
+    /// UTType、不许往本表随手加
+    private static func fallbackKind(
+        forExtension ext: String
+    ) -> MediaKind? {
         switch ext {
-        case "png", "jpg", "jpeg", "gif", "webp", "heic", "bmp":
-            return .image
-        case "mp4", "mov", "m4v", "webm", "mkv":
-            return .video
-        case "mp3", "m4a", "wav", "ogg", "flac", "aac":
-            return .audio
+        // mkv：Matroska 视频，系统类型库无条目（实测 nil）
+        case "mkv": return .video
+        // m2ts：蓝光传输流；同族 ts 可判、m2ts 查不到
+        case "m2ts": return .video
+        // mka：Matroska 音频，同 mkv 无条目（实测 nil）
+        case "mka": return .audio
         default:
             return nil
         }

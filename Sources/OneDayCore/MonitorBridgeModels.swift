@@ -70,6 +70,23 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         self.goalId = goalId
     }
 
+    /// 启停开关的本地乐观副本（§233）：只翻 enabled，
+    /// 其余字段原样。服务端仍是真源——写后回读整表
+    /// 替换，失败以原副本恢复呈现
+    public func withEnabled(_ enabled: Bool) -> BridgeMonitor {
+        BridgeMonitor(
+            id: id, name: name, target: target,
+            scheduleText: scheduleText, cronJobId: cronJobId,
+            enabled: enabled, lastCheckedAt: lastCheckedAt,
+            lastResult: lastResult, lastError: lastError,
+            unreadChanges: unreadChanges,
+            latestChangeSummary: latestChangeSummary,
+            latestChangeAt: latestChangeAt,
+            createdAt: createdAt, updatedAt: updatedAt,
+            goalId: goalId
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, name, target, scheduleText, cronJobId, enabled
         case lastCheckedAt, lastResult, lastError, unreadChanges
@@ -261,6 +278,23 @@ public enum MonitorPresentation {
     /// 计数之和，不自己数变化记录条数）
     public static func totalUnread(_ monitors: [BridgeMonitor]) -> Int {
         monitors.reduce(0) { $0 + max($1.unreadChanges, 0) }
+    }
+
+    /// 失败原因呈现文案（§344，中枢四欠账·失败给人
+    /// 话）：只在检查失败态给行——服务端 lastError
+    /// 原文先过 §233 用户安全门（ServerErrorText），
+    /// 过门原样、不过门/为空落通用句，不许英文技术
+    /// 串与堆栈直达用户面；非失败态恒 nil（视图不
+    /// 出原因行）
+    public static func failureReasonText(
+        of monitor: BridgeMonitor
+    ) -> String? {
+        guard status(of: monitor) == .failed else { return nil }
+        if let raw = monitor.lastError,
+           let safe = ServerErrorText.userSafe(raw) {
+            return safe
+        }
+        return "检查失败，服务端没给出能显示的原因。"
     }
 }
 

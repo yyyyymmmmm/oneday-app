@@ -36,6 +36,7 @@ public struct ChatModelChoice: Equatable, Sendable, Identifiable {
     public var sourceLabel: String? {
         guard let providerField else { return nil }
         if providerField == "custom" { return "经网关" }
+        if providerField == "moa" { return "多模型会商" }
         if providerField.hasPrefix("custom:") {
             return "直连 · \(String(providerField.dropFirst("custom:".count)))"
         }

@@ -10,6 +10,7 @@ import OneDayCore
 /// 盘、迁移标记与迁移留痕。
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：本地预设文档店，无远端新鲜度问题（判定表见 DESIGN §416）
 final class PresetStore {
     private(set) var document: ModelComboDocument
     /// 迁移已完成（标记落盘后永不再读服务端旧档）

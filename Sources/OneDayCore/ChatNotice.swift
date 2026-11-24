@@ -6,19 +6,29 @@ import Foundation
 /// 「需要用户动手且带动作位」的面（错误族、审批卡、
 /// 未配模型引导），那些不走本档位。5 秒档有自家先
 /// 例：听写提示行 5 秒自清（DictationController）。
+/// 台账 178/OB-I3（DESIGN §391）续加常驻档：无动作位
+/// 的失败（删除失败/编辑失败/反应失败/附件被拒）此前
+/// 借道 extended 8 秒自清——「需要人知道的失败不许自
+/// 动溜走」，这类失败自此走 persistent：不自清、只许
+/// 手关（提示条自带 ✕）。
 public enum ChatNoticeTier: String, CaseIterable, Equatable, Sendable {
     /// 中性告知（自家动作的确认回执、一次性状态告知）
     case brief
     /// 重要告知（点名信息量大、需要读完）
     case extended
+    /// 常驻失败（OB-I3）：不自清，用户手关才退场
+    case persistent
 
-    /// 自消秒数（赋值即起计时，到点自清、不留残影）
-    public var autoDismissSeconds: Double {
+    /// 自消秒数（赋值即起计时，到点自清、不留残影）；
+    /// 常驻档为 nil——不起计时
+    public var autoDismissSeconds: Double? {
         switch self {
         case .brief:
             return 5
         case .extended:
             return 8
+        case .persistent:
+            return nil
         }
     }
 }

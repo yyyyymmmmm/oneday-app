@@ -60,8 +60,21 @@ extension WorkspaceFileEntry {
 
 // MARK: - 共享小件（搜索/图标盒/上传）
 
+/// 内嵌搜索件（保留面单源，2026-11-15 第 88 条
+/// 对账）：系统 .searchable 是默认形态，能迁的面
+/// 已迁（日志页/文件浏览器页）；本件只留给无导航
+/// 栈宿主或形态绑定的面——交付物页下拉露出搜索
+/// （§4.2 规格）与记忆段内搜索（段级作用域、嵌
+/// 在复合页内）。保留面一律走本件、不许再自绘第
+/// 二种内嵌搜索
 struct FileSearchField: View {
     @Binding var query: String
+    /// 占位文案（默认文件名搜索；段内搜索传自家词）
+    var placeholder: String = "搜索文件名"
+    /// 出现即聚焦（§452.9：资源库搜索钮点开键盘同
+    /// 步升起）；常驻型调用点不传、保持旧行为
+    var autoFocus: Bool = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
@@ -69,9 +82,14 @@ struct FileSearchField: View {
                 .font(.footnote)
                 .foregroundStyle(Palette.inkMuted)
                 .accessibilityHidden(true)
-            TextField("搜索文件名", text: $query)
+            TextField(placeholder, text: $query)
+                .focused($focused)
                 .textFieldStyle(.plain)
                 .font(.callout)
+                // 搜索词是文件名/关键词：关自动首字母
+                // 大写与纠错（承记忆段内搜索旧口径）
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
             if !query.isEmpty {
                 Button {
                     query = ""
@@ -86,29 +104,17 @@ struct FileSearchField: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
         .background(Palette.fieldFill, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
-    }
-}
-
-/// 类型图标图（§128）：按资源名取自制图标资产渲染；
-/// 资源缺失回落 unknown 枚——不许空白、不许回退字形
-/// （旧字母块渲染整套退役）。FileIconBox 与
-/// FileTypeFace 共用，呈现单源。
-struct FileIconImageView: View {
-    let assetName: String
-
-    var body: some View {
-        if let image = UIImage(named: assetName)
-            ?? UIImage(
-                named: DeliverableIconStyle.fallbackAssetName
-            ) {
-            Image(uiImage: image)
-                .resizable()
-        } else {
-            // 双缺失理论不可达（资产随包发布）：白砖兜底
-            Color.white
+        .onAppear {
+            if autoFocus { focused = true }
         }
     }
 }
+
+/// §489（HIG 批 A／P2-05）：§128 的资产渲染件
+/// FileIconImageView 随 fileicon 黏土 PNG 套一并退
+/// 役删除——该件自 §452.4 起零调用点（全树 grep 实
+/// 证），现行呈现单源是程序绘制的 FileTypeIconView
+///（FileIconBox／FileTypeFace 共用）。
 
 /// 类型图标盒 v3（§128，C8 定版）：Core 的
 /// DeliverableIconStyle 表给出资产 slug，本盒以白色
@@ -143,24 +149,15 @@ struct FileIconBox: View {
     }
 
     var body: some View {
-        let style = DeliverableIconStyle.style(
-            forFileName: name,
-            isDirectory: isDirectory,
-            isExpanded: isExpanded
+        // §452.4：黏土 PNG 砖退役——程序绘制扁平图标
+        // 居中承载（尺寸契约 36/40/56 不变，图标高 =
+        // 边长 × 0.86，两侧留白与旧砖内图同量级）
+        FileTypeIconView(
+            fileName: name, isDirectory: isDirectory,
+            height: size * 0.86
         )
-        FileIconImageView(assetName: style.assetName)
-            .frame(width: size, height: size)
-            .background(Color.white)
-            .clipShape(
-                RoundedRectangle(cornerRadius: cornerRadius)
-            )
-            .accessibilityHidden(true)
-    }
-
-    /// 圆角按边长 0.25 推导：36→9（radiusTile）、
-    /// 40→10（radiusThumb 同值）、56→14，下限 radiusTile
-    private var cornerRadius: CGFloat {
-        max(OneDayMetrics.radiusTile, size * 0.25)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -271,9 +268,11 @@ enum FileUploadPerformer {
     }
 }
 
-/// 上传选件修饰器（0.36.31）：fileImporter＋同名覆盖
-/// 确认框的宿主无关封装——文件页（菜单组4）与系统
-/// 文件页（••• 菜单）共用，确认口径与旧控件一致
+/// 上传选件修饰器（0.36.31）：选件＋同名覆盖确认
+/// 框的宿主无关封装——文件页（菜单组4）与系统文件
+/// 页（••• 菜单）共用，确认口径与旧控件一致。选件
+/// 呈现 §317 起改走 DocumentPickerView 状态旗（见
+/// body 内 fullScreenCover 注），.fileImporter 退役
 struct FileUploadPickerModifier: ViewModifier {
     /// appState 由宿主显式传入（不在 Modifier 里取环
     /// 境值——取值路径稳、宿主两处都现成持有）
@@ -293,11 +292,27 @@ struct FileUploadPickerModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .fileImporter(
-                isPresented: $isPresented,
-                allowedContentTypes: [.item]
-            ) { result in
-                Task { await handlePick(result) }
+            // §317：选件呈现换 DocumentPickerView 状
+            // 态旗（与聊天页同一条框架排队呈现路、单
+            // 一呈现路径）——旧 .fileImporter 正是聊
+            // 天页当年因「侧载设备上点打开无反应」删
+            // 掉的同款机制（诊断 file-picker-batch-
+            // diagnosis-20261111），本入口同症风险就
+            // 此消灭。isPresented 即呈现旗：宿主置真
+            // 开、选定/取消在回调内复位（与聊天页
+            // showDocumentPicker 同制）；asCopy 交回
+            // App 临时区副本，读取不再需要安全作用
+            // 域配对。本入口维持单选（旧 fileImporter
+            // 同口径），多选只在聊天页
+            .fullScreenCover(isPresented: $isPresented) {
+                DocumentPickerView(
+                    allowsMultipleSelection: false,
+                    onPick: { urls in
+                        isPresented = false
+                        Task { await handlePicked(urls) }
+                    },
+                    onCancel: { isPresented = false }
+                )
             }
             .confirmationDialog(
                 "已存在同名文件「\(pendingOverwrite?.name ?? "")」，覆盖它？",
@@ -335,22 +350,22 @@ struct FileUploadPickerModifier: ViewModifier {
             }
     }
 
-    private func handlePick(_ result: Result<URL, Error>) async {
-        guard case .success(let url) = result else {
+    private func handlePicked(_ urls: [URL]) async {
+        guard let url = urls.first else {
             onFinished("没有选到文件。", false)
             return
         }
         let name = url.lastPathComponent
-        let scoped = url.startAccessingSecurityScopedResource()
+        // DocumentPickerView 以 asCopy 交回：URL 是
+        // App 临时区副本、直读即可（旧 .fileImporter
+        // 路的安全作用域起停配对随之退役，§317）
         let data: Data
         do {
             data = try Data(contentsOf: url)
         } catch {
-            if scoped { url.stopAccessingSecurityScopedResource() }
             onFinished("所选文件没读出来。", false)
             return
         }
-        if scoped { url.stopAccessingSecurityScopedResource() }
         let outcome = await FileUploadPerformer.prepare(
             appState: appState, name: name, data: data,
             targetDirectory: targetDirectory,
@@ -372,6 +387,7 @@ struct FileUploadPickerModifier: ViewModifier {
 /// 互不干扰），返回靠面包屑回到任意层。
 struct FilesBrowserView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 定位直达（§131）：文件页「在文件页中打开」回
     /// 指落空（文件不在聚合集）时带父目录＋目标文件
@@ -412,31 +428,53 @@ struct FilesBrowserView: View {
     /// 图片查看器 zoom 转场命名空间（0.36.4）
     @Namespace private var browserViewerNamespace
 
+    /// §415：派生快照指纹缓存（shownEntries 收口，
+    /// 照资源库 LibrarySnapshotCache 模板）
+    @State private var snapshotCache = FilesBrowserSnapshotCache()
+
     private var rootPath: String {
         listing?.lockedRoot ?? listing?.root ?? "/opt/data"
     }
 
-    private var shownEntries: [WorkspaceFileEntry] {
-        guard let listing else { return [] }
-        return FileBrowserLogic.sorted(
-            FileBrowserLogic.filtered(listing.entries, query: query),
-            by: sortKey, ascending: sortAscending
+    /// 当前派生快照（§415）：body 单点取、下传内
+    /// 容面共用；导航目的地闭包在触发时点调本口现
+    /// 取（与旧 shownEntries 在闭包内现算同时点同
+    /// 果，命中指纹时回同一份快照）
+    private func currentSnapshot() -> FilesBrowserSnapshot {
+        snapshotCache.snapshot(
+            entries: listing?.entries, query: query,
+            sortKey: sortKey, ascending: sortAscending
         )
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // §415：派生快照一趟算齐下传（旧 shownEntries
+        // 计算属性每趟 body 现算 filter＋sort 已退役）
+        let snapshot = currentSnapshot()
+        return VStack(alignment: .leading, spacing: 0) {
             if let listing {
                 breadcrumbBar(listing: listing)
                     .padding(.horizontal, OneDayMetrics.pageGutter)
                 sortRow
-                FileSearchField(query: $query)
-                    .padding(.horizontal, OneDayMetrics.pageGutter)
-                    .padding(.bottom, OneDayMetrics.spacingS)
+                // 搜索（2026-11-15 第 88 条收口）：本面
+                // 内嵌 FileSearchField 迁系统 .searchable
+                // （挂法见 body 的 .searchable）；本地实
+                // 时过滤口径不变。FileSearchField 本体
+                // 留给下拉露出面（交付物页 §4.2）与记忆
+                // 段内搜索消费，见该件头注
             }
-            content
+            content(snapshot)
         }
         .background(Palette.pageBG)
+        // 搜索挂导航栏抽屉常显（第 88 条）：位置自面
+        // 包屑/排序行之下移至标题栏下方、目录未加载
+        // 时也在（旧内嵌件随 listing 才出现），形态
+        // 差在报告记
+        .searchable(
+            text: $query,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索文件名"
+        )
         // 页头右 •••（§七三件套）：只放上传两项——上
         // 传文件／从相机胶卷上传（上传进当前目录）；
         // 目录未定位前禁用（无当前目录可言）
@@ -524,9 +562,7 @@ struct FilesBrowserView: View {
         // 全部图片），其余走文件打开页（§125 中间页）
         .navigationDestination(for: WorkspaceFileEntry.self) { entry in
             if entry.mediaKind == .image {
-                let images = shownEntries.filter {
-                    $0.mediaKind == .image
-                }
+                let images = currentSnapshot().imageEntries
                 ImageViewerView(
                     items: images.map {
                         ChatImageViewerItem(
@@ -633,7 +669,15 @@ struct FilesBrowserView: View {
                     .font(.system(size: 17))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
+                    // 第 83 条（命中域收口）：字形不变、命
+                    // 中域外扩 44；负内边距抵消外扩、页头
+                    // 行布局不动
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
                     .contentShape(Rectangle())
+                    .padding(-(OneDayMetrics.minTapTarget - 32) / 2)
             }
             .buttonStyle(.odPressable)
             .accessibilityLabel("新建文件夹")
@@ -647,7 +691,15 @@ struct FilesBrowserView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 32, height: 32)
+                // 第 83 条（命中域收口）：字形不变、命中
+                // 域外扩 44；负内边距抵消外扩、页头行布
+                // 局不动
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
                 .contentShape(Rectangle())
+                .padding(-(OneDayMetrics.minTapTarget - 32) / 2)
             }
             .buttonStyle(.odPressable)
             .accessibilityLabel(
@@ -689,15 +741,17 @@ struct FilesBrowserView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(
+        _ snapshot: FilesBrowserSnapshot
+    ) -> some View {
         if listing == nil && loadError == nil {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let loadError, listing == nil {
-            EmptyState(
-                icon: "exclamationmark.triangle",
-                title: "没读出来",
-                message: loadError
+            ContentUnavailableView(
+                "没读出来",
+                systemImage: "exclamationmark.triangle",
+                description: Text(loadError)
             )
             .padding(.top, OneDayMetrics.spacingXXL)
             Spacer()
@@ -705,21 +759,21 @@ struct FilesBrowserView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if shownEntries.isEmpty {
-                        EmptyState(
-                            icon: query.isEmpty
-                                ? "folder" : "magnifyingglass",
-                            title: query.isEmpty
+                    if snapshot.entries.isEmpty {
+                        ContentUnavailableView(
+                            query.isEmpty
                                 ? "这个文件夹是空的" : "没有匹配的文件",
-                            message: query.isEmpty
+                            systemImage: query.isEmpty
+                                ? "folder" : "magnifyingglass",
+                            description: Text(query.isEmpty
                                 ? "可以上传文件或新建文件夹。"
-                                : "换个关键词试试。"
+                                : "换个关键词试试。")
                         )
                         .padding(.top, OneDayMetrics.spacingXXL)
                     } else {
-                        VStack(spacing: 0) {
+                        LazyVStack(spacing: 0) {
                             ForEach(
-                                Array(shownEntries.enumerated()),
+                                Array(snapshot.entries.enumerated()),
                                 id: \.element.id
                             ) { index, entry in
                                 if index > 0 {
@@ -747,15 +801,19 @@ struct FilesBrowserView: View {
             }
             // §131：定位直达——目录数据到位且目标行在
             // 列时滚一次（只滚一次，之后用户自由浏览）
-            .onChange(of: shownEntries.map(\.path)) { _, paths in
+            .onChange(of: snapshot.paths) { _, paths in
                 guard !highlightConsumed,
                       let highlightName,
-                      let target = shownEntries.first(where: {
+                      let target = snapshot.entries.first(where: {
                           $0.name == highlightName && !$0.isDirectory
                       })
                 else { return }
                 highlightConsumed = true
-                withAnimation {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.systemDefault, reduceMotion: reduceMotion
+                    )
+                ) {
                     proxy.scrollTo(target.path, anchor: .center)
                 }
             }
@@ -781,10 +839,7 @@ struct FilesBrowserView: View {
                 ForEach(Array(crumbs.enumerated()), id: \.element.id) {
                     index, crumb in
                     if index > 0 {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Palette.inkMuted)
-                            .accessibilityHidden(true)
+                        DisclosureChevron(font: .system(size: 10))
                     }
                     Button {
                         currentPath = crumb.path
@@ -1029,10 +1084,7 @@ struct FileBrowserRow: View {
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityLabel("受保护文件")
             } else {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: 13, weight: .regular))
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)

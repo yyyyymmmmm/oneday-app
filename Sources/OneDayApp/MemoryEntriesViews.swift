@@ -62,7 +62,7 @@ struct MemoryEntriesSection: View {
                 readyContent
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
         .sheet(isPresented: $showingCreate) {
             MemoryEntryEditorView(store: store, mode: .create)
         }
@@ -104,7 +104,7 @@ struct MemoryEntriesSection: View {
     @ViewBuilder
     private var readyContent: some View {
         if store.memoryGateEnabled == false {
-            Text("记忆写入审批未启用：可以看条目，但暂时不能新建、修改或遗忘记忆。")
+            Text("写入审批未启用，暂不能改记忆。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
@@ -137,31 +137,17 @@ struct MemoryEntriesSection: View {
         }
     }
 
+    /// 段内搜索（2026-11-15 第 88 条对账·保留内嵌）：
+    /// 本件是复合页（记忆页）内的一段，搜索作用域只
+    /// 限本段条目；系统 .searchable 是页级挂载，迁之
+    /// 会把段级搜索冒充整页搜索且字段脱离段上下文，
+    /// 故保留内嵌——但画法收编全 App 单源件 File-
+    /// SearchField（原自绘：无填充＋odGroup 卡面＋
+    /// 14pt 图标，与文件面同类件两制并存就此收口）；
+    /// 形态差：改 fieldFill 填充圆角面、字阶 .callout
     private var searchField: some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14))
-                .foregroundStyle(Palette.inkMuted)
-                .accessibilityHidden(true)
-            TextField("搜索记忆", text: $searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Palette.inkMuted)
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel("清空搜索")
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: 40)
-        .odGroup()
-        .padding(.bottom, OneDayMetrics.spacingS)
+        FileSearchField(query: $searchText, placeholder: "搜索记忆")
+            .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     /// 待批区：本会话提案（带落定状态）＋上一会话
@@ -237,7 +223,7 @@ struct MemoryEntriesSection: View {
         Text(text)
             .font(.caption.weight(.semibold))
             .foregroundStyle(Palette.primary)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, OneDayMetrics.spacingS)
             .padding(.vertical, OneDayMetrics.stackGap)
             .background(
                 Palette.primaryTint,
@@ -291,10 +277,7 @@ struct MemoryEntriesSection: View {
             if store.hasPendingOperation(entry) {
                 statusChip("待审批")
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(Palette.inkMuted)
-                .accessibilityHidden(true)
+            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
@@ -397,9 +380,11 @@ struct MemoryEntryDetailView: View {
     private func metaGroup(_ entry: BridgeMemoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 0) {
-                LabeledContent("来源", value: entry.target.label)
+                // 键值行走 KeyValueRow（台账 198 收敛
+                // S5 嫌疑页查实：来源/更新时间两行同构造）
+                KeyValueRow("来源", value: entry.target.label)
                 GroupDivider()
-                LabeledContent(
+                KeyValueRow(
                     "更新时间",
                     value: AdminFormat.short(
                         Date(timeIntervalSince1970: entry.updatedAt)
@@ -412,7 +397,7 @@ struct MemoryEntryDetailView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.top, OneDayMetrics.spacingS)
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     @ViewBuilder
@@ -451,7 +436,7 @@ struct MemoryEntryDetailView: View {
             .padding(OneDayMetrics.spacingM)
             .odGroup()
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private func actionsGroup(
@@ -593,7 +578,7 @@ struct MemoryEntryEditorView: View {
                 .pickerStyle(.segmented)
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private var contentGroup: some View {
@@ -611,7 +596,7 @@ struct MemoryEntryEditorView: View {
                     .padding(.top, OneDayMetrics.spacingS)
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private func submit() async {

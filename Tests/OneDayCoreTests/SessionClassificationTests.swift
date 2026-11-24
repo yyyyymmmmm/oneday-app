@@ -23,7 +23,8 @@ final class SessionClassificationTests: XCTestCase {
             isArchived: nil, isPinned: nil, model: nil, profile: nil,
             startedAt: nil, endedAt: nil, endReason: nil,
             messageCount: nil, toolCallCount: nil,
-            inputTokens: nil, outputTokens: nil
+            inputTokens: nil, outputTokens: nil,
+            runtimeRevision: nil, runtimeGeneration: nil
         )
     }
 
@@ -352,12 +353,151 @@ final class SessionClassificationTests: XCTestCase {
     // MARK: - R6 平台源
 
     func testR6PlatformSourcesGoToOwnChannel() {
-        for platform in ["whatsapp", "telegram", "feishu", "wechat"] {
+        for platform in ["whatsapp", "telegram", "feishu", "weixin"] {
             XCTAssertEqual(
                 classify(session(id: "ext-\(platform)", source: platform)),
                 .channel(platform),
                 "source=\(platform) 应归其外部频道"
             )
+        }
+    }
+
+    // 2026-11-13 对账（规格 §2.3）：旧名 wechat/qq 是
+    // 别名，频道 id 恒归一为网关实值 weixin/qqbot——
+    // 不许再穿透落 Hermes 频道
+    func testR6LegacyAliasesCanonicalizeToGatewayNames() {
+        XCTAssertEqual(
+            classify(session(id: "ext-wx", source: "wechat")),
+            .channel("weixin"))
+        XCTAssertEqual(
+            classify(session(id: "ext-qq", source: "qq")),
+            .channel("qqbot"))
+        XCTAssertEqual(
+            classify(session(id: "ext-qqbot", source: "qqbot")),
+            .channel("qqbot"))
+        let keyForm = session(
+            id: "ext-wx-key", source: nil,
+            sessionKey: "agent:main:weixin:dm:888")
+        XCTAssertEqual(classify(keyForm), .channel("weixin"))
+    }
+
+    // 补齐的平台（规格 §2.3 缺项表）逐个钉住归频道
+    func testR6NewlyCoveredPlatformsGoToOwnChannel() {
+        for platform in [
+            "whatsapp_cloud", "email", "mattermost", "wecom_callback",
+            "bluebubbles", "yuanbao", "line", "teams", "google_chat",
+            "photon", "simplex", "dingtalk", "wecom", "discord",
+            "slack", "signal", "matrix", "sms",
+        ] {
+            XCTAssertEqual(
+                classify(session(id: "ext-\(platform)", source: platform)),
+                .channel(platform),
+                "source=\(platform) 应归其外部频道"
+            )
+        }
+    }
+
+    // 注册表：抽屉恒显清单与图标登记（组版并集：
+    // 飞书二期上行、微信行下架＋令牌四家续登；平台
+    // 图标只许官方原图登记过的有值，未登记的平台
+    // 回 nil 不许仿绘顶替）
+    func testChannelRegistryDrawerListAndIcons() {
+        XCTAssertEqual(
+            ChannelRegistry.drawerList.map(\.id),
+            ["hermes", "telegram", "feishu", "dingtalk",
+             "qqbot", "discord", "slack"])
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
+            "ChannelTelegram")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName,
+            "ChannelFeishu")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "feishu")?.name, "飞书")
+        // §241 改名：Hermes 频道用户面展示名＝「服务
+        // 器会话」，内部 id 恒为 hermes 不动
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "hermes")?.name, "服务器会话")
+        XCTAssertEqual(ChannelRegistry.hermes.id, "hermes")
+        XCTAssertNil(
+            SessionSources.platformIconAssetName("weixin"))
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "telegram"), .token)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "feishu"), .token)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "hermes"), .none)
+    }
+
+    // 二期令牌四家（钉钉/QQ/Discord/Slack）：注册表
+    // 描述、官方图标登记与配对形态逐家钉住
+    func testChannelRegistryTokenBatch() {
+        let expected: [(id: String, name: String, asset: String)] = [
+            ("dingtalk", "钉钉", "ChannelDingtalk"),
+            ("qqbot", "QQ", "ChannelQQ"),
+            ("discord", "Discord", "ChannelDiscord"),
+            ("slack", "Slack", "ChannelSlack"),
+        ]
+        for item in expected {
+            let descriptor = ChannelRegistry.descriptor(for: item.id)
+            XCTAssertEqual(descriptor?.name, item.name,
+                           "\(item.id) 频道名")
+            XCTAssertEqual(descriptor?.iconAssetName, item.asset,
+                           "\(item.id) 官方图标资产")
+            XCTAssertEqual(
+                SessionSources.platformIconAssetName(item.id),
+                item.asset, "\(item.id) 平台图标登记")
+            XCTAssertEqual(
+                ChannelRegistry.pairingKind(for: item.id), .token,
+                "\(item.id) 配对形态为令牌型")
+        }
+        // QQ 的历史别名 qq 同样指到官方图标与频道描述
+        XCTAssertEqual(
+            SessionSources.platformIconAssetName("qq"), "ChannelQQ")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "qqbot")?.pageSubtitle,
+            "在 QQ 里和你的智能体聊的对话")
+    }
+
+    // 图标统一批（2026-11-15，第 86 条）：有官方原
+    // 图的平台逐个登记；whatsapp_cloud／
+    // wecom_callback 与主平台同品牌共用一张资产。
+    // 无合格官方原图的平台恒回 nil——全部对话页据
+    // 此不上行（与抽屉同律），不许仿绘/SF 补位
+    func testChannelRegistryIconUnifyBatch() {
+        let expected: [(id: String, asset: String)] = [
+            ("whatsapp", "ChannelWhatsApp"),
+            ("whatsapp_cloud", "ChannelWhatsApp"),
+            ("signal", "ChannelSignal"),
+            ("line", "ChannelLINE"),
+            ("wecom", "ChannelWecom"),
+            ("wecom_callback", "ChannelWecom"),
+            ("teams", "ChannelTeams"),
+            ("google_chat", "ChannelGoogleChat"),
+            ("mattermost", "ChannelMattermost"),
+            ("simplex", "ChannelSimpleX"),
+            ("yuanbao", "ChannelYuanbao"),
+            ("bluebubbles", "ChannelBlueBubbles"),
+        ]
+        for item in expected {
+            XCTAssertEqual(
+                SessionSources.platformIconAssetName(item.id),
+                item.asset, "\(item.id) 官方图标登记")
+            XCTAssertEqual(
+                ChannelRegistry.descriptor(for: item.id)?.iconAssetName,
+                item.asset, "\(item.id) 频道描述图标")
+        }
+        // matrix（官方仅横式字标、无应用级原图）／
+        // photon（无官方图标资产）／email／sms（无品
+        // 牌通用通道）／weixin（沿 2026-11-13 用户拍
+        // 板退役、非资产缺失）恒不登记
+        for platform in ["matrix", "photon", "email", "sms", "weixin"] {
+            XCTAssertNil(
+                SessionSources.platformIconAssetName(platform),
+                "\(platform) 不应登记图标")
+            XCTAssertNil(
+                ChannelRegistry.descriptor(for: platform)?.iconAssetName,
+                "\(platform) 频道描述不应带图标")
         }
     }
 

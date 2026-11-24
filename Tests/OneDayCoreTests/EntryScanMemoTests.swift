@@ -118,4 +118,79 @@ final class EntryScanMemoTests: XCTestCase {
         XCTAssertEqual(metrics.plainMisses, 1)
         XCTAssertEqual(metrics.plainHits, 1)
     }
+
+    /// §333：facet 路径并集与逐遍现算（五源并集
+    /// 原式）逐字相等——备忘只许省算、不许改值
+    func testFacetPathsEqualDirectComputation() {
+        let entryID = UUID()
+        let paths = EntryScanMemo.facetPaths(
+            entryID: entryID, content: content,
+            remoteImagePaths: []
+        )
+        let scans = EntryScanMemo.scans(
+            entryID: entryID, content: content,
+            remoteImagePaths: []
+        )
+        var expected = Set<String>()
+        expected.formUnion(scans.media.imagePaths)
+        expected.formUnion(
+            scans.inlineCandidates.map(\.path)
+        )
+        expected.formUnion(scans.standalonePaths)
+        let whole = FileRefDetector.wholeMessagePath(
+            in: scans.media.text
+        )
+        if let whole { expected.insert(whole.path) }
+        let anchored = FileRefDetector
+            .detectStandaloneAnchored(
+                in: content,
+                excluding: [] + scans.media.imagePaths
+                    + scans.inlineCandidates.map(\.path)
+                    + (whole.map { [$0.path] } ?? [])
+            )
+        expected.formUnion(anchored.map(\.path))
+        XCTAssertEqual(paths, expected.sorted())
+        XCTAssertTrue(
+            paths.contains("/opt/data/cache/images/img_a.png")
+        )
+        XCTAssertTrue(
+            paths.contains("/opt/data/files/report.png")
+        )
+    }
+
+    /// §333：同（条目，内容，远端图集）第二遍起
+    /// 零重扫；内容变／条目变即失效重算
+    func testFacetPathsMemoized() {
+        let entryID = UUID()
+        _ = EntryScanMemo.facetPaths(
+            entryID: entryID, content: content,
+            remoteImagePaths: []
+        )
+        _ = EntryScanMemo.facetPaths(
+            entryID: entryID, content: content,
+            remoteImagePaths: []
+        )
+        var metrics = EntryScanMemo.metrics()
+        XCTAssertEqual(
+            metrics.facetMisses, 1, "同内容第二遍不许重扫"
+        )
+        XCTAssertEqual(metrics.facetHits, 1)
+
+        _ = EntryScanMemo.facetPaths(
+            entryID: entryID,
+            content: content + "\n/opt/data/files/other.png",
+            remoteImagePaths: []
+        )
+        metrics = EntryScanMemo.metrics()
+        XCTAssertEqual(metrics.facetMisses, 2, "内容变必须重算")
+
+        _ = EntryScanMemo.facetPaths(
+            entryID: UUID(), content: content,
+            remoteImagePaths: []
+        )
+        XCTAssertEqual(
+            EntryScanMemo.metrics().facetMisses, 3,
+            "条目变必须重算"
+        )
+    }
 }

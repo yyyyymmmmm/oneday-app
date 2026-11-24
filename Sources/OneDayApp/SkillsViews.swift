@@ -27,7 +27,7 @@ struct SkillsView: View {
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             Image(systemName: "bag")
-                                .font(.system(size: 16))
+                                .font(.system(size: FrameworkIcon.fileGlyphSize))
                                 .foregroundStyle(Palette.inkSecondary)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -39,10 +39,7 @@ struct SkillsView: View {
                                     .foregroundStyle(Palette.inkSecondary)
                             }
                             Spacer(minLength: OneDayMetrics.spacingS)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(Palette.inkMuted)
-                                .accessibilityHidden(true)
+                            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         }
                         .contentShape(Rectangle())
                     }
@@ -69,7 +66,7 @@ struct SkillsView: View {
                         Array(skillGroups.enumerated()), id: \.element.label
                     ) { _, group in
                         SectionLabel(group.label)
-                            .padding(.top, 28)
+                            .padding(.top, OneDayMetrics.sectionOuterSpacing)
                             .padding(.bottom, OneDayMetrics.spacingS)
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, skill in
@@ -102,6 +99,7 @@ struct SkillsView: View {
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 }
+                CuratorBlock()
                 if let notice {
                     Text(notice)
                         .font(.footnote)
@@ -137,7 +135,7 @@ struct SkillsView: View {
                                 .foregroundStyle(Palette.ink)
                             if skill.locked == true {
                                 Image(systemName: "lock")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: FrameworkIcon.tinyGlyphSize))
                                     .foregroundStyle(Palette.inkMuted)
                                     .accessibilityLabel("已锁定")
                             }
@@ -154,10 +152,7 @@ struct SkillsView: View {
                         }
                     }
                     Spacer(minLength: OneDayMetrics.spacingS)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(Palette.inkMuted)
-                        .accessibilityHidden(true)
+                    DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                 }
                 .contentShape(Rectangle())
             }
@@ -342,7 +337,7 @@ struct SkillDetailView: View {
                     .disabled(isLocked)
                 }
             }
-            .padding(.top, 28)
+            .padding(.top, OneDayMetrics.sectionOuterSpacing)
             .padding(.bottom, OneDayMetrics.spacingS)
             Group {
                 if isEditing {

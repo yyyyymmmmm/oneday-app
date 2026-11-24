@@ -94,14 +94,36 @@ public enum MarkdownMessageAssembler {
         for block in blocks {
             switch block {
             case .paragraph(let text):
-                // 段落整形与 §149 逐块路径同口径：仅
-                // 段落过 prettyWrapDocument（标题／列
-                // 表／引用不整形，旧路径如此）
+                // §271（第 72 条根治）：整形后移 run
+                // 层——先以原文走行内解析、再对语义
+                // run 施加尾行孤字绑定（TextShaping.
+                // shapeRuns）。旧序「先 prettyWrap-
+                // Document 整形、后解析」会在解析前
+                // 把 U+2060 插进段尾闭合定界符对／链
+                // 接目标／代码闭合反引号／数字串内部
+                // （第 74 条定因、gen5 T4 探针实证），
+                // §247 的文本层守卫只能堵同字对一孔；
+                // run 层整形下成对定界符已被解析消费、
+                // 无对可劈，整类消除。整形范围与旧路
+                // 径同界：仅段落（标题／列表／引用不
+                // 整形）
+                let runs = TextShaping.shapeRuns(
+                    InlineRunBuilder.runs(for: text)
+                )
+                #if DEBUG
+                // 装配真值断言（§271）：成对定界符
+                // 必须被解析完整消费，产出可见文本
+                // 只许留源文未闭合的那一份字面
+                let problems = MarkdownDelimiterAudit
+                    .violations(source: text, runs: runs)
+                assert(
+                    problems.isEmpty,
+                    "装配定界符真值断言失败：\(problems)"
+                )
+                #endif
                 prose.append(MarkdownProseParagraph(
                     kind: .body,
-                    runs: InlineRunBuilder.runs(
-                        for: TextShaping.prettyWrapDocument(text)
-                    )
+                    runs: runs
                 ))
             case .heading(let text, let level):
                 prose.append(MarkdownProseParagraph(

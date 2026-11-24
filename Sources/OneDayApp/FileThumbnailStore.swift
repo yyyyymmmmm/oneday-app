@@ -1,4 +1,5 @@
 import ImageIO
+import Nuke
 import OneDayCore
 import OneDayDesign
 import QuickLookThumbnailing
@@ -21,7 +22,21 @@ import UIKit
 ///   图片缩略生成后同键播种 RemoteImagePipeline，
 ///   供查看器首帧种子（点开即显的来源）；
 /// - 并发闸 2：滚动时不让缩略生成把带宽与解码打满。
+/// §410：缩略图解码产物跨任务装箱（UIImage 非
+/// Sendable，照 RemoteImagePipeline.DecodedImageBox
+/// 同式：单写单读、无并发触碰）
+private final class ThumbImageBox: @unchecked Sendable {
+    let image: UIImage
+    init(_ image: UIImage) { self.image = image }
+}
+
+/// §418 接缝收编：图片变体与视频海报的取数改走统一
+/// 构造器＋Nuke 管线（按路由键登记本笔通道，loader 内
+/// 变体优先／原图回落），不再自拼桥调用；生成后播种
+/// 改投管线内存缓存（经 RemoteImagePipeline 门面）。
+/// 本体（生成器：QL 首面/并发闸/自有双缓存）保留。
 @MainActor
+/// §416 新鲜度普查豁免：本地缩略图缓存件，无远端新鲜度问题（判定表见 DESIGN §416）
 final class FileThumbnailStore {
     static let shared = FileThumbnailStore()
 
@@ -30,6 +45,30 @@ final class FileThumbnailStore {
 
     private init() {
         memoryCache.countLimit = 120
+    }
+
+    /// 同步 peek（§329 行高合成用）：该条目该档
+    /// 缩略图是否已在内存或磁盘缓存——只查在席、
+    /// 不生成不取数；合成器据此判交付文件卡的封
+    /// 面形态（缓存命中＝视图 .task 即时得图）
+    func hasCachedThumbnail(
+        for entry: WorkspaceFileEntry,
+        targetPixelSize: CGFloat
+    ) -> Bool {
+        if entry.mediaKind == .audio { return false }
+        let key = cacheKey(
+            for: entry, pixel: Int(targetPixelSize)
+        )
+        if memoryCache.object(forKey: key as NSString)
+            != nil {
+            return true
+        }
+        guard let url = diskDirectory?
+            .appendingPathComponent("\(key).png")
+        else { return false }
+        return FileManager.default.fileExists(
+            atPath: url.path
+        )
     }
 
     /// 取字节通道组（§144）：原图走宿主 performAdmin
@@ -76,7 +115,7 @@ final class FileThumbnailStore {
         if let cached = memoryCache.object(forKey: key as NSString) {
             return cached
         }
-        if let disk = loadFromDisk(key: key) {
+        if let disk = await loadFromDisk(key: key) {
             memoryCache.setObject(disk, forKey: key as NSString)
             return disk
         }
@@ -88,7 +127,7 @@ final class FileThumbnailStore {
         await gate.release()
         if let image {
             memoryCache.setObject(image, forKey: key as NSString)
-            saveToDisk(image, key: key)
+            await saveToDisk(image, key: key)
             // 播种管线：影音格/文件行点开查看器时，
             // 这张 360 就是首帧种子（§144）
             if entry.mediaKind == .image {
@@ -103,32 +142,57 @@ final class FileThumbnailStore {
     private func generate(
         for entry: WorkspaceFileEntry,
         targetPixelSize: CGFloat,
-        loader: () async -> Data?,
+        loader: @escaping () async -> Data?,
         renditionLoader: ((String) async -> Data?)?
     ) async -> UIImage? {
         if entry.mediaKind == .image {
-            // 变体优先（360 档 JPEG），回落原图降采样
-            if let renditionLoader,
-               let data = await renditionLoader("image"),
-               let image = Self.downsampledImage(
-                   data: data, pixelSize: targetPixelSize) {
-                return image
-            }
-            guard let data = await loader() else { return nil }
-            return Self.downsampledImage(
-                data: data, pixelSize: targetPixelSize
-            )
+            // §418：变体取数收编——按 thumb 路由键登记
+            // 本笔通道后走统一管线（loader 内变体优先、
+            // 回落原图），解码封顶＝目标像素（与旧
+            // downsampledImage 封顶逐值同口径）
+            HermesImageRouting.shared.register(
+                key: RemoteImageKey.make(
+                    path: entry.path,
+                    mtime: entry.mtime ?? 0, tier: .thumb),
+                config: nil,
+                originalLoader: loader,
+                renditionLoader: renditionLoader)
+            var request = RemoteImageRequestFactory
+                .renditionRequest(
+                    path: entry.path,
+                    mtime: entry.mtime ?? 0, tier: .thumb)
+            request.processors = [
+                ImageProcessors.Resize(
+                    size: CGSize(
+                        width: targetPixelSize,
+                        height: targetPixelSize),
+                    unit: .pixels,
+                    contentMode: .aspectFit,
+                    crop: false,
+                    upscale: false),
+            ]
+            return try? await OneDayImagePipelines.remote
+                .image(for: request)
         }
         if entry.mediaKind == .video {
-            // 海报帧当缩略源；拿不到回落类型面（调用
-            // 方呈现），整段下载抽帧不做（旧口径保留）
-            if let renditionLoader,
-               let data = await renditionLoader("poster") {
-                return Self.downsampledImage(
-                    data: data, pixelSize: targetPixelSize
-                )
-            }
-            return nil
+            // 海报帧当缩略源（§418 同收编 poster 路）；
+            // 拿不到回落类型面（调用方呈现），整段下载
+            // 抽帧不做（旧口径保留）
+            guard renditionLoader != nil else { return nil }
+            HermesImageRouting.shared.register(
+                key: RemoteImageRequestFactory.posterKey(
+                    path: entry.path,
+                    mtime: entry.mtime ?? 0),
+                config: nil,
+                originalLoader: loader,
+                renditionLoader: renditionLoader)
+            let request = RemoteImageRequestFactory
+                .posterRequest(
+                    path: entry.path,
+                    mtime: entry.mtime ?? 0,
+                    pixelCap: Int(targetPixelSize))
+            return try? await OneDayImagePipelines.remote
+                .image(for: request)
         }
         guard let data = await loader() else { return nil }
         return await Self.quickLookThumbnail(
@@ -137,29 +201,11 @@ final class FileThumbnailStore {
         )
     }
 
-    /// ImageIO 降采样：只解到目标像素量级，不整图入内存
-    private static func downsampledImage(
-        data: Data, pixelSize: CGFloat
-    ) -> UIImage? {
-        let sourceOptions: [CFString: Any] = [
-            kCGImageSourceShouldCache: false,
-        ]
-        guard let source = CGImageSourceCreateWithData(
-            data as CFData, sourceOptions as CFDictionary
-        ) else { return nil }
-        let thumbOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: pixelSize,
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(
-            source, 0, thumbOptions as CFDictionary
-        ) else { return nil }
-        return UIImage(cgImage: cgImage)
-    }
-
     /// QL 首面：缩略提供者认扩展名，临时文件必须保原名
+    /// §410 接管补漏：建目录＋整份字节写临时文件下主
+    /// 线程（取证 §1.5 第四个同步点）——旧链在
+    /// @MainActor 上同步写全量字节；现独立任务写完
+    /// 再回主线发 QL 请求，写失败回 nil 与旧口径一致
     private static func quickLookThumbnail(
         data: Data, entry: WorkspaceFileEntry,
         targetPixelSize: CGFloat
@@ -170,14 +216,21 @@ final class FileThumbnailStore {
                 isDirectory: true
             )
         let fileURL = directory.appendingPathComponent(entry.name)
-        do {
-            try FileManager.default.createDirectory(
-                at: directory, withIntermediateDirectories: true
-            )
-            try data.write(to: fileURL)
-        } catch {
-            return nil
-        }
+        let written = await Task.detached(
+            priority: .userInitiated
+        ) {
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                try data.write(to: fileURL)
+                return true
+            } catch {
+                return false
+            }
+        }.value
+        guard written else { return nil }
         defer {
             try? FileManager.default.removeItem(at: directory)
         }
@@ -232,20 +285,35 @@ final class FileThumbnailStore {
         return directory
     }
 
-    private func loadFromDisk(key: String) -> UIImage? {
+    /// §410：磁盘命中解码下主线程——UIImage(contentsOfFile:)
+    /// 同步解码整图，旧链在 @MainActor 上直付；现独立任务
+    /// 解码、装箱回主线（同 RemoteImagePipeline 的离主解
+    /// 码待遇）。落点 URL 仍在主线算（目录确保是便宜元数据）
+    private func loadFromDisk(key: String) async -> UIImage? {
         guard let url = diskDirectory?
-            .appendingPathComponent("\(key).png"),
-              FileManager.default.fileExists(atPath: url.path)
+            .appendingPathComponent("\(key).png")
         else { return nil }
-        return UIImage(contentsOfFile: url.path)
+        let box = await Task.detached(priority: .userInitiated) {
+            () -> ThumbImageBox? in
+            guard FileManager.default.fileExists(atPath: url.path)
+            else { return nil }
+            return UIImage(contentsOfFile: url.path)
+                .map(ThumbImageBox.init)
+        }.value
+        return box?.image
     }
 
-    private func saveToDisk(_ image: UIImage, key: String) {
+    /// §410：PNG 编码＋写盘下主线程（编码是整图字节活，
+    /// 与解码同待遇）；落点 URL 仍在主线算
+    private func saveToDisk(_ image: UIImage, key: String) async {
         guard let url = diskDirectory?
-            .appendingPathComponent("\(key).png"),
-              let data = image.pngData()
+            .appendingPathComponent("\(key).png")
         else { return }
-        try? data.write(to: url)
+        let box = ThumbImageBox(image)
+        await Task.detached(priority: .utility) {
+            guard let data = box.image.pngData() else { return }
+            try? data.write(to: url)
+        }.value
     }
 }
 
@@ -278,16 +346,21 @@ actor ThumbnailGate {
 /// （0.36.4 已立此规）
 struct FileTypeFace: View {
     let entry: WorkspaceFileEntry
+    /// 居中图标高（§452.7：资源库预览区 28；成品块
+    /// 占位等大面由宿主放大传入）
+    var iconHeight: CGFloat = 28
 
     var body: some View {
-        let style = DeliverableIconStyle.style(
-            forFileName: entry.name,
-            isDirectory: entry.isDirectory
-        )
+        // §452.4/452.7：白面＋居中扁平图标（Muse 资源
+        // 库同构：不可渲类在预览区正中放类型图标，
+        // 高 ≈ 预览区 1/4.4）；旧全幅黏土图退役
         ZStack {
             Rectangle().fill(Color.white)
-            FileIconImageView(assetName: style.assetName)
-                .aspectRatio(contentMode: .fit)
+            FileTypeIconView(
+                fileName: entry.name,
+                isDirectory: entry.isDirectory,
+                height: iconHeight
+            )
         }
         .accessibilityHidden(true)
     }

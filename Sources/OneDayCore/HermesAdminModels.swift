@@ -279,6 +279,236 @@ public struct CronJob: Decodable, Sendable, Identifiable {
     }
 }
 
+// MARK: - /api/cron/blueprints（定时任务蓝图，§388 H6）
+//
+// 部署实查（v0.23.0 web_routers/cron.py:929＋cron/blueprint_
+// catalog.py blueprint_catalog_entry）：GET 返回
+// {"blueprints":[条目]}，条目＝表单模式＋现成命令/深链/计划
+// 人话；POST /api/cron/blueprints/instantiate {blueprint,
+// values} 按 fields 填空建任务，校验失败 422 字段级报错。
+// 蓝图是服务端单源（内置目录＋插件蓝图），App 只拉取渲染、
+// 不落本地副本。
+
+/// 蓝图的一个填空槽：type ∈ time/enum/text/weekdays（服务端
+/// _SLOT_TYPES 闭集）；default 是任意 JSON 值（多为字符串）
+public struct CronBlueprintField: Decodable, Sendable, Identifiable {
+    public let name: String
+    public let type: String
+    public let label: String
+    public let defaultValue: JSONValue?
+    public let options: [String]
+    public let optional: Bool
+    /// false＝options 只是建议（如 deliver 槽，真实可选集随
+    /// 网关配置变，服务端下游再校验）
+    public let strict: Bool
+    public let help: String
+
+    public var id: String { name }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, type, label, options, optional, strict, help
+        case defaultValue = "default"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "text"
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? name
+        defaultValue = try container.decodeIfPresent(JSONValue.self, forKey: .defaultValue)
+        options = try container.decodeIfPresent([String].self, forKey: .options) ?? []
+        optional = try container.decodeIfPresent(Bool.self, forKey: .optional) ?? false
+        strict = try container.decodeIfPresent(Bool.self, forKey: .strict) ?? true
+        help = try container.decodeIfPresent(String.self, forKey: .help) ?? ""
+    }
+
+    public init(
+        name: String, type: String, label: String,
+        defaultValue: JSONValue? = nil, options: [String] = [],
+        optional: Bool = false, strict: Bool = true, help: String = ""
+    ) {
+        self.name = name
+        self.type = type
+        self.label = label
+        self.defaultValue = defaultValue
+        self.options = options
+        self.optional = optional
+        self.strict = strict
+        self.help = help
+    }
+
+    /// 表单初始文本：默认值按 JSON 形态摊平（字符串原样、
+    /// 数字/布尔转字面），无默认给空串
+    public var defaultText: String {
+        switch defaultValue {
+        case .string(let value): return value
+        case .number(let value):
+            return value == value.rounded()
+                ? String(Int(value)) : String(value)
+        case .bool(let value): return value ? "true" : "false"
+        default: return ""
+        }
+    }
+
+    public var isTime: Bool { type == "time" }
+    public var isEnum: Bool { type == "enum" }
+    public var isWeekdays: Bool { type == "weekdays" }
+}
+
+/// 一张蓝图（模板）：服务端表单模式原样建模，未知键忽略
+public struct CronBlueprint: Decodable, Sendable, Identifiable {
+    public let key: String
+    public let title: String
+    public let description: String
+    public let category: String
+    public let tags: [String]
+    public let fields: [CronBlueprintField]
+    /// "builtin" / "plugin"
+    public let source: String?
+    public let plugin: String?
+    /// 计划模板原文（如 "{minute} {hour} * * *"），仅展示参考
+    public let schedule: String?
+    /// 计划人话（如 "daily at 08:00"，服务端按默认值生成）
+    public let scheduleHuman: String?
+    public let command: String?
+    public let appUrl: String?
+
+    public var id: String { key }
+
+    private enum CodingKeys: String, CodingKey {
+        case key, title, description, category, tags, fields
+        case source, plugin, schedule, scheduleHuman, command, appUrl
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        key = try container.decode(String.self, forKey: .key)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? key
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        fields = try container.decodeIfPresent([CronBlueprintField].self, forKey: .fields) ?? []
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        plugin = try container.decodeIfPresent(String.self, forKey: .plugin)
+        schedule = try container.decodeIfPresent(String.self, forKey: .schedule)
+        scheduleHuman = try container.decodeIfPresent(String.self, forKey: .scheduleHuman)
+        command = try container.decodeIfPresent(String.self, forKey: .command)
+        appUrl = try container.decodeIfPresent(String.self, forKey: .appUrl)
+    }
+
+    public init(
+        key: String, title: String, description: String = "",
+        category: String = "", tags: [String] = [],
+        fields: [CronBlueprintField] = [], source: String? = nil,
+        plugin: String? = nil, schedule: String? = nil,
+        scheduleHuman: String? = nil, command: String? = nil,
+        appUrl: String? = nil
+    ) {
+        self.key = key
+        self.title = title
+        self.description = description
+        self.category = category
+        self.tags = tags
+        self.fields = fields
+        self.source = source
+        self.plugin = plugin
+        self.schedule = schedule
+        self.scheduleHuman = scheduleHuman
+        self.command = command
+        self.appUrl = appUrl
+    }
+}
+
+public struct CronBlueprintsResponse: Decodable, Sendable {
+    public let blueprints: [CronBlueprint]
+
+    private enum CodingKeys: String, CodingKey { case blueprints }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        blueprints = try container.decodeIfPresent(
+            [CronBlueprint].self, forKey: .blueprints
+        ) ?? []
+    }
+}
+
+/// 蓝图填空组装（纯函数，钉测把守）：文本值按槽定义收敛为
+/// instantiate 的 values——必填槽空值即整单不成立（返回
+/// nil）；可选槽空值不带；其余原样带字符串（服务端 fill
+/// 链对 time/enum/weekdays/text 均按字符串校验）
+public enum CronBlueprintFill {
+    public static func values(
+        fields: [CronBlueprintField], texts: [String: String]
+    ) -> [String: JSONValue]? {
+        var result: [String: JSONValue] = [:]
+        for field in fields {
+            let raw = (texts[field.name] ?? field.defaultText)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if raw.isEmpty {
+                if field.optional { continue }
+                return nil
+            }
+            result[field.name] = .string(raw)
+        }
+        return result
+    }
+}
+
+// MARK: - /api/cron/delivery-targets（投递目标，§388 H6）
+//
+// 部署实查（web_routers/cron.py:754＋cron/scheduler_delivery
+// .py:527）：GET 返回 {"targets":[…]}，local 打头，其后是
+// 已接网关平台；平台没设主频道时 home_target_set=false 仍
+// 列出，UI 须如实标注而不是藏掉。
+
+public struct CronDeliveryTarget: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let name: String
+    public let homeTargetSet: Bool
+    public let homeEnvVar: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name
+        case homeTargetSet = "home_target_set"
+        case homeEnvVar = "home_env_var"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
+        homeTargetSet = try container.decodeIfPresent(
+            Bool.self, forKey: .homeTargetSet
+        ) ?? false
+        homeEnvVar = try container.decodeIfPresent(String.self, forKey: .homeEnvVar)
+    }
+
+    public init(id: String, name: String, homeTargetSet: Bool, homeEnvVar: String? = nil) {
+        self.id = id
+        self.name = name
+        self.homeTargetSet = homeTargetSet
+        self.homeEnvVar = homeEnvVar
+    }
+
+    /// 行尾标注：没设主频道时点明（选了也投不到主频道）
+    public var availabilityNote: String? {
+        homeTargetSet ? nil : "未设主频道"
+    }
+}
+
+public struct CronDeliveryTargetsResponse: Decodable, Sendable {
+    public let targets: [CronDeliveryTarget]
+
+    private enum CodingKeys: String, CodingKey { case targets }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        targets = try container.decodeIfPresent(
+            [CronDeliveryTarget].self, forKey: .targets
+        ) ?? []
+    }
+}
+
 // MARK: - /api/sessions（服务端会话，需会话）
 
 /// 实测样本：{"sessions": [{"id": "…", "source": "dashboard",
@@ -295,7 +525,7 @@ public struct CronJob: Decodable, Sendable, Identifiable {
 /// 话标题升级失败者）——0.6.1 前客户端只解码 display_
 /// name（渠道身份列、API 会话恒 null）从未声明 title，
 /// 「接口无 title」系客户端口径误判、就此更正。
-public struct ServerSession: Decodable, Sendable, Identifiable {
+public struct ServerSession: Sendable, Identifiable {
     public let id: String
     public let source: String?
     public let sessionKey: String?
@@ -325,9 +555,18 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
     /// board 面的会话写（PATCH 改名/归档等）走围栏
     /// 协议——请求须带 expected_revision 等于此值，
     /// 无围栏必 409 client_upgrade_required（本包生
-    /// 产实证）；网关面投影可能不带此字段，故可选；
-    /// 默认 nil 兼容既有直构点（解码时有键照常取值）
-    public let runtimeRevision: Int? = nil
+    /// 产实证）；网关面投影可能不带此字段，故可选。
+    /// **不许带默认值**：0.50.30 CI 实证——本条与下
+    /// 条代次原带 `= nil` 时，合成解码对带默认值的属
+    /// 性不取值（JSON 有键仍解出 nil，全仓首个断言
+    /// 解码值的单测才照出）；直构点须显式传 nil
+    public let runtimeRevision: Int?
+    /// 会话行当前的 mutation 代次（0.50.30）：围栏
+    /// DELETE 须三参数齐发（request_id＋expected_
+    /// revision＋expected_generation，见 DESIGN
+    /// §204.6）——详情 GET 回行带 runtime_generation、
+    /// 列表投影不带，故同为可选、不带默认值（同上）
+    public let runtimeGeneration: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, source, model, profile
@@ -345,6 +584,7 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
         case inputTokens = "input_tokens"
         case outputTokens = "output_tokens"
         case runtimeRevision = "runtime_revision"
+        case runtimeGeneration = "runtime_generation"
     }
 
     /// 开始时间（epoch 量级归一：>1e11 视为毫秒）
@@ -360,12 +600,272 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
 
     /// 是否活跃：没有结束时间即仍在进行
     public var isActive: Bool { endedAt == nil }
+}
 
+extension ServerSession: Decodable {
+    /// 自定义解码（删除 409 热修，报告 §2.2）：生产详
+    /// 情回包的 archived/pinned 是 sqlite 原样数字
+    /// （`"archived": 0`），合成解码对 Bool? 字段遇数
+    /// 字直接抛错、整行解不出——删除/PATCH 取围栏的
+    /// 详情 GET 因此恒失败并静默裸发。本解码只对这两
+    /// 个字段放宽：Bool 与 0/1 数字都收；其余字段与
+    /// 合成解码同口径。放在 extension 里保住成员初始
+    /// 化器（直构点不受影响）。
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        sessionKey = try container.decodeIfPresent(String.self, forKey: .sessionKey)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        serverTitle = try container.decodeIfPresent(String.self, forKey: .serverTitle)
+        titleSource = try container.decodeIfPresent(String.self, forKey: .titleSource)
+        isArchived = Self.flexibleBool(container, .isArchived)
+        isPinned = Self.flexibleBool(container, .isPinned)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        profile = try container.decodeIfPresent(String.self, forKey: .profile)
+        startedAt = try container.decodeIfPresent(Double.self, forKey: .startedAt)
+        endedAt = try container.decodeIfPresent(Double.self, forKey: .endedAt)
+        endReason = try container.decodeIfPresent(String.self, forKey: .endReason)
+        messageCount = try container.decodeIfPresent(Int.self, forKey: .messageCount)
+        toolCallCount = try container.decodeIfPresent(Int.self, forKey: .toolCallCount)
+        inputTokens = try container.decodeIfPresent(Double.self, forKey: .inputTokens)
+        outputTokens = try container.decodeIfPresent(Double.self, forKey: .outputTokens)
+        runtimeRevision = try container.decodeIfPresent(Int.self, forKey: .runtimeRevision)
+        runtimeGeneration = try container.decodeIfPresent(Int.self, forKey: .runtimeGeneration)
+    }
+
+    /// Bool 或 0/1 数字都解；键缺失/为 null/异形回 nil
+    private static func flexibleBool(
+        _ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys
+    ) -> Bool? {
+        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return value != 0
+        }
+        return nil
+    }
+}
+
+extension ServerSession {
     /// 标题：display_name 优先，其次来源＋时间，最后 id 前缀
     public var title: String {
         if let displayName, !displayName.isEmpty { return displayName }
         if let source, !source.isEmpty { return "\(source) 会话" }
         return "会话 \(id.prefix(8))"
+    }
+}
+
+/// GET /api/sessions/{id}/mutation-snapshot 回包
+/// （删除 409 热修，报告 §1.2/§2.4）：围栏身份的官
+/// 方指定来源——小回包只有身份四件，没有详情 GET
+/// 的 42KB 杂质（system_prompt 全文等）。exists 为
+/// false＝会话已不在（删除目的已达成）。
+/// request_id 不在此包内：由客户端每次尝试新铸。
+public struct SessionMutationSnapshot: Decodable, Sendable {
+    public let sessionID: String?
+    public let exists: Bool?
+    public let runtimeRevision: Int?
+    public let runtimeGeneration: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case exists
+        case runtimeRevision = "runtime_revision"
+        case runtimeGeneration = "runtime_generation"
+    }
+}
+
+/// 服务端错误码解析（删除 409 热修，报告 §2.3）：
+/// Hermes 的拒删/拒改回包形如 {"detail":"revision_
+/// conflict"} 或 {"detail":"client_upgrade_required:
+/// this app is out of sync…"}——取 detail 冒号前的码
+/// 本体。发送层此前把响应体整个丢弃，这类码到不了
+/// 客户端逻辑，用户只剩一句裸「状态 409」。
+public enum HermesServerErrorCode {
+    public static func parse(_ body: Data) -> String? {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: body),
+            let dict = object as? [String: Any],
+            let detail = dict["detail"] as? String
+        else { return nil }
+        let code = detail
+            .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        guard !code.isEmpty,
+              code.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" })
+        else { return nil }
+        return code
+    }
+}
+
+/// 删除一次尝试的收口分流（删除 409 热修，报告
+/// §1.3）：纯函数、单测把守，客户端只许照此执行。
+public enum SessionDeleteDirective: Sendable, Equatable {
+    /// 目标已达成：2xx，或 404（已删/本就不存在，
+    /// DELETE 幂等口径下视为成功）
+    case done
+    /// revision_conflict：身份已过期——重读 snapshot
+    /// 拿最新值立即再试
+    case retryWithFreshIdentity
+    /// session_busy：turn 在跑/排队——短等后重读再试，
+    /// 预算耗尽报 sessionBusy 人话，不许裸甩 409
+    case retryAfterBusy
+    /// 其余（身份类拒/服务器错/未知码）：如实上抛，
+    /// 不许盲目重试、更不许降级裸发
+    case fail
+
+    public static func directive(status: Int, serverCode: String?) -> SessionDeleteDirective {
+        if (200...299).contains(status) || status == 404 {
+            return .done
+        }
+        guard status == 409 else { return .fail }
+        switch serverCode {
+        case "revision_conflict":
+            return .retryWithFreshIdentity
+        case "session_busy":
+            return .retryAfterBusy
+        default:
+            return .fail
+        }
+    }
+}
+
+/// D3/D2 rewind 请求体（DESIGN §352，批 0 实测契约）：
+/// `POST /api/sessions/{id}/rewind`——四字段缺一不可：
+/// target 必须 Int 直发（服务端 validate_action 要求
+/// `type is int and >0`，按 string 发必吃 400 invalid_
+/// params）；expected_generation 在围栏集内、缺失必被
+/// 端点层以「Invalid rewind payload」拒。专用 Encodable
+/// 结构体直编——不走 JSONValue.number(Double)，避免整
+/// 数被编成浮点字面量（契约测试以编码串钉死）
+public struct RewindRequest: Encodable, Sendable, Equatable {
+    public let requestID: String
+    public let expectedRevision: Int
+    public let expectedGeneration: Int
+    public let targetMessageID: Int
+
+    public init(
+        requestID: String, expectedRevision: Int,
+        expectedGeneration: Int, targetMessageID: Int
+    ) {
+        self.requestID = requestID
+        self.expectedRevision = expectedRevision
+        self.expectedGeneration = expectedGeneration
+        self.targetMessageID = targetMessageID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
+        case expectedRevision = "expected_revision"
+        case expectedGeneration = "expected_generation"
+        case targetMessageID = "target_message_id"
+    }
+}
+
+/// rewind 200 回执（批 0 真调用实测形态，2026-11-22）：
+/// {ok, session_id, revision（新）, execution_generation
+/// （新）, operation: "rewind", rewound_count, target_
+/// message{…行全字段}, new_head_id, replacement_message
+/// _id}。客户端不定状态于回执——成败以事后 transcript
+/// 对账为真源（施工图 §一），本模型只作留痕/测试钉；
+/// 行 id 在 JSON 里是整数，但解码口径与 SessionMessage
+/// .id 同律走 Double 再 Int(exactly:) 收口，防服务端
+/// 序列化形态漂移把整包打死
+public struct RewindReceipt: Decodable, Sendable {
+    public let ok: Bool?
+    public let sessionID: String?
+    public let revision: Int?
+    public let executionGeneration: Int?
+    public let operation: String?
+    public let rewoundCount: Int?
+    private let newHeadIDValue: Double?
+    private let replacementMessageIDValue: Double?
+
+    public var newHeadRowID: Int? {
+        newHeadIDValue.flatMap { Int(exactly: $0) }
+    }
+
+    public var replacementMessageRowID: Int? {
+        replacementMessageIDValue.flatMap { Int(exactly: $0) }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case sessionID = "session_id"
+        case revision
+        case executionGeneration = "execution_generation"
+        case operation
+        case rewoundCount = "rewound_count"
+        case newHeadIDValue = "new_head_id"
+        case replacementMessageIDValue = "replacement_message_id"
+    }
+
+    public init(
+        ok: Bool? = nil, sessionID: String? = nil,
+        revision: Int? = nil, executionGeneration: Int? = nil,
+        operation: String? = nil, rewoundCount: Int? = nil,
+        newHeadRowID: Int? = nil, replacementMessageRowID: Int? = nil
+    ) {
+        self.ok = ok
+        self.sessionID = sessionID
+        self.revision = revision
+        self.executionGeneration = executionGeneration
+        self.operation = operation
+        self.rewoundCount = rewoundCount
+        self.newHeadIDValue = newHeadRowID.map(Double.init)
+        self.replacementMessageIDValue = replacementMessageRowID
+            .map(Double.init)
+    }
+}
+
+/// rewind 失败分类器（DESIGN §352，照 SessionDelete-
+/// Directive 同构）：输入 (HTTP 状态, detail 码本体)，
+/// 码字面以批 0 实测为准——target 指 assistant 行 →
+/// 400 invalid_params；过期 generation → 409 stale_
+/// generation；缺 generation 是端点层 400（客户端恒
+/// 带、归 fail 不重试）
+public enum RewindDirective: Sendable, Equatable {
+    /// 2xx：截断已落，进提交步
+    case done
+    /// 409 围栏冲突（stale_generation/revision_
+    /// conflict）：先对账（尾行已截断＝回执丢失的假
+    /// 冲突、直接 done），未截断才以新围栏重试
+    case reconcileConflict
+    /// session_busy：短等（1.5s/3s，DELETE 先例档
+    /// 位）后重读再试
+    case retryAfterBusy
+    /// 400 invalid_params：目标不合法（assistant 行/
+    /// 未知 id/已回收行），不重试
+    case failInvalidTarget
+    /// 其余（鉴权/服务器错/未知码/端点层拒）：如实
+    /// 上抛，不盲重试
+    case fail
+
+    public static func directive(
+        status: Int, serverCode: String?
+    ) -> RewindDirective {
+        if (200...299).contains(status) {
+            return .done
+        }
+        switch status {
+        case 409:
+            switch serverCode {
+            case "stale_generation", "revision_conflict":
+                return .reconcileConflict
+            case "session_busy":
+                return .retryAfterBusy
+            default:
+                return .fail
+            }
+        case 400:
+            return serverCode == "invalid_params"
+                ? .failInvalidTarget : .fail
+        default:
+            return .fail
+        }
     }
 }
 
@@ -497,9 +997,174 @@ public struct SessionToolCallLabel: Decodable, Sendable, Equatable {
     }
 }
 
+/// 消息反应一条（台账 187）：服务端 display_metadata
+/// ["reactions"] 的元素与 PUT/DELETE /v1/reactions
+/// 回执同形——{emoji, author, at, seen?}。author 只
+/// 两值："user"（本机用户）与 "agent"（助手经工具路
+/// 自点）；Tapback 语义由服务端强制（一人一条、异点
+/// 替换、同点取消），客户端只镜像不裁决。seen 是助
+/// 手感知公告的消费标记（服务端内部账），呈现不读
+public struct MessageReaction: Codable, Sendable, Equatable {
+    public let emoji: String
+    public let author: String
+    public let at: Double?
+    public let seen: Bool?
+
+    public init(
+        emoji: String, author: String,
+        at: Double? = nil, seen: Bool? = nil
+    ) {
+        self.emoji = emoji
+        self.author = author
+        self.at = at
+        self.seen = seen
+    }
+
+    /// 本机用户的反应（author 分型单点，不许散写字面量比对）
+    public var isOwn: Bool { author == "user" }
+
+    /// 助手的反应（author 分型单点，同 isOwn 口径）
+    public var isAgent: Bool { author == "agent" }
+}
+
+/// 反应口径收敛（台账 187）：动作面反应排的固定集与
+/// 镜像组装只此一处——排内集是用户拍板的样板 8 个
+/// （单排、无展开层）；乐观组装与服务端 Tapback 语
+/// 义同构（自己的至多一条、异点替换、nil 即撤回）
+public enum MessageReactions {
+    public static let palette: [String] = [
+        "👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉",
+    ]
+
+    /// 自己的现反应（至多一个）
+    public static func ownEmoji(
+        in reactions: [MessageReaction]
+    ) -> String? {
+        reactions.first { $0.isOwn }?.emoji
+    }
+
+    /// 助手的现反应（至多一个，Tapback 语义服务端强制）
+    public static func agentEmoji(
+        in reactions: [MessageReaction]
+    ) -> String? {
+        reactions.first { $0.isAgent }?.emoji
+    }
+
+    /// 自己的全部反应段（§432 分工：pill 只承 own
+    /// 段，agent 段走气泡角标，两面不合并）
+    public static func ownReactions(
+        in reactions: [MessageReaction]
+    ) -> [MessageReaction] {
+        reactions.filter(\.isOwn)
+    }
+
+    /// 乐观镜像组装：以 emoji 替换自己的那条（nil＝
+    /// 撤回），助手的那条原样保留、序不变
+    public static func applying(
+        own emoji: String?, to reactions: [MessageReaction],
+        at: Double? = nil
+    ) -> [MessageReaction] {
+        var next = reactions.filter { !$0.isOwn }
+        if let emoji {
+            next.append(
+                MessageReaction(emoji: emoji, author: "user", at: at)
+            )
+        }
+        return next
+    }
+}
+
+/// PUT/DELETE /v1/reactions/{session_id}/{row_id} 回执
+/// （台账 187）：{row_id, reactions}——reactions 是该行
+/// 写后的服务端全集，客户端以它覆写镜像自愈
+public struct ReactionUpdate: Decodable, Sendable {
+    public let rowID: Double
+    public let reactions: [MessageReaction]
+
+    enum CodingKeys: String, CodingKey {
+        case rowID = "row_id"
+        case reactions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rowID = try container.decodeIfPresent(Double.self, forKey: .rowID) ?? 0
+        reactions = try container.decodeIfPresent(
+            [MessageReaction].self, forKey: .reactions
+        ) ?? []
+    }
+
+    public init(rowID: Double, reactions: [MessageReaction]) {
+        self.rowID = rowID
+        self.reactions = reactions
+    }
+}
+
 /// 实测样本：{"session_id": "…", "profile": "default",
 /// "messages": [{"id": 1, "role": "user", "content": "…",
 /// "timestamp": 1762…, …}]}
+/// 选择框载荷（总表 203／DESIGN §441）：服务端终态
+/// attach 写在 assistant 行 display_metadata 的
+/// options 键、两面投影同形下发——{v, options:
+/// [{label, send_text}], at}。解码宽容：坏项逐项
+/// 丢弃、全坏判空（SessionMessage 侧据此判 nil），
+/// 一条坏载荷不许打死整页解码
+public struct MessageOptions: Decodable, Sendable, Equatable {
+    public let options: [MessageOption]
+    public let v: Int?
+    public let at: Double?
+
+    public init(options: [MessageOption], v: Int? = nil, at: Double? = nil) {
+        self.options = options
+        self.v = v
+        self.at = at
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case options, v, at
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let raw = try container.decodeIfPresent(
+            [MessageOption].self, forKey: .options
+        ) ?? []
+        options = raw.filter { !$0.label.isEmpty }
+        v = try container.decodeIfPresent(Int.self, forKey: .v)
+        at = try container.decodeIfPresent(Double.self, forKey: .at)
+    }
+}
+
+/// 选择框单项（§441）：label 是按钮上的人话，
+/// sendText 是点选时实际发出的文本（服务端校验
+/// 单源保证非空、缺省＝label；客户端解码同口径
+/// 兜底）
+public struct MessageOption: Decodable, Sendable, Equatable {
+    public let label: String
+    public let sendText: String
+
+    public init(label: String, sendText: String) {
+        self.label = label
+        self.sendText = sendText
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case sendText = "send_text"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = (try container.decodeIfPresent(
+            String.self, forKey: .label
+        ) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawSend = (try container.decodeIfPresent(
+            String.self, forKey: .sendText
+        ) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        sendText = rawSend.isEmpty ? label : rawSend
+    }
+}
+
 public struct SessionMessage: Decodable, Sendable, Identifiable {
     public let id: Double
     public let role: String
@@ -525,6 +1190,13 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     /// hidden＝不呈现；0.31.0 起解码，run 落定提取
     /// 据此分型）
     public let displayKind: String?
+    /// 消息反应全集（台账 187 起解码；网关与面板两
+    /// 个 messages 投影面同形下发，缺键＝无反应）
+    public let reactions: [MessageReaction]
+    /// 选择框载荷（总表 203／§441）：仅 assistant
+    /// 行可带；解码全坏或空项判 nil（见 Message-
+    /// Options 宽容口径）
+    public let options: MessageOptions?
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp
@@ -535,6 +1207,8 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         case reasoningContent = "reasoning_content"
         case reasoning
         case displayKind = "display_kind"
+        case reactions
+        case options
     }
 
     public init(from decoder: Decoder) throws {
@@ -561,6 +1235,14 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         displayKind = try container.decodeIfPresent(
             String.self, forKey: .displayKind
         )
+        reactions = try container.decodeIfPresent(
+            [MessageReaction].self, forKey: .reactions
+        ) ?? []
+        let rawOptions = (try? container.decodeIfPresent(
+            MessageOptions.self, forKey: .options
+        )) ?? nil
+        options = (rawOptions?.options.isEmpty == false)
+            ? rawOptions : nil
     }
 
     /// 测试与拼装用直构（解码路径外）
@@ -570,7 +1252,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         toolName: String? = nil,
         toolCallLabels: [String: [SessionToolCallLabel]] = [:],
         reasoningContent: String? = nil, reasoning: String? = nil,
-        displayKind: String? = nil
+        displayKind: String? = nil,
+        reactions: [MessageReaction] = [],
+        options: MessageOptions? = nil
     ) {
         self.id = id
         self.role = role
@@ -583,6 +1267,8 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         self.reasoningContent = reasoningContent
         self.reasoning = reasoning
         self.displayKind = displayKind
+        self.reactions = reactions
+        self.options = options
     }
 
     public var date: Date? {

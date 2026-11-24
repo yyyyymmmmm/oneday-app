@@ -1,8 +1,11 @@
 import Foundation
 import OneDayCore
 
-/// 工作台账数据中枢：枢纽「活动」段自持（段内 .task
-/// 驱动，进页全量拉、可见时 10 秒增量轮询）。口径：
+/// 工作台账数据中枢：§259 起由 AppState 持有单例
+/// （sharedLedgerStore），枢纽「活动」段与进展胶囊
+/// 消费同一份（段内 .task 驱动，进页全量拉、可见
+/// 时 10 秒增量轮询；轮询有在飞守卫，多面共用安
+/// 全）。口径：
 /// ①台账未上线如实露「还没上线」态——判据是 /ledger
 /// 读面 404（旧伴生无此面），伴生探测只作旁证把话
 /// 说准，绝不拿空列表或假数据冒充已上线；②失败保
@@ -36,6 +39,9 @@ final class LedgerStore {
     private(set) var detailGone = false
 
     private let client = LedgerBridgeClient()
+    /// 伴生探测走 front 客户端（桥-1 归位：探针本属
+    /// front 面，本店只在台账未上线时借它作旁证）
+    private let frontClient = CompanionFrontClient()
     private var loadInFlight = false
 
     // MARK: - 呈现派生（口径收口在 Core LedgerBoard）
@@ -63,9 +69,18 @@ final class LedgerStore {
         LedgerBoard.headerCounts(items: items, summary: summary)
     }
 
+    /// 全流（服务端单流：监测变化由服务端台账直供
+    /// kind=monitor 条目、与工作条目同账同序，A-05
+    /// 起客户端不再拼第二源）：分组呈现走全流；页
+    /// 首计数同走本账（计数是「工作」的口径，监测
+    /// 条目恒 completed、不冒充工作件数）
+    var allItems: [LedgerItem] {
+        LedgerMerge.sorted(items)
+    }
+
     var dayGroups: [LedgerDayGroup] {
         LedgerBoard.dayGroups(
-            items, now: Date(timeIntervalSince1970: serverNow)
+            allItems, now: Date(timeIntervalSince1970: serverNow)
         )
     }
 
@@ -100,6 +115,7 @@ final class LedgerStore {
         }
     }
 
+/// §416 新鲜度普查豁免：10 秒可见轮询＋since 增量合并，自带节奏，门不介入（判定表见 DESIGN §416）
     /// 可见轮询（面 .task 驱动、消失即取消）：就绪态
     /// 走 since 增量合并；未上线态每轮重试全量（服务
     /// 上线后页面自己活过来，与空态文案「会自动开始
@@ -189,7 +205,7 @@ final class LedgerStore {
     ) async {
         if case .bridgeMissing = error {
             loadState = .unavailable(Self.notLiveMessage(probe: nil))
-            let result = await client.probeCompanion(config: config)
+            let result = await frontClient.probeCompanion(config: config)
             probe = result
             if loadState != .ready {
                 loadState = .unavailable(
@@ -225,7 +241,7 @@ final class LedgerStore {
         case .unauthorized:
             return L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
         case .bridgeMissing, .recordGone, .failed:
-            return L10n.string("台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。")
+            return L10n.string("台账功能还没开通。开通后，这里会自动开始记录每件工作的进度。")
         }
     }
 
@@ -236,13 +252,13 @@ final class LedgerStore {
         case .detected(let info):
             if let version = info.companionVersion,
                !version.isEmpty {
-                return L10n.format("现在这台伴生服务是 %@ 版，还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。", version)
+                return L10n.format("现在的服务是 %@ 版，还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。", version)
             }
-            return L10n.string("伴生服务还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。")
+            return L10n.string("服务还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。")
         case .missing:
-            return L10n.string("还没有探测到带台账的伴生服务。台账上线后，这里会自动开始记录每件工作的进度。")
+            return L10n.string("还没有连上带台账功能的服务。台账开通后，这里会自动开始记录每件工作的进度。")
         case .unreadable, .unreachable, nil:
-            return L10n.string("台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。")
+            return L10n.string("台账功能还没开通。开通后，这里会自动开始记录每件工作的进度。")
         }
     }
 

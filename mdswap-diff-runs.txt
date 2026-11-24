@@ -1,0 +1,23 @@
+# §417 行内差分报告（count=49）
+
+## inl-image-empty-alt [已签收]
+源：前 ![](https://example.com/p.png) 后
+--- 旧核 ---
+«前 ￼ 后»
+--- 新核 ---
+«前  后»
+
+## inl-strong-in-link [已签收]
+源：[**粗**链接](https://example.com)
+--- 旧核 ---
+«粗链接»<https://example.com>
+--- 新核 ---
+«粗»S<https://example.com> | «链接»<https://example.com>
+
+## inl-hardbreak [已签收]
+源：第一行  
+第二行
+--- 旧核 ---
+«第一行  ⏎第二行»
+--- 新核 ---
+«第一行⏎第二行»

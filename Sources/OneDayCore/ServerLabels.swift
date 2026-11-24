@@ -59,6 +59,27 @@ public enum ServerLabels {
         }
     }
 
+    /// 网关状态词（设置根页口径，台账 198 收敛 B6）：
+    /// 入参是整份状态的可选——状态没读到（nil）显
+    /// 「—」、读到了但状态值未知显「未知」，与
+    /// gatewayState 的「未运行」回落分工不同（那边是
+    /// 状态屏的运行判定、本函数是设置行的如实留白）。
+    /// 原 SettingsView.gatewayStateWord 与已退役的
+    /// RestartGatewayView.gatewayStatusText 两份复制
+    /// 自此收敛到本处单源，单测把守逐值口径。
+    public static func gatewayStateWord(
+        for status: ServerStatus?,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        guard let status else { return "—" }
+        switch status.gatewayState?.lowercased() {
+        case "running": return L10n.string("运行中", locale: locale)
+        case "stopped": return L10n.string("已停止", locale: locale)
+        case "error", "failed": return L10n.string("异常", locale: locale)
+        default: return L10n.string("未知", locale: locale)
+        }
+    }
+
     // MARK: - 类别（密钥/技能分组，待裁 4 已裁）
 
     /// 类别回落组名：未知/缺失类别一律落此组，不许直

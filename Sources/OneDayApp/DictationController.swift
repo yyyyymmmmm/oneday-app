@@ -47,6 +47,16 @@ import UIKit
 /// reportingOptions 开 .fastResults 作内部杠杆
 /// （唯一未开的官方延迟开关），不作承诺。停后落
 /// 字计时记账已退役（复杂度清理，审计第 8 项）。
+/// 听写实现瘦身（DESIGN-V4 §299；横扫 A-07）：为已
+/// 撤销的「实时出字」目标而建的实现机器整组退役——
+/// 预热状态机＋round 令牌收成一个总闸 Bool＋单飞任
+/// 务（产物在否即就绪、取消即作废）；起步时序钟、诊
+/// 断四格、结果分型计数、末阶段/诊断串落盘与上屏诊
+/// 断行全删（其使命——定位实时出字与 tap 崩溃——均
+/// 已结案），阶段打点只留 os.Logger 系统日志。形态
+/// 与外部行为逐项不变：录音条四态、停录整段落字、
+/// 废弃不落字、权限同步门、tap/进度回调的 nonisolated
+/// 隔离形态全数保留。
 @MainActor
 @Observable
 final class DictationController {
@@ -85,19 +95,10 @@ final class DictationController {
             defaults.set(language.rawValue, forKey: Self.languageKey)
             // 语言变了（0.36.15 预热）：备好的分析器
             // 是旧语言的——弃置并按新语言重备
-            dropPreparedBundle()
+            dropPrepared()
             warmIfNeeded()
         }
     }
-    /// 本次是否走了回退引擎（DictationTranscriber）
-    private(set) var usedFallbackEngine = false
-    /// 结果分型计数（0.36.12 仪表，诊断 dictation-
-    /// nolive 修法 1）：volatile（草稿）与 final（定
-    /// 稿）分开累计——「实时不出字」的定案数据就在
-    /// 这里：草稿到底有没有到达消费环
-    private(set) var volatileResultCount = 0
-    private(set) var finalResultCount = 0
-
     /// 录音面是否应占住发送舱（准备中/录音中/收尾）
     var isActive: Bool {
         phase == .preparing || phase == .recording
@@ -127,85 +128,14 @@ final class DictationController {
     @ObservationIgnored
     private let defaults: UserDefaults
     private static let languageKey = "dictation.language"
-    /// 阶段面包屑落盘键（0.36.8，诊断 §5.4）：闪退后
-    /// 读末阶段即知死点，不再靠猜
-    private static let lastStageKey = "dictation.lastStage"
-    /// 诊断串落盘键（0.36.12；0.36.13 扩四格）：引
-    /// 擎种类＋规范化 locale＋实际预设＋locale/资产
-    /// 实查＋isAvailable 原值＋结果分型计数，与末阶
-    /// 段同走诊断行上屏
-    private static let diagKey = "dictation.lastDiag"
     private static let log = Logger(
         subsystem: "com.example.oneday", category: "dictation")
 
-    /// 阶段打点：一行日志＋末阶段落盘（授权结果/资产
-    /// 状态/会话激活/格式值/引擎启动/首结果各一处）
+    /// 阶段打点：只走 os.Logger 系统日志（0.36.8 起
+    /// 的阶段记号沿用）；原末阶段/诊断串落盘＋上屏
+    /// 诊断行已随 §299 瘦身退役
     private func markStage(_ stage: String) {
         Self.log.info("stage=\(stage, privacy: .public)")
-        defaults.set(stage, forKey: Self.lastStageKey)
-    }
-
-    /// 规范化后的 locale 标识（选引擎时回填；回退引
-    /// 擎无规范化环节，用语言标识原值）
-    @ObservationIgnored
-    private var diagLocaleID = ""
-
-    /// 仪表四格（0.36.13，DESIGN-V4 §77.6 外部核查
-    /// 增补）：①实际生效的预设名（回退＝所构造的
-    /// DictationTranscriber 预设；主引擎＝其
-    /// reportingOptions 构成）②supportedLocales 对
-    /// 当前 locale 的实查布尔 ③installedLocales 实
-    /// 查布尔 ④SpeechTranscriber.isAvailable 原值。
-    /// 选引擎时落账、markDiag 随串上诊断行——四格齐
-    /// 后 engine=main 且 vol=0 才许定案（1b「模块天
-    /// 生节奏」说已作废，见 §77.6）。未落账（选引擎
-    /// 前）为 nil、串中整段不出
-    @ObservationIgnored
-    private var diagPresetName = ""
-    @ObservationIgnored
-    private var diagSupportedLocale: Bool?
-    @ObservationIgnored
-    private var diagInstalledLocale: Bool?
-    @ObservationIgnored
-    private var diagTranscriberAvailable: Bool?
-
-    /// 诊断串打点（0.36.12；0.36.13 扩四格）：把「实
-    /// 际在跑哪个引擎、语言规范化成什么、预设与
-    /// locale/资产实查如何、草稿/定稿各到几条」一
-    /// 行落盘＋日志。调用点克制（选引擎、首条草稿、
-    /// 首条定稿、收尾各一次），不在每条结果上写盘
-    private func markDiag() {
-        let engine = usedFallbackEngine ? "fallback" : "main"
-        var text = "engine=\(engine)(\(diagLocaleID))"
-        if !diagPresetName.isEmpty {
-            text += " preset=\(diagPresetName)"
-        }
-        if let diagSupportedLocale {
-            text += " sup=\(diagSupportedLocale)"
-        }
-        if let diagInstalledLocale {
-            text += " inst=\(diagInstalledLocale)"
-        }
-        if let diagTranscriberAvailable {
-            text += " avail=\(diagTranscriberAvailable)"
-        }
-        text += " vol=\(volatileResultCount)"
-            + " fin=\(finalResultCount)"
-        // 时序段（0.36.15）：四点相对毫秒随串进诊断
-        // 行——首结果迟到从此读的是逐段账（eng/ana/
-        // 首结果），不是停录后一个总数印象
-        let timingSegment = startTiming.diagnosticSegment
-        if !timingSegment.isEmpty {
-            text += " " + timingSegment
-        }
-        Self.log.info("diag=\(text, privacy: .public)")
-        defaults.set(text, forKey: Self.diagKey)
-    }
-
-    /// 诊断串快照：预备页页脚与失败行上屏用（与
-    /// lastStageSnapshot 同口径）
-    static var lastDiagSnapshot: String? {
-        UserDefaults.standard.string(forKey: diagKey)
     }
 
     /// 当前麦克风权限（同步读，0.36.9 同步门）：只
@@ -221,13 +151,6 @@ final class DictationController {
         default:
             return .undetermined
         }
-    }
-
-    /// 末阶段快照（0.36.9 诊断可见化，礼记同案后
-    /// 手）：预备页页脚与失败行据此上屏，用户截图
-    /// 即可定位死点
-    static var lastStageSnapshot: String? {
-        UserDefaults.standard.string(forKey: lastStageKey)
     }
 
     @ObservationIgnored
@@ -275,15 +198,9 @@ final class DictationController {
     @ObservationIgnored
     private var interruptionTokens: [NSObjectProtocol] = []
 
-    /// 起步时序钟（0.36.15）：零点在点按（预备页路
-    /// 径为确认/授权通过时刻），四点相对毫秒由
-    /// markStartPoint 喂、markDiag 拼进诊断串
-    @ObservationIgnored
-    private var startTiming = DictationStartTiming()
-
-    /// 预热产物（0.36.15）：模块/分析器/格式/语言与
-    /// 仪表四格在点麦克风之前备齐，点按只剩开音频
-    /// 会话与喂入。分析器单次使用制（finish 后会话
+    /// 预热产物（0.36.15 立、§299 瘦身）：模块/分析
+    /// 器/格式/语言在点麦克风之前备齐，点按只剩开音
+    /// 频会话与喂入。分析器单次使用制（finish 后会话
     /// 终结、官方口径不再接受新输入），消费即弃、
     /// 录后重备下一份——「复用」的实体是这条常备
     /// 流水线，不是同一实例反复 start
@@ -292,35 +209,26 @@ final class DictationController {
         let transcriber: SpeechTranscriber
         let format: AVAudioFormat
         let language: DictationLanguage
-        let localeID: String
-        let presetName: String
-        let supported: Bool?
-        let installed: Bool?
-        let available: Bool?
     }
 
-    /// 预热态：Core 状态机单点驱动（DictationPreheat-
-    /// Policy），本类只存状态/任务/产物，不散写转移
+    /// 预热总闸（§299：原 arm/disarm/suspend 三闸＋
+    /// Core 状态机＋round 令牌收成此一个 Bool）：开
+    /// ＝ChatView 在场许备；关＝离场。退后台只弃产
+    /// 物不动闸（回前台由 ChatView 再 arm 触发重备）
     @ObservationIgnored
-    private var preheatState: DictationPreheatState = .cold
-    /// 预热轮次令牌：每轮 beginWarm/弃置递增，任务
-    /// 回执先对轮次——旧轮的迟到回执（取消尾巴）不
-    /// 许踩新轮的状态与任务引用
+    private var preheatEnabled = false
+    /// 在飞的备制任务（单飞：非 nil 即备中，不起第
+    /// 二轮）；就绪与否看 preparedBundle 在否，不另
+    /// 设状态。迟到回执由任务取消作废——弃置必先
+    /// cancel 再清引用，旧任务回执见取消即弃
     @ObservationIgnored
-    private var preheatRound = 0
-    @ObservationIgnored
-    private var preheatTask: Task<Void, Never>?
+    private var warmTask: Task<Void, Never>?
     @ObservationIgnored
     private var preparedBundle: PreparedDictation?
-    /// 预热总闸：ChatView 在场（armPreheat）才许备；
-    /// 离场 disarm、退后台 suspend（只弃产物、闸保
-    /// 持，回前台由 ChatView 再 arm 触发重备）
-    @ObservationIgnored
-    private var preheatArmed = false
     /// 在备一轮是否卡在资产下载（点按时若在下，下
     /// 载窗要以 .preparing 相位示人，不许界面无反应）
     @ObservationIgnored
-    private var preheatAssetDownloading = false
+    private var warmAssetDownloading = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -347,7 +255,6 @@ final class DictationController {
             // 绝不重走异步回调——礼记同案铁律）
             switch MicPermissionGate.action(for: Self.micPermissionStatus) {
             case .start:
-                beginStartTiming()
                 Task { await self.startPipeline(baseDraft: baseDraft) }
             case .failDenied:
                 // 被拒不再弹系统窗：失败行给「去设置」
@@ -382,7 +289,6 @@ final class DictationController {
         switch MicPermissionGate.action(for: Self.micPermissionStatus) {
         case .start:
             markStage("micAlreadyGranted")
-            beginStartTiming()
             Task { await self.startPipeline(baseDraft: pendingBaseDraft) }
         case .failDenied:
             fail(.permissionDenied)
@@ -393,7 +299,6 @@ final class DictationController {
                 markStage(micOK ? "micGranted" : "micDenied")
                 guard phase == .requestingPermission else { return }
                 if micOK {
-                    beginStartTiming()
                     await startPipeline(baseDraft: pendingBaseDraft)
                 } else {
                     fail(.permissionDenied)
@@ -506,20 +411,7 @@ final class DictationController {
         warmIfNeeded()
     }
 
-    // MARK: - 预热（0.36.15，语音延迟修复包）
-
-    /// 时序零点：点按（已授权直达）/预备页确认/授
-    /// 权通过三个开录入口共用——读说明与等授权的
-    /// 时间不是管道延迟，不计入
-    private func beginStartTiming() {
-        startTiming.begin(
-            atUptime: ProcessInfo.processInfo.systemUptime)
-    }
-
-    private func markStartPoint(_ point: DictationStartPoint) {
-        startTiming.mark(
-            point, atUptime: ProcessInfo.processInfo.systemUptime)
-    }
+    // MARK: - 预热（0.36.15 立、§299 瘦身）
 
     /// 进聊天页（ChatView onAppear/scenePhase 回前
     /// 台驱动）：打开总闸并备下一段录音的分析器。
@@ -530,7 +422,7 @@ final class DictationController {
     /// 示（橙点）只随发射段激活音频会话出现，预热
     /// 不污染它的语义
     func armPreheat() {
-        preheatArmed = true
+        preheatEnabled = true
         warmIfNeeded()
     }
 
@@ -538,44 +430,38 @@ final class DictationController {
     /// 制器随 ChatView 销毁时产物自然释放，此处是
     /// 视图尚在但已离场的显式收束
     func disarmPreheat() {
-        preheatArmed = false
-        dropPreparedBundle()
+        preheatEnabled = false
+        dropPrepared()
     }
 
     /// 退后台：只弃产物、总闸保持——分析器不在后
     /// 台占着系统语音资源；回前台由 ChatView 的
     /// scenePhase 钩子再 arm 触发重备
     func suspendPreheat() {
-        dropPreparedBundle()
+        dropPrepared()
     }
 
-    /// 发起一轮预热（状态机放行＋相位允许才动）：
+    /// 发起一轮预热（总闸开＋相位允许＋单飞才动）：
     /// 已备/备中不起第二轮；录音/收尾/准备中不备
-    /// （不与在飞的管道抢分析器资源）
+    /// （不与在飞的管道抢分析器资源）。备成只落产
+    /// 物、备败什么都不落——点按时冷路径以原有形
+    /// 态兜底（含它自己的失败呈现），下次触发点
+    /// （录后/回前台/语言变更）自然重试
     private func warmIfNeeded() {
-        guard preheatArmed else { return }
+        guard preheatEnabled else { return }
         guard phase == .idle || phase == .failed else { return }
-        guard DictationPreheatPolicy.canBeginWarm(preheatState)
-        else { return }
-        preheatState = DictationPreheatPolicy.transition(
-            from: preheatState, event: .beginWarm)
+        guard warmTask == nil, preparedBundle == nil else { return }
         markStage("preheatStart")
-        preheatRound += 1
-        let round = preheatRound
-        preheatTask = Task { [weak self] in
+        warmTask = Task { [weak self] in
             let bundle = await self?.buildPreparedBundle()
-            guard let self, self.preheatRound == round else { return }
-            self.preheatTask = nil
-            if let bundle, !Task.isCancelled {
+            // 弃置/离场已 cancel 本任务：迟到回执作
+            // 废，不许踩其后新一轮的任务引用与产物
+            guard let self, !Task.isCancelled else { return }
+            self.warmTask = nil
+            if let bundle, bundle.language == self.language {
                 self.preparedBundle = bundle
-                self.preheatState =
-                    DictationPreheatPolicy.transition(
-                        from: self.preheatState, event: .warmSucceeded)
                 self.markStage("preheatReady")
             } else {
-                self.preheatState =
-                    DictationPreheatPolicy.transition(
-                        from: self.preheatState, event: .warmFailed)
                 self.markStage("preheatFailed")
             }
         }
@@ -618,27 +504,22 @@ final class DictationController {
             attributeOptions: [.audioTimeRange]
         )
         let modules: [any SpeechModule] = [module]
-        let supported = await SpeechTranscriber.supportedLocales
-            .contains { $0.identifier == locale.identifier }
-        // inst 快照＝下载前（与冷路径选引擎时刻同口径）
-        let installed = await SpeechTranscriber.installedLocales
-            .contains { $0.identifier == locale.identifier }
         let status = await AssetInventory.status(forModules: modules)
         if status != .installed {
-            preheatAssetDownloading = true
+            warmAssetDownloading = true
             do {
                 guard let request = try await AssetInventory
                     .assetInstallationRequest(supporting: modules)
                 else {
-                    preheatAssetDownloading = false
+                    warmAssetDownloading = false
                     return nil
                 }
                 try await request.downloadAndInstall()
             } catch {
-                preheatAssetDownloading = false
+                warmAssetDownloading = false
                 return nil
             }
-            preheatAssetDownloading = false
+            warmAssetDownloading = false
         }
         let analyzer = SpeechAnalyzer(modules: modules)
         guard let format = await SpeechAnalyzer
@@ -651,10 +532,7 @@ final class DictationController {
         }
         return PreparedDictation(
             analyzer: analyzer, transcriber: module, format: format,
-            language: forLanguage, localeID: locale.identifier,
-            presetName: "rep:volatileResults+fastResults",
-            supported: supported, installed: installed,
-            available: available)
+            language: forLanguage)
     }
 
     /// 取已备产物（startEngine 主引擎尝试专用）：
@@ -663,68 +541,38 @@ final class DictationController {
     /// .preparing 相位示人（不许界面无反应）。语
     /// 言不符或备失败回 nil 走冷路径
     private func takePreparedBundle() async -> PreparedDictation? {
-        if preheatState == .warming {
-            if preheatAssetDownloading { setPhase(.preparing) }
-            if let task = preheatTask { await task.value }
+        if let warmTask {
+            if warmAssetDownloading { setPhase(.preparing) }
+            await warmTask.value
         }
-        guard preheatState == .ready, let bundle = preparedBundle,
+        guard let bundle = preparedBundle,
               bundle.language == language else { return nil }
         preparedBundle = nil
-        preheatState = DictationPreheatPolicy.transition(
-            from: preheatState, event: .consume)
         return bundle
     }
 
     /// 弃置产物（语言变更/退后台/离场共用）：在备
-    /// 的取消、已备的释放，状态机回冷态。轮次令牌
-    /// 同步递增——在备任务的迟到回执对不上轮次直
-    /// 接作废，不许踩新一轮的状态与任务引用
-    private func dropPreparedBundle() {
-        preheatRound += 1
-        preheatTask?.cancel()
-        preheatTask = nil
+    /// 的先 cancel 再清引用——旧任务回执见取消即
+    /// 作废，不许踩新一轮的任务引用与产物
+    private func dropPrepared() {
+        warmTask?.cancel()
+        warmTask = nil
         preparedBundle = nil
-        preheatAssetDownloading = false
-        preheatState = DictationPreheatPolicy.transition(
-            from: preheatState, event: .invalidate)
+        warmAssetDownloading = false
     }
 
     private func startEngine(
         useFallback: Bool, generation gen: Int
     ) async -> EngineAttempt {
-        usedFallbackEngine = useFallback
-        // 仪表归零（0.36.12）：计数归本尝试的引擎——
-        // 结果只在启动成功后到达，归零无竞态；主引擎
-        // 若中途失败转回退，计数随回退尝试重新起算
-        volatileResultCount = 0
-        finalResultCount = 0
-        diagLocaleID = language.localeIdentifier
-        // 仪表四格归零（0.36.13）：与计数同口径归本
-        // 尝试，选引擎落账前串中整段不出
-        diagPresetName = ""
-        diagSupportedLocale = nil
-        diagInstalledLocale = nil
-        diagTranscriberAvailable = nil
-        // 四格之④先行落账：isAvailable 原值必须在守
-        // 卫消费前取值——先取原值存好，守卫用的是同
-        // 一个值，诊断串读到的才是守卫真正看到的
         let transcriberAvailable = SpeechTranscriber.isAvailable
-        diagTranscriberAvailable = transcriberAvailable
         // 预热消费（0.36.15）：主引擎尝试先看已备产
         // 物——命中则选模块/资产/建分析器整段跳过、
         // 直进发射；尚在备则等它落地再看（它比点按
         // 先启程，等也比冷启快）；语言不符/备失败回
-        // nil、走下方冷路径。四格快照以产物建成时刻
-        // 为准（那就是这份产物的选引擎时刻）
+        // nil、走下方冷路径
         if !useFallback, let bundle = await takePreparedBundle() {
-            diagLocaleID = bundle.localeID
-            diagPresetName = bundle.presetName
-            diagSupportedLocale = bundle.supported
-            diagInstalledLocale = bundle.installed
-            diagTranscriberAvailable = bundle.available
             startupFault = false
             markStage("preheatConsumed")
-            markDiag()
             return await launchPipeline(
                 analyzer: bundle.analyzer,
                 transcriber: bundle.transcriber, dictation: nil,
@@ -747,10 +595,6 @@ final class DictationController {
                 )
             }
             guard let locale else { return .unavailable }
-            // 规范化结果回填仪表（0.36.12）：诊断行要
-            // 显示的是 supportedLocale 实际给了什么，
-            // 不是请求了什么
-            diagLocaleID = locale.identifier
             let module = SpeechTranscriber(
                 locale: locale,
                 transcriptionOptions: [],
@@ -761,18 +605,6 @@ final class DictationController {
             )
             transcriber = module
             speechModule = module
-            // 四格之①②③（主引擎）：预设记 reporting-
-            // Options 构成（与上方构造逐字同值）；②③
-            // 对规范化后的 locale 查 SpeechTranscriber
-            // 的支持/已装清单原表——inst 是资产下载前
-            // 的选引擎时刻快照，正是定案要的时点
-            diagPresetName = "rep:volatileResults+fastResults"
-            diagSupportedLocale =
-                await SpeechTranscriber.supportedLocales
-                    .contains { $0.identifier == locale.identifier }
-            diagInstalledLocale =
-                await SpeechTranscriber.installedLocales
-                    .contains { $0.identifier == locale.identifier }
         } else {
             let module = DictationTranscriber(
                 locale: Locale(identifier: language.localeIdentifier),
@@ -780,29 +612,11 @@ final class DictationController {
             )
             dictation = module
             speechModule = module
-            // 四格之①②③（回退引擎）：预设记所构造的
-            // 档位名；②③仍查 SpeechTranscriber 的清
-            // 单（对请求的 locale）——回退为何发生，主
-            // 引擎侧的支持/资产状态正是要留的账
-            diagPresetName = "progressiveLongDictation"
-            let requestedID = language.localeIdentifier
-            diagSupportedLocale =
-                await SpeechTranscriber.supportedLocales
-                    .contains { $0.identifier == requestedID }
-            diagInstalledLocale =
-                await SpeechTranscriber.installedLocales
-                    .contains { $0.identifier == requestedID }
         }
         guard let module = speechModule else { return .unavailable }
         let modules: [any SpeechModule] = [module]
         startupFault = false
         markStage("moduleBuilt")
-        // 选引擎打点（0.36.12；0.36.13 扩四格）：引擎
-        // 种类＋规范化 locale＋四格在此定格落盘——回
-        // 退引擎静默在跑自此可见（旧实现 usedFallback-
-        // Engine 只赋值、无任何消费点，用户与诊断都
-        // 无从知道）
-        markDiag()
 
         // 2) 语言资产：未装先下载（准备中相位带进度）
         let status = await AssetInventory.status(forModules: modules)
@@ -945,7 +759,6 @@ final class DictationController {
         }
         analyzeTask = Task { [weak self] in
             await self?.markStage("analyzerStarted")
-            await self?.markStartPoint(.analyzerStarted)
             do {
                 try await analyzer.start(inputSequence: stream)
             } catch {
@@ -973,7 +786,6 @@ final class DictationController {
             return .startFailed
         }
         markStage("engineStarted")
-        markStartPoint(.engineStarted)
 
         registerInterruptionObservers()
         startedAt = Date()
@@ -996,32 +808,6 @@ final class DictationController {
     ) {
         guard generation == gen else { return }
         guard phase == .recording || phase == .finishing else { return }
-        // 结果分型打点（0.36.12，诊断修法 1）：旧实现
-        // 只在首条结果打 firstResult、不分型——草稿是
-        // 否到达过无从分辨，1a/1b 两假设因此不可分。
-        // 现行：首条草稿与首条定稿各打一格、两类逐条
-        // 计数并同步进诊断串；定稿计数在首条定稿时连
-        // 同当时的草稿计数落盘，「草稿先行还是全程为
-        // 零」一录定案
-        // 首结果时序点（0.36.15）：vol/fin 不分型，
-        // 第一条到达即记——须赶在下方首条 markDiag
-        // 之前落账，诊断串当场就带首结果毫秒数
-        if volatileResultCount == 0, finalResultCount == 0 {
-            markStartPoint(.firstResult)
-        }
-        if isFinal {
-            finalResultCount += 1
-            if finalResultCount == 1 {
-                markStage("firstFinal")
-                markDiag()
-            }
-        } else {
-            volatileResultCount += 1
-            if volatileResultCount == 1 {
-                markStage("firstVolatile")
-                markDiag()
-            }
-        }
         session.applyResult(text: text, isFinal: isFinal)
         displayText = session.displayText
         volatileLength = session.volatileLength
@@ -1068,9 +854,6 @@ final class DictationController {
         // 后的「整理中」态——录音条在此相位转「正
         // 在整理…」、三钮全禁（DictationBarPolicy）
         setPhase(.finishing)
-        // 收尾把最终计数落盘（0.36.12 仪表）：会话结
-        // 束后诊断行读到的是全程总数，不是首条时刻的
-        markDiag()
         timerTask?.cancel()
         timerTask = nil
         unregisterInterruptionObservers()
@@ -1109,7 +892,6 @@ final class DictationController {
                 settle(text: session.baseDraft)
             }
             markStage("settleApplied")
-            markDiag()
             setPhase(.idle)
         case .cancel:
             settle(text: session.baseDraft)
@@ -1138,8 +920,7 @@ final class DictationController {
     /// 停/发送的落稿执行（0.36.17）：路径由 Core 的
     /// DictationSettlePolicy 判定（有字落稿／落稿并
     /// 发／空稿静默回待机），本类只执行——落稿先
-    /// 行、最终计数一并落盘（诊断面读到的才是完整
-    /// 账），发送触发垫在最后：ChatView 的 send()
+    /// 行，发送触发垫在最后：ChatView 的 send()
     /// 读输入框时稿已落定
     private func applyStopSettle(intent: DictationStopIntent) {
         let route = DictationSettlePolicy.route(
@@ -1152,7 +933,6 @@ final class DictationController {
             settle(text: session.baseDraft)
         }
         markStage("settleApplied")
-        markDiag()
         if route == .fillAndSend {
             onSendRequest?()
         }

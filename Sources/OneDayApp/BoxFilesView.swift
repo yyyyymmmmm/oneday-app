@@ -91,10 +91,7 @@ struct BoxFilesView: View {
                     ForEach(Array(crumbs.enumerated()), id: \.element.id) {
                         index, crumb in
                         if index > 0 {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Palette.inkMuted)
-                                .accessibilityHidden(true)
+                            DisclosureChevron(font: .system(size: 10))
                         }
                         Button {
                             currentPath = crumb.path
@@ -190,6 +187,9 @@ struct BoxFilesView: View {
 /// 字节直读预览（Box 文件用）：加载字节后图片走统
 /// 一查看器（0.36.4，data 源单图集合），其余落临
 /// 时文件走 QuickLook 原生预览——共用组件、不另造。
+/// §380 R1：落盘后先验 QL 资格（canPreview），不
+/// 过者落「不支持预览」态＋分享/保存兜底，与主链
+/// 打开页 unsupportedType 口径对齐，不硬呈空白页。
 struct DataFilePreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let name: String
@@ -197,6 +197,8 @@ struct DataFilePreviewView: View {
 
     @State private var imageItem: ChatImageViewerItem?
     @State private var quickLookItem: ChatFilePreviewItem?
+    @State private var unsupportedData: Data?
+    @State private var shareItem: FileShareItem?
     @State private var failedMessage: String?
 
     var body: some View {
@@ -218,6 +220,23 @@ struct DataFilePreviewView: View {
                     QuickLookPreview(url: quickLookItem.url)
                 }
                 .background(Palette.pageBG)
+            } else if let unsupportedData {
+                VStack(spacing: OneDayMetrics.spacingM) {
+                    EmptyState(
+                        icon: "doc.questionmark",
+                        title: "这个文件不支持预览",
+                        message: "可以先保存或分享，用其他应用打开它。"
+                    )
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Button("分享/保存") {
+                            shareItem = try? FileShareItem.write(
+                                data: unsupportedData, name: name
+                            )
+                        }
+                        Button("关闭") { dismiss() }
+                    }
+                }
+                .padding(.top, OneDayMetrics.spacingXXL)
             } else if let failedMessage {
                 VStack(spacing: OneDayMetrics.spacingM) {
                     EmptyState(
@@ -233,6 +252,9 @@ struct DataFilePreviewView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .sheet(item: $shareItem) { item in
+            FileShareSheet(url: item.url)
+        }
         .task {
             do {
                 let data = try await loadData()
@@ -241,9 +263,14 @@ struct DataFilePreviewView: View {
                    UIImage(data: data) != nil {
                     imageItem = ChatImageViewerItem(source: .data(data))
                 } else {
-                    quickLookItem = try ChatFilePreviewItem.write(
+                    let item = try ChatFilePreviewItem.write(
                         data: data, name: name
                     )
+                    if item.canPreview {
+                        quickLookItem = item
+                    } else {
+                        unsupportedData = data
+                    }
                 }
             } catch {
                 failedMessage = (error as? BoxFilesError)

@@ -57,7 +57,7 @@ struct PresetEditorView: View {
                 } header: {
                     Text("预设")
                 } footer: {
-                    Text("预设是「默认模型＋整套辅助分配」的一份快照，启用后整套一起换；与多模型汇总（几个模型一起答一道题）不是一回事。")
+                    Text("预设是「默认模型＋整套辅助分配」的一整套设置，启用后整套一起换；与多模型汇总（几个模型一起答一道题）不是一回事。")
                 }
 
                 Section {
@@ -183,9 +183,7 @@ struct PresetEditorView: View {
                     .font(.callout)
                     .foregroundStyle(Palette.primary)
                     .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(Palette.inkSecondary)
+                DisclosureChevron(.upDown, font: .caption2)
             }
             .contentShape(Rectangle())
         }

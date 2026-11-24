@@ -38,16 +38,15 @@ public struct InlineRun: Equatable, Sendable {
 }
 
 public enum InlineRunBuilder {
-    /// 行内 markdown → run 序列：先经 MarkdownInline
-    /// 切删除线段（分段口径单源、与旧渲染同一步），
-    /// 段内再走系统行内解析读 InlinePresentation-
-    /// Intent——与 MarkdownText.inlineAttributed 的
-    /// 读法逐项同口径：strong 只认 stronglyEmpha-
-    /// sized 且行内代码段除外（代码不升 strong、
-    /// 不叠斜体）；emphasis 同理代码除外；链接取
-    /// run.link。解析失败整段降级为普通 run（永不
-    /// 丢字，与旧口径一致）。相邻同标记 run 合并，
-    /// 输出确定性与输入顺序一致
+    /// 行内 markdown → run 序列。§417 起默认路由
+    /// swift-markdown 树行内 Visitor 直产（强弱／
+    /// 代码／链接／删除线都是树结构事实）；回滚位
+    /// （MarkdownEngine）走旧路：先经 Markdown-
+    /// Inline 切删除线段，段内再走系统行内解析读
+    /// InlinePresentationIntent。两路同口径：代码
+    /// 不升 strong、不叠斜体；链接取目标；未闭合
+    /// 标记字面保留（永不丢字）。相邻同标记 run
+    /// 合并，输出确定性与输入顺序一致
     /// §167（2026-11-11）：入口先过解析记忆——段内含
     /// AttributedString(markdown:) 全量解析、是三处入
     /// 口里最贵的一处；同文再算即查表（Markdown-
@@ -60,6 +59,21 @@ public enum InlineRunBuilder {
     }
 
     private static func runsUncached(for markdownText: String) -> [InlineRun] {
+        // §417（2026-11-23）：默认路改走树行内
+        // Visitor（MarkdownTreeParsing.inlineRuns，
+        // swift-markdown 树直产 runs）；旧路（分段＋
+        // 系统解析）降为回滚位，见 legacyRunsUncached
+        if MarkdownEngine.usesLegacyParser {
+            return legacyRunsUncached(for: markdownText)
+        }
+        return MarkdownTreeParsing.inlineRuns(for: markdownText)
+    }
+
+    /// 旧行内路（回滚位）：MarkdownInline 分段＋系统
+    /// AttributedString 解析。§417 起仅 Markdown-
+    /// Engine 回滚位消费；删除条件与旧块解析器同
+    /// 批（见 MarkdownEngine）
+    private static func legacyRunsUncached(for markdownText: String) -> [InlineRun] {
         var result: [InlineRun] = []
         for segment in MarkdownInline.segments(markdownText) {
             guard let attributed = try? AttributedString(

@@ -38,34 +38,18 @@ public enum TransparencyFallback {
 public enum TextShaping {
     /// WORD JOINER：零宽、禁断行
     public static let wordJoiner = "\u{2060}"
-    /// 句末/收尾标点：与前字绑定范围扩到三个字形
-    private static let closingPunctuation: Set<Character> = [
-        "。", "！", "？", "；", "：", "）", "】", "」", "』",
-        ".", "!", "?", ";", ":", ")", "]",
-    ]
-
     /// 对单个段落做尾行孤字防护。字形数 ≤2 的段落与含
     /// 换行的多行文本原样返回（调用方按段落逐段施加）
     public static func prettyWrap(_ paragraph: String) -> String {
-        guard !paragraph.contains("\n") else { return paragraph }
-        let chars = Array(paragraph)
-        guard chars.count > 2 else { return paragraph }
-        let bindCount = closingPunctuation.contains(chars[chars.count - 1])
-            ? 3 : 2
-        guard chars.count > bindCount else { return paragraph }
-        // WORD JOINER 插在尾部字形「之间」（逐对绑定）：
-        // 它禁止两侧断行，把最后 bindCount 个字形锁成
-        // 不可断单元——要防的是最后一字被断行孤立，绑
-        // 定点必须落在尾部内部而非尾部之前（0.3.0 首轮
-        // 单测以此定案：插在尾前时末字仍可被断开）
-        var result = ""
-        for (index, character) in chars.enumerated() {
-            if index >= chars.count - bindCount + 1 {
-                result += wordJoiner
-            }
-            result.append(character)
-        }
-        return result
+        // 台账 200 件四（2026-11-22，用户拍板）：整
+        // 形退役、原文直入。尾行孤字绑定靠往字间插
+        // U+2060 实现——污染找字（UI 测试按正文找不
+        // 到文本视图实证）、复制与读屏，且曾劈开数
+        // 据检测令牌；入口保留签名防调用方 churn，
+        // 恒原样返回。wordJoiner 常量保留：存量文本
+        // 的复制净化仍按它剥离（SelectableText-
+        // View §149）
+        paragraph
     }
 
     /// 全文版：按空行分段，逐段整形后拼回（段内换行不动）
@@ -73,5 +57,30 @@ public enum TextShaping {
         text.components(separatedBy: "\n")
             .map { prettyWrap($0) }
             .joined(separator: "\n")
+    }
+
+    /// run 层整形（§271，第 72 条文本管线根治）：先解
+    /// 析、后整形——对行内解析已产出的语义 run 施加
+    /// 与 prettyWrap 同口径的尾行孤字绑定（逐行、尾
+    /// 2 字形／句末标点尾 3 字形）。连接符只落进普通
+    /// 文本 run 的字间，结构上不可能劈开定界符：成
+    /// 对定界符已被解析消费、run 文本里不存在待劈
+    /// 的对（文本层整形的病根——解析前插符劈开段尾
+    /// 闭合 `**`／链接尾 `)`／代码闭合反引号——整类
+    /// 消除）。两条豁免（同为真值保真、优先于防孤字）：
+    /// - 代码 run 相邻不插：代码文本逐字保真，连接
+    ///   符不进代码内容（文本层整形曾把符插进闭合
+    ///   反引号内侧、污染代码 run 文本）；
+    /// - 数字字之间不插：电话／时间／金额等检测令
+    ///   牌（NSDataDetector 口径）被零宽符从中劈开
+    ///   即识别失败（gen5 T4 探针实见 `1380013800⁠0`
+    ///   与 `13:0⁠0`，同根在此一并收）。
+    /// 链接 run 的可见标签文本可插（URL 属性不经文
+    /// 本、不受影响）。输入为空／无可绑行时原样返回
+    public static func shapeRuns(_ runs: [InlineRun]) -> [InlineRun] {
+        // 台账 200 件四：同 prettyWrap——整形退役、
+        // 原文直入，恒原样返回（调用点四处保留，行
+        // 为自此与未整形一致）
+        runs
     }
 }

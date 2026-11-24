@@ -21,6 +21,8 @@ import XCTest
 /// 钉五格（聊天/动态/点子/目标/文件），动态符号取
 /// 带字纸页同语义位 doc.text（outline 原名；
 /// newspaper 经量测密度判死，见 TabBarSymbols 注）。
+/// §403（§382 B1）：在栏五格加钉资产名——底栏呈现改
+/// 走模板图资产，符号名降为栏外消费者的符号源。
 final class TabBarSymbolsTests: XCTestCase {
     /// 五条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
@@ -28,29 +30,49 @@ final class TabBarSymbolsTests: XCTestCase {
             TabSymbolPair(
                 id: "chat", title: "聊天",
                 normal: "message",
-                selected: "message"
+                selected: "message",
+                asset: "tab.chat"
             ),
             TabSymbolPair(
                 id: "feed", title: "动态",
                 normal: "doc.text",
-                selected: "doc.text"
+                selected: "doc.text",
+                asset: "tab.feed"
             ),
             TabSymbolPair(
                 id: "ideas", title: "点子",
                 normal: "lightbulb",
-                selected: "lightbulb"
+                selected: "lightbulb",
+                asset: "tab.ideas"
             ),
             TabSymbolPair(
                 id: "goals", title: "目标",
                 normal: "checklist",
-                selected: "checklist"
+                selected: "checklist",
+                asset: "tab.goals"
             ),
             TabSymbolPair(
-                id: "files", title: "文件",
+                id: "files", title: "资源库",
                 normal: "tray",
-                selected: "tray"
+                selected: "tray",
+                asset: "tab.files"
             ),
         ])
+    }
+
+    /// §403 B1：在栏五格资产名钉死（底栏呈现单源）；
+    /// 栏外条目（活动/应用/总览/设置）不占底栏、资产
+    /// 为空——资产只服务底栏呈现，不许栏外蹭用
+    func testTabAssetNamesArePinned() {
+        XCTAssertEqual(
+            TabBarSymbols.all.map(\.asset),
+            ["tab.chat", "tab.feed", "tab.ideas", "tab.goals", "tab.files"]
+        )
+        XCTAssertEqual(Set(TabBarSymbols.all.map(\.asset)).count, 5)
+        for pair in [TabBarSymbols.activity, TabBarSymbols.apps,
+                     TabBarSymbols.overview, TabBarSymbols.settings] {
+            XCTAssertEqual(pair.asset, "", "\(pair.id) 不在栏、无底栏资产")
+        }
     }
 
     /// §22.5 变体纪律（0.3.8）：全表不许出现 .fill，

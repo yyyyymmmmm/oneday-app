@@ -24,6 +24,15 @@ public struct ServerStatus: Decodable, Sendable {
     public let gatewayRunning: Bool?
     public let gatewayState: String?
     public let platforms: [String: PlatformState]
+    // 连接自检扩键（DESIGN §357；33/36 共用一次扩好）：
+    // 配置最新版号／可自更新旗／总体判定／组件状态／
+    // 磁盘与内存压力（advisory，官方口径不入 overall）
+    public let latestConfigVersion: Int?
+    public let canUpdateHermes: Bool?
+    public let overall: String?
+    public let components: Components?
+    public let disk: PressureInfo?
+    public let memory: PressureInfo?
 
     public struct PlatformState: Decodable, Sendable {
         public let state: String?
@@ -35,6 +44,55 @@ public struct ServerStatus: Decodable, Sendable {
         }
     }
 
+    /// 组件状态（官方 web_routers/status.py
+    /// `_component_health` 形态：状态枚举＋计数，不带
+    /// 正文/路径）
+    public struct Components: Decodable, Sendable {
+        public let gateway: ComponentState?
+        public let dashboard: DashboardComponent?
+        public let storage: ComponentState?
+        public let platforms: PlatformsComponent?
+    }
+
+    public struct ComponentState: Decodable, Sendable {
+        public let status: String?
+        public let state: String?
+        /// storage 损坏时为 "corrupt"（消费方认的唯一
+        /// 原因枚举）；其余组件一般缺省
+        public let reason: String?
+    }
+
+    public struct DashboardComponent: Decodable, Sendable {
+        public let status: String?
+        public let recentUnhandledErrors: Int?
+        public let selftest: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status, selftest
+            case recentUnhandledErrors = "recent_unhandled_errors"
+        }
+    }
+
+    public struct PlatformsComponent: Decodable, Sendable {
+        public let status: String?
+        public let configured: Int?
+        public let connected: Int?
+    }
+
+    /// 压力信息（gateway disk_status/memory_status 形
+    /// 态：pressure 枚举＋粗粒度数值，读不到回 unknown）
+    public struct PressureInfo: Decodable, Sendable {
+        public let pressure: String?
+        public let usedPercent: Double?
+        public let freeMB: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case pressure
+            case usedPercent = "used_percent"
+            case freeMB = "free_mb"
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case version
         case releaseDate = "release_date"
@@ -42,6 +100,9 @@ public struct ServerStatus: Decodable, Sendable {
         case gatewayRunning = "gateway_running"
         case gatewayState = "gateway_state"
         case platforms = "gateway_platforms"
+        case latestConfigVersion = "latest_config_version"
+        case canUpdateHermes = "can_update_hermes"
+        case overall, components, disk, memory
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +115,22 @@ public struct ServerStatus: Decodable, Sendable {
         platforms = try container.decodeIfPresent(
             [String: PlatformState].self, forKey: .platforms
         ) ?? [:]
+        latestConfigVersion = try container.decodeIfPresent(
+            Int.self, forKey: .latestConfigVersion
+        )
+        canUpdateHermes = try container.decodeIfPresent(
+            Bool.self, forKey: .canUpdateHermes
+        )
+        overall = try container.decodeIfPresent(String.self, forKey: .overall)
+        components = try container.decodeIfPresent(
+            Components.self, forKey: .components
+        )
+        disk = try container.decodeIfPresent(
+            PressureInfo.self, forKey: .disk
+        )
+        memory = try container.decodeIfPresent(
+            PressureInfo.self, forKey: .memory
+        )
     }
 }
 
@@ -296,4 +373,38 @@ public enum ChatStreamEvent: Equatable, Sendable {
     case content(String)
     case reasoning(String)
     case toolCall(ToolCard)
+}
+
+// MARK: - 设备认领（配对一期，台账 153/160；网关面 /v1/enrollment/*）
+
+/// POST /v1/enrollment/codes 回执（Bearer 鉴权，已登录
+/// 侧出码）：码本体只出现这一次、服务端只存盐化哈希；
+/// fingerprint 是服务器实例指纹（实例 id 的 sha256 前
+/// 16 位），扫码侧认领后必须与二维码里带的指纹对上
+/// 才走连接流水线（防码被搬到另一台服务器兑现）
+public struct EnrollmentIssue: Decodable, Sendable, Equatable {
+    public let code: String
+    public let expiresAt: Double
+    public let ttlSeconds: Int
+    public let fingerprint: String
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case expiresAt = "expires_at"
+        case ttlSeconds = "ttl_seconds"
+        case fingerprint
+    }
+}
+
+/// POST /v1/enrollment/claim 回执（公开，码即凭据）：
+/// 认领成功一次性下发本服务器的登录密钥（凭据落盘
+/// 走既有 Keychain 单钥通道，与手填密钥同账一份）
+public struct EnrollmentClaim: Decodable, Sendable, Equatable {
+    public let apiKey: String
+    public let fingerprint: String?
+
+    enum CodingKeys: String, CodingKey {
+        case apiKey = "api_key"
+        case fingerprint
+    }
 }

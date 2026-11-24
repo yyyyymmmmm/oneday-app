@@ -189,6 +189,21 @@ struct DeviceSyncSection: View {
 
                 statusBlock
 
+                // §468（规格 A-4）：手动同步入口恢复
+                // ——只推这一件，成败由回读服务端时
+                // 刻判（manualSync），失败原因走
+                // statusBlock 的红字行显形
+                Button {
+                    Task {
+                        await sync.manualSync(
+                            dataset, config: appState.config
+                        )
+                    }
+                } label: {
+                    Text("立即同步这一件")
+                }
+                .disabled(sync.isRunning(dataset))
+
                 if hasCopy {
                     Button(role: .destructive) {
                         showDeleteDialog = true
@@ -204,6 +219,8 @@ struct DeviceSyncSection: View {
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(syncRowInsets)
+
+            diagnosisSection
 
             logSection
         }
@@ -236,8 +253,9 @@ struct DeviceSyncSection: View {
 
     /// 开关下方的安静状态字：同步中/停供/失败/副
     /// 本现状，互斥优先、如实报——只是一行小字，
-    /// 不摆行、不带控件（立即同步钮随本版退役，
-    /// 失败会在下次回前台/数据变更时自动重试）
+    /// 不摆行、不带控件（立即同步钮在状态字下方，
+    /// §468 按规格 A-4 恢复；自动重试仍在回前台/
+    /// 数据变更时发生）
     @ViewBuilder
     private var statusBlock: some View {
         if sync.isRunning(dataset) {
@@ -262,8 +280,61 @@ struct DeviceSyncSection: View {
             if let expiredLine {
                 Text(expiredLine)
                     .font(.footnote)
-                    .foregroundStyle(Palette.warning)
+                    .foregroundStyle(Palette.warningText)
             }
+        }
+    }
+
+    /// 诊断段（§468，规格 A-3/A-6）：最近一次前
+    /// 台自检的结论、全量退避状态、同步基线（回
+    /// 执有无与最近成功时刻）——断供时先看这里，
+    /// 不许再出现「什么记录都没有」的黑箱
+    private var diagnosisSection: some View {
+        Section {
+            if let check = sync.lastSelfChecks[dataset] {
+                diagnosisRow(
+                    "最近自检",
+                    "\(check.outcomeLine) · \(DeviceSyncPresentation.dayLabel(Date(timeIntervalSince1970: check.at), now: Date()))"
+                )
+            } else {
+                diagnosisRow("最近自检", "还没有自检过")
+            }
+            if let receipt = sync.receipts[dataset] {
+                diagnosisRow(
+                    "同步基线",
+                    "最近成功 \(DeviceSyncPresentation.dayLabel(Date(timeIntervalSince1970: receipt.syncedAt), now: Date()))"
+                )
+            } else {
+                diagnosisRow("同步基线", "还没有成功同步过")
+            }
+            if let backoff = sync.backoffs[dataset],
+               backoff.failureCount > 0,
+               let next = backoff.nextAllowedAt, next > Date()
+            {
+                diagnosisRow(
+                    "全量退避",
+                    "连续失败 \(backoff.failureCount) 次，下次可试 \(DeviceSyncPresentation.dayLabel(next, now: Date()))"
+                )
+            }
+        } header: {
+            syncSectionHeader("诊断")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(syncRowInsets)
+    }
+
+    private func diagnosisRow(
+        _ title: String, _ value: String
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(title)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(value)
+                .font(.footnote)
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.trailing)
         }
     }
 
@@ -298,14 +369,12 @@ struct DeviceSyncSection: View {
             alignment: .firstTextBaseline,
             spacing: OneDayMetrics.spacingSM
         ) {
-            Text(
+            NumberText(
                 DeviceSyncLogPresentation.timeText(
                     for: entry, now: Date()
-                )
+                ), font: .caption
             )
-            .font(.caption)
             .foregroundStyle(Palette.inkSecondary)
-            .monospacedDigit()
             if failed {
                 Circle()
                     .fill(Palette.danger)

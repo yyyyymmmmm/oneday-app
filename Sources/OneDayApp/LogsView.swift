@@ -30,33 +30,15 @@ struct LogsView: View {
                 .onChange(of: level) { _, _ in
                     Task { await load() }
                 }
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Palette.inkMuted)
-                        .accessibilityHidden(true)
-                    TextField("搜索日志", text: $search)
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                        .onSubmit { Task { await load() } }
-                    if !search.isEmpty {
-                        Button {
-                            search = ""
-                            Task { await load() }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(Palette.inkMuted)
-                        }
-                        .accessibilityLabel("清空搜索")
-                    }
-                }
-                .padding(.horizontal, OneDayMetrics.spacingSM)
-                .frame(minHeight: OneDayMetrics.minTapTarget)
-                .background(
-                    Palette.fieldFill,
-                    in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
-                )
-                .padding(.top, OneDayMetrics.spacingM)
+                // 搜索（2026-11-15 第 88 条收口）：自绘
+                // 内嵌搜索迁系统 .searchable——主线裁决
+                // 「系统 .searchable 为默认形态」；本面纯
+                // 关键词过滤、无形态例外理由。服务端查
+                // 询口径不变：提交才查（onSubmit of
+                // .search）；清空后系统 ✕ 只清字不清结
+                // 果，补 onChange 空值重查与旧清空钮的
+                // 「清字即重查」对齐。审计 §4-2「清空钮
+                // 独缺 .odPressable」随自绘钮退役消解
 
                 if let errorMessage {
                     InlineError(errorMessage)
@@ -109,6 +91,21 @@ struct LogsView: View {
         .background(Palette.pageBG)
         .navigationTitle("日志")
         .navigationBarTitleDisplayMode(.inline)
+        // 搜索挂导航栏抽屉常显（第 88 条）：位置自页
+        // 内级别段之下移至标题栏下方，形态差在报告记
+        .searchable(
+            text: $search,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索日志"
+        )
+        .onSubmit(of: .search) {
+            Task { await load() }
+        }
+        .onChange(of: search) { _, newValue in
+            if newValue.isEmpty {
+                Task { await load() }
+            }
+        }
         .refreshable { await load() }
         .task { await load() }
     }

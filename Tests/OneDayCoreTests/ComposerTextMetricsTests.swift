@@ -8,7 +8,9 @@ import XCTest
 /// 改容器宽，内部窄宽（402−132＝270）判形态、全宽
 /// （402−56＝346）量多行高；多行胶囊＝全宽文本高＋60
 /// （文本纵向边距 10＋按钮行距 4＋按钮行 30＋行纵向
-/// 边距 16）——2 行 98.34、4 行 136.68（±1）。
+/// 边距 16）——2 行 100.74、4 行 141.48（±1；行
+/// 高常数 20.37 为 2026-11-15 第 84 条 §265 基准
+/// 升 17 后的派生值）。
 final class ComposerTextMetricsTests: XCTestCase {
     /// 与真机同宽的容器口径（402pt 机型）
     private var textWidth: CGFloat {
@@ -34,7 +36,7 @@ final class ComposerTextMetricsTests: XCTestCase {
     }
 
     /// 2 行定长串：窄宽行数 == 2（形态判据），全宽仍
-    /// 2 行，胶囊 ＝38.34＋60＝98.34（±1）；单行基数 46
+    /// 2 行，胶囊 ＝40.74＋60＝100.74（±1）；单行基数 46.37
     func testTwoLineCapsule() {
         let two = "量测两行甲班\n量测两行乙班"
         XCTAssertEqual(
@@ -44,18 +46,18 @@ final class ComposerTextMetricsTests: XCTestCase {
             ComposerTextMetrics.capsuleHeight(
                 for: "量测两行甲班", containerWidth: 402
             ),
-            46, accuracy: 0.001
+            46.37, accuracy: 0.001
         )
         let capsule = ComposerTextMetrics.capsuleHeight(
             for: two, containerWidth: 402
         )
         XCTAssertEqual(
-            capsule, 98.34, accuracy: 1,
-            "2 行胶囊 \(capsule)，应为全宽 2 行高 38.34＋60（±1）"
+            capsule, 100.74, accuracy: 1,
+            "2 行胶囊 \(capsule)，应为全宽 2 行高 40.74＋60（±1）"
         )
     }
 
-    /// 4 行定长串：行数 == 4，胶囊 ＝76.68＋60＝136.68（±1）
+    /// 4 行定长串：行数 == 4，胶囊 ＝81.48＋60＝141.48（±1）
     func testFourLineCapsule() {
         let four = "量测四行甲班\n量测四行乙班\n量测四行丙班\n量测四行丁班"
         XCTAssertEqual(
@@ -65,8 +67,8 @@ final class ComposerTextMetricsTests: XCTestCase {
             for: four, containerWidth: 402
         )
         XCTAssertEqual(
-            capsule, 136.68, accuracy: 1,
-            "4 行胶囊 \(capsule)，应为全宽 4 行高 76.68＋60（±1）"
+            capsule, 141.48, accuracy: 1,
+            "4 行胶囊 \(capsule)，应为全宽 4 行高 81.48＋60（±1）"
         )
     }
 
@@ -79,14 +81,14 @@ final class ComposerTextMetricsTests: XCTestCase {
         )
     }
 
-    /// 空文本：1 行、胶囊＝单行基数 46
+    /// 空文本：1 行、胶囊＝单行基数 46.37
     func testEmptyIsSingleLine() {
         XCTAssertEqual(
             ComposerTextMetrics.lineCount(for: "", width: textWidth), 1
         )
         XCTAssertEqual(
             ComposerTextMetrics.capsuleHeight(for: "", containerWidth: 402),
-            46, accuracy: 0.001
+            46.37, accuracy: 0.001
         )
     }
 
@@ -104,8 +106,8 @@ final class ComposerTextMetricsTests: XCTestCase {
                 for: $0, containerWidth: 402
             )
         }
-        XCTAssertEqual(heights[0], 46, accuracy: 0.001)
-        XCTAssertEqual(heights[2], 46, accuracy: 0.001)
+        XCTAssertEqual(heights[0], 46.37, accuracy: 0.001)
+        XCTAssertEqual(heights[2], 46.37, accuracy: 0.001)
         for i in 1..<heights.count {
             XCTAssertGreaterThanOrEqual(
                 heights[i], heights[i - 1],
@@ -115,9 +117,9 @@ final class ComposerTextMetricsTests: XCTestCase {
         // 第 4 步「测试\n」等值收紧（0.36.12）：尾部 \n
         // 的光标行恒计入后，该步须与下一步「测试\nh」
         // 逐值相等——旧版只断言单调不减、放行了漏数
-        XCTAssertEqual(heights[3], 98.34, accuracy: 1)
+        XCTAssertEqual(heights[3], 100.74, accuracy: 1)
         XCTAssertEqual(heights[3], heights[4], accuracy: 0.001)
-        XCTAssertEqual(heights[4], 98.34, accuracy: 1)
+        XCTAssertEqual(heights[4], 100.74, accuracy: 1)
         XCTAssertEqual(heights[5], heights[4], accuracy: 0.001)
         for s in steps {
             XCTAssertEqual(
@@ -161,7 +163,7 @@ final class ComposerTextMetricsTests: XCTestCase {
             ComposerTextMetrics.capsuleHeight(
                 for: "测试\n", containerWidth: 402
             ),
-            98.34, accuracy: 1
+            100.74, accuracy: 1
         )
     }
 
@@ -192,8 +194,8 @@ final class ComposerTextMetricsTests: XCTestCase {
     }
 
     /// 封顶边界：5 行正文＋尾 \n 数得 6 行、实测高
-    /// 恰达封顶、胶囊为 6 行多行总高（115.02＋60＝
-    /// 175.02）；6 行正文＋尾 \n 数得 7 行、未封顶
+    /// 恰达封顶、胶囊为 6 行多行总高（122.22＋60＝
+    /// 182.22）；6 行正文＋尾 \n 数得 7 行、未封顶
     /// 实测高过封顶使内滚触发（光标行可经滚动到
     /// 达），胶囊仍封顶
     func testTrailingNewlineAtCapBoundary() {
@@ -207,7 +209,7 @@ final class ComposerTextMetricsTests: XCTestCase {
         )
         XCTAssertEqual(
             ComposerTextMetrics.capsuleHeight(for: five, containerWidth: 402),
-            175.02, accuracy: 1
+            182.22, accuracy: 1
         )
         let six = "量测六行甲班\n量测六行乙班\n量测六行丙班\n量测六行丁班\n量测六行戊班\n量测六行己班\n"
         XCTAssertEqual(
@@ -222,7 +224,7 @@ final class ComposerTextMetricsTests: XCTestCase {
         XCTAssertTrue(ComposerLayout.shouldScroll(measured: measured))
         XCTAssertEqual(
             ComposerTextMetrics.capsuleHeight(for: six, containerWidth: 402),
-            175.02, accuracy: 1
+            182.22, accuracy: 1
         )
     }
 }

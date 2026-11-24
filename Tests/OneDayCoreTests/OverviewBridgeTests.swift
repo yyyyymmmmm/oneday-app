@@ -152,6 +152,64 @@ final class OverviewBridgeTests: XCTestCase {
         )
     }
 
+    // MARK: - §426（缺陷二）运行终态前台消账
+
+    func testRunCompletionResolvesForegroundSessionOnly() {
+        let items = [
+            receipt("run-1", refId: "sess-open",
+                    kind: "task_completed"),
+            receipt("run-2", refId: "sess-other",
+                    kind: "task_completed"),
+            receipt("run-3", refId: "sess-open",
+                    kind: "run_failed"),
+        ]
+        XCTAssertEqual(
+            RunCompletionResolution.receiptsToResolve(
+                notifications: items,
+                foregroundServerSessionID: "sess-open"
+            ),
+            ["run-1", "run-3"]
+        )
+    }
+
+    func testRunCompletionSkipsReadNonTerminalAndMissingRef() {
+        let items = [
+            receipt("run-1", refId: "sess-open", read: true,
+                    kind: "task_completed"),
+            receipt("run-2", refId: "sess-open",
+                    kind: "monitor_change"),
+            receipt("run-3", refId: nil,
+                    kind: "task_completed"),
+            receipt("run-4", refId: "sess-open",
+                    kind: "write_gate_decision"),
+        ]
+        XCTAssertTrue(
+            RunCompletionResolution.receiptsToResolve(
+                notifications: items,
+                foregroundServerSessionID: "sess-open"
+            ).isEmpty
+        )
+    }
+
+    func testRunCompletionNilOrEmptyForegroundResolvesNothing() {
+        let items = [
+            receipt("run-1", refId: "sess-open",
+                    kind: "task_completed"),
+        ]
+        XCTAssertTrue(
+            RunCompletionResolution.receiptsToResolve(
+                notifications: items,
+                foregroundServerSessionID: nil
+            ).isEmpty
+        )
+        XCTAssertTrue(
+            RunCompletionResolution.receiptsToResolve(
+                notifications: items,
+                foregroundServerSessionID: ""
+            ).isEmpty
+        )
+    }
+
     func testReadResponseDecodesContractFixture() throws {
         let response = try decoder.decode(
             OverviewReadResponse.self, from: Data(#"{"ok": true}"#.utf8)
@@ -175,9 +233,13 @@ final class OverviewBridgeTests: XCTestCase {
     // 0.7.0 通道口径修正（用户 16:05 真机截图坐实）：
     // 「联系不上」只认 Hermes API 通道探活，桥挂只降级
     // 桥自己的数——下列用例逐条钉死
+    // §259 迁移（2026-11-14）：入参改单源 channelUp
+    // （App 层合成：探活 ?? 桥 hermesUp）＋pending 计
+    // 数；每条用例的 channelUp 即旧双入参经合成规则的
+    // 结果，判定矩阵逐例等价、原用例名与意图不动
     func testStatusLineUnreachableWhenNoSnapshotAndChannelUnknown() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: nil, hermesChannelUp: nil),
+            OverviewStatusLine.resolve(channelUp: nil, pendingApprovals: 0),
             "联系不上"
         )
     }
@@ -185,8 +247,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLineUnreachableWhenHermesDownPerBridge() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(hermesUp: false, pending: 2),
-                hermesChannelUp: nil
+                channelUp: false, pendingApprovals: 2
             ),
             "联系不上"
         )
@@ -197,7 +258,7 @@ final class OverviewBridgeTests: XCTestCase {
     /// 不许再被桥的失败污染成「联系不上」
     func testStatusLineOnlineWhenBridgeDownButChannelUp() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: nil, hermesChannelUp: true),
+            OverviewStatusLine.resolve(channelUp: true, pendingApprovals: 0),
             "在线"
         )
     }
@@ -207,8 +268,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLineUnreachableWhenChannelDownEvenIfBridgeUp() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(hermesUp: true, pending: 2),
-                hermesChannelUp: false
+                channelUp: false, pendingApprovals: 2
             ),
             "联系不上"
         )
@@ -219,8 +279,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLineChannelProbeWinsOverBridgeHermesUp() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(hermesUp: false, pending: 0),
-                hermesChannelUp: true
+                channelUp: true, pendingApprovals: 0
             ),
             "在线"
         )
@@ -229,8 +288,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLinePendingApprovals() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(active: 1, pending: 2),
-                hermesChannelUp: true
+                channelUp: true, pendingApprovals: 2
             ),
             "待审批 2"
         )
@@ -242,7 +300,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLineActiveCountNeverImpliesProcessing() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(active: 17), hermesChannelUp: nil
+                channelUp: true, pendingApprovals: 0
             ),
             "在线"
         )
@@ -251,9 +309,27 @@ final class OverviewBridgeTests: XCTestCase {
     func testStatusLineIdle() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(
-                snapshot: snapshot(), hermesChannelUp: nil
+                channelUp: true, pendingApprovals: 0
             ),
             "在线"
+        )
+    }
+
+    /// §259 新签名独有可表达态：结论未知时计数不许
+    /// 单独把状态顶成「待审批」——未知就是联系不上，
+    /// 计数只在结论为真时露面
+    func testStatusLineUnknownChannelIgnoresPendingCount() {
+        XCTAssertEqual(
+            OverviewStatusLine.resolve(
+                channelUp: nil, pendingApprovals: 3
+            ),
+            "联系不上"
+        )
+        XCTAssertEqual(
+            OverviewStatusLine.tone(
+                channelUp: nil, pendingApprovals: 3
+            ),
+            .offline
         )
     }
 
@@ -263,7 +339,7 @@ final class OverviewBridgeTests: XCTestCase {
     // 逐条对位钉死
     func testToneOnlineWhenBridgeDownButChannelUp() {
         XCTAssertEqual(
-            OverviewStatusLine.tone(snapshot: nil, hermesChannelUp: true),
+            OverviewStatusLine.tone(channelUp: true, pendingApprovals: 0),
             .online
         )
     }
@@ -271,8 +347,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testToneOfflineWhenChannelDownEvenIfBridgeUp() {
         XCTAssertEqual(
             OverviewStatusLine.tone(
-                snapshot: snapshot(hermesUp: true, pending: 2),
-                hermesChannelUp: false
+                channelUp: false, pendingApprovals: 2
             ),
             .offline
         )
@@ -280,7 +355,7 @@ final class OverviewBridgeTests: XCTestCase {
 
     func testToneOfflineWhenNoSnapshotAndChannelUnknown() {
         XCTAssertEqual(
-            OverviewStatusLine.tone(snapshot: nil, hermesChannelUp: nil),
+            OverviewStatusLine.tone(channelUp: nil, pendingApprovals: 0),
             .offline
         )
     }
@@ -288,8 +363,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testToneAttentionWhenPendingApprovals() {
         XCTAssertEqual(
             OverviewStatusLine.tone(
-                snapshot: snapshot(active: 1, pending: 2),
-                hermesChannelUp: true
+                channelUp: true, pendingApprovals: 2
             ),
             .attention
         )
@@ -298,7 +372,7 @@ final class OverviewBridgeTests: XCTestCase {
     func testToneOnlineWhenBridgeReportsUp() {
         XCTAssertEqual(
             OverviewStatusLine.tone(
-                snapshot: snapshot(), hermesChannelUp: nil
+                channelUp: true, pendingApprovals: 0
             ),
             .online
         )

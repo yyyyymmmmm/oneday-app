@@ -36,6 +36,28 @@ public enum CornerRadius {
     }
 }
 
+// MARK: - Elevation 阴影两档（§247.3 美化标尺细则）
+// 0.4.0 废止的是「内容层通用阴影表」——内容层零阴影
+// 的宪法不变。本节立的是全仓仅许的两档现行阴影，档
+// 外新增阴影须先修本节入账（§247.3）：
+// - 档 F 浮件档：浮动功能层小件（圆钮类）自浮纸面抬
+//   起的唯一参数组，色走 Palette.shadowBase 派生；
+// - 档 D 抽屉缘档：抽屉右缘的系统近似档，参数在
+//   DrawerMotion（App 层，DrawerContainerView 消费，
+//   原例外 E5）——本节只登记其存在与唯一落点，不迁值。
+// 另有例外 X1「字形影」：白色符号/文字的可读性背光
+// （shadow 半径 ≤2、默认色、无偏移），仅许符号本体、
+// 禁作卡面/容器 Elevation 使用，落点在 §247.3 登记。
+
+public enum ElevationTokens {
+    /// 档 F 浮件档·不透明度（配 Palette.shadowBase）
+    public static let floatingOpacity: Double = 0.12
+    /// 档 F 浮件档·模糊半径
+    public static let floatingRadius: CGFloat = 4
+    /// 档 F 浮件档·纵向偏移
+    public static let floatingY: CGFloat = 1
+}
+
 // MARK: - Motion 令牌册（0.3.2 按礼记四档纪律收编，DESIGN-V4 §17）
 // 礼记四档 ↔ OneDay 对应：press（点按反馈）/ liquidSpring
 // （跟手位移与指示器滑移）/ pageCrossfade（内容切换默认过
@@ -60,6 +82,15 @@ public enum MotionTokens {
     public static let press = Animation.easeOut(duration: 0.15)
     /// swap：内容替换、错误出现、步骤状态变化、折叠展开
     public static let swap = Animation.easeInOut(duration: 0.2)
+    /// sectionCollapse：分区折叠及箭头旋转，smooth
+    /// 0.25/0.3s 按相差 ≤0.05s 收为同档。既有 swap/
+    /// pageCrossfade 为 easeInOut，其余弹簧参数也非
+    /// smooth 默认形状，故独立保留折叠面的 0.3s 观感。
+    public static let sectionCollapse = Animation.smooth(duration: 0.3)
+    /// systemDefault：原无参 withAnimation 的定位滚动与
+    /// 提示退出，保留平台默认弹簧。它无显式时长可与
+    /// 既有档比较，也非本册定制弹簧，不猜参数强行并档。
+    public static let systemDefault = Animation.default
     /// liquidSpring：跟手位移、选择指示器滑移（礼记定版
     /// 值 interactiveSpring 0.34/0.72；0.3.2 起取代旧
     /// indicator 档，旧值 spring(0.35, 0.85) 退役）
@@ -85,16 +116,19 @@ public enum MotionTokens {
     public static let dragSpring = Animation.interpolatingSpring(
         stiffness: 1200, damping: 80
     )
-    /// drawerSpring：抽屉归位专用（0.7.1，chrome 裁决
-    /// 档 §3.5 S7）——interactiveSpring(response 0.34,
-    /// dampingFraction 0.86)：response 沿 liquidSpring
-    /// 的跟手位移档（0.34，抽屉本属跟手位移、0.7.1 前
-    /// 错走 dragSpring），damping 取 interactiveSpring
-    /// 默认档 0.86（无可见回弹）。归位中再抓由系统合并
-    /// 速度（弹簧重定向保速），不许出现速度清零帧；
-    /// 点按开合（零初速）同弹簧
+    /// drawerSpring：抽屉归位弹簧的 SwiftUI 镜像
+    /// （§313 换代立镜像；§322 随单源重定版；§351
+    /// 再换代）：定版单源在 OneDayCore.Drawer-
+    /// SpringTiming（response 0.27/ζ 0.90——
+    /// 2026-11-22 Muse 真机视频轨迹拟合，见单源
+    /// 注；§322 档 0.35/ζ 0.85 随之作废、其
+    /// 2026-11-17 录屏拟合出处转沿革），本令牌只
+    /// 以同字面值镜像供令牌册完整性（新壳层归位
+    /// 走 UIKit 容器、无 SwiftUI 消费方），两处由
+    /// 单测逐项对钉。再旧值 response 0.34/ζ 0.86
+    /// （0.7.1 S7）早已作废
     public static let drawerSpring = Animation.interactiveSpring(
-        response: 0.34, dampingFraction: 0.86
+        response: 0.27, dampingFraction: 0.90
     )
     /// 条 9 定版弹簧·小动作（0.3.0，§14）：stiffness
     /// 380 / damping 18——换算阻尼比 ζ≈0.46（欠阻尼、
@@ -142,7 +176,7 @@ public enum MotionTokens {
     }
 }
 
-// MARK: - 分段控件落值（文件页 [文件｜影音内容]）
+// MARK: - 分段控件落值（保留自制件的几何档案）
 
 /// 自制分段控件的尺寸真源（0.36.2，体验三件规格
 /// §1.6；Muse 文件页实测口径）：总高 48、药丸高
@@ -151,6 +185,12 @@ public enum MotionTokens {
 /// 值、即胶囊）。旧口径「段高约 63 照图复刻」系目
 /// 测高估 15pt（总高曾达 60、药丸 52），自本版退
 /// 役；数值由 SegmentedControlSpecTests 钉死防回潮。
+/// 2026-11-15 第 88 条裁决后本表地位变更：系统
+/// segmented 为全 App 默认分段形态，通知筛选/文
+/// 件页已迁系统件、不再消费本表；本表只作保留自
+/// 制件（枢纽族几何口径）的档案与数值钉测，**新
+/// 面不许再消费本表自绘分段**——新面一律系统
+/// Picker(.segmented)，例外须主线裁决并在此登记。
 public enum SegmentedControlSpec {
     /// 控件总高
     public static let totalHeight: CGFloat = 48

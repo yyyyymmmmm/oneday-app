@@ -12,6 +12,8 @@ import SwiftData
 /// 脚手架已按用户令根除（DESIGN-V4 §13），本枚举与种子数据
 /// 保留——它们只在显式启动参数下激活、生产路径恒为 .off，
 /// 留作本地人工演示/调试入口，不属于交付验收路径。
+/// 【C-13 冻结】演示入口面到此为止：不新增启动参数与
+/// 演示触发路径（overcomplexity-audit-20261114 C-13）。
 enum DemoMode: Equatable {
     case off
     case connected
@@ -92,11 +94,20 @@ enum DemoSeeder {
                 "",
                 "五是任务自身的上次运行结果。巡检任务自己失败是最危险的——其他四项全靠它报，所以它的失败要走单独的兜底通道。",
             ].joined(separator: "\n")),
+            ("user", "值班电话和状态页再发我一下，我存起来。"),
+            // §265：T4 UI 验收样本——电话/URL/邮箱须在
+            // 散文正文里（代码块不走 UITextView 探测）
+            ("assistant", "值班电话 13800138000，状态页 https://example.org/status ，邮箱 oncall@example.org。"),
             ("user", "好，就按你说的顺序来。"),
         ]
         for (index, sample) in samples.enumerated() {
             let entry = ChatEntry(role: sample.role, content: sample.content, thread: thread)
             entry.createdAt = base.addingTimeInterval(Double(index * 47))
+            // §440 定案留用：种子条目补合成
+            // serverRowID 使 canReact 成立、浮排在演
+            // 示态可呈——生产条目本有行号，种子缺号
+            // 是夹具与生产形状不一致（DESIGN §440）
+            entry.serverRowID = 1000 + index
             context.insert(entry)
         }
         thread.createdAt = base
@@ -117,6 +128,22 @@ enum DemoSeeder {
         }
         earlier.createdAt = earlierBase
         earlier.updatedAt = earlierBase.addingTimeInterval(47)
+
+        // 抽屉长按 XCUITest 需要可分别命中列表中段与末段；
+        // 这两条只进入显式演示模式的内存库。
+        for (title, offset) in [
+            ("演示旁聊中段", -2 * 3600.0),
+            ("演示旁聊末段", -3 * 3600.0),
+        ] {
+            let side = ChatThread(title: title)
+            context.insert(side)
+            let createdAt = base.addingTimeInterval(offset)
+            side.createdAt = createdAt
+            side.updatedAt = createdAt
+            context.insert(ChatEntry(
+                role: "user", content: title, thread: side
+            ))
+        }
 
         try? context.save()
     }

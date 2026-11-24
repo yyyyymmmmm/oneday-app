@@ -10,19 +10,14 @@ import OneDayCore
 /// 读不到钥匙一律 noKey、
 /// 不发请求、不冒充已接通。
 final class OneDayBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
+    /// C-10 收敛：连接/单钥/管线/文案全走统一基座，
+    /// 本类只留路径、DTO 与 oneday 系状态口径
+    private let base = BridgeClientBase<OneDayBridgeError>(
+        pathPrefix: "/api/oneday-bridge", timeout: 15,
+        noKey: .noKey, failed: OneDayBridgeError.failed
+    )
 
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private var decoder: JSONDecoder { base.decoder }
 
     // MARK: - 目标
 
@@ -120,6 +115,43 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return response.items
     }
 
+    /// POST /goals/{id}/briefings/{bid}/opened（GD-3）：
+    /// 打开信件时记下打开时刻，回执为盖过记录的简报
+    /// 全形。只供台账看「写了没看」，调用方失败静默
+    func markBriefingOpened(
+        config: ServerConfig, goalID: String, briefingID: String
+    ) async throws -> BridgeBriefing {
+        try await sendEmpty(
+            config: config,
+            path: "/goals/\(goalID)/briefings/\(briefingID)/opened",
+            method: "POST", endpoint: L10n.string("简报打开记录")
+        )
+    }
+
+    /// GET /goals/{id}/tasks（GD-2 读面一）：关联任务
+    /// 实时行（关联记录×任务板现况，桥侧拼好下发）
+    func goalTasks(
+        config: ServerConfig, goalID: String
+    ) async throws -> [BridgeGoalTask] {
+        let response: BridgeGoalTasksResponse = try await get(
+            config: config, path: "/goals/\(goalID)/tasks",
+            endpoint: L10n.string("目标任务"), collection: false
+        )
+        return response.items
+    }
+
+    /// GET /goals/ungrouped-tasks（GD-2 读面二）：用户
+    /// 发起类（点子采纳/对话派发）且未归任何目标的
+    /// 任务；系统/定时/探针任务不在此面
+    func ungroupedTasks(
+        config: ServerConfig
+    ) async throws -> BridgeUngroupedTasksResponse {
+        try await get(
+            config: config, path: "/goals/ungrouped-tasks",
+            endpoint: L10n.string("未归类任务"), collection: false
+        )
+    }
+
     /// PATCH /goals/{id} 分类变更（0.40.0）：只送
     /// {category}（nil 显式送 null＝清除分类）；回执全形
     /// 供调用方对账
@@ -133,28 +165,33 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    /// GET /goals/{id}/task-links（0.40.0）：目标↔任务
-    /// 关联记录（createdAt 升序）；目标不在 → recordGone
-    func goalTaskLinks(
-        config: ServerConfig, goalID: String
-    ) async throws -> [BridgeGoalTaskLink] {
-        let response: BridgeGoalTaskLinksResponse = try await get(
-            config: config, path: "/goals/\(goalID)/task-links",
-            endpoint: L10n.string("目标关联任务"), collection: false
+    /// POST /goals/{id}/delegate（§308 单轨）：一次调用
+    /// 里桥建卡＋写任务的 goalId 字段，取代旧「App 直连
+    /// 看板建卡 → 再回桥补关联」的两步两账；
+    /// idempotencyKey 同键重试回原归属、不重复建卡
+    func delegateGoalTask(
+        config: ServerConfig, goalID: String,
+        request body: BridgeGoalDelegateRequest
+    ) async throws -> BridgeGoalDelegateResponse {
+        try await send(
+            config: config, path: "/goals/\(goalID)/delegate",
+            method: "POST", body: body,
+            endpoint: L10n.string("委派任务"),
+            collection: false
         )
-        return response.items
     }
 
-    /// POST /goals/{id}/task-links（0.40.0）：委派建卡后
-    /// 回写关联（与点子采纳回写 taskId 同形）；桥侧对
-    /// (goalId, taskId) 重复回写幂等
-    func createGoalTaskLink(
-        config: ServerConfig, goalID: String,
-        request body: BridgeGoalTaskLinkCreateRequest
-    ) async throws -> BridgeGoalTaskLink {
+    /// PUT /tasks/{taskId}/goal（§308）：任务 goalId
+    /// 字段的独立写面——归入/移交/清除（goalId 传 nil
+    /// ＝清除归属，编码显式送 null）
+    func setTaskGoal(
+        config: ServerConfig, taskID: String,
+        request body: BridgeTaskGoalWrite
+    ) async throws -> BridgeTaskGoalAssignment {
         try await send(
-            config: config, path: "/goals/\(goalID)/task-links",
-            method: "POST", body: body, endpoint: L10n.string("关联任务"),
+            config: config, path: "/tasks/\(taskID)/goal",
+            method: "PUT", body: body,
+            endpoint: L10n.string("任务归属"),
             collection: false
         )
     }
@@ -363,9 +400,9 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    /// GET /meta/brief（0.38.0）：简报两层全文——兴趣
-    /// 层（用户原话）＋执行层（AI 扩写维护的正式简报）
-    /// ＋扩写状态；旧桥无两层字段时按宽容解码收
+    /// GET /meta/brief：简报全文——§459 起含 text（当
+    /// 前生效全文）＋polished＋polishState，旧两层字段
+    /// 照旧出；旧桥无新字段时按宽容解码收
     func feedBrief(config: ServerConfig) async throws -> BridgeBriefDoc {
         try await get(
             config: config, path: "/meta/brief",
@@ -373,28 +410,17 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    /// PUT /meta/brief {interest}：存兴趣层；真变更时
-    /// 桥侧起扩写，扩写落盘且执行层变了再触发一轮
-    /// 调研；回执为保存后的全文（含 expandStarted）
-    func saveFeedInterest(
-        config: ServerConfig, interest: String
+    /// PUT /meta/brief {text}（§459 单层）：服务端折
+    /// 为 interest 保存（interest 显式给出才优先，本
+    /// 口不发）；真变更时桥侧起润色/调研；回执为保
+    /// 存后的全文（含 expandStarted）
+    func saveFeedText(
+        config: ServerConfig, text: String
     ) async throws -> BridgeBriefDoc {
         try await send(
             config: config, path: "/meta/brief", method: "PUT",
-            body: BridgeBriefSaveRequest(interest: interest),
-            endpoint: L10n.string("保存简报兴趣"), collection: false
-        )
-    }
-
-    /// PUT /meta/brief {brief}：直改执行层；真变更时
-    /// 桥侧直接触发一轮调研；回执同上
-    func saveFeedPrompt(
-        config: ServerConfig, brief: String
-    ) async throws -> BridgeBriefDoc {
-        try await send(
-            config: config, path: "/meta/brief", method: "PUT",
-            body: BridgeBriefSaveRequest(brief: brief),
-            endpoint: L10n.string("保存执行简报"), collection: false
+            body: BridgeBriefSaveRequest(text: text),
+            endpoint: L10n.string("保存简报"), collection: false
         )
     }
 
@@ -407,83 +433,22 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    // MARK: - 表格转码（§125，桥 /files/spreadsheet）
+    // MARK: - 图片变体（§138）
 
-    /// GET /files/spreadsheet?path=：xlsx 按 sheet 转
-    /// CSV（值口径）。本端点不走 checkStatus 的人话
-    /// 收敛——状态码原样包成 HermesError.unexpected-
-    /// Status 交调用方走 FileOpenFailure.classify-
-    /// Spreadsheet 分型（422 转码专档/413 过大/404
-    /// 不存在各有出路，收敛成一句会丢分型）；无钥匙
-    /// 仍走 OneDayBridgeError.noKey 口径
-    func spreadsheet(
-        config: ServerConfig, path: String
-    ) async throws -> BridgeSpreadsheet {
-        let allowed = CharacterSet.alphanumerics.union(
-            CharacterSet(charactersIn: "-._~/")
-        )
-        let encoded = path.addingPercentEncoding(
-            withAllowedCharacters: allowed
-        ) ?? path
-        let request = try makeRequest(
-            config: config,
-            path: "/files/spreadsheet?path=\(encoded)",
-            method: "GET"
-        )
-        let (data, http) = try await send(
-            request, endpoint: L10n.string("表格转换")
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: L10n.string("表格转换"),
-                status: http.statusCode
-            )
-        }
-        do {
-            return try decoder.decode(
-                BridgeSpreadsheet.self, from: data
-            )
-        } catch {
-            throw OneDayBridgeError.failed(
-                L10n.string("表格转换返回格式无法识别")
-            )
-        }
-    }
+    /// 端点已迁伴生独立 fileproc 模块（API 直连 B
+    /// 包，2026-11-14）：本类只留委托，签名与状态码
+    /// 口径（unexpectedStatus 原样上抛分型、noKey 走
+    /// OneDayBridgeError）逐字不变，实现见
+    /// FilesProcClient。表格转码委托已随 §259 退役
+    private let fileproc = FilesProcClient()
 
-    // MARK: - 图片变体（§144，桥 /media/rendition）
-
-    /// GET /media/rendition?path=&w=&kind=：回变体 JPEG
-    /// 字节（kind=image 取图变体、kind=poster 取视频首
-    /// 帧海报）。与 spreadsheet 同口径：状态码原样包成
-    /// HermesError.unexpectedStatus 交调用方分型（415
-    /// 格式不支持/404 不存在时回落原图通道），不收敛
-    /// 成一句人话丢分型；无钥匙仍走 noKey 口径
     func rendition(
         config: ServerConfig, path: String,
         width: Int, kind: String = "image"
     ) async throws -> Data {
-        let allowed = CharacterSet.alphanumerics.union(
-            CharacterSet(charactersIn: "-._~/")
+        try await fileproc.rendition(
+            config: config, path: path, width: width, kind: kind
         )
-        let encoded = path.addingPercentEncoding(
-            withAllowedCharacters: allowed
-        ) ?? path
-        let request = try makeRequest(
-            config: config,
-            path: "/media/rendition?path=\(encoded)"
-                + "&w=\(width)&kind=\(kind)",
-            method: "GET"
-        )
-        let (data, http) = try await send(
-            request, endpoint: L10n.string("图片预览")
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: L10n.string("图片预览"),
-                status: http.statusCode
-            )
-        }
-        return data
     }
 
     // MARK: - 文件交付登记（§146，规格 delivery-registry-spec-20261111 §5/§7）
@@ -505,8 +470,8 @@ final class OneDayBridgeClient: @unchecked Sendable {
     /// JPEG 字节。本口不走 checkStatus 的人话收敛
     /// ——404（无此档快照）/410（文件已删）对调用
     /// 方是分型信号（走回落链的判据），收敛成一句
-    /// 会丢分型（spreadsheet 口径同理），状态码原
-    /// 样包成 HermesError.unexpectedStatus；无钥
+    /// 会丢分型，状态码原样包成
+    /// HermesError.unexpectedStatus；无钥
     /// 匙仍走 OneDayBridgeError.noKey 口径
     func deliveryImage(
         config: ServerConfig, id: String,
@@ -527,6 +492,22 @@ final class OneDayBridgeClient: @unchecked Sendable {
             )
         }
         return data
+    }
+
+    // MARK: - 文件库聚合（A-06，伴生 1.0.66）
+
+    /// GET /file-library：文件页聚合读面——产出根走查、
+    /// 准入、去重、排序全在服务端，客户端只消费单流
+    /// （取代 0.50.60 前客户端 BFS 爬 /api/files 目录树
+    /// 的聚合形态）。默认整集下发；total 为准入全量、
+    /// truncated 恒 false（无静默截断）
+    func fileLibrary(
+        config: ServerConfig
+    ) async throws -> FileLibraryPage {
+        try await get(
+            config: config, path: "/file-library",
+            endpoint: L10n.string("文件库"), collection: false
+        )
     }
 
     // MARK: - 留痕回响（P0/P2，2026-11-13）
@@ -553,33 +534,56 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return response.items
     }
 
-    // MARK: - 请求底座
+    // MARK: - 留痕自报（§383 包一：直连写口的留痕落点）
+
+    /// POST /traces：五要素留痕自报——已迁直连
+    /// 的写口（如改名 soul 直写）把动作补报进同
+    /// 一本留痕账，与桥内各模块的记账同口径
+    /// （服务端在门口校验五要素：action/actor/
+    /// target/status/result|error/detail）。回执
+    /// 为新建的留痕条目（201）
+    func recordTrace(
+        config: ServerConfig, action: String, actor: String,
+        targetKind: String, targetID: String,
+        targetLabel: String, targetRef: String,
+        status: String, result: String?, error: String?,
+        detail: [String: String]?
+    ) async throws {
+        let body = BridgeTraceReportRequest(
+            action: action, actor: actor,
+            target: .init(
+                kind: targetKind, id: targetID,
+                label: targetLabel, ref: targetRef
+            ),
+            status: status, result: result, error: error,
+            detail: detail
+        )
+        let _: BridgeTrace = try await send(
+            config: config, path: "/traces", method: "POST",
+            body: body, endpoint: L10n.string("留痕自报"),
+            collection: false
+        )
+    }
+
+    // MARK: - 请求底座（基座代行，本类只给状态口径）
 
     private func makeRequest(
         config: ServerConfig, path: String, method: String
     ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw OneDayBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/oneday-bridge" + path)
-        )
-        request.httpMethod = method
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        return request
+        try base.makeRequest(config: config, path: path, method: method)
     }
 
     private func get<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String,
         collection: Bool
     ) async throws -> T {
-        let request = try makeRequest(config: config, path: path, method: "GET")
-        let (data, http) = try await send(request, endpoint: endpoint)
-        try checkStatus(http, data: data, endpoint: endpoint, collection: collection)
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
+        try await base.get(
+            config: config, path: path, endpoint: endpoint
+        ) { http, data in
+            try self.base.checkStatus(
+                http, data: data, endpoint: endpoint,
+                collection: collection
+            )
         }
     }
 
@@ -587,19 +591,14 @@ final class OneDayBridgeClient: @unchecked Sendable {
         config: ServerConfig, path: String, method: String,
         body: Body, endpoint: String, collection: Bool
     ) async throws -> T {
-        var request = try makeRequest(config: config, path: path, method: method)
-        do {
-            request.httpBody = try encoder.encode(body)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
-        }
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, http) = try await send(request, endpoint: endpoint)
-        try checkStatus(http, data: data, endpoint: endpoint, collection: collection)
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
+        try await base.send(
+            config: config, path: path, method: method,
+            body: body, endpoint: endpoint
+        ) { http, data in
+            try self.base.checkStatus(
+                http, data: data, endpoint: endpoint,
+                collection: collection
+            )
         }
     }
 
@@ -607,46 +606,13 @@ final class OneDayBridgeClient: @unchecked Sendable {
         config: ServerConfig, path: String, method: String,
         endpoint: String
     ) async throws -> T {
-        let request = try makeRequest(config: config, path: path, method: method)
-        let (data, http) = try await send(request, endpoint: endpoint)
-        try checkStatus(http, data: data, endpoint: endpoint, collection: false)
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
-        }
-    }
-
-    /// 桥错误体（冻结口径）：失败响应统一 {"error": 人话}
-    private struct BridgeErrorBody: Decodable {
-        let error: String
-    }
-
-    /// 状态口径：2xx 通过；401 钥匙被拒；404 按端点分流
-    /// （集合＝桥未开通、条目＝记录已不在）；400 等内容
-    /// 问题优先透服务端人话（标题为空/关联目标不存在
-    /// 等，客户端不许猜成固定一条）
-    private func checkStatus(
-        _ http: HTTPURLResponse, data: Data,
-        endpoint: String, collection: Bool
-    ) throws {
-        switch http.statusCode {
-        case 200...299:
-            return
-        case 401:
-            throw OneDayBridgeError.unauthorized
-        case 404:
-            throw collection
-                ? OneDayBridgeError.bridgeMissing
-                : OneDayBridgeError.recordGone
-        default:
-            if let body = try? decoder.decode(
-                BridgeErrorBody.self, from: data
-            ), !body.error.isEmpty {
-                throw OneDayBridgeError.failed(body.error)
-            }
-            throw OneDayBridgeError.failed(
-                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
+        try await base.sendEmpty(
+            config: config, path: path, method: method,
+            endpoint: endpoint
+        ) { http, data in
+            try self.base.checkStatus(
+                http, data: data, endpoint: endpoint,
+                collection: false
             )
         }
     }
@@ -654,16 +620,25 @@ final class OneDayBridgeClient: @unchecked Sendable {
     private func send(
         _ request: URLRequest, endpoint: String
     ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as OneDayBridgeError {
-            throw error
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
-        }
+        try await base.data(for: request, endpoint: endpoint)
     }
+}
+/// 留痕自报请求体（§383）：与桥 POST /traces 的
+/// 五要素契约同形（target 与 BridgeTraceTarget
+/// 同四键）
+private struct BridgeTraceReportRequest: Encodable {
+    struct Target: Encodable {
+        let kind: String
+        let id: String
+        let label: String
+        let ref: String
+    }
+
+    let action: String
+    let actor: String
+    let target: Target
+    let status: String
+    let result: String?
+    let error: String?
+    let detail: [String: String]?
 }

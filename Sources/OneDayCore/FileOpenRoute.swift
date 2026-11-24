@@ -1,10 +1,11 @@
 import Foundation
 
 /// 文件行号锚点（§125 搭车，ekko 式 `#L12-L20`）：
-/// 助手文本里的文件路径可带行段后缀，点开后经中
-/// 间页进阅读页定位高亮。仅 text 类消费（路由表
-/// 裁决），其余类型解析保留、呈现忽略，不假装能
-/// 在 QuickLook 里定位行号。
+/// 助手文本里的文件路径可带行段后缀，解析后随打
+/// 开目标携带。§259 起呈现一律走 QuickLook 系统
+/// 预览、定位高亮随自研阅读器退役——锚点对所有
+/// 类型统一「解析保留、呈现忽略」，不假装能在
+/// QuickLook 里定位行号。
 public struct FileLineAnchor: Equatable, Sendable {
     public let startLine: Int
     public let endLine: Int
@@ -152,8 +153,8 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
     }
 
     /// 合成等价条目：供既有 entry 入参的策略表
-    /// （FileActionPolicy 动作表）与阅读页复用——只
-    /// 在打开链内部使用，不落库、不冒充服务器回读
+    /// （FileActionPolicy 动作表）与预览承载复用——
+    /// 只在打开链内部使用，不落库、不冒充服务器回读
     public var workspaceEntry: WorkspaceFileEntry {
         WorkspaceFileEntry(
             name: name,
@@ -166,20 +167,21 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
     }
 }
 
-/// 文件打开路由表（§125 规格 §5.3，纯函数）：输入
-/// ＝打开目标＋canPreview 资格（§121 既有门，字节
-/// 落盘后由 QL 判定；调用方未取字节时默认 true，
-/// 取后为假一律降无预览行）。chat/文件页/中间页
-/// 三处共用本表分流，不许各写一份扩展名判断。
+/// 文件打开路由表（§125 规格 §5.3，纯函数；§259
+/// 双轨合一修订）：输入＝打开目标＋canPreview 资
+/// 格（§121 既有门，字节落盘后由 QL 判定；调用
+/// 方未取字节时默认 true，取后为假一律降无预览
+/// 行）。chat/文件页/中间页三处共用本表分流，不
+/// 许各写一份扩展名判断。§259 起预览单轨：文本
+/// 类与表格（xls/xlsx）并入 QuickLook 系统预
+/// 览——自研阅读页与伴生转码呈现退役（服务端转
+/// 码端点保留作降级、不再由 App 预览消费）。
 public enum FileOpenRoute: Equatable, Sendable {
     /// 图片：直达既有全屏图片查看器，不经中间页
     case imageViewer
-    /// 文本类：中间页 → 页内阅读页
-    case reader
-    /// PDF/Office/HTML/音视频：中间页 → 页内 QL 承载
+    /// 可预览类（文本/PDF/Office/HTML/音视频）：
+    /// 中间页 → 页内 QL 承载（系统 QuickLook 单轨）
     case quickLook
-    /// xlsx/xls：中间页 → 伴生转码表格呈现
-    case spreadsheet
     /// 压缩包：中间页无预览，主钮「保存到文件」
     case saveOnly
     /// 其余不可预览：中间页说明行＋分享/下载
@@ -196,11 +198,7 @@ public enum FileOpenRoute: Equatable, Sendable {
         switch target.category {
         case .image:
             return .imageViewer
-        case .text:
-            return .reader
-        case .office where FileActionPolicy.isSpreadsheet(target.name):
-            return .spreadsheet
-        case .pdf, .office, .html, .video, .audio:
+        case .text, .pdf, .office, .html, .video, .audio:
             return canPreview ? .quickLook : .infoOnly
         case .archive:
             return .saveOnly

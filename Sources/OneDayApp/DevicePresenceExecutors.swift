@@ -25,9 +25,9 @@ import os
 
 /// 系统取景界面的呈现桥：分发器跑在非 UI 上下文，
 /// 呈现统一收在这里——自当前最顶层 VC 呈现
-/// （DocumentPickerBridge 同款走法，绕开 SwiftUI
-/// 呈现上下文）、coordinator 静态强持有到回调为
-/// 止、回调先 dismiss 再交回。等待被取消（桥侧超
+/// （沿 presentedViewController 链走查，绕开
+/// SwiftUI 呈现上下文）、coordinator 静态强持有
+/// 到回调为止、回调先 dismiss 再交回。等待被取消（桥侧超
 /// 时掐断）时经 cancelActive 收尾：关界面、以取消
 /// 错误返回，不留悬空取景框。
 enum DeviceCaptureBridge {
@@ -133,7 +133,7 @@ enum DeviceCaptureBridge {
     }
 
     /// 沿 presentedViewController 链走到当前最顶层
-    /// VC（DocumentPickerBridge 同款走法）
+    /// VC（命令式呈现的干净上下文走查）
     @MainActor
     private static func topmostViewController() -> UIViewController? {
         let windows = UIApplication.shared.connectedScenes

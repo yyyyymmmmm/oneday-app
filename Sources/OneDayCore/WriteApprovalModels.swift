@@ -102,6 +102,19 @@ public struct WriteGateStatus: Decodable, Sendable, Equatable {
     }
 }
 
+/// 原因产出阶段（B-05 单字段契约，伴生 1.0.63 起）：
+/// 桥把原先分开的 blocked_reason（预检）与
+/// failure_reason（执行）合并为单字段 reason，本枚举
+/// 是随行的阶段标——呈现只读 reason 一处，前缀句式
+/// 由阶段决定（见 ApprovalCardCopy.reasonLine）。
+/// 未知值解码为 nil（宽容口径，理由见记录解码处）。
+public enum WriteGateReasonPhase: String, Sendable, Equatable {
+    /// 裁决前预检：桥以纯校验复算出「这条批准必败」
+    case preCheck = "pre-check"
+    /// 裁决执行：批准/驳回回放真实执行后失败
+    case execution
+}
+
 /// pending 记录（桥规范化后的 Record，源头是 pending
 /// JSON 文件，桥不发明字段）：summary 是上游生成的摘要、
 /// 直接作卡标题；客户端只在 summary 为空时按 action＋
@@ -141,8 +154,27 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 按暂存时刻对表 state.db 算出的发起会话；null＝
     /// 未关联（并列/无候选/oneday_app 直判），旧桥无
     /// 此字段解码为 nil——App 据此点达原对话，缺失时
-    /// 如实降级、不许假定位（见 ApprovalAnchor）
+    /// 如实降级、不许假定位（见 ApprovalAnchor）。
+    /// §245（C-5 收敛）：锚由桥侧一次算定落账（写死
+    /// 账本），出口只读回放、终身不变——本字段是全
+    /// App 唯一的锚真值，App 不许再推导/修正它
     public let anchor: WriteGateAnchor?
+    /// 确定性批不了原因（§245 立项，伴生 1.0.29 起；
+    /// B-05 于 1.0.63 改单字段 reason＋reason_phase，
+    /// App 侧 §301 直接切换、不再读旧 blocked_reason）：
+    /// 桥以与上游落盘同口径的纯校验复算出「这条批准
+    /// 必败」时随记录带出（上游原文，如技能简介超字
+    /// 数预算），阶段标恒为 pre-check；nil＝无此结论
+    /// （建议性字段，裁决路径仍是唯一权威）。卡面据
+    /// 此走防呆呈现：一套口径——「这条无法批准：
+    /// <原因>」＋只给驳回出路，不再摆点了必败的批
+    /// 准钮（见 ApprovalCardFace）
+    public let reason: String?
+    /// 原因阶段标：记录面恒 pre-check（桥 _norm_record
+    /// 唯一产出阶段）；解码宽容——未知/缺失为 nil，
+    /// 呈现与防呆判定按「非 execution 即预检」兜底，
+    /// 不许因标签丢失把死单的防呆呈现弄丢
+    public let reasonPhase: WriteGateReasonPhase?
 
     enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, payload
@@ -155,6 +187,8 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         case memTarget = "mem_target"
         case contentPreview = "content_preview"
         case anchor
+        case reason
+        case reasonPhase = "reason_phase"
     }
 
     public init(from decoder: Decoder) throws {
@@ -187,6 +221,21 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         anchor = try container.decodeIfPresent(
             WriteGateAnchor.self, forKey: .anchor
         )
+        // reason：空白串按无结论处理（与桥侧「命中
+        // 才带字段」同口径，防空串误触防呆态）；无原
+        // 因时阶段标一并作废（标无所指不许单存）
+        let rawReason = try container.decodeIfPresent(
+            String.self, forKey: .reason
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        reason = (rawReason?.isEmpty == false) ? rawReason : nil
+        let rawPhase = try container.decodeIfPresent(
+            String.self, forKey: .reasonPhase
+        )
+        reasonPhase = reason == nil
+            ? nil
+            : rawPhase.flatMap {
+                WriteGateReasonPhase(rawValue: $0.lowercased())
+            }
         // created_at：桥转 ISO8601 字符串；也宽容 epoch 数值
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .createdAt
@@ -208,7 +257,8 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         op: String? = nil, targetName: String? = nil,
         opCount: Int? = nil, opKinds: [String]? = nil,
         memTarget: String? = nil, contentPreview: String? = nil,
-        anchor: WriteGateAnchor? = nil
+        anchor: WriteGateAnchor? = nil, reason: String? = nil,
+        reasonPhase: WriteGateReasonPhase? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -225,6 +275,11 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         self.memTarget = memTarget
         self.contentPreview = contentPreview
         self.anchor = anchor
+        let trimmedReason = reason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.reason = (trimmedReason?.isEmpty == false)
+            ? trimmedReason : nil
+        self.reasonPhase = self.reason == nil ? nil : reasonPhase
     }
 
     /// 有效动作：桥结构化 op 优先，缺失回落顶层 action
@@ -260,6 +315,17 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
 
     /// 是否可裁决：未知子系统不开批准/驳回口（契约红线）
     public var canDecide: Bool { subsystem != .unknown }
+
+    /// 是否被桥侧预检判定为确定性批不了（§245）：为
+    /// 真时卡面不给批准/总是允许两档（点了必败），只
+    /// 留驳回出路，原因原文上卡面（防呆呈现单源，见
+    /// ApprovalCardSpec.actionStack 与 ApprovalCardFace）。
+    /// B-05 后判定口径：有 reason 且阶段非 execution
+    /// ——记录面 reason 的唯一产出阶段就是预检，阶段
+    /// 标缺失/未知时仍按防呆处理，不许把死单放行
+    public var isBlocked: Bool {
+        reason != nil && reasonPhase != .execution
+    }
 
     /// 卡标题：上游 summary 优先；为空时按 action＋类型
     /// 拼兜底人话，不许拿正文截段当摘要（敏感内容不在
@@ -439,9 +505,24 @@ public struct WriteGateDecisionResponse: Decodable, Sendable, Equatable {
     public let output: String?
     /// "approved" / "rejected"
     public let decision: String?
+    /// 裁决失败的结构化原因（§245 立项，伴生 1.0.29
+    /// 起；B-05 于 1.0.63 改单字段 reason＋
+    /// reason_phase，App 侧 §301 直接切换、不再读旧
+    /// failure_reason）：桥从上游回放输出的 Failed
+    /// 段解析出的本条原因，阶段标恒为 execution；
+    /// success=false 且本字段非空时，卡面提示直接呈
+    /// 现它，替代泛化红字（与记录面预检原因同一呈
+    /// 现通道：原因上卡面，一套口径）。桥解析不出
+    /// 时 reason 键带 null 落回执——解码同按无原因
+    public let reason: String?
+    /// 原因阶段标：回执面恒 execution；无原因时一
+    /// 并作废（与记录面同一归一口径）
+    public let reasonPhase: WriteGateReasonPhase?
 
     enum CodingKeys: String, CodingKey {
         case success, output, decision
+        case reason
+        case reasonPhase = "reason_phase"
     }
 
     public init(from decoder: Decoder) throws {
@@ -449,12 +530,33 @@ public struct WriteGateDecisionResponse: Decodable, Sendable, Equatable {
         success = try container.decodeIfPresent(Bool.self, forKey: .success) ?? false
         output = try container.decodeIfPresent(String.self, forKey: .output)
         decision = try container.decodeIfPresent(String.self, forKey: .decision)
+        let rawReason = try container.decodeIfPresent(
+            String.self, forKey: .reason
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        reason = (rawReason?.isEmpty == false) ? rawReason : nil
+        let rawPhase = try container.decodeIfPresent(
+            String.self, forKey: .reasonPhase
+        )
+        reasonPhase = reason == nil
+            ? nil
+            : rawPhase.flatMap {
+                WriteGateReasonPhase(rawValue: $0.lowercased())
+            }
     }
 
-    public init(success: Bool, output: String?, decision: String?) {
+    public init(
+        success: Bool, output: String?, decision: String?,
+        reason: String? = nil,
+        reasonPhase: WriteGateReasonPhase? = nil
+    ) {
         self.success = success
         self.output = output
         self.decision = decision
+        let trimmedReason = reason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.reason = (trimmedReason?.isEmpty == false)
+            ? trimmedReason : nil
+        self.reasonPhase = self.reason == nil ? nil : reasonPhase
     }
 }
 

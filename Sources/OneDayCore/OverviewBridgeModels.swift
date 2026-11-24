@@ -24,7 +24,7 @@ public struct OverviewSnapshot: Decodable, Equatable, Sendable {
     }
 }
 
-public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable {
+public struct OverviewNotification: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let kind: String
     public let title: String
@@ -100,6 +100,38 @@ public enum ApprovalResolution {
     }
 }
 
+/// 运行终态前台消账（§426 缺陷二，与 Approval-
+/// Resolution 同式）：用户正打开某会话看着其中
+/// 的 run 落定——终态在聊天里已经当面呈现，桥
+/// 随后聚合出的同会话运行完成/失败通知再弹回
+/// 告卡、再加角标就是同一件事报两遍（用户真机
+/// 截图钉死：当面看完回复、卡片照弹、角标照
+/// 挂）。命中口径只认结构信号：未读＋终态 kind
+/// （task_completed/run_failed）＋refId（桥契约
+/// ＝该 run 的服务端会话 id）与当前打开会话的
+/// 服务端 id 逐字同。消账只翻已读——通知中心
+/// 记录保留、历史留痕不丢；非当前会话/非终态/
+/// 无 refId 一律不动（其他会话与后台完成的照
+/// 旧弹卡报角标）
+public enum RunCompletionResolution {
+    public static func receiptsToResolve(
+        notifications: [OverviewNotification],
+        foregroundServerSessionID: String?
+    ) -> [String] {
+        guard let foregroundServerSessionID,
+              !foregroundServerSessionID.isEmpty
+        else { return [] }
+        return notifications.compactMap { item in
+            guard !item.read,
+                  item.kind == "task_completed"
+                    || item.kind == "run_failed",
+                  item.refId == foregroundServerSessionID
+            else { return nil }
+            return item.id
+        }
+    }
+}
+
 public struct OverviewNotificationsResponse: Decodable, Equatable, Sendable {
     public let items: [OverviewNotification]
 
@@ -156,29 +188,32 @@ public enum OverviewStatusLine {
         case online
     }
 
+    /// §259 单源化（2026-11-14）：入参只剩一个在线结
+    /// 论＋一个待审批计数。此前 classify 双入参（桥快
+    /// 照 hermesUp 与通道探活）互为仲裁——探活未知时
+    /// 桥快照替判在线与否，同一事实两个主源。自此结
+    /// 论的合成归 App 层 OverviewBridgeStore 一处
+    /// （channelUp：探活为主源、未知回落桥 hermesUp），
+    /// 本函数只把结论＋计数翻成词与语气，不再仲裁。
+    /// 判定矩阵与旧双入参版逐例等价（旧测试全集已迁
+    /// 至本签名、对账见 §259）。
     private static func classify(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> Kind {
-        if let hermesChannelUp {
-            guard hermesChannelUp else { return .offline }
-            if let snapshot, snapshot.pendingApprovals > 0 {
-                return .pending(snapshot.pendingApprovals)
-            }
-            return .online
-        }
-        guard let snapshot, snapshot.hermesUp else {
-            return .offline
-        }
-        if snapshot.pendingApprovals > 0 {
-            return .pending(snapshot.pendingApprovals)
+        guard let channelUp else { return .offline }
+        guard channelUp else { return .offline }
+        if pendingApprovals > 0 {
+            return .pending(pendingApprovals)
         }
         return .online
     }
 
     public static func resolve(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> String {
-        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        switch classify(
+            channelUp: channelUp, pendingApprovals: pendingApprovals
+        ) {
         case .offline: return "联系不上"
         case .pending(let count): return "待审批 \(count)"
         case .online: return "在线"
@@ -186,9 +221,11 @@ public enum OverviewStatusLine {
     }
 
     public static func tone(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> Tone {
-        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        switch classify(
+            channelUp: channelUp, pendingApprovals: pendingApprovals
+        ) {
         case .offline: return .offline
         case .pending: return .attention
         case .online: return .online

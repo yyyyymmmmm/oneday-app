@@ -14,7 +14,11 @@ import SwiftUI
 ///   点行即达并关抽屉）→发丝线→「管理全部对话」一
 ///   行→发丝线→**「旁聊」区：只列用户本人在 App 里
 ///   开的旁聊**（平铺、最近时间倒序、无分组字、无
-///   每行角标，点行进该会话续聊）。
+///   每行角标，点行进该会话续聊）。（订正：管理行
+///   已于管理收口包补件整行删除——入口挪设置页
+///   「全部对话」行，用户 2026-11-13 18:57 拍板；
+///   现行结构＝导航行组→发丝线→频道区→旁聊区，
+///   抽屉内无任何进全部对话页的路径）
 /// - 22:45 纠正的要害：要撤的只是「其他的对话」——
 ///   Hermes 内部 worker/kanban 会话、验收测试会
 ///   话、微信/TG 等外部平台通道进来的会话；本人开
@@ -51,14 +55,17 @@ import SwiftUI
 ///   拉取；频道行不给计数徽标（口径见 drawerChannel-
 ///   Row 注）。
 /// - §198（抽屉包）三题：①频道显行闸改全量同源——
-///   计数改读共享全量目录（ServerSessionCatalog，
-///   与全部对话页频道段同份可见集），0.36.29 的窗
-///   口共用口径退役（见 drawerFullPartition 注）；
+///   计数改读共享全量目录（原 ServerSessionCatalog、
+///   第 90 条收尾后归 SessionLedger 本体，与全部
+///   对话页频道段同份可见集），0.36.29 的窗
+///   口共用口径退役（该闸已于频道扩展一期整体退
+///   役，见 sectionGates 注）；
 ///   ②管理行并入选项卡组作第六行＋新建分区管理面
 ///   （设置→侧边栏，四区显隐账）；③分割线统一口
 ///   径 R1–R10（线属边界、挂下行组头、与折叠态无
 ///   关），结构见 drawerNavList 注、账本见 DESIGN
-///   §198。
+///   §198。（②订正：管理行已于管理收口包补件整行
+///   迁出、显隐账收三区——见文件头结构条订正注）
 /// - 2026-11-13（P2 真机判红修复）：旁聊区行源扩
 ///   一路——AI 经伴生门面在 App 里替用户开的旁聊
 ///   （R3b 出生证明 oneday-ai-，服务端建、无本地
@@ -71,6 +78,12 @@ import SwiftUI
 ///   收养、收养后本地行接管。22:45 纠正口径不变：
 ///   要撤的仍只是「其他的对话」（worker/kanban/
 ///   平台源不进本区——它们分类上就不是 .mine）。
+/// - 频道扩展一期（2026-11-13）：频道区改恒显清
+///   单（Hermes＋Telegram＋微信冻结行，注册表
+///   drawerList）——成员内容闸退役、整区只认显隐
+///   账；未配对行带状态小字＋chevron（本区唯一带
+///   chevron 的行形态），状态来自伴生频道桥回读
+///   （ChannelStatusStore），读不到不猜、行尾留空。
 /// - 承载沿 0.17.0：壳层（ContentView.DrawerShell）
 ///   以覆盖形态自左滑入盖在静止内容之上（§156 订
 ///   正：覆盖式壳层已退役，本面改由 UIKit 抽屉容
@@ -85,10 +98,35 @@ import SwiftUI
 ///   层、只有文字本体，见 body 内 D3 注；本段与
 ///   下文 0.20.0 注中「顶条维持实色注册」只存沿革。
 ///   0.36.27 再订正：底条浮置＋霜层退役、改注册名
-///   单 safeAreaBar 走纯系统朦胧，见 body 内注。）
+///   单 safeAreaBar 走纯系统朦胧，见 body 内注。
+///   2026-11-22 抽屉量测对齐包三订正：顶注册恢复
+///   ——身份行改挂 safeAreaBar(edge: .top)＋名单
+///   顶缘 .soft 渐隐（Muse 钉顶＋渐隐带机制，主
+///   线量测定案，见 body 内 D3 订正注）；「头尾固
+///   定实色条」旧定式中顶条一侧自此为注册栏＋系
+///   统渐隐，仍不许自绘渐变带/模糊层（E11 纪律不
+///   变，渐隐走系统边缘效果非自绘）。同包：旁聊
+///   行（本地＋未收养）行尾时间整段删除。）
+/// - 结构归位第二批（2026-11-20，用户亲批结构纲
+///   要 D0-1/D1-1/D2-1）：名单结构改定为——主线
+///   行（独立行、动作沿旧）→「旁聊」分区（升 L1
+///   顶点）→「频道」分区（降 L2）→「全部对话」
+///   收尾行（全量列表一级入口、经路由旗根级呈
+///   现）。旧「选项卡」分区整组退役（四行与底栏
+///   同目的地双挂收口，TabView 一处当家）；分区
+///   显隐账消费退役（两区恒在场、折叠保留），跨
+///   页可见性管理元层级自本面剥离。详见
+///   drawerNavList 注
+/// - 台账 194（2026-11-21）：用户真机点题后改
+///   判——「选项卡」分区恢复（四行回收＋主线行
+///   归组）、次序回「选项卡→频道→旁聊」、「全
+///   部对话」迁入选项卡组作第六行；显隐账退役
+///   不恢复、192 视觉值不动。详见 drawerNavList
+///   注⑤
 struct DrawerView: View {
-    /// 面板宽＝壳层量测给（录屏量测 0.79×屏宽、上限
-    /// 400，见 ContentView 壳层注）
+    /// 面板宽＝容器量测给（§313：第 78 条 D2 录屏实
+    /// 测 0.75×容器宽、无上限，单源 DrawerCard-
+    /// Geometry.travel；旧口径 0.79×屏宽/上限 400 作废）
     let width: CGFloat
     /// 当前底栏格（壳层回写，导航行选中垫用）
     let currentTab: ContentView.MainTab
@@ -96,68 +134,84 @@ struct DrawerView: View {
     var onSelectTab: (ContentView.MainTab) -> Void
     /// 关抽屉（壳层执行：弹簧归位＋状态回写）
     var onClose: () -> Void
-    /// 打开「全部对话」管理页（0.18.0；本面先经
-    /// onClose 关抽屉，ContentView 注入呈现）
-    var onManageAll: () -> Void
     /// 打开频道页（0.36.29，频道规格 §3）：频道行
     /// 点按先经 onClose 关抽屉，ContentView 注入呈
     /// 现；入参为频道 id（一期只有 Hermes）
     var onOpenChannel: (String) -> Void
 
-    /// 顶部标题带高（0.36.5）：名单顶部空程
-    /// （contentMargins）与标题浮层共用一数。
-    /// §157 身份行口径：顶距 24＋行高 36（小头像
-    /// 36 档＞Title1 行高约 34，取大者）＋底距 12
-    /// ＝72。Dynamic Type 极端档下名字行高变大、
-    /// 静止时首行可能被身份行略压（已知边界，待
-    /// 真机，与旧口径同界）
-    private static let titleStripHeight: CGFloat = 72
+    /// 顶部标题带高（0.36.5 立、2026-11-22 抽屉
+    /// 量测对齐包退役）：旧制名单顶部空程（con-
+    /// tentMargins）与标题浮层共用一数 56。本包
+    /// 身份行改挂名单 .safeAreaBar(edge: .top)
+    /// 注册（见 body 注），带高改由身份行本体构
+    /// 成（顶距 8＋头像 44＋底距 4＝56，与旧空程
+    /// 逐点恒等、静止布局不变），本令牌随手排空
+    /// 程退役、不再有第二写点（同日 B 项追加后
+    /// 页头只留名字大标题、带高改 49，见身份行
+    /// 注）。沿革：§157 口径
+    /// 72→2026-11-21 样板对齐包改 56（身份行顶
+    /// 距 24→8；样板标题墨顶距安全区顶实测
+    /// 13.7pt、本面名字墨顶 20.1，Δ6.4 是头像
+    /// 44 同行居中的固有量，见交卷对位表）
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 字号档（§157）：会话行在大字体（AX）档改标题/
     /// 时间上下排列，判定只读本环境，不另设开关
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 减透明（0.23.0）：面板底 drawerBackdrop 的实
-    /// 色回退读它（经 Core TransparencyFallback 裁
-    /// 决）；底条霜层的那路已于 0.36.27 随霜层删除
-    @Environment(\.accessibilityReduceTransparency)
-    private var reduceTransparency
+    /// 减透明环境量原供面板底回退裁决读（0.23.0）；
+    /// §318 面板底改恒实色后本面再无消费方，声明
+    /// 随回退分支一并退役（TransparencyFallback
+    /// 本体在 Core 保留、他面仍可用）
     @Query(sort: \ChatThread.updatedAt, order: .reverse)
     private var threads: [ChatThread]
     /// 底条搜索词（本地过滤旁聊区，22:45 纠正后恢复
     /// 0.18.0 抽屉搜索口径）
     @State private var drawerQuery = ""
-    /// 服务端会话 source 映射（会话 id→source）：只
-    /// 喂旁聊行显的来源过滤判定，不作名单数据源；
-    /// 拉不到为空表（本地行恒放行）
-    @State private var drawerServerSources: [String: String] = [:]
-    /// 服务端会话本体映射（会话 id→ServerSession，
-    /// 0.20.0 第三条）：旁聊行标题解析取服务端 AI 标
-    /// 题用（DrawerThreadTitle）；与 source 映射同次
-    /// 拉取同批落位，拉不到为空表（行标题回落本地）
-    @State private var drawerServerSessions: [String: ServerSession] = [:]
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
-    /// 身份行编辑入口（§157）：与枢纽头像菜单同两张
-    /// 编辑页的呈现开关，本面只置位、不复制编辑逻辑
-    @State private var showAvatarEditor = false
-    @State private var showNameEditor = false
+    /// 删除二次确认的待删线程（0.50.30：真删不可恢
+    /// 复，确认门与管理面 ServerSessionRow 同口径）
+    @State private var pendingDeleteThread: ChatThread?
+    /// 归档/置顶回写服务端未落定的人话原因（§233：
+    /// 本地呈现已恢复原状，原因弹报，与删除同式；
+    /// 删除失败原因位已随 §232 乐观删除退役——失
+    /// 败走恢复＋提醒，不再有本位）
+    @State private var archiveFailureReason: String?
+    @State private var pinFailureReason: String?
+    /// 页头名字字号（2026-11-22 抽屉量测对齐包 C
+    /// 项）：基准 24pt bold 对齐 Muse 量测，经
+    /// ScaledMetric 相对 title2 样式缩放——Dynamic
+    /// Type 缩放保住、不钉死字号（规格与沿革见
+    /// TypeRole.drawerTitle 头注）；本面唯一消费点
+    @ScaledMetric(relativeTo: .title2)
+    private var drawerNamePointSize: CGFloat = 24
     /// 分区折叠账（§158）：按区持久化（Core
     /// SectionCollapseState 唯一口径，键见
     /// DrawerSectionKey），杀 App 重进保持
     @AppStorage(SectionCollapseStorageKeys.drawerSections)
     private var drawerCollapseData: Data = Data()
-    /// 分区显隐账（§198）：设置→侧边栏的分区管理面
-    /// 写、本面读（Core SectionVisibilityState 唯一口
-    /// 径，键同 DrawerSectionKey 四键）；与折叠账分
-    /// 册——折叠管收起/展开、本账管整区在/不在
-    @AppStorage(SectionVisibilityStorageKeys.drawerSections)
-    private var drawerVisibilityData: Data = Data()
+    /// 分区显隐账消费已退役（结构归位第二批，
+    /// 2026-11-20，纲要 D1-1）：本面不再读 Section-
+    /// VisibilityState——跨页可见性管理元层级自导
+    /// 航面剥离、两区恒在场。账本本体与设置→侧边
+    /// 栏管理面的退役归第一批对接（见本包交卷）
 
     var body: some View {
+        // F2（手感快速项，2026-11-23）：账本派生一趟
+        // 算清、同源下传——记录合并、标题字典、合并
+        // 行集在本趟各算一次（旧形态：行集与逐行标
+        // 题解析各自重跑合并、标题逐行线性扫描，整
+        // 趟 O(N²)，审计实测 500 条约 9.9ms）；账本
+        // 一变本趟必重算——字典不跨趟存活、不显旧名
+        let records = ledgerRecords
+        let titles = LedgerProjection.titleByLocalThreadID(
+            records
+        )
+        let rows = makeSideRows(records: records)
         // 0.36.27（§97 件三，用户 03:54 拍板「抽屉朦
         // 胧与聊天页一样走纯系统路线比较好点」）：底
         // 条改注册为名单 ScrollView 的 .safeAreaBar
@@ -171,12 +225,14 @@ struct DrawerView: View {
         // 退役，末行避让改由注册留位＋contentMargins
         // 底 8 承接。底条三件本体与落点（indicator
         // 线上方 4pt）不变、不给注册 bar 自加 back-
-        // ground（WWDC25-323 口径）；顶部标题浮层不
-        // 动（0.36.5 定版）。Reduce Transparency 下
+        // ground（WWDC25-323 口径）；顶部标题浮层当
+        // 时不动（0.36.5 定版——已于 2026-11-22 抽
+        // 屉量测对齐包改顶注册，见 D3 订正注）。
+        // Reduce Transparency 下
         // 边缘效果由系统自理（系统自动增不透明），
         // 霜层时代的手排实色回退随霜层一并删除（理
         // 由见 DESIGN §97.3）
-        ZStack(alignment: .bottom) {
+        return ZStack(alignment: .bottom) {
             // 0.36.5（D2，用户实拍右缘贯穿长线）：长线
             // 即名单 ScrollView 的默认滚动指示器——关
             // 掉。壳层与本面已查：右缘只有壳层柔影、
@@ -186,9 +242,9 @@ struct DrawerView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 Group {
                     if isSearching {
-                        drawerSearchList
+                        drawerSearchList(rows: rows, titles: titles)
                     } else {
-                        drawerNavList
+                        drawerNavList(rows: rows, titles: titles)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -210,9 +266,36 @@ struct DrawerView: View {
             // 程（contentMargins）——静止时首行不被
             // 标题压住，滚动时行从标题后方穿过、隐
             // 约透出（Muse 本体同形态）
-            .contentMargins(
-                .top, Self.titleStripHeight, for: .scrollContent
-            )
+            // 2026-11-22 抽屉量测对齐包订正（覆盖上
+            // 段 D3 落法）：主线对 Muse 现行版两图
+            // 定位量测证伪「隐约透出同形态」——Muse
+            // 机制是钉顶固定＋**列表顶部渐隐带**：
+            // 滚动图标题与未滚动图同位（y≈92→94/
+            // 1000），列表自标题下方穿过、最上方一
+            // 行在标题带内呈半透明渐隐，行文字到达
+            // 标题前先溶、永不与字形相撞；本面浮层
+            // 无渐隐，行字形直撞标题带（用户当日图
+            // 4 实证：「三狗」压「服务器会话」行）。
+            // 新落法：身份行改挂名单 .safeAreaBar
+            // (edge: .top) 注册（与底条同挂法、全
+            // App 顶簇注册口径 §213 同路）＋名单
+            // .scrollEdgeEffectStyle(.soft, for:
+            // .top)，渐隐由系统在注册栏高内发放。
+            // D3 当年撤注册的两病因在本落法下不成立：
+            // ①注册不自加 background（WWDC25-323
+            // 口径、底条先例）——静止态无独立色带、
+            // 带与主体无界；②§318 后根背景是实色单
+            // 层、bar 内不再叠 drawerBackdrop——无
+            // 双层断层。不做整块不透明色块（Muse
+            // 不是色块、§318 面板实色亦不变，渐隐
+            // 是内容侧溶解）。带高＝身份行本体高：
+            // 立项时 56（顶 8＋头像 44＋底 4）与旧手
+            // 排空程逐点恒等、静止布局不变；同日 B
+            // 项追加后页头只留名字大标题、带高改 49
+            // （顶 12＋题行高 29＋底 8，见身份行注）
+            // ——机制（顶注册＋顶缘渐隐）不变、变的
+            // 只是栏内构成；名单顶 contentMargins
+            // 随注册留位退役
             // 0.36.27：末行与注册底条之间留一档小间隙
             // （与聊天页列表底口径同式）；注册留位之外
             // 本面唯一的底部手排数
@@ -221,6 +304,11 @@ struct DrawerView: View {
             )
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // 2026-11-22 抽屉量测对齐包：顶缘同挂
+            // .soft——身份行顶注册后，行滚入标题带
+            // 前先溶（Muse 钉顶＋渐隐机制，见上方
+            // D3 订正注）；与设置页顶缘同式
+            .scrollEdgeEffectStyle(.soft, for: .top)
             // 0.36.27（§97 件三）：底条注册（与聊天页
             // bottomBar 同挂法）——搜索态与普通态两套
             // 名单共用本 ScrollView，注册只此一处、两
@@ -228,35 +316,36 @@ struct DrawerView: View {
             .safeAreaBar(edge: .bottom) {
                 drawerBottomBar
             }
-            // 标题浮层：ZStack 顶＝安全区顶（状态栏
-            // 之下），无底块无色带。§157 起浮层首行是
-            // 身份行（drawerIdentityRow）且承命中（整
-            // 行可点开编辑菜单）；浮层其余部分（Spacer）
-            // 仍不承命中——行外拖动归名单/壳层手势
-            VStack {
+            // 2026-11-22 抽屉量测对齐包：身份行改顶
+            // 注册（与底条同挂法）——标题钉顶固定由
+            // 注册承接、顶部渐隐由名单 .scrollEdge-
+            // EffectStyle(.soft, for: .top) 在本栏
+            // 高内发放（机制注见 D3 订正）；0.36.5
+            // 的 ZStack 标题浮层（VStack＋Spacer 不
+            // 承命中）随之退役，身份行本体与承命中
+            // 口径（整行可点开编辑菜单）一字不变
+            .safeAreaBar(edge: .top) {
                 drawerIdentityRow
-                Spacer()
-                    .allowsHitTesting(false)
             }
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
         // 面板底穿过上下安全区（0.4.1 第 10 修沿革：
         // 顶边贴到屏幕顶、底边直达屏底，形态不变）
-        // 0.36.3（用户 18:31 点名）：底由纯色实板改
-        // 系统朦胧材质——对照 Muse 抽屉参考图：整面
-        // 磨砂、后面聊天内容隐约透出、标题与行直接浮
-        // 于材质上。只用系统材质 API（thinMaterial）；
-        // Reduce Transparency 时经 Core 裁决落实色面
-        // （chatSurface 同档；底条霜层的那路回退已于
-        // 0.36.27 随霜层删除，此处只剩面板底本路）。
-        // 私有 variableBlur 永不碰（E11 已注销）
-        // §162 材质减法盘点：面板底本体已是单层（双
-        // 层材质是 0.36.5 标题带时代的病、当时已删）；
-        // thinMaterial 档位是 0.36.3 用户点名定案，
-        // 降档（ultraThin）在仓内与外部均无对标实证、
-        // 不猜不动——本批减法落点在底条三件的叠加装
-        // 饰（见 drawerBottomBar 注）
+        // §318（2026-11-17 用户拍板）：面板底改**不透
+        // 明实色**——0.36.3 的 thinMaterial 半透定案
+        // 作废。出处：用户当日亲递 Muse 侧边栏基准
+        // （纯黑实色、全幅盖严、主内容透出为零）并点
+        // 名「这个就很好」；半透档在 .64 真机帧里呈深
+        // 灰且动画中段叠加柔边/露底后「盖不严」观感
+        // 成立（诊断 drawer-broken-diagnosis-
+        // 20261117.md §5-①）。落色走 Palette.chat-
+        // Surface 既有口径（浅 #FCFCFC／深 system-
+        // Background 纯黑——与旧实板、减透明回退同
+        // 档），全开与动画中段均零透出；减透明回退
+        // 分支随材质退役（实色本体即回退终点、无分
+        // 支可言）。私有 variableBlur 永不碰（E11
+        // 已注销）
         .background {
             drawerBackdrop
                 .ignoresSafeArea(edges: [.top, .bottom])
@@ -272,40 +361,96 @@ struct DrawerView: View {
             Button("取消", role: .cancel) { renamingThread = nil }
             Button("保存") { commitRenameThread() }
         }
-        // 身份行编辑页（§157）：复用枢纽同两张编辑页
-        // 本体（改的都是本机档案），呈现口径与枢纽一
-        // 致（sheet），不另做一套编辑面
-        .sheet(isPresented: $showAvatarEditor) {
-            AgentAvatarEditorView()
+        // 删除二次确认（0.50.30）：文案与管理面共用行
+        // 组件同口径；确认后走真删流（服务端先行、回
+        // 查落定才删本地），失败走下方 alert 显形
+        .confirmationDialog(
+            "删除这条会话？",
+            isPresented: Binding(
+                get: { pendingDeleteThread != nil },
+                set: { if !$0 { pendingDeleteThread = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let thread = pendingDeleteThread {
+                    pendingDeleteThread = nil
+                    performDeleteThread(thread)
+                }
+            }
+            Button("取消", role: .cancel) { pendingDeleteThread = nil }
+        } message: {
+            if let thread = pendingDeleteThread {
+                Text("「\(drawerDisplayTitle(for: thread, titles: titles))」删除后不可恢复。")
+            }
         }
-        .sheet(isPresented: $showNameEditor) {
-            AgentNameEditorView(
-                initialOverride: appState.profileNameOverride
+        .alert(
+            "没改成",
+            isPresented: Binding(
+                get: { archiveFailureReason != nil },
+                set: { if !$0 { archiveFailureReason = nil } }
             )
+        ) {
+            Button("好", role: .cancel) { archiveFailureReason = nil }
+        } message: {
+            Text(archiveFailureReason ?? "")
         }
-        // 开抽屉时补拉服务端 source 映射（只喂来源过
-        // 滤判定；信号源＝壳层维护的语义开合状态）。
+        .alert(
+            "没改成",
+            isPresented: Binding(
+                get: { pinFailureReason != nil },
+                set: { if !$0 { pinFailureReason = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) { pinFailureReason = nil }
+        } message: {
+            Text(pinFailureReason ?? "")
+        }
+        // 身份编辑页呈现已随页头改版撤出本面（2026-
+        // 11-22 抽屉量测对齐包 B 项）：编辑入口归中
+        // 枢身份行档案菜单与设置·身份详情两处既有家
+        // （编辑页本体 AgentAvatarEditors 不动）
         // §162 状态呈现收敛：关抽屉（开→关一沿，Core
         // DrawerSearchPolicy 裁决）即复位搜索词——旧
         // 行为词残留到下次打开、入口直接落在上次的
         // 过滤态，与「重开呈默认态」不是一个状态；
         // 收敛后入口状态只许一个（全量名单＋空框）
-        .onChange(of: appState.drawerPresented) { wasPresented, presented in
-            if presented {
-                Task { await loadDrawerData() }
-            } else if DrawerSearchPolicy.shouldResetQuery(
+        .onChange(of: appState.router.drawerPresented) { wasPresented, presented in
+            if !presented, DrawerSearchPolicy.shouldResetQuery(
                 wasPresented: wasPresented, isPresented: presented
             ) {
                 drawerQuery = ""
             }
+        }
+        // §365 D2：开抽屉的账本可见段刷新（第 67 条
+        // 包一：source/标题改读账本记录列）＋身份重拉
+        // 的触发点，自语义翻转拍迁到开落定拍——旧形
+        // 态两路在翻转即发、完成发布正落在 0.27s 动
+        // 画窗内，名单/页头在滑动途中重渲染（调研
+        // D2）；落定后落写与成熟做法「打开零数据工
+        // 作、落定才应用」同构。新鲜度口径不变：名
+        // 单本体是本地 @Query（开帧即现行数据）、身
+        // 份重拉仍每次打开必发（节流在 AppState
+        // 内），不许显旧身份不破
+        // §370 补：名单一路自此先过账本新鲜度门
+        // （60s）——落定触发点不变、只是新鲜时零请
+        // 求；身份一路口径不变（自有 30s 节流、不入
+        // 本门）
+        .onChange(of: appState.router.drawerOpenSettledCount) {
+            Task { await loadDrawerDataIfNeeded() }
+            // 身份呈现跟随（末写胜包）：抽屉页头就
+            // 是名字与头像——每次打开重拉（节流在
+            // AppState 内），不许显服务器已改掉的旧
+            // 身份
+            Task { await appState.refreshIdentitySurfaces() }
         }
         // 0.7.1（裁决 §3.5 S5 预挂载）：壳层在左缘触摸
         // 按下时即挂载本面抢建树——本面出现即补拉一
         // 次作预取（本地名单由 @Query 随挂载自动建
         // 树），语义打开时仍走上方 onChange 的拉取
         .onAppear {
-            if drawerServerSources.isEmpty {
-                Task { await loadDrawerData() }
+            if !appState.sessionLedger.hasLoaded {
+                Task { await loadDrawerDataIfNeeded() }
             }
         }
         // 0.21.0 标题回流触发点补环：App 回前台重拉
@@ -314,7 +459,7 @@ struct DrawerView: View {
         // 路，本版坐实）
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await loadDrawerData() }
+                Task { await loadDrawerDataIfNeeded() }
             }
         }
         // 0.21.0：已链接旁聊一轮落地后的刷新令牌
@@ -326,215 +471,193 @@ struct DrawerView: View {
         }
     }
 
-    /// 抽屉底（0.36.3）：系统 thinMaterial 朦胧面；
-    /// Reduce Transparency 开启时经 Core
-    /// TransparencyFallback 裁决落实色（chatSurface
-    /// 与旧实板同档），面板与顶条共用同一底、整面
-    /// 一贯。深浅双档由材质本体随系统呈现
-    @ViewBuilder
+    /// 抽屉底（§318，2026-11-17 用户拍板改实色）：
+    /// 恒 Palette.chatSurface 不透明实色（浅
+    /// #FCFCFC／深纯黑），全幅盖严、零透出——
+    /// 0.36.3 thinMaterial 半透定案与减透明回退分
+    /// 支一并退役（定案变更出处见 body 背景注）。
+    /// 本色即旧实板与回退分支一直用的同档，面板与
+    /// 聊天表面同锚
     private var drawerBackdrop: some View {
-        if TransparencyFallback.surface(
-            reduceTransparency: reduceTransparency
-        ) == .solid {
-            Palette.chatSurface
-        } else {
-            Rectangle().fill(.thinMaterial)
-        }
+        Palette.chatSurface
     }
 
-    /// 服务端会话 source 映射拉取（0.19.0 返工瘦身
-    /// 版）：0.18.0 时代此处拉两路名单（可见＋归档）
-    /// 喂抽屉成行；现名单本体是本地线程，服务端只
-    /// 需 id→source 一张映射作行显过滤（limit 100 一
-    /// 页取全——现存 28 条；archived=exclude 与管理
-    /// 页可见口径同源，归档会话的关联线程另有本地
-    /// 归档位把守）
+    /// 抽屉数据刷新（第 67 条包一收编）：旧形态本面
+    /// 自拉第一页建 source/标题映射（0.19.0/0.20.0）
+    /// ＋目录冷补拉一路；自此只触发账本可见段刷新
+    /// ——拉取全 App 只剩账本一处发起源，source/标
+    /// 题改读记录列（全量名单、不再限第一页窗口）
     private func loadDrawerData() async {
-        if let page = try? await appState.performAdmin({ client, config in
-            try await client.serverSessionsPage(
-                config: config, limit: 100, offset: 0, archived: "exclude"
-            )
-        }) {
-            drawerServerSources = Dictionary(
-                uniqueKeysWithValues: page.sessions.map {
-                    ($0.id, $0.source ?? "")
-                }
-            )
-            // 0.20.0 第三条：同批落本体映射，旁聊行标
-            // 题解析（drawerDisplayTitle）取服务端标题
-            drawerServerSessions = Dictionary(
-                uniqueKeysWithValues: page.sessions.map {
-                    ($0.id, $0)
-                }
-            )
-        }
-        // §198：频道闸的全量目录冷时补拉一轮（已热零
-        // 新增拉取——管理页写回与本路补拉共用一份，
-        // 见 ServerSessionCatalog）；不阻塞本路返回，
-        // 目录落位后闸的呈现随观察自动刷新
-        Task {
-            await appState.serverSessionCatalog
-                .refreshIfCold(appState: appState)
-        }
-    }
-
-    /// 旁聊行显示名（0.20.0 第三条）：本地线程已关联
-    /// 服务端会话时走 DrawerThreadTitle 解析（手改名
-    /// ＞服务端 AI 标题＞本地派生快照）——开抽屉/
-    /// 回前台拉到的服务端标题经 drawerServerSessions
-    /// 实时参与呈现，服务端改名/新生成标题下次开抽屉
-    /// 即跟上；未关联的纯本地线程 serverTitle 恒 nil、
-    /// 原样回落本地标题
-    private func drawerDisplayTitle(for thread: ChatThread) -> String {
-        DrawerThreadTitle.resolve(
-            localTitle: thread.title,
-            titleIsManual: thread.titleIsManual,
-            serverTitle: thread.serverSessionID.flatMap {
-                drawerServerSessions[$0]?.cleanedServerTitle
-            }
+        await appState.sessionLedger.refreshVisible(
+            appState: appState, localThreads: threads
         )
     }
 
-    /// 身份行（§157 第一批①，用户 2026-11-11 21:01
-    /// 补充方案）：小头像＋名字＋轻量编辑入口，整行
-    /// 可点。旧形态只有名字文本（0.3.6 立宪 §21.3：
-    /// 状态点/状态词/模型小字全撤——那是管理面信
-    /// 息，不占导航壳第一眼；本行同样不带服务器/模
-    /// 型信息、不做账号卡），且标题浮层整体关命中，
-    /// 用户无从知道去哪里改名换头像。本行落法：整
-    /// 行是一个 Menu（与枢纽头像角标菜单同两项：更
-    /// 换虚拟形象/编辑名称），点开后呈现的编辑页复
-    /// 用枢纽同两张本体（AgentAvatarEditorView/
-    /// AgentNameEditorView，改的都是本机档案 Agent-
-    /// ProfileStore），不另做一套；头像与名字都读
-    /// AppState 单一出口（档案覆盖→soul 名），与全
-    /// App 露脸面同源。编辑提示只给一支铅笔字形
-    /// （inkSecondary 弱档），不加第二层按钮底
+    /// 读触发路（§370）：落定/回前台/预挂载先过账
+    /// 本新鲜度门——TTL 内重复打开零请求、新鲜时
+    /// 直接用已载名单；强制路（刷新令牌、行操作
+    /// onChanged）仍走上方 loadDrawerData 直拉
+    private func loadDrawerDataIfNeeded() async {
+        await appState.sessionLedger.refreshVisibleIfNeeded(
+            appState: appState, localThreads: threads
+        )
+    }
+
+    /// 旁聊行显示名（0.20.0 第三条口径不变、数据源
+    /// 换账本）：记录标题列即 DrawerThreadTitle 解
+    /// 析结果（手改名＞服务端 AI 标题＞本地派生快
+    /// 照，合并时以全量名单算）；记录缺失（线程未
+    /// 注入本轮合并）回落本地标题
+    private func drawerDisplayTitle(for thread: ChatThread) -> String {
+        // F2（手感快速项，2026-11-23）：标题解析改字
+        // 典直达——旧形态逐行 first(where:) 线性扫
+        // 描记录表（名单派生 O(N²) 本体）；现一趟建
+        // 字典（LedgerProjection.titleByLocal-
+        // ThreadID、首个命中优先）＋O(1) 查，语义逐
+        // 字不变（记录缺失回落本地标题）。本式只剩
+        // 动作路径（改名预填／删除执行）调用，手势
+        // 频次、现建一趟与旧单次调用同级
+        LedgerProjection.titleByLocalThreadID(ledgerRecords)[
+            thread.id
+        ] ?? thread.title
+    }
+
+    /// 呈现路径版（F2）：字典由 body 一趟建成下传
+    /// （见 body 头注），行渲染只查不建
+    private func drawerDisplayTitle(
+        for thread: ChatThread,
+        titles: [UUID: String]
+    ) -> String {
+        titles[thread.id] ?? thread.title
+    }
+
+    /// 页头（§157 第一批①立、2026-11-22 抽屉量测
+    /// 对齐包 B/C 项改版）：只留名字大标题——去头
+    /// 像 44 与铅笔钮，与 Muse 抽屉图 1/2 同形态
+    /// （用户 2026-11-21 亲定的抽屉三差①在本包落
+    /// 地）；名字字号按 C 项落 24 基准可缩放（见
+    /// drawerNamePointSize 注）。身份编辑入口不丢
+    /// 失：中枢身份行档案菜单（AgentHubView，同两
+    /// 项：更换虚拟形象/编辑名称）与设置·身份详情
+    /// （IdentityDetailView）两处既有家都在，编辑
+    /// 页本体（AgentAvatarEditors）三处共用、本包
+    /// 不动；本面旧 Menu＋两张 sheet 呈现随改版退
+    /// 役。名字读 AppState 单一出口（档案覆盖→
+    /// soul 名），与全 App 露脸面同源。
+    /// 栏高算式：顶 spacingSM 12＋题行高（24 bold
+    /// 行高 29）＋底 spacingS 8＝49——顶注册栏高自
+    /// 此 49（旧身份行形态 56 的恒等沿革见 body
+    /// D3 订正注）；名字墨顶距安全区顶实算 ≈15.4
+    /// （12＋(29−22)/2），对 Muse 量测 13.7 差
+    /// +1.7、在 ±2 归一线内
     private var drawerIdentityRow: some View {
-        Menu {
-            Button {
-                showAvatarEditor = true
-            } label: {
-                Label("更换虚拟形象", systemImage: "person.crop.circle")
-            }
-            Button {
-                showNameEditor = true
-            } label: {
-                Label("编辑名称", systemImage: "pencil")
-            }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                // 小头像 36 档（枢纽 110/编辑页 44 的同
-                // 源档案图，抽屉行内取小档；呈现三件与
-                // 枢纽同式：scaledToFill＋圆裁＋发丝环）
-                appState.agentAvatarImage
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 36, height: 36)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle().stroke(
-                            Palette.hairline, lineWidth: 0.5
-                        )
-                    }
-                    .accessibilityHidden(true)
-                // 名字沿革：0.20.0 升 34pt（Muse 图推
-                // 算）→0.22.0 字重降 semibold→0.23.0 落
-                // 角色→0.24.0 改 Title1 28 bold（HIG 大
-                // 标题档，用户当日指令、§51）——现行角
-                // 色 screenName 不动
-                Text(appState.agentDisplayName)
-                    .font(.screenName)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "pencil")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
-            }
+        Text(appState.agentDisplayName)
+            .font(.system(size: drawerNamePointSize, weight: .bold))
+            .foregroundStyle(Palette.ink)
+            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .padding(.horizontal, OneDayMetrics.drawerInset)
-        .padding(.top, OneDayMetrics.spacingL)
-        .padding(.bottom, OneDayMetrics.spacingSM)
+            .padding(.horizontal, OneDayMetrics.drawerInset)
+            .padding(.top, OneDayMetrics.spacingSM)
+            .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     // MARK: - 导航主体（0.19.0）
 
-    /// 导航组＋管理行＋旁聊区：对 Muse 样板的结构
-    /// ——导航五行管导航，其下发丝线＋「管理全部
-    /// 对话」一行，再下发丝线＋「旁聊」区（本人
-    /// 旁聊平铺，见旁聊区注）
-    /// §157②：「选项卡」组头删除——其下五行已明示是
-    /// 导航，再挂一层小标签只是多一道分隔与留白；
-    /// 「频道」「旁聊」两组头保留（它们标的是名单分
-    /// 区、不是导航自明区）
-    /// §182.1：用户纠正口径——真问题是缺组标题，恢复
-    /// 「选项卡」组头（与频道/旁聊同口径），与 Muse
-    /// 参照对齐
-    /// §198 重排：分区呈现走四区合成（sectionGates＝
-    /// 显隐账 ∧ 内容闸）——管理行移入选项卡组作第六
-    /// 行（组内分簇线 R5、随组折叠；组被管理面隐藏
-    /// 时它按自家账独立在场、无组头无簇线）；分割线
-    /// 按统一口径 R1–R10：线属于边界、恒挂下行分区
-    /// 的组头上方、与任何区的折叠态无关（R2/R6）；
-    /// 首区无顶线（R8）；组头与子项之间永不划线
-    /// （R3）；不渲染的区连线退场（R7）；线顶留白恒
-    /// spacingS 一处记账（R10）
-    private var drawerNavList: some View {
-        // 在场合成：选项卡槽＝组本体或独立管理行；
-        // 边界线只许出现在「上方已有在场区」的区头顶
-        let navSlotPresent = sectionGates.navigation
-            || sectionGates.manage
-        let channelsPresent = sectionGates.channels
-        return VStack(alignment: .leading, spacing: 0) {
-            if sectionGates.navigation {
-            // §182.1：导航组头恢复标题「选项卡」，
-            // 与频道/旁聊组头同形态同口径
-            drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)
-            drawerCollapsibleContent(
-                collapsed: drawerSectionCollapsed(
-                    DrawerSectionKey.navigation
-                )
-            ) {
-            drawerNavRow(
-                symbol: TabBarSymbols.chat.normal,
-                title: "主线聊天",
-                // 0.36.7：本行在单一政策里是主线会话的
-                // 代表行——只有「正在看主线」时带胶囊，
-                // 不再是「人在聊天表面」的指示（§10.2）
-                selected: drawerSelection == .main
-            ) {
-                onClose()
-                // 0.30.0（用户 12:56 录屏点名 Muse 模
-                // 型）：本行是显式回主线的唯一入口——经
-                // 线程选择通道直切钦定主线（ChatView 消
-                // 费切换、并经落点记忆落盘）；底部页签本
-                // 身不再承担回主线语义（点页签回上次对
-                // 话，见 ChatLandingResolution）。钦定尚
-                // 未落定时只切页签，ChatView 落点解析会
-                // 以主线兜底
-                if let mainID = appState.sideChats.mainThreadID {
-                    appState.drawerThreadSelection = mainID
-                }
-                // 0.36.7（§10.3 置位纪律）：导航动作显
-                // 式写当前对象引用，胶囊随点按即归主线
-                // 0.36.29：回主线即离频道出处（§10.3
-                // 置位点清零），防残留出处把后续同步带
-                // 回 .channel
-                appState.channelViewingOrigin = nil
-                appState.currentDrawerObject = .main
-                onSelectTab(.chat)
-            }
-            // 枢纽行已删（0.36.5，用户 19:24 点名）：
-            // 枢纽 sheet 本体长在聊天页，删行后的入口
-            // ＝聊天页身份胶囊点按与回告卡点按（均直
-            // 接置 showHub）；hubOpenRequested 请求通
-            // 道保留不动（ChatView 消费端在原处）
+    /// 导航组＋旁聊区：对 Muse 样板的结构——导航
+    /// 五行管导航，其下发丝线＋「旁聊」区（本人旁
+    /// 聊平铺，见旁聊区注）；（0.19.0 曾有「管理全
+    /// 部对话」一行夹在导航组与旁聊区之间，§198 并
+    /// 入选项卡组作第六行；已于管理收口包补件整行
+    /// 迁出——入口挪设置页「全部对话」行，用户
+    /// 2026-11-13 18:57 拍板，本面不再有进全部对
+    /// 话页的路径）
+    /// 名单结构（结构归位第二批，2026-11-20，纲要
+    /// D0-1/D1-1/D2-1）：自上而下＝主线行→「旁聊」
+    /// 分区（会话列表，本面顶点）→「频道」分区→
+    /// 「全部对话」收尾行。逐项口径：
+    /// ①旧「选项卡」分区整组退役——动态／点子／目
+    /// 标／资源库四行与前景 TabView 同目的地双挂
+    /// （D0-1、原则 2），收口后五个格只在底栏一处
+    /// 当家。其中「主线聊天」行语义不是切格而是回
+    /// 主线线程（底栏格不承担回主线语义，见主线行
+    /// 注），故以独立行形态留在名单顶部、动作与旧
+    /// 行一字不变，不随组退役。
+    /// ②分区次序对调：旁聊（会话列表）升 L1 顶点、
+    /// 频道降 L2（纲要抽屉目标树）；旧序「频道插在
+    /// 选项卡与旁聊之间」随选项卡组退役一并作废。
+    /// ③分区显隐账退役：本面不再读 SectionVisibi-
+    /// lityState、sectionGates 合成整件退役——两区
+    /// 恒在场（频道恒显清单、旁聊空时留弱字行），
+    /// 「配置我自己」的跨页可见性管理元层级自导航
+    /// 面剥离（D1-1、原则 2 的管理面收口）；折叠账
+    /// 保留（纲要明定折叠保留）。设置→侧边栏管理
+    /// 面与 Core 显隐账本体的退役归第一批对接（见
+    /// 本包交卷对接点），本面先断消费。
+    /// ④分割线沿 R1–R10 旧口径：线恒挂下行分区组
+    /// 头上方、与折叠态无关（R2/R6）；首行（主线
+    /// 行）无顶线（R8）；「全部对话」收尾行上方挂
+    /// 线与分区边界同式；不渲染的区连线退场（R7）
+    /// 在本面已无适用对象（两区恒在场）
+    /// ⑤台账 194（2026-11-21 用户 08:15 真机点题
+    /// 「顺序不对、点子/动态/目标/资源库不见了、
+    /// 全部对话/主聊没有归类」＋同日 00:39「抽屉
+    /// 学 Muse 样板全部、含布局」令）：①的整组
+    /// 退役与②的次序对调就此改判——「选项卡」分
+    /// 区恢复（组头＋主线聊天／动态／点子／目标／
+    /// 资源库四行，行本体逐字回收退役前装配），
+    /// 次序回旧序「选项卡→频道→旁聊」（与样板同
+    /// 序）；「全部对话」收尾行迁入选项卡组作第
+    /// 六行归类（D2-1 一级入口语义与路由旗动作不
+    /// 变、只迁装配位置，§198 第六行先例同位）。
+    /// ③显隐账退役不恢复（三区恒在场、折叠账保
+    /// 留）；④分割线口径不变、线随次序改挂频道／
+    /// 旁聊组头上方。192 视觉量测值全保留、本条
+    /// 只动内容装配；装配回归钉见 DrawerIAAssem-
+    /// blyUITests（UI 测试——进程内单测环境 AX 树
+    /// 不填充、本仓已有实证）
+    private func drawerNavList(
+        rows: [DrawerSideRow], titles: [UUID: String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            drawerTabSection
+            // R2 边界线：恒挂频道组头上方，与频道区
+            // 折叠态无关
+            drawerDivider
+                .padding(.top, OneDayMetrics.spacingS)
+            drawerChannelSection
+            // R2 边界线：恒挂旁聊组头上方，与旁聊区
+            // 折叠态无关
+            drawerDivider
+                .padding(.top, OneDayMetrics.spacingS)
+            drawerSideSection(rows: rows, titles: titles)
+            Color.clear
+                .frame(height: OneDayMetrics.spacingL)
+        }
+        .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    /// 「选项卡」分区（台账 194 恢复）：组头＋六行
+    /// ——主线聊天／动态／点子／目标／资源库／全部
+    /// 对话。四导航行与主线行本体逐字沿退役前装配
+    /// （fc93ea8^ 回收，动作与选中政策一字未改）；
+    /// 全部对话行即原名单收尾行本体迁入作第六行
+    /// （动作仍经路由旗根级呈现，只迁装配位置）。
+    /// 折叠走既有折叠账 navigation 键、组头走
+    /// drawerCollapsibleHeader 既有口径（192 视觉值
+    /// 随件自带：stateText 尾件＋块高 36＋样板头墨）
+    @ViewBuilder
+    private var drawerTabSection: some View {
+        drawerCollapsibleHeader(
+            "选项卡", key: DrawerSectionKey.navigation
+        )
+        drawerCollapsibleContent(
+            collapsed: drawerSectionCollapsed(
+                DrawerSectionKey.navigation
+            )
+        ) {
+            drawerMainThreadRow
             // 0.35.0（P3 五格）：动态行与底栏同序进
-            // 「选项卡」组
+            // 「选项卡」组（194 恢复时逐字回收）
             drawerNavRow(
                 symbol: TabBarSymbols.feed.normal,
                 title: "动态",
@@ -560,100 +683,129 @@ struct DrawerView: View {
                 onSelectTab(.goals)
             }
             drawerNavRow(
-                // 0.20.0 第七条：应用格改文件格，导航行
-                // 同步改「文件」（符号与底栏同源 files 对）
+                // 0.20.0 第七条：应用格改文件格，导航
+                // 行同步改「资源库」（符号与底栏同源
+                // files 对）
                 symbol: TabBarSymbols.files.normal,
-                title: "文件",
+                title: "资源库",
                 selected: drawerSelection == .surface(.files)
             ) {
                 onClose()
                 onSelectTab(.files)
             }
-                if sectionGates.manage {
-                    // §198（R5 组内分簇线）：上五行是导
-                    // 航簇、管理行是管理簇——同组不同
-                    // 簇，线在此分簇不分家（全抽屉唯一
-                    // 一条组内线）；管理行随组折叠/展开
-                    drawerDivider
-                        .padding(.top, OneDayMetrics.spacingS)
-                    drawerManageRow
-                }
-            }
-            } else if sectionGates.manage {
-                // §198：选项卡组被分区管理面隐藏时，管
-                // 理行按自家账独立在场（显隐只由自家账
-                // 管，规格 §2.2 第 6 条）——无组头、无
-                // 分簇线（簇线是组内物，组不在不挂）
-                drawerManageRow
-            }
-            // 0.36.29（频道规格 §3.1）：频道区插在选项
-            // 卡槽与旁聊区之间（面先于条，与 Muse 样
-            // 板同序）；§198：整区呈现＝显隐账 ∧ 全量
-            // 成员闸（sectionGates.channels），不渲染
-            // 时其头顶边界线一并退场（R7）
-            if channelsPresent {
-                if navSlotPresent {
-                    // R2 边界线：恒挂频道组头上方，与
-                    // 任何区的折叠态无关
-                    drawerDivider
-                        .padding(.top, OneDayMetrics.spacingS)
-                }
-                drawerChannelSection
-            }
-            if sectionGates.sideChats {
-                if navSlotPresent || channelsPresent {
-                    // R2 边界线：恒挂旁聊组头上方——旧
-                    // 挂法「旁聊展开才挂」就此退役，全
-                    // 折叠态本线仍在（验收第一帧）
-                    drawerDivider
-                        .padding(.top, OneDayMetrics.spacingS)
-                }
-                drawerSideSection
-            }
-            Color.clear
-                .frame(height: OneDayMetrics.spacingL)
+            drawerAllConversationsRow
         }
-        .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    /// 主线行（旧「选项卡」组首行；第二批随组退役
+    /// 迁出作独立行、台账 194 随组恢复归组，动作沿
+    /// 革见旧行注）：本行是显式回主线的唯一入口——经线
+    /// 程选择通道直切钦定主线（ChatView 消费切换、
+    /// 并经落点记忆落盘）；底部页签本身不承担回主
+    /// 线语义（点页签回上次对话，见 ChatLanding-
+    /// Resolution）。钦定尚未落定时只切页签，
+    /// ChatView 落点解析会以主线兜底
+    private var drawerMainThreadRow: some View {
+        drawerNavRow(
+            symbol: TabBarSymbols.chat.normal,
+            title: "主线聊天",
+            // 0.36.7：本行在单一政策里是主线会话的
+            // 代表行——只有「正在看主线」时带胶囊，
+            // 不再是「人在聊天表面」的指示（§10.2）
+            selected: drawerSelection == .main
+        ) {
+            // 台账 147：延迟导航待办在位时整下忽
+            // 略（OB 连点口径——关抽屉途中第二下
+            // 点按不重复跳页、首个待办为准）
+            guard !appState.router.hasPendingDrawerNavigation
+            else { return }
+            onClose()
+            // 0.30.0（用户 12:56 录屏点名 Muse 模
+            // 型）：经线程选择通道直切钦定主线；
+            // 台账 147：线程切换改经延迟导航置位
+            // 口——关到近闭合才落真值跳页（落真值
+            // 时 ContentView 的 onChange 自会切格，
+            // 与旁聊行同一条路）；钦定尚未落定（无
+            // 主线 id）时无线程可延迟、仍即时只切
+            // 页签（旧口径兜底不变）
+            if let mainID = appState.sessionLedger.mainThreadID {
+                appState.router.stageDrawerThreadSelection(mainID)
+            } else {
+                onSelectTab(.chat)
+            }
+            // 0.36.7（§10.3 置位纪律）：导航动作显
+            // 式写当前对象引用，胶囊随点按即归主线
+            // 0.36.29：回主线即离频道出处（§10.3
+            // 置位点清零），防残留出处把后续同步带
+            // 回 .channel
+            appState.router.channelViewingOrigin = nil
+            appState.router.currentDrawerObject = .main
+        }
+    }
+
+    /// 「全部对话」行（结构归位第二批，纲要 D2-1
+    /// 立项为名单收尾行；台账 194 迁入「选项卡」
+    /// 组作第六行归类，一级入口语义不变）：全量
+    /// 会话列表升一级面，入口住名单自身，不再埋
+    /// 设置三级路径。点按
+    /// 先收抽屉、再经路由旗请根级呈现（ContentView
+    /// 消费 allConversationsRequested，与设置齿轮
+    /// 的 settingsSheetRequested 同式）；行形态随
+    /// 导航行同簇（字形＋标题），行尾加 chevron 示
+    /// 「进一整页」（与全部对话页内频道行同式）
+    private var drawerAllConversationsRow: some View {
+        Button {
+            onClose()
+            appState.router.allConversationsRequested = true
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "rectangle.stack")
+                    // 字形口径随导航行同档（见
+                    // drawerNavRow 注）
+                    .font(.system(
+                        size: FrameworkIcon.drawerGlyphSize,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(Palette.ink)
+                    .frame(
+                        width: OneDayMetrics.iconSlot,
+                        alignment: .center
+                    )
+                    .accessibilityHidden(true)
+                Text("全部对话")
+                    .font(.drawerNavTitle)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+        .padding(.horizontal, OneDayMetrics.spacingS)
+        .accessibilityLabel("全部对话")
     }
 
     // MARK: - 频道区（0.36.29，频道规格 §3）
 
-    /// 频道显行闸的全量分类（§198 题一修复）：改读
-    /// 共享全量目录（ServerSessionCatalog——全部对
-    /// 话页分页拉全的同份可见集）现算，不再共用开
-    /// 抽屉那一路 limit 100 名单窗口。旧口径的病已
-    /// 实证：窗口被机器会话占满时频道成员恒 0、整区
-    /// 永不显（生产实查最近 100 条里 98 条探针会话、
-    /// 真频道成员 25 条全在窗口外，审计 drawer-
-    /// sections-dividers-audit-20261113 §1）——0.36.29
-    /// 规格 §8-5 自注的「超 100 漏判」就此销账。分
-    /// 类入参与管理页 partition 逐字同源（同分类器
-    /// ＋同主线钦定＋同本地关联集），两面计数恒等
-    private var drawerFullPartition: SessionPartition {
-        SessionClassifier.partition(
-            sessions: appState.serverSessionCatalog.visibleSessions,
-            mainServerSessionID: appState.sideChats.mainServerSessionID,
-            linkedThreadSessionIDs: ThreadLinkage.nonMainLinkedSessionIDs(
-                threads: threads, sideChats: appState.sideChats
-            )
-        )
-    }
+    /// 分区渲染合成（§198）已退役（结构归位第二
+    /// 批，2026-11-20，纲要 D1-1）：显隐账是合成的
+    /// 唯一输入、账退役则合成无物可合——两区恒在
+    /// 场，呈现不再经任何闸。Core DrawerSection-
+    /// Gates 与 SectionVisibilityState 本体随设
+    /// 置→侧边栏管理面一并归第一批对接退役，本面
+    /// 只断消费、不动 Core
 
-    /// 四区渲染合成（§198）：显隐账（分区管理面）∧
-    /// 内容闸（只有频道区有：全量频道成员 ≥1，合并
-    /// 桶计入）走 Core DrawerSectionGates 唯一口径，
-    /// 本面只消费结论排版、不私算
-    private var sectionGates: DrawerSectionGates {
-        DrawerSectionGates.resolve(
-            visibility: SectionVisibilityState.decode(
-                drawerVisibilityData
-            ),
-            hermesChannelCount: drawerFullPartition.hermesChannelCount
-        )
-    }
+    /// 频道配对状态（频道扩展一期）：行尾状态小字
+    /// 的唯一来源——伴生频道桥回读，本面出现时拉
+    /// 一次；读不到时状态为空、行尾不编词
+    @State private var channelStatusStore = ChannelStatusStore()
 
-    /// 频道区：一期只有 Hermes 一行（注册表派生，
-    /// 外部频道未通不占位——通一个显一个）
+    /// 频道区：恒显清单（注册表 drawerList：Hermes
+    /// ＋Telegram＋微信冻结行）
     @ViewBuilder
     private var drawerChannelSection: some View {
         drawerCollapsibleHeader(
@@ -662,32 +814,42 @@ struct DrawerView: View {
         drawerCollapsibleContent(
             collapsed: drawerSectionCollapsed(DrawerSectionKey.channels)
         ) {
-            ForEach(ChannelRegistry.phaseOne) { channel in
+            ForEach(ChannelRegistry.drawerList) { channel in
                 drawerChannelRow(channel)
             }
+        }
+        .task {
+            await channelStatusStore.load(appState: appState)
         }
     }
 
     /// 频道行（规格 §3.2＋对 Muse 抽屉对图改平）：
     /// 与导航行完全同构的平排——图标槽＋标题 Body
     /// 17＋drawerRowHeight，选中才带与导航行同式
-    /// 的胶囊；无卡片底、无 chevron（Muse 频道行
-    /// §157③：行高与标题角色随导航行同批改导航簇档
-    /// 54＋抽屉局部角色（见 drawerNavRow 注），同构
-    /// 关系不变；本行展示名（Hermes）本批不动——改
-    /// 名涉三层命名口径，留待用户拍板（见 §157 记账）
-    /// 与普通行同构，宪法 §7）；**不给计数徽标**
-    /// （抽屉拉取口径与全量不一致，挂数即埋假新
-    /// 鲜，S7 纪律）；图标用注册表资产（Hermes＝
-    /// 0.36.3 登记的本机服务定制图面 LocalHermes），
-    /// 资产本体落字形档 21 居中于 30 槽内、与导航
-    /// 行 SF 字形同尺寸——旧落法资产填满 30 槽，
-    /// 实色方块比线形字形重一圈，是真机截图里本
-    /// 行「卡片感」的主源，本包改平（见 DESIGN
-    /// §101）；选中态问单一选择政策（.channel 命
-    /// 中才带胶囊）
+    /// 的胶囊；无卡片底（Muse 频道行 §157③：行高
+    /// 与标题角色随导航行同批改导航簇档 54＋抽屉局
+    /// 部角色（见 drawerNavRow 注），同构关系不变；
+    /// 本行展示名 2026-11-14 用户拍板改「服务器会
+    /// 话」（§241 大厂九项⑨，内部 id 仍 hermes），
+    /// 宪法 §7）；**不给计数徽标**（抽屉拉取口径与全量
+    /// 不一致，挂数即埋假新鲜，S7 纪律）；图标用注
+    /// 册表资产（品牌频道＝官方原图，宪法 §4；无资
+    /// 产的平台不许拿 SF 符号代用上行——注册表
+    /// drawerList 只收有资产的行），资产本体落字形
+    /// 档 21 居中于 30 槽内、与导航行 SF 字形同尺
+    /// 寸——旧落法资产填满 30 槽，实色方块比线形字
+    /// 形重一圈，是真机截图里本行「卡片感」的主源，
+    /// 本包改平（见 DESIGN §101）；选中态问单一选
+    /// 择政策（.channel 命中才带胶囊）。
+    /// 2026-11-13 频道一期行尾新形态：已配对行与
+    /// Hermes 行同尾（空）；未配对/连接中/连接失败
+    /// 行带状态小字＋chevron（本区唯一带 chevron 的
+    /// 行，进配对引导页）；冻结行（微信）只带「暂
+    /// 不可用」小字、无 chevron（点开是说明页）。
+    /// 状态读不到时小字留空，不编词
     private func drawerChannelRow(_ channel: ChannelDescriptor) -> some View {
         let selected = drawerSelection == .channel(channel.id)
+        let accessory = drawerChannelAccessory(channel)
         return Button {
             onClose()
             onOpenChannel(channel.id)
@@ -698,10 +860,19 @@ struct DrawerView: View {
                         Image(asset)
                             .resizable()
                             .scaledToFit()
-                            .frame(
-                                width: FrameworkIcon.drawerGlyphSize,
-                                height: FrameworkIcon.drawerGlyphSize
-                            )
+                            // 2026-11-21 样板对齐包：品牌资
+                            // 产 21→28＋圆角 6 裁形——样板
+                            // 彩色缩略图实测约 28×28、圆角
+                            // 约 6（28 的 22%、app-icon 比
+                            // 例）；§101「资产落字形档 21
+                            // 防卡片感」口径就此让位样板原
+                            // 形（用户当日亲令学全），资产
+                            // 在 30 槽内居中、左缘 21 对样
+                            // 板 22（Δ1）
+                            .frame(width: 28, height: 28)
+                            .clipShape(RoundedRectangle(
+                                cornerRadius: 6, style: .continuous
+                            ))
                     } else {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(
@@ -727,27 +898,84 @@ struct DrawerView: View {
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if let word = accessory.word {
+                    Text(word)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                if accessory.chevron {
+                    DisclosureChevron(font: .caption2.weight(.semibold))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
-                    Palette.selectionFill
-                        .clipShape(RoundedRectangle(
-                            cornerRadius: OneDayMetrics.fieldCorner,
-                            style: .continuous
-                        ))
+                    // 2026-11-21 样板对齐包：选中垫改全
+                    // 圆角 Capsule——样板实测 stadium（高
+                    // 44、半径 22＝行高之半、圆拟合验
+                    // 证）；旧 fieldCorner 19 圆角矩形仅
+                    // 抽屉三行退场，字段面本体不动
+                    Palette.drawerSelectionFill
+                        .clipShape(Capsule())
                 }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
-        .accessibilityLabel(channel.name)
+        .accessibilityLabel(
+            accessory.word.map { "\(channel.name)，\($0)" }
+                ?? channel.name
+        )
         // 0.43.0（A11Y-V5）：选中态只靠胶囊底色——
         // 补已选特征，VO 不靠颜色辨当前频道
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .drawerRowContextMenu {
+            Button {
+                onClose()
+                onOpenChannel(channel.id)
+            } label: {
+                Label("打开", systemImage: "arrow.up.right")
+            }
+        }
+        .accessibilityIdentifier("drawer.row.channel.\(channel.id)")
+    }
+
+    /// 频道行尾件（频道扩展一期，冻结行尾随二期微
+    /// 信行下架退役）：状态小字＋chevron 的唯一裁决
+    /// 处。Hermes 行恒空尾；已配对平台同空尾（与
+    /// Hermes 行同形态）；令牌型未配对/等待生效/
+    /// 失败带小字＋chevron；状态未回（未加载/读取
+    /// 失败）时只有 chevron（目的地是入口页、会在
+    /// 页内把状态说清）
+    private func drawerChannelAccessory(
+        _ channel: ChannelDescriptor
+    ) -> (word: String?, chevron: Bool) {
+        switch ChannelRegistry.pairingKind(for: channel.id) {
+        case .none:
+            return (nil, false)
+        case .qr:
+            return (L10n.string("未配对"), true)
+        case .token:
+            guard let status = channelStatusStore.status(
+                for: channel.id
+            ) else {
+                return (nil, true)
+            }
+            switch status.state {
+            case "connected":
+                return (nil, false)
+            case "pending_restart":
+                return (L10n.string("连接中"), true)
+            case "error":
+                return (L10n.string("连接失败"), true)
+            default:
+                return (L10n.string("未配对"), true)
+            }
+        }
     }
 
     // MARK: - 旁聊区（0.19.0 返工，22:45 纠正口径）
@@ -758,12 +986,14 @@ struct DrawerView: View {
     /// 空时只留一行弱字提示（不整区消失——让用户知
     /// 道新建入口在哪）
     @ViewBuilder
-    private var drawerSideSection: some View {
+    private func drawerSideSection(
+        rows: [DrawerSideRow], titles: [UUID: String]
+    ) -> some View {
         drawerCollapsibleHeader("旁聊", key: DrawerSectionKey.sideChats)
         drawerCollapsibleContent(
             collapsed: drawerSectionCollapsed(DrawerSectionKey.sideChats)
         ) {
-        if sideRows.isEmpty {
+        if rows.isEmpty {
             Text("还没有旁聊")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
@@ -771,8 +1001,8 @@ struct DrawerView: View {
                 .padding(.horizontal, OneDayMetrics.drawerInset)
                 .padding(.bottom, OneDayMetrics.spacingS)
         } else {
-            ForEach(sideRows) { row in
-                drawerSideRowView(row)
+            ForEach(rows) { row in
+                drawerSideRowView(row, titles: titles)
             }
         }
         }
@@ -782,7 +1012,9 @@ struct DrawerView: View {
     /// 隐藏，与 0.18.0 抽屉搜索同行为）；无命中给弱
     /// 字一行，不留空白屏
     @ViewBuilder
-    private var drawerSearchList: some View {
+    private func drawerSearchList(
+        rows: [DrawerSideRow], titles: [UUID: String]
+    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // §158：搜索态头走同一折叠件但状态被呈现
             // 层强制为展开（搜到一半不许被折叠挡住）；
@@ -791,13 +1023,19 @@ struct DrawerView: View {
                 title: "旁聊",
                 isCollapsed: false,
                 titleFont: .sectionLabel,
+                // 2026-11-21 样板对齐包：与常态分区头
+                // 同形态（stateText＋块高 36＋样板头
+                // 墨，见 drawerCollapsibleHeader 注）；
+                // 搜索态恒展开、尾件自然留空
+                trailingStyle: .stateText,
+                minHeight: 36,
                 onToggle: {
                     toggleDrawerSection(DrawerSectionKey.sideChats)
                 }
             )
-            .foregroundStyle(Palette.inkSecondary)
+            .foregroundStyle(Palette.drawerSectionInk)
             .padding(.horizontal, OneDayMetrics.drawerInset)
-            if sideRows.isEmpty {
+            if rows.isEmpty {
                 Text("没有匹配的旁聊")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
@@ -805,8 +1043,8 @@ struct DrawerView: View {
                     .padding(.horizontal, OneDayMetrics.drawerInset)
                     .padding(.bottom, OneDayMetrics.spacingS)
             } else {
-                ForEach(sideRows) { row in
-                    drawerSideRowView(row)
+                ForEach(rows) { row in
+                    drawerSideRowView(row, titles: titles)
                 }
             }
             Color.clear
@@ -833,121 +1071,72 @@ struct DrawerView: View {
         DrawerSelectionPolicy.resolve(
             currentTab: currentTab,
             chatTab: .chat,
-            currentObject: appState.currentDrawerObject,
+            currentObject: appState.router.currentDrawerObject,
             landingThreadID: nil,
-            mainThreadID: appState.sideChats.mainThreadID
+            mainThreadID: appState.sessionLedger.mainThreadID
         )
     }
 
-    /// 搜索过滤（0.18.0 口径原样）：标题或任一条目内
-    /// 容包含搜索词（不区分大小写）；非搜索态恒全量
-    private var filteredThreads: [ChatThread] {
-        // §162：规范化与判定同出 Core 政策一处
-        let query = DrawerSearchPolicy.normalizedQuery(drawerQuery)
-        guard !query.isEmpty else { return threads }
-        return threads.filter { thread in
-            // 0.20.0：搜索按显示名匹配（AI 标题回流后用
-            // 户看到什么名就能搜到什么名）
-            drawerDisplayTitle(for: thread)
-                .localizedCaseInsensitiveContains(query)
-                || thread.entries.contains {
-                    $0.content.localizedCaseInsensitiveContains(query)
-                }
-        }
-    }
-
-    /// 可见本地线程（0.7.0 口径原样）：归档过滤恒生
-    /// 效——本地归档旁聊从一切名单隐藏（搜索也不许
-    /// 捞出来），只在管理页已归档段可见
-    private var drawerItems: [ChatThread] {
-        filteredThreads.filter {
-            !SideChatArchive.isArchived(
-                localThreadID: $0.id,
-                archivedKeys: appState.sideChats.archivedKeys
-            )
-        }
-    }
-
-    /// 旁聊区行源：可见本地线程剔主线后逐条过 Core
-    /// 行显过滤（DrawerSideChatFilter：主线/归档已在
-    /// 上游剔除，此处再核关联会话来源一道——kanban/
-    /// 平台源的导入线程不显示；来源未知恒放行）。
-    /// 0.29.0：主线判定改走 Core 单一函数 SideChat-
-    /// Classifier.isMain 双信号（钦定 id＋主线会话绑
-    /// 定）——旧单信号只认钦定 id，钦定丢失/指向他
-    /// 条时绑着主线会话的真主线对话会漏进本区（用
-    /// 户 12:31 点名「主线聊天不需要出现在旁聊里
-    /// 面」）；搜索态名单与本区同一行源、自动同口径
-    private var sideThreads: [ChatThread] {
-        drawerItems.filter { thread in
-            DrawerSideChatFilter.threadListed(
-                isMainThread: SideChatClassifier.isMain(
-                    localThreadID: thread.id,
-                    linkedServerSessionID: thread.serverSessionID,
-                    mainThreadID: appState.sideChats.mainThreadID,
-                    mainServerSessionID: appState.sideChats
-                        .mainServerSessionID
-                ),
-                isLocallyArchived: false,
-                linkedSource: thread.serverSessionID.flatMap {
-                    drawerServerSources[$0]
-                }
-            )
-        }
-    }
-
-    /// 未收养旁聊行源（2026-11-13 P2 修复）：分类
-    /// .mine 且无本地线程的服务端会话——AI 在 App
-    /// 里替用户开的旁聊（R3b）与本地线程已删的 App
-    /// 铸旁聊（R3）。现算口径在 Core DrawerUnadopted-
-    /// SideChats（入参两路并集：全量目录＋本面刚拉
-    /// 的第一页，新鲜度优先；已关联者剔除防与本地
-    /// 行双出）；本面只补搜索过滤（按服务端标题，
-    /// 与本地行按显示名搜同一手感）
-    private var visibleUnadoptedSideSessions: [ServerSession] {
-        let all = DrawerUnadoptedSideChats.sessions(
-            catalog: appState.serverSessionCatalog.visibleSessions,
-            latestPage: Array(drawerServerSessions.values),
-            mainServerSessionID: appState.sideChats.mainServerSessionID,
-            linkedThreadSessionIDs: ThreadLinkage
-                .nonMainLinkedSessionIDs(
-                    threads: threads, sideChats: appState.sideChats
-                )
+    /// 账本合并名单（第 67 条包一）：本面名单的唯
+    /// 一输入——@Query 本地线程注入账本、与账本服
+    /// 务端段现场合并；行集/排序/标题全读记录列，
+    /// 本面不再自拉名单、不再自算行集
+    private var ledgerRecords: [SessionRecord] {
+        appState.sessionLedger.records(
+            appState: appState, localThreads: threads
         )
-        let query = DrawerSearchPolicy.normalizedQuery(drawerQuery)
-        guard !query.isEmpty else { return all }
-        return all.filter {
-            $0.resolvedTitle(firstUserMessage: nil)
-                .localizedCaseInsensitiveContains(query)
-        }
     }
 
-    /// 旁聊区合并行集（本地行＋未收养行同区平铺、
-    /// 活动时间倒序）：本地行时间＝线程 updatedAt、
-    /// 未收养行＝服务端活动时间（无日期者垫底）；
-    /// 同刻保原序（本地行在前、各自保序——合并排
-    /// 序不许打乱本地行既有相对序，22:45 平铺口径）
-    private var sideRows: [DrawerSideRow] {
-        var merged: [(row: DrawerSideRow, date: Date, order: Int)] = []
-        for (index, thread) in sideThreads.enumerated() {
-            merged.append((.thread(thread), thread.updatedAt, index))
-        }
-        let unadopted = visibleUnadoptedSideSessions
-        for (index, session) in unadopted.enumerated() {
-            merged.append((
-                .unadopted(session),
-                DrawerUnadoptedSideChats.activityDate(of: session)
-                    ?? .distantPast,
-                sideThreads.count + index
-            ))
-        }
-        return merged
-            .sorted { lhs, rhs in
-                if lhs.date != rhs.date { return lhs.date > rhs.date }
-                return lhs.order < rhs.order
+    private var threadsByID: [UUID: ChatThread] {
+        Dictionary(
+            uniqueKeysWithValues: threads.map { ($0.id, $0) }
+        )
+    }
+
+    /// 旁聊区合并行集（账本投影＋本面搜索）：行集
+    /// 与合并排序走 LedgerProjection.drawerSideRows
+    /// （本地行＋未收养行同区平铺、活动时间倒序）；
+    /// 搜索沿旧口径（0.18.0/§162）——本地行按记录
+    /// 标题（＝显示名）或任一条目内容、未收养行按
+    /// 服务端标题管线（resolvedTitle、素材传 nil
+    /// 与旧行同式），不区分大小写
+    private func makeSideRows(
+        records: [SessionRecord]
+    ) -> [DrawerSideRow] {
+        let query = DrawerSearchPolicy.normalizedQuery(
+            drawerQuery
+        )
+        var rows: [DrawerSideRow] = []
+        for record in LedgerProjection.drawerSideRows(
+            records
+        ) {
+            if let threadID = record.localThreadID,
+               let thread = threadsByID[threadID] {
+                if !query.isEmpty {
+                    let hit = record.title
+                        .localizedCaseInsensitiveContains(query)
+                        || thread.entries.contains {
+                            $0.content
+                                .localizedCaseInsensitiveContains(
+                                    query
+                                )
+                        }
+                    guard hit else { continue }
+                }
+                rows.append(.thread(thread))
+            } else if let session = record.session {
+                if !query.isEmpty {
+                    guard session.resolvedTitle(
+                        firstUserMessage: nil
+                    ).localizedCaseInsensitiveContains(query)
+                    else { continue }
+                }
+                rows.append(.unadopted(session))
             }
-            .map(\.row)
+        }
+        return rows
     }
+
 
     /// 旁聊区行型（本地线程行／未收养服务端行）：
     /// 两路行源合并呈现的统一行标识（id 带来源前缀
@@ -970,22 +1159,23 @@ struct DrawerView: View {
     /// 合并行分发：本地行走既有整行（含长按四件），
     /// 未收养行走服务端行（点达收养）
     @ViewBuilder
-    private func drawerSideRowView(_ row: DrawerSideRow) -> some View {
+    private func drawerSideRowView(
+        _ row: DrawerSideRow, titles: [UUID: String]
+    ) -> some View {
         switch row {
         case .thread(let thread):
-            drawerSideThreadRow(thread)
+            drawerSideThreadRow(thread, titles: titles)
         case .unadopted(let session):
             drawerUnadoptedSideRow(session)
         }
     }
 
     /// 未收养旁聊行（2026-11-13 P2 修复）：与本地行
-    /// 同式（标题＋行尾紧凑时间、行高与内距同档）；
-    /// 标题走服务端标题管线（resolvedTitle——AI 给
-    /// 的名字如「爱的定义」直达），时间走服务端活
-    /// 动时间（无日期不编造、行尾留空）。无当前位胶
-    /// 囊（当前线程恒为本地线程）、无长按四件（那是
-    /// 本地线程的操作面）；点行＝走既有续聊通道点
+    /// 同式（标题单件、行高与内距同档；行尾紧凑时
+    /// 间已于 2026-11-22 抽屉量测对齐包随本地行同
+    /// 批删除）；标题走服务端标题管线（resolved-
+    /// Title——AI 给的名字如「爱的定义」直达）。无当前位胶
+    /// 囊（当前线程恒为本地线程）；点行＝走既有续聊通道点
     /// 达（pendingChatSessionID 置位，与回响卡/管
     /// 理页/频道页同一路）：ContentView 切聊天格、
     /// ChatView 导入建本地线程即收养——收养后本行
@@ -993,45 +1183,42 @@ struct DrawerView: View {
     private func drawerUnadoptedSideRow(
         _ session: ServerSession
     ) -> some View {
-        Button {
-            appState.pendingChatSessionID = session.id
-            onClose()
-        } label: {
-            let title = Text(
+        ServerSessionRow(
+            session: session,
+            title: session.resolvedTitle(firstUserMessage: nil),
+            onOpen: {
+                appState.router.pendingChatSessionID = session.id
+                onClose()
+            },
+            onChanged: { Task { await loadDrawerData() } },
+            onDeleteRequested: { session in
+                // §232 乐观删除（组版收口）：确认即协
+                // 调器起手——目录摘行同拍消失、后台删，
+                // 落定物理收口与最终失败恢复＋提醒由
+                // 协调器统一走（本行原接的 §223 落定
+                // onDeleted 收口钩已随乐观时序退役）
+                appState.sessionDeletions.begin(
+                    sessionID: session.id,
+                    title: session.resolvedTitle(
+                        firstUserMessage: nil
+                    ),
+                    appState: appState,
+                    modelContext: modelContext
+                )
+            },
+            deleteMenuTitle: "删除会话"
+        ) {
+            // 2026-11-22 抽屉量测对齐包：行尾时间删
+            // ——与本地行同口径只留标题（用户亲令、
+            // 对 Muse 旁聊行只有标题的形态）；旧
+            // trailing 时间组与 AX 档上下排列分支随
+            // 之退役（标题单件无需分档排向）
+            Text(
                 session.resolvedTitle(firstUserMessage: nil)
             )
             .font(.drawerRowTitle)
             .foregroundStyle(Palette.ink)
             .a11yLineLimit(1, ax: 2)
-            let trailing = Group {
-                if let date = DrawerUnadoptedSideChats
-                    .activityDate(of: session) {
-                    Text(LocalThreadSubtitle.compactTimeText(
-                        updatedAt: date, now: Date()
-                    ))
-                    .font(.meta)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                }
-            }
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(
-                        alignment: .leading,
-                        spacing: OneDayMetrics.spacingMicro
-                    ) {
-                        title
-                        trailing
-                    }
-                } else {
-                    HStack(spacing: OneDayMetrics.rowInnerGap) {
-                        title
-                        Spacer(minLength: OneDayMetrics.spacingS)
-                        trailing
-                    }
-                }
-            }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .frame(
                 maxWidth: .infinity,
@@ -1040,12 +1227,14 @@ struct DrawerView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
+        .accessibilityIdentifier("drawer.row.side.server.\(session.id)")
     }
 
     /// 旁聊行（0.17.0 单行形态沿用、0.19.0 返工去角
-    /// 标）：标题＋行尾小字时间、当前位浅灰垫；点按
+    /// 标）：标题＋当前位浅灰垫（行尾小字时间已于
+    /// 2026-11-22 抽屉量测对齐包整段删除、只剩置
+    /// 顶钉，见 label 内注）；点按
     /// 经 drawerThreadSelection 请 ChatView 切换并关
     /// 抽屉（0.4.5 通道化沿革）；长按四件与 0.18.0
     /// 本地行同序（重命名/置顶/归档/删除）——置顶只
@@ -1055,12 +1244,22 @@ struct DrawerView: View {
     /// 记（排序仍恒时间序、不学管理页的置顶分段）；
     /// 时间改紧凑口径、选中改字重＋浅灰底统一规则、
     /// AX 档标题/时间上下排列，逐项见 label 内注
-    private func drawerSideThreadRow(_ thread: ChatThread) -> some View {
+    /// （时间呈现已于 2026-11-22 整段退役、AX 排
+    /// 列随之只剩标题与置顶钉两件，见 label 内注）
+    private func drawerSideThreadRow(
+        _ thread: ChatThread, titles: [UUID: String]
+    ) -> some View {
         // 0.36.7：当前位只认单一政策（§10.2）——正在
         // 看这条旁聊时胶囊只归本行、主线聊天行无胶囊
         let isCurrent = drawerSelection == .side(thread.id)
         return Button {
-            appState.drawerThreadSelection = thread.id
+            // 台账 147：延迟导航待办在位时整下忽略
+            // （OB 连点口径）；切换改经延迟置位口，
+            // 关到近闭合才跳页（对象引用仍即时写——
+            // 胶囊是抽屉内呈现、随点按即归位）
+            guard !appState.router.hasPendingDrawerNavigation
+            else { return }
+            appState.router.stageDrawerThreadSelection(thread.id)
             // 0.36.7（§10.3 置位纪律）：导航动作显式
             // 写当前对象引用
             // 0.36.29（§10.4-⑤）：从旁聊区进入即离频
@@ -1068,15 +1267,17 @@ struct DrawerView: View {
             // 条线程，胶囊也随入口归旁聊行，出处必须
             // 在此清零（否则 ChatView 同步会按残留出
             // 处又把引用派生回 .channel）
-            appState.channelViewingOrigin = nil
-            appState.currentDrawerObject = .side(thread.id)
+            appState.router.channelViewingOrigin = nil
+            appState.router.currentDrawerObject = .side(thread.id)
             onClose()
         } label: {
             // §157③④：标题与行尾两件先成件、再按字号
             // 档排向——常态横排（标题抢宽、行尾靠右）；
             // AX 大字体档上下排列（标题在上、行尾在其
             // 下左对齐），不再横向互挤
-            let title = Text(drawerDisplayTitle(for: thread))
+            let title = Text(
+                drawerDisplayTitle(for: thread, titles: titles)
+            )
                 // 0.20.0 字阶：旁聊行题 20 常规（图
                 // 中同为 20pt 级、重于导航行半粗一
                 // 档之差）；标题走 drawerDisplayTitle
@@ -1108,30 +1309,21 @@ struct DrawerView: View {
                 if thread.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.system(
-                            size: 10, weight: .semibold
+                            size: FrameworkIcon.badgeGlyphSize,
+                            weight: .semibold
                         ))
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityHidden(true)
                 }
-                Text(LocalThreadSubtitle.compactTimeText(
-                    updatedAt: thread.updatedAt,
-                    now: Date()
-                ))
-                // 0.23.0：落字阶角色 meta（subheadline，
-                // 默认 15 等值，审计 G2/D1）
-                // 0.24.0：角色改 Footnote 13（HIG 时间
-                // 戳档）——本行随角色变
-                // §157④：时间源改紧凑口径——今天只给
-                // HH:mm（Core compactTimeText），跨日
-                // 仍带日标
-                .font(.meta)
-                // 0.22.0（审计 G1/D2）：时间戳是「要读的
-                // 字」，inkMuted 实算 2.75:1 不达标——换
-                // inkSecondary（4.84:1）；inkMuted 就此只
-                // 留非文字用途，本屏其余面归 0.23.0
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                // 2026-11-22 抽屉量测对齐包：行尾时间
+                // 整段删除（用户亲令「对话边没有时
+                // 间」、对 Muse 旁聊行只有标题的形
+                // 态）——trailing 自此只剩置顶钉一件；
+                // compactTimeText 本体不动（服务端副
+                // 题等他面同源消费）、排序恒时间序不
+                // 变。旧时间呈现沿革（§157④紧凑口径/
+                // meta 角色/inkSecondary 对比改档）随
+                // 本段退役
             }
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
@@ -1152,8 +1344,9 @@ struct DrawerView: View {
             }
             // §157③：内外边距与导航行对齐（内 spacingSM
             // ／外 spacingS）——选中胶囊左右边界与导航/
-            // 频道行同为 8 线、形状同为 fieldCorner 连
-            // 续圆角；标题起点仍恒 20（8＋12）不变
+            // 频道行同为 8 线、形状同为全圆角 Capsule
+            // （2026-11-21 样板对齐包改，见频道行注）；
+            // 标题起点仍恒 20（8＋12）不变
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .frame(
                 maxWidth: .infinity,
@@ -1162,11 +1355,10 @@ struct DrawerView: View {
             )
             .background {
                 if isCurrent {
-                    Palette.selectionFill
-                        .clipShape(RoundedRectangle(
-                            cornerRadius: OneDayMetrics.fieldCorner,
-                            style: .continuous
-                        ))
+                    // 2026-11-21 样板对齐包：选中垫改全
+                    // 圆角 Capsule（口径见频道行注）
+                    Palette.drawerSelectionFill
+                        .clipShape(Capsule())
                 }
             }
             .contentShape(Rectangle())
@@ -1174,12 +1366,12 @@ struct DrawerView: View {
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         // §157④：图钉是纯视觉标记——置顶状态经 acces-
-        // sibilityValue 补播报（标题/时间的内容自读不
-        // 受影响）；未置顶行值为空、不出声
+        // sibilityValue 补播报（标题的内容自读不受
+        // 影响）；未置顶行值为空、不出声
         .accessibilityValue(
             thread.isPinned ? L10n.string("已置顶") : ""
         )
-        .contextMenu {
+        .drawerRowContextMenu {
             Button {
                 beginRenameThread(thread)
             } label: {
@@ -1194,21 +1386,80 @@ struct DrawerView: View {
                 )
             }
             Button {
-                appState.sideChats.archive(localThreadID: thread.id)
+                performArchiveThread(thread)
             } label: {
                 Label("归档", systemImage: "archivebox")
             }
             Button(role: .destructive) {
-                deleteThread(thread)
+                pendingDeleteThread = thread
             } label: {
                 Label("删除会话", systemImage: "trash")
             }
         }
+        .accessibilityIdentifier(
+            "drawer.row.side.local.\(thread.id.uuidString)"
+        )
     }
 
+    /// 抽屉置顶（§233 件七）：本地呈现当拍先翻；绑定
+    /// 会话过回写闸（SideChatLink.mayWriteThroughTo-
+    /// Server）时同步回写服务端 pinned，与全部对话
+    /// 页同一账——不再抽屉一份、服务端一份。回写失
+    /// 败翻回呈现＋弹原因（在飞期间又被改动则不回滚，
+    /// 防覆盖用户的新选择）；无绑定/主线/合并桶维持
+    /// 本地账（闸口径）
     private func togglePinThread(_ thread: ChatThread) {
-        thread.isPinned.toggle()
+        let target = !thread.isPinned
+        thread.isPinned = target
         try? modelContext.save()
+        guard let sessionID = thread.serverSessionID,
+              SideChatLink.mayWriteThroughToServer(
+                  sessionID: sessionID,
+                  mainSessionID: appState.sessionLedger
+                      .mainServerSessionID
+              ) else { return }
+        Task {
+            let outcome = await ServerSessionActions.setPinned(
+                appState: appState, id: sessionID, pinned: target
+            )
+            if case .failed(let reason) = outcome {
+                if thread.isPinned == target {
+                    thread.isPinned = !target
+                    try? modelContext.save()
+                }
+                pinFailureReason = reason
+            }
+        }
+    }
+
+    /// 抽屉归档（§233 件六，归档单真相）：行当拍先隐
+    /// 藏（本地键自此只是服务端归档态的呈现缓存）；
+    /// 绑定会话过回写闸时走 ServerSessionActions.
+    /// setArchived 落服务端——与全部对话页同一账，
+    /// 服务端是归档真源。回写失败撤缓存键、行恢复＋
+    /// 弹原因；读面收敛在全部对话页名单对账（sync-
+    /// DrawerArchiveCache）。无绑定/主线/合并桶维持
+    /// 本地账（合并桶的服务端归档须走管理页带牵连
+    /// 说明的二次确认，抽屉菜单不许绕过）
+    private func performArchiveThread(_ thread: ChatThread) {
+        appState.sessionLedger.archive(localThreadID: thread.id)
+        guard let sessionID = thread.serverSessionID,
+              SideChatLink.mayWriteThroughToServer(
+                  sessionID: sessionID,
+                  mainSessionID: appState.sessionLedger
+                      .mainServerSessionID
+              ) else { return }
+        Task {
+            let outcome = await ServerSessionActions.setArchived(
+                appState: appState, id: sessionID, archived: true
+            )
+            if case .failed(let reason) = outcome {
+                appState.sessionLedger.unarchive(
+                    localThreadID: thread.id
+                )
+                archiveFailureReason = reason
+            }
+        }
     }
 
     private func beginRenameThread(_ thread: ChatThread) {
@@ -1227,75 +1478,53 @@ struct DrawerView: View {
             // 此后服务端 AI 标题再刷新也不许覆盖此名
             // （DrawerThreadTitle 口径）；此前本地存储
             // 无此标记、回流无从分辨，是标题断环之一
+            //
+            // §233 对账口径注记（件七，审计 §8 复核后
+            // 的明示切割）：此手改名是**本机显示名**，
+            // 按既定设计**不回写服务端标题**——它与服
+            // 务端标题不是双账：呈现真值由 Drawer-
+            // ThreadTitle 单一口径裁决（手改名＞服务端
+            // AI 标题＞本地快照），手改标记的职责只是
+            // 防 AI 标题回流覆盖用户手改。代价明示：
+            // 服务端本体与网页端仍显服务端标题；要改
+            // 服务端标题走全部对话页的服务端改名
+            // （ServerSessionActions.rename，PATCH＋
+            // 回读对账）。此切割与文件置顶的「仅本机」
+            // 明示同式，不许后人误当双账事故再「修」
             thread.titleIsManual = true
             try? modelContext.save()
         }
         renamingThread = nil
     }
 
-    private func deleteThread(_ thread: ChatThread) {
-        // 0.4.5 通道化：删的若是 ChatView 正在显示的线
-        // 程，经 drawerDeletedThreadID 通知它置空当前
-        // 线程（本面不持有 currentThreadID）
-        // 0.36.7：「是否当前线程」改经单一选择政策判
-        // 定（旁聊行命中 .side，或主线在看且本线程是
-        // 主线）——activeThreadID 退役后的唯一口径
-        let isCurrent = drawerSelection == .side(thread.id)
-            || (drawerSelection == .main
-                && SideChatClassifier.isMain(
-                    localThreadID: thread.id,
-                    linkedServerSessionID: thread.serverSessionID,
-                    mainThreadID: appState.sideChats.mainThreadID,
-                    mainServerSessionID: appState.sideChats
-                        .mainServerSessionID
-                ))
-            // 0.36.29：正从频道看着的正是本线程（收养
-            // 后的导入线程）时同属「当前线程」——删它
-            // 必须通知 ChatView 置空（.channel 态下选
-            // 择既非 .side 也非 .main，旧两条判不到）
-            || (thread.serverSessionID != nil
-                && thread.serverSessionID
-                    == appState.channelViewingOrigin?.sessionID)
-        if isCurrent {
-            appState.drawerDeletedThreadID = thread.id
+    /// 删除流（§232 乐观删除，用户 2026-11-14 亲
+    /// 定口径，覆盖 0.50.30「服务端先行、回查落定
+    /// 才动本地」）：本线程自建的旁聊会话（Core 真
+    /// 删闸 mayHardDeleteOnThreadDelete）确认后即
+    /// 交 SessionDeletionCoordinator——本地先删
+    /// （墓碑＋目录摘行、同拍消失），服务端围栏删
+    /// 在后台跑，最终失败自动恢复＋提醒；本面不
+    /// 再等服务端、不再弹「没删掉」拦人。其余线
+    /// 程（未链接/导入会话/合并桶绑定）维持只删
+    /// 本地、服务端零动作；主线线程在本面无删除
+    /// 入口（既有保护不动），协调器与真删闸对主
+    /// 线会话本体另有双重拦截
+    private func performDeleteThread(_ thread: ChatThread) {
+        if let linkedSessionID = thread.serverSessionID,
+           SideChatLink.mayHardDeleteOnThreadDelete(
+               sessionID: linkedSessionID,
+               mainSessionID: appState.sessionLedger.mainServerSessionID
+           ) {
+            appState.sessionDeletions.begin(
+                sessionID: linkedSessionID,
+                title: drawerDisplayTitle(for: thread),
+                appState: appState, modelContext: modelContext
+            )
+            return
         }
-        // 0.21.0 删除语义：本地线程删除是全仓唯一删
-        // 除点（管理面删的是服务端会话本体、口径不
-        // 变）；删前快照关联会话 id，本地删除照常先
-        // 行，关联服务端会话随后做归档（PATCH
-        // archived:true，尽力而为）——归档失败不阻
-        // 塞本地删除，会话 id 落 SideChatStore 留痕
-        // 账待对账（该会话在管理页未归档段仍可见）
-        // 0.27.0 加闸（Core mayArchiveOnDelete）：只
-        // 许归档本线程自建的 oneday- 会话；绑合并桶
-        // 或他方服务端会话的线程只删本地、服务端零
-        // 动作——合并桶里混着主线服务端历史，归档
-        // 它等于连带归档主线
-        let linkedSessionID = SideChatLink
-            .mayArchiveOnDelete(sessionID: thread.serverSessionID)
-            ? thread.serverSessionID
-            : nil
-        modelContext.delete(thread)
-        try? modelContext.save()
-        if let linkedSessionID {
-            Task {
-                do {
-                    try await appState
-                        .performAdmin { client, config in
-                            try await client.updateServerSession(
-                                config: config, id: linkedSessionID,
-                                title: nil, pinned: nil,
-                                archived: true
-                            )
-                        }
-                    appState.sideChats
-                        .clearFailedSessionArchive(linkedSessionID)
-                } catch {
-                    appState.sideChats
-                        .noteFailedSessionArchive(linkedSessionID)
-                }
-            }
-        }
+        DeletedSessionCloseout.deleteLocalThread(
+            thread, appState: appState, modelContext: modelContext
+        )
     }
 
     /// 分组小标题（0.3.6 立宪）：13–14 号灰标签、左线
@@ -1331,7 +1560,11 @@ struct DrawerView: View {
     }
 
     private func toggleDrawerSection(_ key: String) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+            )
+        ) {
             drawerCollapseData = SectionCollapseState.encode(
                 SectionCollapseState.toggled(
                     key: key,
@@ -1345,9 +1578,17 @@ struct DrawerView: View {
 
     /// 可折叠分区头：公用件 CollapsibleSectionHeader
     /// 本体（标题角色与旧 drawerGroupHeader 同档
-    /// sectionLabel、颜色在本面补 inkSecondary——公用
-    /// 件不私定颜色，与旧头呈现一贯），外距与旧头同
-    /// 口径（drawerInset 横距＋上下 S/SM）
+    /// sectionLabel、颜色在本面补——公用件不私定颜
+    /// 色），外距 drawerInset 横距＋顶距 S
+    /// 2026-11-21 样板对齐包三改：①色 inkSecondary
+    /// →drawerSectionInk（样板分组头原值 #9D9DA2、
+    /// 代价与口径见该令牌注）；②尾件 chevron→
+    /// stateText（折叠出「显示」、展开留空，样板两
+    /// 态实测）；③块高 44→36、底距 SM→0——组节奏
+    /// 按样板实测重排：展开头墨底→首行 12.2（样板
+    /// 10.3、Δ1.9）、折叠头墨顶→线 31.9（32.0）、
+    /// 线→次头墨顶 20.2（20.0）、折叠块距 52.0
+    /// （52.0），逐项对账见交卷对位表
     private func drawerCollapsibleHeader(
         _ title: String, key: String
     ) -> some View {
@@ -1355,12 +1596,13 @@ struct DrawerView: View {
             title: title,
             isCollapsed: drawerSectionCollapsed(key),
             titleFont: .sectionLabel,
+            trailingStyle: .stateText,
+            minHeight: 36,
             onToggle: { toggleDrawerSection(key) }
         )
-        .foregroundStyle(Palette.inkSecondary)
+        .foregroundStyle(Palette.drawerSectionInk)
         .padding(.horizontal, OneDayMetrics.drawerInset)
         .padding(.top, OneDayMetrics.spacingS)
-        .padding(.bottom, OneDayMetrics.spacingSM)
     }
 
     /// 折叠内容必须是单列：ViewBuilder 的多条导航/会话
@@ -1441,11 +1683,10 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
-                    Palette.selectionFill
-                        .clipShape(RoundedRectangle(
-                            cornerRadius: OneDayMetrics.fieldCorner,
-                            style: .continuous
-                        ))
+                    // 2026-11-21 样板对齐包：选中垫改全
+                    // 圆角 Capsule（口径见频道行注）
+                    Palette.drawerSelectionFill
+                        .clipShape(Capsule())
                 }
             }
             .contentShape(Rectangle())
@@ -1458,92 +1699,25 @@ struct DrawerView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    /// 「管理全部对话」行（0.18.0 立、0.19.0 随名单退
-    /// 役保留）：rectangle.stack＋标题＋chevron 单行，
-    /// 点按关抽屉进管理页（对话的找与管全在那里：
-    /// 四段分区、长按四件、批量、清理、服务端搜索）
-    /// §198：归属变更——自本包起本行是选项卡组内第
-    /// 六行（管理簇，分簇线在其上），呈现点在
-    /// drawerNavList；本定义只管行本体
-    private var drawerManageRow: some View {
-        Button {
-            onClose()
-            onManageAll()
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "rectangle.stack")
-                    // 0.20.0 字阶与导航行同档（27/20 半粗
-                    // /58，见 drawerNavRow 注）；0.22.0 字
-                    // 重随导航行同批降 light（.353→.294）
-                    // 0.24.0：随导航行同批改 21 regular＋
-                    // 行题 Body 17 regular（见彼处注）
-                    .font(.system(
-                        size: FrameworkIcon.drawerGlyphSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: OneDayMetrics.iconSlot,
-                        alignment: .center
-                    )
-                    .accessibilityHidden(true)
-                Text("管理全部对话")
-                    // §157③旧口径：本行是次要入口——标
-                    // 题落次要档 drawerRowTitle（regular），
-                    // 弱于五导航行的 medium 一档；行高随
-                    // 导航簇 54
-                    // §198 升格：本行并入选项卡组作第六
-                    // 行后与导航行同簇同权——标题升为同
-                    // 一档 drawerNavTitle（medium）；chev-
-                    // ron 保留（全组唯一「进二级页」的
-                    // 行，箭头即区分标记，宪法 §9）
-                    .font(.drawerNavTitle)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
-            .padding(.horizontal, OneDayMetrics.spacingSM)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingS)
-        // 0.22.0（并排图节奏复量，审计外用户 00:29 点
-        // 名）：旧形态本行自带顶距 12 叠加发丝线的顶距
-        // 8，管理行上方留白 20pt——是名单里唯一的双线
-        // 孤岛（像素实测：线前留白本行 20pt vs 名单其
-        // 余线前 8pt，参考图同位约 12pt 同档）。撤本行
-        // 额外顶距后线前留白归一为 8pt，管理行回连续
-        // 名单节奏；线→旁聊头留白（8＋头顶距 8）实测
-        // 已比参考图更紧（约 12pt vs 约 24pt），不动
-        .accessibilityLabel("管理全部对话")
-    }
-
     /// 发丝线（左右留 drawerInset 20）：组间分隔的唯
     /// 一形态（立宪：分组＝灰标签＋发丝线，分隔几何
-    /// 全名单只此一种，宪法 §3）。色改挂 Palette
-    /// .separator（宪法 §3 定版的分隔单色、与全 App
-    /// GroupDivider 同源，α 语义压任何面保持可辨）：
-    /// 旧挂 hairline 的浅档 #EEEEF0 与抽屉磨砂底近
-    /// 同色、真机截图里三处组间线全不可见（用户
-    /// 05:34 对图点题），本包改挂显形、几何（20 线、
-    /// 高 1）不动，见 DESIGN §101
+    /// 全名单只此一种，宪法 §3）
     /// 0.41.0（收口批 P3）：实现收编 GroupDivider 本
     /// 体——旧自绘 Rectangle 高 1pt 是全 App 最后一处
     /// 分隔线私实现；改走 GroupDivider（物理发丝
-    /// 1/displayScale＋separator 同源），双侧 inset
-    /// 以 trailingInset 显式传同值保抽屉段内线几何。
-    /// 视觉变化点明：线高由 1pt 变物理发丝（更细、
-    /// 与全 App 其余分隔线同粗），待真机验
+    /// 1/displayScale），双侧 inset 以 trailingInset
+    /// 显式传同值保抽屉段内线几何
+    /// 2026-11-21 样板对齐包：线色 separator→drawer-
+    /// Hairline（#E3E3E3 样板原值）——separator 的加
+    /// 强档是材质面板时代「线不可见」（用户 05:34 点
+    /// 题）的对策，§318 面板改实色后前提已变、样板
+    /// 本体即此淡色且可辨，理由与数值见 drawer-
+    /// Hairline 令牌注；几何（20 线、物理发丝）不动
     private var drawerDivider: some View {
         GroupDivider(
             inset: OneDayMetrics.drawerInset,
-            trailingInset: OneDayMetrics.drawerInset
+            trailingInset: OneDayMetrics.drawerInset,
+            color: Palette.drawerHairline
         )
     }
 
@@ -1568,9 +1742,14 @@ struct DrawerView: View {
     /// Geometry 的量测纯函数本体保留作口径档案、单
     /// 测继续把守）
     private var drawerBottomBar: some View {
-        // 0.3.8 第 23 条：三件紧凑成组——横边距 20→12、
-        // 件间距 12→8，搜索胶囊随之拉长（面板宽约 310
-        // 时胶囊约 166–174，Muse 实测约 173）
+        // 0.3.8 第 23 条：三件紧凑成组、件间距 8
+        // 2026-11-21 样板对齐包：横边距 12→20 回样板
+        // 线——面板宽随 travel 0.79 涨到约 317.6 后，
+        // 边距 20＋钮 45＋间距 8 的算式恰使搜索胶囊
+        // 宽 171.6（样板实测约 172）、两钮中心 42.5/
+        // 275.1（样板 41.8/275），三数同归一线；行盒
+        // 高走 Core DrawerGeometry.bottomBarRowHeight
+        // 52、控件 45 居中（落位口径见该令牌注）
         HStack(spacing: OneDayMetrics.spacingS) {
             drawerRoundButton(
                 // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
@@ -1596,13 +1775,14 @@ struct DrawerView: View {
                 systemName: "gearshape",
                 label: "设置"
             ) {
-                appState.settingsSheetRequested = true
+                appState.router.settingsSheetRequested = true
             }
             HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                // 2026-11-21 样板对齐包：放大镜字形删
+                // ——样板搜索胶囊内实测无图标（胶囊左
+                // 内区像素复测无字形墨迹、占位字距胶
+                // 囊左缘 17.4pt 即文字本体），只换皮
+                // 不换机制：过滤逻辑/清除钮一字不动
                 TextField("搜索会话", text: $drawerQuery)
                     // 0.20.0 字阶：底条搜索字约 18（图中占
                     // 位字量级介于分区头与行题之间）
@@ -1615,7 +1795,7 @@ struct DrawerView: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(Palette.inkMuted)
                             // 0.23.0（命中域审计）：字形不
-                            // 变、命中域外扩 44（胶囊高 52
+                            // 变、命中域外扩 44（胶囊高 45
                             // 可容纳），与文件页 ⋮ 同口径
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
@@ -1626,33 +1806,48 @@ struct DrawerView: View {
                     .buttonStyle(.odPressable)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            // 内距 12→16：占位字左缘距胶囊左 16（样
+            // 板实测 17.4、Δ1.4），与去放大镜同批
+            .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(height: OneDayMetrics.drawerBarButton)
-            // 0.4.1 第 10 修：白浮纸（灰实填）换近白玻
-            // 璃（与圆钮同改）——.glassEffect(.regular)
-            // 系统玻璃（压在 #FCFCFC 面板上采样约
-            // #F9F9F9），玻璃施加于件本体、内容在其上。
-            // §162 材质减法（抽屉呈现第二批）：0.4.1 注
-            // 里「与发送舱同式」当时并不成立——发送舱
-            // 玻璃卡与身份胶囊从来只有裸玻璃，本件却
-            // 在玻璃之上又叠了发丝描边 overlay 与柔影
-            // 两层（玻璃本体自带边缘高光、描边是第二
-            // 次画边；本条注册在 safeAreaBar 内、下方
-            // 有名单 soft 边缘效果承接分离，影是第三
-            // 重分离机制）。本批两层一并删除，三件回
-            // 到裸玻璃、与发送舱/身份胶囊真正同式
-            .glassEffect(.regular, in: Capsule())
+            // 2026-11-21 样板对齐包：材质玻璃→实色白
+            // 卡＋发丝描边＋柔影（样板三件实测：填充
+            // #FFFFFF、描边约 #E2E2E6 0.5–1pt、柔影
+            // y 约 3/blur 约 10/黑约 7%）。§162 的裸玻
+            // 璃口径（描边/柔影是第二三重分离机制）就
+            // 此只对本底条让位——样板本体即白卡形态、
+            // 用户当日亲令学全；发送舱/身份胶囊的裸
+            // 玻璃口径不动。落法：填充走 Palette.
+            // surface（浅 #FFFFFF／暗 #1C1C1E 角色等
+            // 值）、描边走 hairline（浅 #EEEEF0 对样
+            // 板 Δ约 8 级、暗 opaqueSeparator）、柔影
+            // shadowBase 8%/半径 10/y 3
+            .background {
+                Capsule().fill(Palette.surface)
+            }
+            .overlay {
+                Capsule().stroke(Palette.hairline, lineWidth: 1)
+            }
+            .shadow(
+                color: Palette.shadowBase.opacity(0.08),
+                radius: 10, x: 0, y: 3
+            )
             drawerRoundButton(
                 systemName: "square.and.pencil",
                 label: "新建会话"
             ) {
-                createThread()
-                onClose()
+                // 台账 147：延迟导航待办在位时整下忽
+                // 略（不建新线程、不重复跳页）
+                if !appState.router.hasPendingDrawerNavigation {
+                    createThread()
+                    onClose()
+                }
             }
         }
-        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .frame(height: DrawerGeometry.bottomBarRowHeight)
+        .padding(.horizontal, OneDayMetrics.drawerInset)
         .padding(.top, OneDayMetrics.spacingSM)
-        .padding(.bottom, 4)
+        .padding(.bottom, OneDayMetrics.spacingXS)
     }
 
     private func drawerRoundButton(
@@ -1673,11 +1868,19 @@ struct DrawerView: View {
                     width: OneDayMetrics.drawerBarButton,
                     height: OneDayMetrics.drawerBarButton
                 )
-                // 0.4.1 第 10 修：白浮纸换近白玻璃（与
-                // 搜索胶囊同改，口径见彼处注）；§162 材
-                // 质减法：发丝描边 overlay 与柔影随搜索
-                // 胶囊同删，只剩裸玻璃（理由见胶囊处注）
-                .glassEffect(.regular, in: Circle())
+                // 2026-11-21 样板对齐包：与搜索胶囊同
+                // 改实色白卡＋发丝描边＋柔影（口径见
+                // 胶囊处注，§162 裸玻璃只对本底条让位）
+                .background {
+                    Circle().fill(Palette.surface)
+                }
+                .overlay {
+                    Circle().stroke(Palette.hairline, lineWidth: 1)
+                }
+                .shadow(
+                    color: Palette.shadowBase.opacity(0.08),
+                    radius: 10, x: 0, y: 3
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
@@ -1691,7 +1894,9 @@ struct DrawerView: View {
         let thread = ChatThread()
         modelContext.insert(thread)
         try? modelContext.save()
-        appState.drawerThreadSelection = thread.id
+        // 台账 147：新建同走延迟导航置位口（关到近
+        // 闭合才切过去）
+        appState.router.stageDrawerThreadSelection(thread.id)
     }
 }
 

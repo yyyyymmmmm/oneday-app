@@ -781,4 +781,197 @@ final class DeviceSyncTests: XCTestCase {
         )
         XCTAssertEqual(decoded, entry)
     }
+
+    // MARK: - §468 断供复现与修复口径（规格 A）
+
+    /// 断供复现·授权面：旧口径下权限一旦被读成不
+    /// 可用，计划器恒判 blockedPermission——而自
+    /// 动链到此为止、不落账不显形，这正是 11-12
+    /// 后日历/提醒零发起零记录的判定面。修复口径
+    /// 钉在自检处置上：三种关法各给一条明确出路，
+    /// 不许再合并成一句「权限不足」
+    func testSelfCheckBlockedPermissionReproAndVisibleLines() {
+        let now = date(2026, 11, 24, 8, 0)
+        let stale = date(2026, 11, 12, 12, 23)
+        for state in [
+            DevicePermissionState.notDetermined, .writeOnly,
+            .denied, .restricted,
+        ] {
+            let decision = DeviceSyncPlanner.foregroundDecision(
+                dataset: .calendar, permissionUsable: state.isUsable,
+                lastSuccessAt: stale, pendingWrite: false,
+                changePending: false, now: now
+            )
+            XCTAssertEqual(
+                decision, .blockedPermission,
+                "\(state) 应被计划器挡住（断供复现）"
+            )
+            let outcome = DeviceSyncSelfCheck.outcome(
+                permission: state, decision: decision,
+                backoffNextAllowedAt: nil, now: now
+            )
+            XCTAssertEqual(outcome, .blockedPermission(state))
+        }
+        let lines = [
+            DevicePermissionState.notDetermined, .writeOnly, .denied,
+        ].map {
+            SyncSelfCheckOutcome.blockedLine($0, locale: Locale(identifier: "zh-Hans"))
+        }
+        XCTAssertEqual(Set(lines).count, 3, "三种关法的人话必须互不相同")
+        XCTAssertTrue(lines.allSatisfy { !$0.isEmpty })
+    }
+
+    /// 自检处置合成：可用＋过期→发起同步；可用＋
+    /// 刚同步→节流跳过；可用＋本该同步但退避未到
+    /// →退避等候（修复后同步成功路径的前置判定）
+    func testSelfCheckOutcomeComposition() {
+        let now = date(2026, 11, 24, 8, 0)
+        let stale = date(2026, 11, 12, 12, 23)
+        let fresh = date(2026, 11, 24, 7, 59)
+        let expiredDecision = DeviceSyncPlanner.foregroundDecision(
+            dataset: .reminders, permissionUsable: true,
+            lastSuccessAt: stale, pendingWrite: false,
+            changePending: false, now: now
+        )
+        XCTAssertEqual(
+            DeviceSyncSelfCheck.outcome(
+                permission: .granted, decision: expiredDecision,
+                backoffNextAllowedAt: nil, now: now
+            ),
+            .willSync
+        )
+        let freshDecision = DeviceSyncPlanner.foregroundDecision(
+            dataset: .reminders, permissionUsable: true,
+            lastSuccessAt: fresh, pendingWrite: false,
+            changePending: false, now: now
+        )
+        XCTAssertEqual(freshDecision, .skipThrottled)
+        XCTAssertEqual(
+            DeviceSyncSelfCheck.outcome(
+                permission: .granted, decision: freshDecision,
+                backoffNextAllowedAt: nil, now: now
+            ),
+            .throttled
+        )
+        let retryAt = now.addingTimeInterval(3600)
+        XCTAssertEqual(
+            DeviceSyncSelfCheck.outcome(
+                permission: .granted, decision: expiredDecision,
+                backoffNextAllowedAt: retryAt, now: now
+            ),
+            .backoffDeferred(nextAllowedAt: retryAt)
+        )
+    }
+
+    /// 断供复现·节流面＋退避修复：全量失败后不许
+    /// 每轮前台整表重推——间隔 15 分钟→1 小时→
+    /// 6 小时封顶，成功清零（规格 A-3）
+    func testFullResyncBackoffLadder() {
+        let t0 = date(2026, 11, 24, 8, 0)
+        var backoff = FullResyncBackoff()
+        XCTAssertTrue(backoff.canAttempt(now: t0), "首次全量不被退避拦")
+
+        backoff = backoff.recordingFailure(at: t0)
+        XCTAssertEqual(backoff.failureCount, 1)
+        XCTAssertFalse(backoff.canAttempt(now: t0.addingTimeInterval(899)))
+        XCTAssertTrue(backoff.canAttempt(now: t0.addingTimeInterval(900)))
+
+        let t1 = t0.addingTimeInterval(900)
+        backoff = backoff.recordingFailure(at: t1)
+        XCTAssertFalse(backoff.canAttempt(now: t1.addingTimeInterval(3599)))
+        XCTAssertTrue(backoff.canAttempt(now: t1.addingTimeInterval(3600)))
+
+        let t2 = t1.addingTimeInterval(3600)
+        backoff = backoff.recordingFailure(at: t2)
+        XCTAssertFalse(backoff.canAttempt(now: t2.addingTimeInterval(6 * 3600 - 1)))
+        XCTAssertTrue(backoff.canAttempt(now: t2.addingTimeInterval(6 * 3600)))
+
+        let t3 = t2.addingTimeInterval(6 * 3600)
+        backoff = backoff.recordingFailure(at: t3)
+        XCTAssertEqual(
+            backoff.nextAllowedAt,
+            t3.addingTimeInterval(6 * 3600),
+            "第四次失败仍是 6 小时封顶、不许再涨"
+        )
+
+        backoff = backoff.recordingSuccess()
+        XCTAssertEqual(backoff.failureCount, 0)
+        XCTAssertNil(backoff.nextAllowedAt)
+        XCTAssertTrue(backoff.canAttempt(now: t3))
+    }
+
+    /// 健康判定：断供现场（11-12 的副本看到 11-24）
+    /// 必须红＋过期；修复后新同步落下即转绿；24h/
+    /// 72h 边界逐档钉死（规格 A-1/A-2）
+    func testHealthLevelBoundariesAndRecovery() {
+        let now = date(2026, 11, 24, 8, 0)
+        let lastSuccess = date(2026, 11, 12, 12, 23)
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: lastSuccess, permissionUsable: true, now: now
+            ),
+            .red, "断供现场的副本年龄必须判红"
+        )
+        XCTAssertTrue(
+            DeviceSyncHealth.isExpired(syncedAt: lastSuccess, now: now)
+        )
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: nil, permissionUsable: true, now: now
+            ),
+            .red, "从未同步判红"
+        )
+        XCTAssertTrue(DeviceSyncHealth.isExpired(syncedAt: nil, now: now))
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: now, permissionUsable: false, now: now
+            ),
+            .red, "权限关恒红（哪怕刚同步过）"
+        )
+        // 修复后：新一轮成功落下，红转绿
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: now.addingTimeInterval(-60),
+                permissionUsable: true, now: now
+            ),
+            .green
+        )
+        XCTAssertFalse(
+            DeviceSyncHealth.isExpired(
+                syncedAt: now.addingTimeInterval(-60), now: now
+            )
+        )
+        // 边界：恰 24h 仍绿、24h+1s 转黄且过期；恰 72h 仍黄、再过转红
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: now.addingTimeInterval(-24 * 3600),
+                permissionUsable: true, now: now
+            ),
+            .green
+        )
+        let justPast24 = now.addingTimeInterval(-24 * 3600 - 1)
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: justPast24, permissionUsable: true, now: now
+            ),
+            .yellow
+        )
+        XCTAssertTrue(
+            DeviceSyncHealth.isExpired(syncedAt: justPast24, now: now)
+        )
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: now.addingTimeInterval(-72 * 3600),
+                permissionUsable: true, now: now
+            ),
+            .yellow
+        )
+        XCTAssertEqual(
+            DeviceSyncHealth.level(
+                syncedAt: now.addingTimeInterval(-72 * 3600 - 1),
+                permissionUsable: true, now: now
+            ),
+            .red
+        )
+    }
 }

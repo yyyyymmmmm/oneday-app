@@ -10,8 +10,10 @@ import UIKit
 
 public extension View {
     /// 分组容器：surface 底＋容器圆角，零描边零阴影（定版 §3.4）。
-    /// 行与分隔线由内容自行排入（行走 ContentRow/FieldRow，
-    /// 分隔走 GroupDivider），容器本身不加内边距。
+    /// 行与分隔线由内容自行排入（行走 ContentRow/FieldRow/
+    /// KeyValueRow，分隔走 GroupDivider），容器本身不加内边距。
+    /// 键值行只许走 KeyValueRow——LabeledContent 是 List/Form
+    /// 的行件，裸入本容器会贴边溢出（台账 198 收敛 S5 定案）。
     func odGroup() -> some View {
         self
             .background(
@@ -40,6 +42,7 @@ public extension View {
 public struct GroupDivider: View {
     private let inset: CGFloat
     private let trailingInset: CGFloat
+    private let color: Color
     @Environment(\.displayScale) private var displayScale
 
     /// trailingInset（0.41.0 收口批 P3）：尾端内缩，
@@ -47,17 +50,24 @@ public struct GroupDivider: View {
     /// 点——抽屉形态定版为左右同 inset 的段内线（与
     /// 名单行同宽），由消费点显式传双侧同值，不改全
     /// App 贯通几何
+    /// color（2026-11-21 抽屉样板对齐包）：线色默认
+    /// Palette.separator 单源不变；抽屉消费点显式传
+    /// Palette.drawerHairline（样板实测发丝色、理由
+    /// 见该令牌注）——全 App 仍只此一处传色，不许
+    /// 其他消费点跟进私改线色
     public init(
         inset: CGFloat = OneDayMetrics.dividerInset,
-        trailingInset: CGFloat = 0
+        trailingInset: CGFloat = 0,
+        color: Color = Palette.separator
     ) {
         self.inset = inset
         self.trailingInset = trailingInset
+        self.color = color
     }
 
     public var body: some View {
         Rectangle()
-            .fill(Palette.separator)
+            .fill(color)
             .frame(height: 1 / max(displayScale, 1))
             .padding(.leading, inset)
             .padding(.trailing, trailingInset)
@@ -102,6 +112,45 @@ public struct AppSymbolTile: View {
     }
 }
 
+/// 入口图标底色块（§344，中枢四欠账·图标底色块）：
+/// 饱和底色圆角块＋白色 SF 字形——设置类页面入口
+/// 图标的统一待遇，供列表行左图标位（台账详情下
+/// 钻入口、监测变化行等）。几何与 AppSymbolTile
+/// 同比例（圆角 size×0.26、字形 size×0.46
+/// semibold），极性相反（彼白底彩字＝应用图标画
+/// 法、本件饱和底白字＝设置入口画法），两件分工
+/// 按承载、不混用。色由消费点给（缺省主题强调
+/// Palette.primary 单色统一，不逐行新造分类色）；
+/// 纯装饰（行文本自带语义），无障碍隐藏
+public struct IconTile: View {
+    private let symbol: String
+    private let color: Color
+    private let size: CGFloat
+
+    public init(
+        symbol: String, color: Color = Palette.primary,
+        size: CGFloat = 30
+    ) {
+        self.symbol = symbol
+        self.color = color
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.26, style: .continuous
+            )
+            .fill(color)
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 /// 分区标题：0.23.0 起走字阶角色 sectionLabel（15
 /// medium，审计 S4：与抽屉分区头/设置分区头三面统一
 /// 同一角色；0.3.7 的 13 regular 旧档让位）、次色、
@@ -119,6 +168,27 @@ public struct SectionLabel: View {
         Text(title)
             .font(.sectionLabel)
             .foregroundStyle(Palette.inkSecondary)
+    }
+}
+
+/// 设置页组头（台账 198 收敛 B7）：与 SectionLabel
+/// 同字阶同色，差别只在 textCase(nil)——设置页组题
+/// 是中文源串、经调用方 L10n 取词后传入，不许被系
+/// 统大写化。此前设置首页/外观页/支持组三页各写一
+/// 份同口径私有助手，自此单源；手搓管理面的组头仍
+/// 走 SectionLabel，两者分工按承载（List 页用本件）
+public struct SettingsSectionHeader: View {
+    private let title: String
+
+    public init(_ title: String) {
+        self.title = title
+    }
+
+    public var body: some View {
+        Text(title)
+            .font(.sectionLabel)
+            .foregroundStyle(Palette.inkSecondary)
+            .textCase(nil)
     }
 }
 
@@ -140,6 +210,43 @@ public struct StatusDot: View {
 }
 
 /// 内容行：图标槽 28 等宽一列、标题＋副题、右侧安静的等宽元信息。
+/// 行尾披露箭头共用件（§431，2026-11-24 主题对位包）：
+/// 参照应用设置行展开箭头的「半透明感」来自系统次级
+/// 色＋SF Symbol hierarchical 渲染——单层符号呈
+/// secondary、双层符号（上下双箭）次层自动更淡。全仓
+/// 行尾附件箭头一律走本件收口，不许再逐页手写
+/// Image＋灰阶前景；字号由调用点以 font 声明（各行
+/// 既有字阶不漂移）。装饰件、对读屏隐藏。
+public struct DisclosureChevron: View {
+    public enum Glyph {
+        case right
+        case upDown
+
+        var systemName: String {
+            switch self {
+            case .right: return "chevron.right"
+            case .upDown: return "chevron.up.chevron.down"
+            }
+        }
+    }
+
+    private let glyph: Glyph
+    private let font: Font
+
+    public init(_ glyph: Glyph = .right, font: Font) {
+        self.glyph = glyph
+        self.font = font
+    }
+
+    public var body: some View {
+        Image(systemName: glyph.systemName)
+            .font(font)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+    }
+}
+
 public struct ContentRow: View {
     private let icon: String?
     private let title: String
@@ -205,6 +312,52 @@ public struct ContentRow: View {
     }
 }
 
+/// 键值行（odGroup 专用，台账 198 收敛 S5）：手工
+/// 组卡内的只读键值对——标签左、值右（等宽、次
+/// 色），几何与 ContentRow 同语法（spacingM 内边
+/// 距、rowHeight 行高）。LabeledContent 的合法住所
+/// 是 List/Form，裸放进 ScrollView 的 odGroup 卡会
+/// 脱离其他行的几何（无内边距无行高、贴边溢出，
+/// 用量/网关两页实拍定案）——组卡内的键值行自此
+/// 只许走本件，不许再裸放 LabeledContent。值截断
+/// 规则：单行、中间截断（版本/日期类长值两头都留）
+public struct KeyValueRow<Value: View>: View {
+    private let label: String
+    private let value: Value
+
+    public init(_ label: String, @ViewBuilder value: () -> Value) {
+        self.label = label
+        self.value = value()
+    }
+
+    public var body: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(label)
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            value
+                .font(.metaMonospaced)
+                .tabularDigits()
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+        .contentShape(Rectangle())
+    }
+}
+
+public extension KeyValueRow where Value == Text {
+    /// 字符串值便捷形：值文案直传，字体/截断口径与
+    /// 视图形一致（等宽次色由 body 统一施加）
+    init(_ label: String, value: String) {
+        self.init(label) { Text(value) }
+    }
+}
+
 /// 字段行（分组容器内）：标签在上、本体在下，行底无框，
 /// 靠容器与发丝线成界（定版 §3.5）。
 public struct FieldRow<Content: View>: View {
@@ -256,17 +409,18 @@ public struct PrimaryButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .font(.headline)
-                .foregroundStyle(Palette.onPrimary)
+                .foregroundStyle(Color.white)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: OneDayMetrics.primaryButtonHeight)
                 .background(
-                    // 0.6.1：主钮改 OpenMuse 原貌——浅蓝填充
-                    // primaryPale（#C8E7FF）＋深墨字（onPrimary），
-                    // 取代旧「深蓝填充＋白字」；禁用 35% 为
-                    // OneDay 既有口径（它无禁用原值）
+                    // 2026-11-24 主按钮统一口径（主线裁
+                    // 决，§453 改判后续）：饱和蓝填充
+                    // primarySaturated（#0064D4）＋白字，
+                    // 取代 0.6.1 的 primaryPale＋onPrimary
+                    // 口径；禁用 35% 为 OneDay 既有口径
                     isEnabled
-                        ? Palette.primaryPale
-                        : Palette.primaryPale.opacity(0.35),
+                        ? Palette.primarySaturated
+                        : Palette.primarySaturated.opacity(0.35),
                     in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
                 )
                 .opacity(configuration.isPressed ? 0.85 : 1)
@@ -448,6 +602,38 @@ public struct DataBar: View {
 
 // MARK: - 视觉纪律组件（0.3.0，DESIGN-V4 §14）
 
+/// 独立数字读数：字阶由消费方给，默认保留原字体字重；
+/// 显式指定字重时深色降一档，避免数字比邻近文字过重。
+public struct NumberText: View {
+    private let value: String
+    private let font: Font
+    private let weight: Font.Weight?
+    @Environment(\.colorScheme) private var colorScheme
+
+    public init(_ value: String, font: Font = .body, weight: Font.Weight? = nil) {
+        self.value = value
+        self.font = font
+        self.weight = weight
+    }
+
+    public var body: some View {
+        Text(value)
+            .font(weight.map { font.weight(effectiveWeight($0)) } ?? font)
+            .monospacedDigit()
+    }
+
+    // 降档只对显式给字重的消费方生效；regular 及其他档保持原样。
+    private func effectiveWeight(_ weight: Font.Weight) -> Font.Weight {
+        guard colorScheme == .dark else { return weight }
+        switch weight {
+        case .bold: return .semibold
+        case .semibold: return .medium
+        case .medium: return .regular
+        default: return weight
+        }
+    }
+}
+
 public extension View {
     /// （条 5 光学对齐 iconOpticalOffset 已于 0.4.0 删除，
     /// 审计 §1.2 #4：图标下移 0.125em 的 hack——SF Symbols
@@ -548,7 +734,11 @@ public extension View {
 /// 份＋状态＋模型；总览/文件页不传、维持身份三件
 public struct IdentityAnchor: View {
     private let name: String
-    private let statusWord: String
+    /// §474：状态词改可选——只许工作状态（消费方传
+    /// AppState.liveActivityPhrase 单源）；nil＝词与
+    /// 状态点一并收起，胶囊只剩头像＋名，不再以连
+    /// 接状态词（在线／未连接）垫底
+    private let statusWord: String?
     private let statusColor: Color
     private let modelName: String?
     private let modelShortName: String?
@@ -573,7 +763,7 @@ public struct IdentityAnchor: View {
     }
 
     public init(
-        name: String, statusWord: String, statusColor: Color,
+        name: String, statusWord: String?, statusColor: Color,
         modelName: String? = nil, modelShortName: String? = nil,
         avatarImage: Image? = nil
     ) {
@@ -603,8 +793,12 @@ public struct IdentityAnchor: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            modelName.map { "\(name)，\(statusWord)，当前模型 \($0)" }
-                ?? "\(name)，\(statusWord)"
+            [
+                name, statusWord,
+                modelName.map { "当前模型 \($0)" },
+            ]
+            .compactMap { $0 }
+            .joined(separator: "，")
         )
     }
 
@@ -634,9 +828,12 @@ public struct IdentityAnchor: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
-            HStack(spacing: OneDayMetrics.iconTextGap) {
-                StatusDot(color: statusColor)
-                if let statusWord {
+            // §474：状态点随词同生同灭——无词时不留
+            // 一颗点单独表「在线」（§449 绿点口径：
+            // presence 点只许聊天簇头像角一处）
+            if let statusWord {
+                HStack(spacing: OneDayMetrics.iconTextGap) {
+                    StatusDot(color: statusColor)
                     Text(statusWord)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -743,10 +940,7 @@ public struct UnifiedRow: View {
                 StatusDot(color: statusColor)
             }
             if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: 13, weight: .regular))
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)

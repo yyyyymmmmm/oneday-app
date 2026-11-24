@@ -63,9 +63,10 @@ final class AgentHubStore {
     /// 打开时冻结的 profile 名（请求键与页头名同源）
     private(set) var frozenProfileName: String?
     private(set) var headerLoaded = false
-    private var serverStatus: ServerStatus?
-    private(set) var sessions: [ServerSession] = []
-    private(set) var sessionsFailed = false
+    /// 网关状态快照：页头状态行自用＋状态页身份头共
+    /// 享读（台账 198 收敛 C4——同一份状态只此一处取
+    /// 数，状态页不再自拉一份）；写口仍只在本店
+    private(set) var serverStatus: ServerStatus?
 
     /// 身份名（0.6.1，用户真机点名）：soul 里取得到的
     /// 身份名（初始加载时顺带拉一次 soul 解析，见
@@ -74,23 +75,26 @@ final class AgentHubStore {
     /// 实体、不是智能体身份，「默认档案」退出标题位
     private(set) var identityName: String?
 
-    /// 页头大名：本地档案覆盖（0.36.22）→ 全局身份名
-    /// （AppState，全局唯一解析点）→ 本店 soul 解析
-    /// → 回落 Hermes；与抽屉/胶囊同源同值
+    /// 页头大名：全局身份名（AppState 名字缓存，服
+    /// 务端单真值的本机副本，§253）→ 本店 soul 解析
+    /// → 回落 Hermes；与抽屉/胶囊同源同值。旧本机
+    /// 档案覆盖层（0.36.22）已随 C-2 收敛退役
     var displayName: String {
-        appState.profileNameOverride
-            ?? appState.identityName
+        appState.identityName
             ?? identityName
             ?? AgentName.fallback
     }
 
     /// 状态行（0.6.1 改口径，用户真机点名）：只报可证
-    /// 事实——在线／在线 · N 条待审批（审核段已加载且
-    /// 非空时）／网关既报状态；旧「在线 · N 个会话进
-    /// 行中」退役：Hermes 不写 ended_at、endedAt 为空
-    /// 的计数实为会话总数、是假进行中。状态未拉到时
-    /// 显示「状态未确认」，不给离线假结论（失败口径
-    /// 沿数据设计）
+    /// 事实——N 条待审批（审核段已加载且非空时）／网
+    /// 关既报状态；旧「在线 · N 个会话进行中」退役：
+    /// Hermes 不写 ended_at、endedAt 为空的计数实为
+    /// 会话总数、是假进行中。状态未拉到时显示「状态
+    /// 未确认」，不给离线假结论（失败口径沿数据设计）
+    /// §474（2026-11-24 用户亲令）：「在线」字样全
+    /// 删——本行是活动行（工作状态／台账活动优先，
+    /// 见 AgentHubView.statusLine），连接在否不占本
+    /// 行；运行中且无待审批时返回空串＝不呈现回落行
     var statusText: String {
         guard let serverStatus else { return L10n.string("状态未确认") }
         let word = ServerLabels.gatewayState(
@@ -101,10 +105,10 @@ final class AgentHubStore {
         if word == L10n.string("运行中") {
             if case .ready(let records) = approvalState, !records.isEmpty {
                 return L10n.format(
-                    "在线 · %lld 条待审批", records.count
+                    "%lld 条待审批", records.count
                 )
             }
-            return L10n.string("在线")
+            return ""
         }
         return L10n.format("网关%@", word)
     }
@@ -116,32 +120,18 @@ final class AgentHubStore {
         ) == L10n.string("运行中")
     }
 
-    /// 分享摘要（页头分享圆钮）：名＋状态＋当前模型
-    /// （§153：主线会话的执行值，与顶栏同源）
-    var shareText: String {
-        let model = appState.chatModel(
-            serverSessionID: appState.sideChats.mainServerSessionID,
-            threadID: nil
-        )
-        return L10n.format("%@ · %@ · 当前模型 ", displayName, statusText)
-            + (ModelDisplayNames.displayName(for: model) ?? model)
-    }
+    // 注：旧 shareText（分享摘要，含当前模型）已随
+    // §227 删除——分享面 0.36.22 起换名片图、该属性无
+    // 调用方，且它是第三个按 SideChatStore 副本独立
+    // 取键读模型账的点，留着有朝一日被误接即复活账
+    // 本分叉（见 DESIGN §227 第 4 条）
 
-    // MARK: - 活动段
-
-    private(set) var activityGroups: [HubActivityDayGroup]?
-    private(set) var activityLoading = false
-
-    // MARK: - 定时段
-
-    private(set) var cronGroups: [(kind: HubCronKind, items: [HubCronItem])]?
-    private(set) var cronFailed = false
-    private(set) var cronLoading = false
-
-    /// jobs 与 runs 跨段共享缓存（活动段与定时段同源，
-    /// 不重复请求，数据设计 §3.1/§4.1）
-    private var jobsCache: [CronJob]?
-    private var runsCache: [String: [ServerSession]] = [:]
+    // 活动段拼装与定时段取数已退役（台账 198 收敛
+    // C1＋普查 R4/D2）：旧「活动」拼装流（sessions＋
+    // logs＋cronRuns 汇编 HubActivity）全仓零消费者、
+    // 每次开枢纽白拉三路，已整段删除（Core 汇编器同
+    // 删）；定时数据归共享 CronStore 单源，本店不再
+    // 私拉一份。工作台账由 LedgerStore 自持、与此无关
 
     // MARK: - 身份段
 
@@ -180,19 +170,88 @@ final class AgentHubStore {
     /// 支消费后即除名）
     private var alwaysApproveMarks: Set<String> = []
 
+    // MARK: - 授权账本（§434 审核格；能力 #12 活证）
+
+    /// grants 回读状态：ready 即端点在位且清单读回
+    /// ——分格注册表（HubSegmentRegistry）据此决定
+    /// 审核格长不长（与审批账回读互为冗余，任一成
+    /// 立即长格）；读不回按 unavailable 诚实降级，
+    /// 不给假清单
+    enum GrantsState: Equatable {
+        case loading
+        case ready(GrantsListResponse)
+        case unavailable
+    }
+
+    private(set) var grantsState: GrantsState = .loading
+    /// 正在撤销的授权键（只禁用当前行）
+    private(set) var revokingGrantKeys: Set<String> = []
+    /// 授权面行内提示（撤销失败等人话）
+    private(set) var grantsNote: String?
+
+    /// GET /v1/grants 回读（网关 Bearer 面，部署包
+    /// 1.3.0）：exec 命令授权＋写闸规则只读投影两源
+    /// 拼合；双源皆败服务端回 503、走 unavailable
+    func loadGrants(force: Bool = false) async {
+        if case .loading = grantsState, !force {
+            // 首次进入即 loading，直接走加载
+        } else if !force, grantsState != .loading {
+            return
+        }
+        grantsState = .loading
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else {
+            grantsState = .unavailable
+            return
+        }
+        do {
+            let response = try await appState.client
+                .listGrants(config: config, apiKey: apiKey)
+            grantsState = .ready(response)
+        } catch {
+            grantsState = .unavailable
+        }
+    }
+
+    /// 撤销一条 exec 授权（写闸条目不走本端点，客户
+    /// 端结构上不发）：成败终局以事后清单回读为准、
+    /// 不认回执自报（HermesClient 头注口径）
+    func revokeGrant(_ entry: GrantEntry) async {
+        guard entry.source == .exec,
+              let patternKey = entry.patternKey,
+              let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        revokingGrantKeys.insert(entry.grantKey)
+        defer { revokingGrantKeys.remove(entry.grantKey) }
+        do {
+            _ = try await appState.client.revokeGrant(
+                config: config, apiKey: apiKey,
+                patternKey: patternKey
+            )
+            grantsNote = nil
+            await loadGrants(force: true)
+        } catch {
+            grantsNote = L10n.string("撤销没成，请稍后再试")
+        }
+    }
+
     // 浏览器段已于 0.9.0 迁出本 Store：状态改读盒桥，
     // 由 BrowserFaceView 自持 BoxBridgeStore（见
     // HubBrowserSection），本 Store 不再留错位源状态。
 
-    // MARK: - 初始加载（页头＋活动段）
+    // MARK: - 初始加载（页头）
 
     private var didLoadInitial = false
     private var didRecheckProfile = false
 
+/// §416 新鲜度普查豁免：段内懒载单拉＋裁决 force 回读，会话级口径（判定表见 DESIGN §416）
+    /// 页头初始加载（台账 198 收敛 C1 瘦身后）：只剩
+    /// profile 冻结＋网关状态＋身份名解析三件——旧版
+    /// 顺带拉的 serverSessions 100 条只喂已退役的活
+    /// 动拼装流（零消费者），整段删除、不再白拉
     func loadInitial() async {
         guard !didLoadInitial else { return }
         didLoadInitial = true
-        activityLoading = true
 
         // 冻结 profile：首次请求前捕获
         if frozenProfileName == nil {
@@ -203,15 +262,6 @@ final class AgentHubStore {
         serverStatus = try? await appState.performAdmin { client, config in
             try await client.status(config: config)
         }
-        do {
-            let page = try await appState.performAdmin { client, config in
-                try await client.serverSessions(config: config, limit: 100)
-            }
-            sessions = page.sessions
-            sessionsFailed = false
-        } catch {
-            sessionsFailed = true
-        }
         headerLoaded = true
         // 身份名顺带解析（0.6.1）：复用身份段的 soul 拉
         // 取（同一份数据、段内已加载不重拉），只为页头
@@ -220,10 +270,30 @@ final class AgentHubStore {
         await loadIdentityIfNeeded()
         if let content = soulDocument?.content {
             identityName = AgentName.resolve(soulContent: content)
+            if let identityName {
+                // §253：枢纽拉到的同一份 soul 顺带刷新
+                // 全局名字缓存（时刻取文档回执）——全
+                // App 露脸面同值，枢纽不另起一份名账
+                appState.agentProfileStore.applyName(
+                    identityName,
+                    serverUpdatedAt: soulDocument?.updatedAt
+                )
+            }
         }
-        await assembleActivity()
-        activityLoading = false
         await recheckProfileOnce()
+    }
+
+    /// 网关状态回读（台账 198 收敛 C4）：状态页身份头
+    /// 改读本店快照后，其出现/下拉刷新经此触发回读
+    /// ——取数仍只在本店一处、消费方不自拉；失败保留
+    /// 旧快照（与 loadInitial 的 try? 口径一致，不拿
+    /// 一次失败冒充离线）
+    func refreshServerStatus() async {
+        if let loaded = try? await appState.performAdmin({ client, config in
+            try await client.status(config: config)
+        }) {
+            serverStatus = loaded
+        }
     }
 
     /// profile 一致性复查（数据设计原则 4）：加载完成后
@@ -236,141 +306,10 @@ final class AgentHubStore {
         } ?? nil
         guard let current, current != frozen else { return }
         frozenProfileName = current
-        sessions = []
-        jobsCache = nil
-        runsCache = [:]
-        activityGroups = nil
-        cronGroups = nil
         soulDocument = nil
         soulSections = nil
         didLoadInitial = false
         await loadInitial()
-    }
-
-    private func loadJobs() async -> [CronJob] {
-        if let jobsCache { return jobsCache }
-        let jobs = (try? await appState.performAdmin { client, config in
-            try await client.cronJobs(config: config)
-        }) ?? []
-        jobsCache = jobs
-        return jobs
-    }
-
-    /// runs 补拉：最多前 20 个 job、并发上限 4（数据设计
-    /// §4.1 预算）。走 performAdmin 后的新鲜 cookie 通道：
-    /// 此方法在 sessions 拉取（已含 401 重登）之后调用，
-    /// 这里直连 client 以便任务组并发，结果只作补充、
-    /// 失败可降级
-    private func loadRuns(for jobs: [CronJob]) async {
-        guard let config = appState.config else { return }
-        let client = appState.client
-        let targets = jobs.prefix(20).filter { runsCache[$0.id] == nil }
-        var index = 0
-        while index < targets.count {
-            let chunk = Array(targets[index..<min(index + 4, targets.count)])
-            let fetched = await withTaskGroup(
-                of: (String, [ServerSession]).self
-            ) { group in
-                for job in chunk {
-                    group.addTask {
-                        let runs = (try? await client.cronRuns(
-                            config: config, id: job.id, limit: 3
-                        )) ?? []
-                        return (job.id, runs)
-                    }
-                }
-                var collected: [String: [ServerSession]] = [:]
-                for await (id, runs) in group {
-                    collected[id] = runs
-                }
-                return collected
-            }
-            for (id, runs) in fetched {
-                runsCache[id] = runs
-            }
-            index += 4
-        }
-    }
-
-    private func assembleActivity() async {
-        // sessions 是主实体：它失败整段失败，日志再完整
-        // 也不能单独拼活动流（数据设计 §4.5）
-        guard !sessionsFailed else {
-            activityGroups = nil
-            return
-        }
-        let jobs = await loadJobs()
-        await loadRuns(for: jobs)
-        // 派生标题素材（0.6.1）：列表接口无标题字段，
-        // 先经全局解析器按预算补齐首条消息再拼装，与
-        // 抽屉行共用同一缓存/派生
-        await appState.sessionTitles.ensureTitles(
-            for: sessions, appState: appState, budget: 10
-        )
-        let logLines = (try? await appState.performAdmin { client, config in
-            try await client.logs(config: config, level: nil, search: nil, lines: 200)
-        })?.lines ?? []
-        let logs = logLines.map { LogEventParser.parse($0) }
-        var jobTitles: [String: String] = [:]
-        for job in jobs { jobTitles[job.id] = job.title }
-        activityGroups = HubActivityAssembler.assemble(
-            sessions: sessions,
-            runsByJobID: runsCache,
-            jobTitles: jobTitles,
-            logs: logs,
-            fetchedAt: Date(),
-            now: Date(),
-            firstUserMessages: appState.sessionTitles.firstUserMessages
-        )
-    }
-
-    /// 活动段重试（sessions 失败后的唯一恢复路径）
-    func reloadActivity() async {
-        didLoadInitial = false
-        await loadInitial()
-    }
-
-    // MARK: - 定时段（懒加载）
-
-    func loadCronIfNeeded() async {
-        guard cronGroups == nil, !cronLoading else { return }
-        cronLoading = true
-        cronFailed = false
-        // jobs 拉取失败与「真无任务」要分开：loadJobs 的
-        // 兜底空数组会把失败吞掉，这里直接请求判成败
-        if jobsCache == nil {
-            do {
-                jobsCache = try await appState.performAdmin { client, config in
-                    try await client.cronJobs(config: config)
-                }
-            } catch {
-                cronFailed = true
-                cronLoading = false
-                return
-            }
-        }
-        let jobs = jobsCache ?? []
-        // 间隔行上次运行补拉：优先用共享 runsCache，缺的
-        // 再单拉 limit 1（数据设计 §3.5，不为每个 job 拉）
-        var lastRuns: [String: Date] = [:]
-        for job in jobs {
-            let item = CronHubClassifier.classify(job)
-            if let cached = runsCache[job.id] {
-                if let latest = cached.compactMap(\.startedDate).max() {
-                    lastRuns[job.id] = latest
-                }
-            }
-            guard item.kind == .interval,
-                  item.lastRunAt == nil,
-                  lastRuns[job.id] == nil else { continue }
-            if let runs = try? await appState.performAdmin({ client, config in
-                try await client.cronRuns(config: config, id: job.id, limit: 1)
-            }), let latest = runs.compactMap(\.startedDate).max() {
-                lastRuns[job.id] = latest
-            }
-        }
-        cronGroups = CronHubClassifier.grouped(jobs, lastRuns: lastRuns)
-        cronLoading = false
     }
 
     // MARK: - 身份段（懒加载）
@@ -562,9 +501,27 @@ final class AgentHubStore {
     var anchorMissCounts: [String: Int] = [:]
     /// 锚点回溯专用已决集（大 limit 拉取、低频刷新）：
     /// 日常 decisionHistory 只取最近 50 条，30 天回溯
-    /// 窗内的带锚记录可能在窗口外——物化优先消费本
-    /// 集，未就绪时以 decisionHistory 代用
+    /// 窗内的带锚记录可能在窗口外——本集只作已决全
+    /// 集的宽窗输入（见 decidedRecords），不再被消费
+    /// 方直接读取
     private(set) var anchorDecisions: [WriteGateDecisionRecord]?
+
+    /// 已决记录全集（§259 单源合成，全 App 唯一查账
+    /// 面）：近窗（decisionHistory）∪ 回溯宽窗
+    /// （anchorDecisions），合成规则在 Core
+    /// DecisionRecordHistory 一处。此前同一本账在三
+    /// 处消费点各自现拼（通知落点、台账详情两处
+    /// View 层＋本类 anchorRowState），自此凡查已决
+    /// 记录只许读本面——两扇窗口的拉取仍归本类
+    /// （refreshDecisionHistory /
+    /// refreshAnchorDecisionsIfStale），合成不许外溢。
+    /// 例外只一处：裁决回路内刚刷新近窗的回读确认
+    /// （decide 的 recordGone 落账与结果行对账）——那
+    /// 是写路径对新拉近窗的即时核对、非呈现查账
+    var decidedRecords: [WriteGateDecisionRecord] {
+        DecisionRecordHistory.merge(
+            recent: decisionHistory, wide: anchorDecisions)
+    }
     private var anchorDecisionsFetchedAt: Date?
 
     /// 锚定行呈现态（单源判定，逻辑在 Core
@@ -583,7 +540,7 @@ final class AgentHubStore {
             pending = []
             dataReady = false
         }
-        let decisions = decisionHistory + (anchorDecisions ?? [])
+        let decisions = decidedRecords
         let key = anchoredKey(forRecordID: recordID)
         return ApprovalAnchor.rowState(
             recordID: recordID, dataReady: dataReady,
@@ -658,6 +615,17 @@ final class AgentHubStore {
     func decide(_ record: WriteGateRecord, approve: Bool) async {
         guard record.canDecide, let config = appState.config else { return }
         guard !decidingIDs.contains(record.id) else { return }
+        // 防呆守卫（§245）：桥侧已判定确定性批不了的
+        // 记录，批准路径在 store 层同样不开口——卡面
+        // 已不给批准钮，这里防其他调用方绕过卡面；
+        // 驳回不受影响（死单的唯一出路）。B-05
+        // （§301）：提示行经 Core reasonLine 单读口；
+        // isBlocked 蕴含 reason 非空、行恒有值，万一
+        // 不然守卫仍不开口（防呆优先于提示完整）
+        if approve, record.isBlocked {
+            cardNotes[record.id] = ApprovalCardCopy.reasonLine(for: record)
+            return
+        }
         decidingIDs.insert(record.id)
         cardNotes.removeValue(forKey: record.id)
         do {
@@ -696,7 +664,18 @@ final class AgentHubStore {
                 )
                 alwaysApproveMarks.remove(record.id)
             } else {
-                cardNotes[record.id] = L10n.string("裁决未生效，请重新打开改动核对后再试。")
+                // §245：桥回了结构化失败原因就直出它
+                // （与记录面预检原因同一「原因上卡面」
+                // 通道），替代泛化红字——旧文案让用户
+                // 以为重开详情再批就能过，实为确定性
+                // 失败时纯属误导（生产个案 62927061）。
+                // B-05（§301）：经 Core reasonLine 单
+                // 读口取行（回执 reason＋execution 阶段）
+                if let reasonLine = ApprovalCardCopy.reasonLine(for: response) {
+                    cardNotes[record.id] = reasonLine
+                } else {
+                    cardNotes[record.id] = L10n.string("裁决未生效，请重新打开改动核对后再试。")
+                }
             }
         } catch let error as WriteGateError {
             switch error {
@@ -750,6 +729,14 @@ final class AgentHubStore {
     func decideAlways(_ record: WriteGateRecord) async {
         guard record.canDecide, let config = appState.config else { return }
         guard !decidingIDs.contains(record.id) else { return }
+        // 防呆守卫（§245）：「总是允许」＝立即批准＋
+        // 立规则，批不了的死单两步都无意义——不建规
+        // 则、不批准，只留原因（与 decide 同口径、
+        // 同一 reasonLine 单读口，§301）
+        if record.isBlocked {
+            cardNotes[record.id] = ApprovalCardCopy.reasonLine(for: record)
+            return
+        }
         decidingIDs.insert(record.id)
         cardNotes.removeValue(forKey: record.id)
         do {

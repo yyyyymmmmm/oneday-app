@@ -1,0 +1,71 @@
+# §417 块级差分报告（count=129）
+
+## edge-tilde-fence [已签收]
+--- 旧核 ---
+P«~~~⏎let x = 1⏎~~~»
+--- 新核 ---
+CODE[-]«let x = 1»
+
+## edge-indented-code [已签收]
+--- 旧核 ---
+P«    let x = 1⏎    print(x)»
+--- 新核 ---
+CODE[-]«let x = 1⏎print(x)»
+
+## edge-list-multipara [已签收]
+--- 旧核 ---
+L[0•第一项]
+P«  第二段落续写»
+L[0•第二项]
+--- 新核 ---
+L[0•第一项]
+P«第二段落续写»
+L[0•第二项]
+
+## edge-list-item-code [已签收]
+--- 旧核 ---
+L[0•项一]
+CODE[-]«  code»
+L[0•项二]
+--- 新核 ---
+L[0•项一]
+CODE[-]«code»
+L[0•项二]
+
+## edge-quote-lazy [已签收]
+--- 旧核 ---
+Q[1:甲第一行]
+P«乙第二行»
+--- 新核 ---
+Q[1:甲第一行 | 1:乙第二行]
+
+## edge-ref-link-def [已签收]
+--- 旧核 ---
+P«见[文档][ref]说明»
+P«[ref]: https://example.com/doc»
+--- 新核 ---
+P«见[文档](https://example.com/doc)说明»
+
+## edge-hardbreak-spaces [已签收]
+--- 旧核 ---
+P«第一行  ⏎第二行»
+--- 新核 ---
+P«第一行⏎第二行»
+
+## edge-hardbreak-backslash [已签收]
+--- 旧核 ---
+P«第一行\⏎第二行»
+--- 新核 ---
+P«第一行⏎第二行»
+
+## edge-entity [已签收]
+--- 旧核 ---
+P«鱼 &amp; 熊掌 &lt;不可&gt; 兼得»
+--- 新核 ---
+P«鱼 & 熊掌 \<不可> 兼得»
+
+## edge-angle-autolink [已签收]
+--- 旧核 ---
+P«地址 <https://example.com/a> 在此»
+--- 新核 ---
+P«地址 [https://example.com/a](https://example.com/a) 在此»

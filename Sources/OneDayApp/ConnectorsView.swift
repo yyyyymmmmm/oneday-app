@@ -36,41 +36,20 @@ import SwiftUI
 /// 不列）——0.37.0 起按云电脑规格 §6.1 收敛：Box
 /// 迁入新设「云电脑」组，已连接组滤掉其在册行，
 /// 同一台电脑全页只出现一处。
+/// §259（拼装普查收口第 69 条）：面内客户端与状态
+/// 全收 ConnectorsFacade 门面——本 View 只持门面一
+/// 个入口，连接状态只在门面一处记账、目录只读派生。
 struct ConnectorsView: View {
     @Environment(AppState.self) private var appState
 
-    /// 总览入口（设置页注入）：本机服务「总览数据」
-    /// 详情的跳转闭包——总览 sheet 的承载在设置页
-    /// 管理组，本页不另立第二份
-    var onOpenOverview: (() -> Void)? = nil
-
-    @State private var servers: [MCPServerItem] = []
-    @State private var errorMessage: String?
-    @State private var isLoading = false
-    @State private var notice: String?
-    @State private var toggling: Set<String> = []
-    @State private var testing: Set<String> = []
-    @State private var testResults: [String: MCPTestResult] = [:]
+    // §259 起：面内状态与客户端全收 ConnectorsFacade
+    // 门面，本 View 只持门面一个入口、状态只读门面派生
+    @State private var facade = ConnectorsFacade()
     @State private var query = ""
     /// 默认落地可连接（0.36.5）：先进目录先见可接
     /// 入的，已连接是回头看的
     @State private var segment: Segment = .available
     @State private var detailTarget: DetailTarget?
-
-    // 本机服务探活（0.29.0）：状态字典进页首帧全为
-    // 读取中、探活回来逐条落定；客户端与各功能页同
-    // 一批类（WriteGateClient/OneDayBridgeClient/
-    // OverviewBridgeClient/MemoryBridgeClient），基
-    // 址与钥匙全走既有 ServerConfig＋Keychain 单源
-    @State private var localStates: [LocalServiceID: LocalServiceProbeState] = [:]
-    @State private var localProbing = false
-    @State private var lastProbeAt: Date?
-    @State private var gateSnapshot: WriteGateStatus?
-    @State private var overviewGeneratedAt: String?
-    private let writeGateClient = WriteGateClient()
-    private let oneDayBridgeClient = OneDayBridgeClient()
-    private let overviewBridgeClient = OverviewBridgeClient()
-    private let memoryBridgeClient = MemoryBridgeClient()
 
     /// 分段序（0.36.5）：声明序即胶囊呈现序——可连
     /// 接在前、已连接在后（对照 Muse 目录图）
@@ -97,30 +76,14 @@ struct ConnectorsView: View {
         }
     }
 
-    // 本机连接器（0.34.0 批一）：目录行读数（本地现读
-    // 的一句数：今天日程数/未完成提醒数；取不到不拼）
-    @State private var deviceMetrics: [DeviceSourceID: String] = [:]
-
-    // 云电脑（0.37.0，规格 §6.1）：连接记录走伴生
-    // connections 契约（ConnectionsStore），组内每台
-    // 一行＋添加入口；Simular Box 自已连接组迁入本组
-    @State private var connectionsStore = ConnectionsStore()
     @State private var showAddComputer = false
 
     private var connected: [ConnectedConnector] {
-        // 0.37.0（云电脑规格 §6.1 收敛）：Simular Box
-        // 迁入下方「云电脑」组单独呈现，同一台电脑只
-        // 许出现一处——已连接组滤掉 box 在册行（连接
-        // 记录里有这台时才滤，避免记录没读到时两处皆空）
-        let entries = ConnectorDirectory.connectedEntries(from: servers)
-        guard connectionsStore.cloudComputers.contains(
-            where: { $0.provider == "simular_box" }
-        ) else { return entries }
-        return entries.filter { $0.id != "box" }
+        facade.connectedConnectors
     }
 
     private var available: [ConnectorCatalogEntry] {
-        ConnectorDirectory.availableEntries(connected: connected)
+        facade.availableConnectors
     }
 
     private var searching: Bool {
@@ -149,7 +112,7 @@ struct ConnectorsView: View {
                     catalogSections
                 }
             }
-            if let notice {
+            if let notice = facade.notice {
                 Section {
                     Text(notice)
                         .font(.footnote)
@@ -177,22 +140,16 @@ struct ConnectorsView: View {
             prompt: "搜索连接器"
         )
         .refreshable {
-            await load()
-            await probeLocals()
-            await probeDevices()
-            await connectionsStore.load(appState: appState)
+            await facade.refresh(appState: appState)
         }
         .task {
-            await load()
-            await probeLocals()
-            await probeDevices()
-            await connectionsStore.load(appState: appState)
+            await facade.refresh(appState: appState)
         }
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
         }
         .sheet(isPresented: $showAddComputer) {
-            AddComputerView(store: connectionsStore)
+            AddComputerView(store: facade.connectionsStore)
         }
     }
 
@@ -304,7 +261,7 @@ struct ConnectorsView: View {
     private func localRow(
         _ descriptor: LocalServiceDescriptor
     ) -> some View {
-        let state = localStates[descriptor.serviceID] ?? .loading
+        let state = facade.localStates[descriptor.serviceID] ?? .loading
         return Button {
             detailTarget = .local(descriptor.serviceID)
         } label: {
@@ -327,10 +284,7 @@ struct ConnectorsView: View {
                     }
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .footnote.weight(.semibold))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -397,7 +351,7 @@ struct ConnectorsView: View {
                 // 会话在线这一本地可验事实托底，离线如
                 // 实降级（DeviceRowStatus 口径）
                 sessionOnline: appState.deviceSession.sessionOnline,
-                metric: deviceMetrics[descriptor.sourceID],
+                metric: facade.deviceMetrics[descriptor.sourceID],
                 // 0.36.14：同步件在行尾拼同步段（副本条
                 // 数＋新到什么时候，Core 同口径组装）；
                 // 0.36.18 起授权态只认真实权限
@@ -455,14 +409,14 @@ struct ConnectorsView: View {
     @ViewBuilder
     private var computerSection: some View {
         Section {
-            if let loadError = connectionsStore.loadError,
-               connectionsStore.cloudComputers.isEmpty {
+            if let loadError = facade.connectionsStore.loadError,
+               facade.connectionsStore.cloudComputers.isEmpty {
                 Text(loadError)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
-            ForEach(connectionsStore.cloudComputers) { connection in
+            ForEach(facade.connectionsStore.cloudComputers) { connection in
                 Button {
                     detailTarget = .computer(connection.id)
                 } label: {
@@ -475,7 +429,7 @@ struct ConnectorsView: View {
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: FrameworkIcon.tabGlyphSize))
                         .foregroundStyle(Palette.primary)
                     Text("添加电脑")
                         .font(.rowTitleL)
@@ -487,7 +441,7 @@ struct ConnectorsView: View {
             }
             .buttonStyle(.odPressable)
         } header: {
-            headerText("云电脑")
+            headerText("远程电脑")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
@@ -499,7 +453,7 @@ struct ConnectorsView: View {
         let status = ConnectionStatusWording.evaluate(connection)
         return HStack(spacing: OneDayMetrics.spacingSM) {
             Image(systemName: "desktopcomputer")
-                .font(.system(size: 20))
+                .font(.system(size: FrameworkIcon.rowGlyphSize))
                 .foregroundStyle(Palette.primary)
                 .frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -509,16 +463,14 @@ struct ConnectorsView: View {
                 Text("\(connection.providerWording) · \(status.text)")
                     .font(.footnote)
                     .foregroundStyle(
-                        status.tone == .ok ? Palette.success
+                        status.tone == .ok ? Palette.successText
                             : status.tone == .bad ? Palette.danger
                             : Palette.inkSecondary
                     )
                     .lineLimit(1)
             }
             Spacer(minLength: OneDayMetrics.spacingS)
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Palette.inkSecondary)
+            DisclosureChevron(font: .footnote.weight(.semibold))
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .contentShape(Rectangle())
@@ -558,10 +510,7 @@ struct ConnectorsView: View {
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             if chevron {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .footnote.weight(.semibold))
             }
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -575,34 +524,11 @@ struct ConnectorsView: View {
         }
     }
 
-    /// 设备读数（本地现读，进页/下拉时算）：日历＝今
-    /// 天日程数、提醒＝未完成数；通讯录全量计数要整
-    /// 表枚举、不为一行读数付这个成本，取不到就不拼
-    private func probeDevices() async {
-        appState.deviceSession.refreshPermissions()
-        let controller = appState.deviceSession
-        var metrics: [DeviceSourceID: String] = [:]
-        if (controller.permissions[.calendar] ?? .notDetermined).isUsable {
-            let count = controller.dispatcher.events.todayEventCount()
-            metrics[.calendar] = "今天 \(count) 个日程"
-        }
-        if (controller.permissions[.reminders] ?? .notDetermined).isUsable {
-            let items = await controller.dispatcher.events.reminderItems()
-            let open = items.filter { !$0.isCompleted }.count
-            metrics[.reminders] = "\(open) 项未完成"
-        }
-        deviceMetrics = metrics
-        // 同步状态同拍刷新（目录行同步段的数据源）
-        await appState.deviceSync.refreshStatus(
-            config: appState.config
-        )
-    }
-
     // MARK: - 已连接（实查数据链）
 
     @ViewBuilder
     private var connectedSections: some View {
-        if isLoading && servers.isEmpty {
+        if facade.isLoadingServers && facade.servers.isEmpty {
             Section {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
@@ -614,11 +540,11 @@ struct ConnectorsView: View {
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
-        } else if let errorMessage, servers.isEmpty {
+        } else if let errorMessage = facade.serversError, facade.servers.isEmpty {
             Section {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
                     InlineError(errorMessage)
-                    Button("重试") { Task { await load() } }
+                    Button("重试") { Task { await facade.loadServers(appState: appState) } }
                         .buttonStyle(.odSecondary)
                 }
                 .padding(.vertical, OneDayMetrics.spacingS)
@@ -627,10 +553,10 @@ struct ConnectorsView: View {
             .listRowInsets(rowInsets)
         } else if connected.isEmpty {
             Section {
-                EmptyState(
-                    icon: "cable.connector",
-                    title: "还没有已连接的服务",
-                    message: "服务端尚未配置任何 MCP 连接。在电脑上给 Hermes 配置后会显示在这里。"
+                ContentUnavailableView(
+                    "还没有已连接的服务",
+                    systemImage: "cable.connector",
+                    description: Text("服务端还没有配置任何连接器。在电脑上给 Hermes 配置后，会显示在这里。")
                 )
                 .padding(.vertical, OneDayMetrics.spacingM)
             }
@@ -679,10 +605,7 @@ struct ConnectorsView: View {
                     }
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .footnote.weight(.semibold))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -712,6 +635,37 @@ struct ConnectorsView: View {
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
         }
+        // §388 H7：MCP 目录入口——与上方静态连接器目录
+        // 同段不同源：静态册是客户端写死的，MCP 目录是
+        // 服务端实时批准目录（点按安装新能力）；已连接
+        // 的 MCP 管理仍在「已连接」段，不在此重复
+        Section {
+            NavigationLink {
+                MCPCatalogView(facade: facade)
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        Text("MCP 目录")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text("服务器批准的 MCP 目录，点按安装")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text("去逛逛")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+        } header: {
+            headerText("MCP 目录")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
         // 0.36.10（判词 1）：页底总结段整段删除——
         // 「尚未接入」在每行状态字、「接入路径」在各
         // 自详情页（接入路径行＋accessDetail 明写 App
@@ -757,7 +711,7 @@ struct ConnectorsView: View {
     @ViewBuilder
     private var searchSections: some View {
         let hitLocal = LocalServiceProbeMapping.filtered(
-            states: localStates, query: query
+            states: facade.localStates, query: query
         )
         let hitDevices = DeviceRowStatus.filtered(
             statusLines: deviceStatusLines, query: query
@@ -771,10 +725,10 @@ struct ConnectorsView: View {
         if hitLocal.isEmpty && hitDevices.isEmpty
             && hitConnected.isEmpty && hitCatalog.isEmpty {
             Section {
-                EmptyState(
-                    icon: "magnifyingglass",
-                    title: "没有匹配的连接器",
-                    message: "换个关键词试试，可按名称、分类或说明搜索。"
+                ContentUnavailableView(
+                    "没有匹配的连接器",
+                    systemImage: "magnifyingglass",
+                    description: Text("换个关键词试试，可按名称、分类或说明搜索。")
                 )
                 .padding(.vertical, OneDayMetrics.spacingM)
             }
@@ -859,7 +813,7 @@ struct ConnectorsView: View {
         case .computer(let id):
             sheetStack {
                 CloudComputerDetailView(
-                    store: connectionsStore, connectionID: id
+                    store: facade.connectionsStore, connectionID: id
                 )
             }
         }
@@ -885,7 +839,7 @@ struct ConnectorsView: View {
                             detailTarget = nil
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
                         }
                         .accessibilityLabel("关闭")
                     }
@@ -894,35 +848,14 @@ struct ConnectorsView: View {
         .presentationDragIndicator(.visible)
     }
 
-    /// 设备详情分发（批一三件；批二两件无详情、不
-    /// 点入）。本面恒以 sheet 呈现：三页带 inSheet
-    /// 标记，下拉手势归 sheet 关闭、不再被下拉刷
-    /// 新截走
+    /// 设备详情分发：走共用件 DeviceDetailDestination
+    /// （台账 198 收敛 S1——与设备与权限页同一份映射，
+    /// 不再各持一份 switch）。本面恒以 sheet 呈现：
+    /// inSheet 标记，下拉手势归 sheet 关闭、不再被下
+    /// 拉刷新截走
     @ViewBuilder
     private func deviceDetail(_ source: DeviceSourceID) -> some View {
-        switch source {
-        case .calendar: CalendarDetailView(inSheet: true)
-        case .reminders: RemindersDetailView(inSheet: true)
-        case .contacts: ContactsDetailView(inSheet: true)
-        case .photos: PhotosDetailView(inSheet: true)
-        case .motion: MotionDetailView(inSheet: true)
-        case .clipboard: ClipboardDetailView()
-        case .files: FilesDetailView()
-        case .alarm: AlarmDetailView()
-        case .notifications: NotificationsDetailView()
-        case .opener: OpenTargetDetailView()
-        case .camera: CameraDetailView()
-        case .vision: VisionDetailView()
-        case .translate: TranslateDetailView()
-        case .ondevice: OnDeviceDetailView()
-        case .biometric: BiometricDetailView()
-        case .location: LocationDetailView()
-        case .media: MediaDetailView()
-        case .compose: ComposeDetailView()
-        case .shortcuts: ShortcutsDetailView()
-        case .deviceinfo: DeviceInfoDetailView()
-        case .health, .home: EmptyView()
-        }
+        DeviceDetailDestination(source: source, inSheet: true)
     }
 
     /// 详情页头（0.36.3，详情页语法重做）：对齐
@@ -980,7 +913,7 @@ struct ConnectorsView: View {
 
             Section {
                 detailRow("连接状态", entry.statusLabel)
-                detailRow("证据档位", entry.evidence.label)
+                detailRow("确认方式", entry.evidence.label)
                 detailRow("来源", server.originLabel)
                 detailRow("传输方式", transportLabel(server))
                 if let endpoint = server.endpointLine {
@@ -1006,12 +939,12 @@ struct ConnectorsView: View {
             Section {
                 Toggle("启用", isOn: toggleBinding(for: server))
                     .font(.rowTitleL)
-                    .disabled(toggling.contains(server.name))
+                    .disabled(facade.toggling.contains(server.name))
                 Button {
-                    Task { await test(server) }
+                    Task { await facade.test(server, appState: appState) }
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingS) {
-                        if testing.contains(server.name) {
+                        if facade.testing.contains(server.name) {
                             ProgressView()
                         }
                         Text("测试连接")
@@ -1019,16 +952,16 @@ struct ConnectorsView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.odPrimary)
-                .disabled(testing.contains(server.name))
-                if let result = testResults[server.name],
-                   !testing.contains(server.name) {
-                    HStack(spacing: 4) {
+                .disabled(facade.testing.contains(server.name))
+                if let result = facade.testResults[server.name],
+                   !facade.testing.contains(server.name) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(
                             systemName: result.succeeded
                                 ? "checkmark.circle.fill"
                                 : "xmark.circle.fill"
                         )
-                        .font(.system(size: 13))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize))
                         .foregroundStyle(
                             result.succeeded
                                 ? Palette.success : Palette.danger
@@ -1104,7 +1037,7 @@ struct ConnectorsView: View {
     private func localDetail(
         _ descriptor: LocalServiceDescriptor
     ) -> some View {
-        let state = localStates[descriptor.serviceID] ?? .loading
+        let state = facade.localStates[descriptor.serviceID] ?? .loading
         return List {
             Section {
                 sheetHeader(
@@ -1120,14 +1053,14 @@ struct ConnectorsView: View {
                 if let metric = state.metric, !metric.isEmpty {
                     detailRow("当前读数", metric)
                 }
-                if let lastProbeAt {
+                if let lastProbeAt = facade.lastProbeAt {
                     detailRow(
                         "最近检查",
                         DisplayDate.dateTime(lastProbeAt)
                     )
                 }
                 if descriptor.serviceID == .writeGate,
-                   let gate = gateSnapshot {
+                   let gate = facade.gateSnapshot {
                     detailRow("写入审批", gate.supported ? "已启用" : "未启用")
                     detailRow(
                         "记忆写入先审批", gate.memoryGateEnabled ? "开" : "关"
@@ -1137,7 +1070,7 @@ struct ConnectorsView: View {
                     )
                 }
                 if descriptor.serviceID == .overviewBridge,
-                   let generated = overviewGeneratedAt {
+                   let generated = facade.overviewGeneratedAt {
                     detailRow("生成存档", generated)
                 }
             }
@@ -1203,10 +1136,11 @@ struct ConnectorsView: View {
             entryRow("目标") { jumpTab(.goals) }
             entryRow("点子") { jumpTab(.ideas) }
         case .overviewBridge:
-            entryRow("总览") {
-                detailTarget = nil
-                onOpenOverview?()
-            }
+            // 原「总览」入口行已随结构归位包撤除
+            // （纲要 D5-1：总览撤独立页）；总览桥的
+            // 数据面（角标/进展胶囊）不受影响，本详
+            // 情只余状态呈现、无功能入口行
+            EmptyView()
         }
     }
 
@@ -1219,10 +1153,7 @@ struct ConnectorsView: View {
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .footnote.weight(.semibold))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -1232,17 +1163,17 @@ struct ConnectorsView: View {
 
     private func jumpAgent(_ route: AgentRoute) {
         detailTarget = nil
-        appState.pendingAgentRoute = route
+        appState.router.pendingAgentRoute = route
     }
 
     private func jumpSettings(_ route: SettingsRoute) {
         detailTarget = nil
-        appState.pendingSettingsRoute = route
+        appState.router.pendingSettingsRoute = route
     }
 
     private func jumpTab(_ tab: ContentView.MainTab) {
         detailTarget = nil
-        appState.mainTabSwitchRequest = tab
+        appState.router.mainTabSwitchRequest = tab
     }
 
     // MARK: - 数据链（与既有 MCP 页同源，语义不变）
@@ -1252,9 +1183,7 @@ struct ConnectorsView: View {
         case "http", "streamable-http", "sse":
             return "远程连接"
         case "stdio":
-            return "本地进程"
-        case let other?:
-            return other
+            return "本机运行"
         default:
             return "—"
         }
@@ -1273,243 +1202,9 @@ struct ConnectorsView: View {
         Binding(
             get: { server.enabled },
             set: { newValue in
-                Task { await setEnabled(server, to: newValue) }
+                Task { await facade.setEnabled(server, to: newValue, appState: appState) }
             }
         )
-    }
-
-    private func load() async {
-        guard !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            servers = try await appState.performAdmin { client, config in
-                try await client.mcpServers(config: config)
-            }
-            errorMessage = nil
-        } catch {
-            errorMessage = (error as? HermesError)?.userMessage
-                ?? "连接状态没读出来，可能是网络或服务暂时没响应"
-        }
-    }
-
-    // MARK: - 本机服务探活（0.29.0，只读 GET、不写生产）
-
-    /// 四条并行探活：进页/下拉整批重探，按名册序逐
-    /// 条落定（一条慢不拖住已回的）；状态只存本页生
-    /// 命周期——重进页 @State 重建、必从读取中重探，
-    /// 不存在跨页缓存的绿色
-    private func probeLocals() async {
-        guard !localProbing else { return }
-        guard let config = appState.config else {
-            for id in LocalServiceID.allCases {
-                localStates[id] = .down(message: "尚未连接服务器。")
-            }
-            lastProbeAt = Date()
-            return
-        }
-        localProbing = true
-        defer { localProbing = false }
-        if localStates.isEmpty {
-            for id in LocalServiceID.allCases {
-                localStates[id] = .loading
-            }
-        }
-        async let hermes = probeHermes(config: config)
-        async let gate = probeWriteGate(config: config)
-        async let goals = probeOneDayBridge(config: config)
-        async let overview = probeOverviewBridge(config: config)
-        localStates[.hermes] = LocalServiceProbeMapping.state(
-            from: await hermes
-        )
-        localStates[.writeGate] = LocalServiceProbeMapping.state(
-            from: await gate
-        )
-        localStates[.oneDayBridge] = LocalServiceProbeMapping.state(
-            from: await goals
-        )
-        localStates[.overviewBridge] = LocalServiceProbeMapping.state(
-            from: await overview
-        )
-        lastProbeAt = Date()
-    }
-
-    /// Hermes 本体：GET /health（既有 HermesClient
-    /// 探活一，与连接页同源）；版本读数取健康回执
-    private func probeHermes(
-        config: ServerConfig
-    ) async -> LocalServiceProbeOutcome {
-        do {
-            let health = try await appState.client.health(config: config)
-            if ServiceHealth.from(health: health) == .up {
-                return .success(
-                    metric: health.version.map { "版本 \($0)" }
-                )
-            }
-            return .failure("健康检查返回状态：\(health.status)")
-        } catch {
-            return .failure(
-                (error as? HermesError)?.userMessage ?? "健康检查请求失败"
-            )
-        }
-    }
-
-    /// 记忆与技能：GET /api/write-gate/status（审批
-    /// 桥状态端点，枢纽/记忆页同源）；计数是尽力读数
-    /// ——记忆条目走记忆页的 MemoryBridgeClient、技
-    /// 能走技能页的 HermesClient.skills，任一取不到
-    /// 就不出该数、不编造
-    private func probeWriteGate(
-        config: ServerConfig
-    ) async -> LocalServiceProbeOutcome {
-        do {
-            let status = try await writeGateClient.gateStatus(
-                config: config
-            )
-            gateSnapshot = status
-            guard status.supported else {
-                return .success(metric: "写入审批没开")
-            }
-            let memoryCount = (try? await memoryBridgeClient.entries(
-                config: config
-            ))?.count
-            let skillCount = (try? await appState.performAdmin {
-                client, config in
-                try await client.skills(config: config)
-            })?.count
-            var parts: [String] = []
-            if let memoryCount { parts.append("记忆 \(memoryCount)") }
-            if let skillCount { parts.append("技能 \(skillCount)") }
-            return .success(
-                metric: parts.isEmpty ? nil : parts.joined(separator: " · ")
-            )
-        } catch let error as WriteGateError {
-            switch error {
-            case .noKey:
-                return .keyNotConfigured
-            case .unauthorized:
-                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
-            case .bridgeMissing:
-                return .failure("审批服务还没有在服务器上开通")
-            case .recordGone:
-                return .failure("要看的记录已经不在了")
-            case .conflict:
-                return .failure("服务器上的状态对不上，请下拉刷新重试")
-            case .failed(let message):
-                return .failure(message)
-            }
-        } catch {
-            return .failure("没能连上审批服务")
-        }
-    }
-
-    /// 目标与点子：本桥无专用健康端点，探最轻只读
-    /// 端点 GET /api/oneday-bridge/goals（目标页同
-    /// 源）；计数随探活回执一并取（点子尽力而为）
-    private func probeOneDayBridge(
-        config: ServerConfig
-    ) async -> LocalServiceProbeOutcome {
-        do {
-            let goals = try await oneDayBridgeClient.goals(config: config)
-            let ideas = (try? await oneDayBridgeClient.ideas(
-                config: config
-            ))?.count
-            var parts = ["目标 \(goals.count)"]
-            if let ideas { parts.append("点子 \(ideas)") }
-            return .success(metric: parts.joined(separator: " · "))
-        } catch let error as OneDayBridgeError {
-            switch error {
-            case .noKey:
-                return .keyNotConfigured
-            case .unauthorized:
-                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
-            case .bridgeMissing:
-                return .failure("这项服务还没有在服务器上开通")
-            case .recordGone:
-                return .failure("要看的记录已经不在了")
-            case .failed(let message):
-                return .failure(message)
-            }
-        } catch {
-            return .failure("没能连上目标服务")
-        }
-    }
-
-    /// 总览数据：本桥无专用健康端点，探最轻只读端
-    /// 点 GET /api/overview-bridge/overview（总览页
-    /// 同源快照端点）；待批数只在大于零时作读数
-    private func probeOverviewBridge(
-        config: ServerConfig
-    ) async -> LocalServiceProbeOutcome {
-        do {
-            let snapshot = try await overviewBridgeClient.overview(
-                config: config
-            )
-            overviewGeneratedAt = snapshot.generatedAt
-            return .success(
-                metric: snapshot.pendingApprovals > 0
-                    ? "待批 \(snapshot.pendingApprovals)" : nil
-            )
-        } catch let error as OverviewBridgeError {
-            switch error {
-            case .noKey:
-                return .keyNotConfigured
-            case .unauthorized:
-                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
-            case .failed(let message):
-                return .failure(message)
-            }
-        } catch {
-            return .failure("没能连上总览服务")
-        }
-    }
-
-    /// 开关：乐观更新，PUT 失败回滚＋提示（旧页先例）
-    private func setEnabled(_ server: MCPServerItem, to newValue: Bool) async {
-        guard let index = servers.firstIndex(where: { $0.id == server.id })
-        else { return }
-        let original = servers[index]
-        servers[index] = MCPServerItem(
-            name: original.name, transport: original.transport,
-            url: original.url, command: original.command,
-            enabled: newValue,
-            source: original.source, plugin: original.plugin
-        )
-        toggling.insert(server.name)
-        defer { toggling.remove(server.name) }
-        do {
-            try await appState.performAdmin { client, config in
-                try await client.setMCPServerEnabled(
-                    config: config, name: server.name, enabled: newValue
-                )
-            }
-            testResults.removeValue(forKey: server.name)
-        } catch {
-            if let current = servers.firstIndex(where: { $0.id == server.id }) {
-                servers[current] = original
-            }
-            notice = (error as? HermesError)?.userMessage ?? "开关切换失败。"
-        }
-    }
-
-    private func test(_ server: MCPServerItem) async {
-        testing.insert(server.name)
-        defer { testing.remove(server.name) }
-        do {
-            testResults[server.name] = try await appState.performAdmin {
-                client, config in
-                try await client.testMCPServer(
-                    config: config, name: server.name
-                )
-            }
-        } catch {
-            testResults[server.name] = MCPTestResult(
-                ok: false, status: nil,
-                message: (error as? HermesError)?.userMessage
-                    ?? "测试请求失败",
-                toolCount: nil
-            )
-        }
     }
 }
 

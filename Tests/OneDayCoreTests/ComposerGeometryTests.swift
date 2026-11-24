@@ -68,9 +68,10 @@ final class ComposerGeometryTests: XCTestCase {
             caret.minX, ComposerTextMetrics.textOriginX,
             "光标应在文字之后，而非行首原点"
         )
-        // 光标高 20.0 是 16pt 字体的光标度量（比行高
-        // 19.17 多 0.83、顶偏 −1，CI 实测）——容差 1.5
-        // 覆盖这组字体度量差，不掩盖行级逃逸（≥19.17）
+        // 光标高约 21.3 是 17pt 字体的光标度量（16pt
+        // 时代 CI 实测 20.0／顶偏 −1 按字号线性缩放的
+        // 估计，本包 CI 复核）——容差 1.5 覆盖这组字
+        // 体度量差，不掩盖行级逃逸（≥20.37）
         XCTAssertLessThanOrEqual(caret.maxY, view.bounds.height + 1.5)
     }
 
@@ -93,8 +94,13 @@ final class ComposerGeometryTests: XCTestCase {
             XCTAssertFalse(caret.isNull, "文本长度 \(text.count) 光标矩形为空")
             XCTAssertGreaterThanOrEqual(caret.minX, -0.6)
             XCTAssertGreaterThanOrEqual(caret.minY, -1.5)
+            // 右界容差 1.5（2026-11-15 第 84 条 §265 改
+            // 钉）：基准升 17pt 后，满行文末光标右界实
+            // 测 270.67 对帧宽 270 出 0.67——行末字形
+            // 推进的亚点取整，非逃逸（行级逃逸 ≥17pt，
+            // 本容差不掩盖）；与 maxY 侧 1.5 同档
             XCTAssertLessThanOrEqual(
-                caret.maxX, view.bounds.width + 0.6,
+                caret.maxX, view.bounds.width + 1.5,
                 "文本长度 \(text.count) 光标右界 \(caret.maxX) 出帧宽 \(view.bounds.width)"
             )
             // 光标顶须落在第 lines 行的行带内（逃逸形态

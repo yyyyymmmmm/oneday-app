@@ -1,39 +1,48 @@
 import XCTest
 
-/// §202 动作级点按派发验证（XCUITest，路线 B）
-///
-/// 前身 CapsuleTapDispatchUITests 绑的是已退役的
-/// 实验台装配（-CapsuleTapHarness＋safeAreaBar 复
-/// 刻顶栏）——与生产托管链不同构，随双动作胶囊
-/// 一并退役。本组改打**真 App 生产装配**：启动参
-/// 数 -odDemoMode 直达已连接态（RootView→Drawer-
-/// Container→TabView→ChatView→TopBarGuideHost 托
-/// 管的真实顶簇），按无障碍标识读两元素实帧、逐
-/// 点系统级点按，以真实呈现（模型 sheet／枢纽
-/// cover）的升起判派发。
+/// §449 顶带动作级点按派发验证（XCUITest；前身
+/// §202 两代——双动作胶囊、顶栏行中央组〈头像＋
+/// 模型胶囊〉——均绑已退役形态，随 §449 顶带定
+/// 版整体重钉）。打**真 App 生产装配**：启动参
+/// 数 -odDemoMode 直达已连接态（RootView→Dra-
+/// werContainer→TabView→ChatView→TopBarGuide-
+/// Host 托管的真实顶带），按无障碍标识读四件实
+/// 帧、逐点系统级点按，以真实呈现（枢纽 push／
+/// 抽屉／通知 sheet）的升起判派发。
 ///
 /// 点位与判定（预注册）：
-/// - 胶囊域内点（中心/左右内缩 6/上下缘内 3）：
-///   必须只升模型面；升枢纽或不升＝派错。
-/// - 头像钮域内点（中心/四向内缩 5）：必须只升
-///   枢纽；升模型面或不升＝派错。
-/// - 间隙点（两元素帧间中点）：两面都不许升。
-/// 关闭路径：模型面下拉拖拽消散、枢纽点其页头
-/// ✕ 钮——都走生产自带关闭口，不借探针。
-///
-/// 结构断言同在本门（§202.6 整合）：进程内结
-/// 构门 TopBarClusterHitDomainTests 六轮全灭
-/// （生产装配页进程内查无障碍元素与 §184 进程
-/// 死亡族同签名；作用域改顶栏宿主子树后又证实
-/// 平台子视图遍历根本够不到宿主内的 SwiftUI
-/// 元素），间隔/命中盘宽/无融合元素三项结构事
-/// 实改在本门以同一份实帧判（开场违规项）；玻
-/// 璃不跨双域由构造（玻璃只在胶囊标签背景层、
-/// 头像钮无玻璃）＋本门归属全对共同证明。间隙
-/// 判点＝死带三点（中点 ±2，§202.6 定界）。
+/// - 头像域内点（中心/左右内缩 5/上缘内 5/底上
+///   12 避胶囊压叠区）：必须只升枢纽。
+/// - 身份胶囊域内点（中心/左右内缩 6）：必须只
+///   升枢纽（与头像同路、单义）。
+/// - 汉堡钮中心：只升抽屉；铃钮中心：只升通知
+///   sheet。
+/// - 死带三点（左右间隙中点＝钮与头像同带的横
+///   向空当、头像顶上 6）：任何面都不许升。
+/// 结构钉同在本门：头像命中帧 67、两钮与头像同
+/// 带（钮心纵差 ≤14）、胶囊压头像下沿、已退役
+/// 的顶栏模型胶囊/放大镜钮不得在场、无横跨头
+/// 像与胶囊双域的融合元素。关闭路径全走生产自
+/// 带口（枢纽 ✕／抽屉点行／通知 sheet 下滑）。
+/// 枢纽布局回归（testHubLayoutWithFullCatalog）
+/// 沿 §434 口径续行：模型入口在中枢、段集注册
+/// 表动态渲染、末段可滚到底、底栏在场与否只记
+/// 软留痕（硬判据在 HubPresentationProbeTests）。
+
 final class TopBarSingleActionTapTests: XCTestCase {
 
-    private enum Expect { case model, hub, none }
+    private enum Expect { case hub, drawer, sheet, none }
+
+    /// 顶带四件实帧（点位现算的入参：每点开点前
+    /// 重读——呈现往返后帧可能微移，按开场旧帧算
+    /// 的点位会过期，run 43372118468 的 GAP 违规
+    /// 教训）
+    private struct BandFrames {
+        var drawer: CGRect
+        var avatar: CGRect
+        var capsule: CGRect
+        var bell: CGRect
+    }
 
     private struct TapPoint {
         var name: String
@@ -43,7 +52,7 @@ final class TopBarSingleActionTapTests: XCTestCase {
         /// 左缘随之移位，按开场旧帧算的点位会过期
         /// （run 43372118468 的 GAP 违规先按此嫌疑
         /// 排除，再看是否真有命中外溢）
-        var makePoint: (_ capsule: CGRect, _ avatar: CGRect) -> CGPoint
+        var makePoint: (_ f: BandFrames) -> CGPoint
     }
 
     override func setUpWithError() throws {
@@ -58,83 +67,128 @@ final class TopBarSingleActionTapTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
 
-        let capsuleEl = app.buttons["topbar.modelCapsule"]
         let avatarEl = app.buttons["topbar.hubAvatarButton"]
-        guard capsuleEl.waitForExistence(timeout: 30),
-              avatarEl.waitForExistence(timeout: 10)
+        let capsuleEl = app.buttons["topbar.identityCapsule"]
+        let drawerEl = app.buttons["drawer.open"]
+        let bellEl = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH '通知'")
+        ).firstMatch
+        guard avatarEl.waitForExistence(timeout: 30),
+              capsuleEl.waitForExistence(timeout: 10),
+              drawerEl.waitForExistence(timeout: 10),
+              bellEl.waitForExistence(timeout: 10)
         else {
             emit(["VERDICT=TOPBAR-NOT-UP"])
-            XCTFail("顶簇两元素未在演示装配里出现")
+            XCTFail("顶带四件未在演示装配里出现")
             return
         }
-        lines.append(
-            "capsule=\(fmt(capsuleEl.frame)) avatar=\(fmt(avatarEl.frame)) "
-                + "gap=\(capsuleEl.frame.minX - avatarEl.frame.maxX)"
-        )
-        if capsuleEl.frame.minX - avatarEl.frame.maxX < 7.5 {
-            violations.append("两元素间隔 <8pt")
-        }
-        if abs(avatarEl.frame.width - 44) > 1 {
+        // §449 删除钉：顶栏模型胶囊与放大镜钮不许在场
+        if app.buttons["topbar.modelCapsule"].exists {
             violations.append(
-                "头像钮命中盘宽非 44：\(avatarEl.frame.width)")
+                "已退役的顶栏模型胶囊仍在（topbar.modelCapsule）")
         }
-        // 融合元素检查：任一按钮的帧同时盖住两元
-        // 素中心＝双域被单一元素横跨（旧融域形态
+        if app.buttons["topbar.findButton"].exists {
+            violations.append(
+                "已退役的顶栏放大镜钮仍在（topbar.findButton）")
+        }
+        let f0 = BandFrames(
+            drawer: drawerEl.frame, avatar: avatarEl.frame,
+            capsule: capsuleEl.frame, bell: bellEl.frame)
+        lines.append(
+            "drawer=\(fmt(f0.drawer)) avatar=\(fmt(f0.avatar)) "
+                + "capsule=\(fmt(f0.capsule)) bell=\(fmt(f0.bell))")
+        // 几何钉（§449.3）：头像命中帧 67；两钮与头
+        // 像同带（钮心纵差 ≤14＝设计 7.5＋AX 宽容）；
+        // 胶囊压头像下沿（顶边在头像心之下、头像底
+        // 之上）；两钮与头像横向不重叠
+        // 组版 0.50.116 改钉注记：XCUI 报的 capsule 帧
+        // 是胶囊内容帧（钮体恒 44 高、hero 底对齐与头
+        // 像底距 36 在 §474/§477/§479 合并中一字未动，
+        // 玻璃胶囊本体仍压头像下沿 ≈8）；§474 起空闲
+        // 态第二行不呈现，内容由两行（37）变一行（20）、
+        // 内容顶随之上移 8，旧「内容顶须压进下沿」口
+        // 径改钉为「内容跨下沿带」：顶在头像心之下、
+        // 底过头像底、顶距下沿 ≤12（两态实测 −4/+4）
+        if abs(f0.avatar.width - 67) > 1.5
+            || abs(f0.avatar.height - 67) > 1.5 {
+            violations.append(
+                "头像命中帧非 67：\(fmt(f0.avatar))")
+        }
+        if abs(f0.drawer.midY - f0.avatar.midY) > 14 {
+            violations.append(
+                "汉堡钮心与头像心纵差 >14："
+                    + "\(f0.drawer.midY - f0.avatar.midY)")
+        }
+        if abs(f0.bell.midY - f0.avatar.midY) > 14 {
+            violations.append(
+                "铃钮心与头像心纵差 >14："
+                    + "\(f0.bell.midY - f0.avatar.midY)")
+        }
+        if !(f0.capsule.minY > f0.avatar.midY
+             && f0.capsule.minY < f0.avatar.maxY + 12
+             && f0.capsule.maxY > f0.avatar.maxY) {
+            violations.append(
+                "身份胶囊未压头像下沿：capsule=\(fmt(f0.capsule)) "
+                    + "avatar=\(fmt(f0.avatar))")
+        }
+        if f0.drawer.maxX > f0.avatar.minX
+            || f0.bell.minX < f0.avatar.maxX {
+            violations.append("两钮与头像横向重叠")
+        }
+        // 融合元素检查：任一按钮的帧同时盖住头像心
+        // 与胶囊心＝两件被单一元素横跨（旧融域形态
         // 的残留特征），出现即违规
         let fused = app.buttons.allElementsBoundByIndex
             .filter {
                 $0.frame.contains(CGPoint(
-                    x: capsuleEl.frame.midX,
-                    y: capsuleEl.frame.midY))
+                    x: f0.avatar.midX, y: f0.avatar.midY))
                     && $0.frame.contains(CGPoint(
-                        x: avatarEl.frame.midX,
-                        y: avatarEl.frame.midY))
+                        x: f0.capsule.midX, y: f0.capsule.midY))
             }
         if !fused.isEmpty {
             violations.append(
-                "存在横跨双域的融合元素："
+                "存在横跨头像/胶囊双域的融合元素："
                     + "\(fused.map { fmt($0.frame) })")
         }
 
         let origin = app.windows.firstMatch.coordinate(
-            withNormalizedOffset: CGVector(dx: 0, dy: 0)
-        )
+            withNormalizedOffset: CGVector(dx: 0, dy: 0))
 
         for tap in planPoints() {
             // 每点现读实帧现算点位（帧过期排除，见
-            // TapPoint.makePoint 注）
-            let capsule = capsuleEl.frame
-            let avatar = avatarEl.frame
-            let point = tap.makePoint(capsule, avatar)
+            // BandFrames 注）
+            let f = BandFrames(
+                drawer: drawerEl.frame, avatar: avatarEl.frame,
+                capsule: capsuleEl.frame, bell: bellEl.frame)
+            let point = tap.makePoint(f)
             origin.withOffset(
                 CGVector(dx: point.x, dy: point.y)
             ).tap()
             let fired = awaitSurface(app, expect: tap.expect)
             var wrong = false
             switch tap.expect {
-            case .model: wrong = fired != "model"
             case .hub: wrong = fired != "hub"
+            case .drawer: wrong = fired != "drawer"
+            case .sheet: wrong = fired != "sheet"
             case .none: wrong = fired != "none"
             }
             if wrong {
                 violations.append(
                     "\(tap.name)@(\(Int(point.x)),\(Int(point.y))) "
-                        + "fired=\(fired) expect=\(tap.expect)"
-                )
+                        + "fired=\(fired) expect=\(tap.expect)")
             }
             lines.append(
                 "tap=\(tap.name) at=(\(Int(point.x)),\(Int(point.y))) "
-                    + "frames=capsule:\(fmt(capsule))/avatar:\(fmt(avatar)) "
-                    + "expect=\(tap.expect) fired=\(fired) wrong=\(wrong)"
-            )
+                    + "expect=\(tap.expect) fired=\(fired) wrong=\(wrong)")
             dismissSurfaces(app)
+            settleBand(app, avatarEl: avatarEl)
         }
         lines.append("violations=\(violations.count) "
             + violations.joined(separator: "; "))
         lines.append("VERDICT=" + (violations.isEmpty ? "PASS" : "FAIL"))
         emit(lines)
         if !violations.isEmpty {
-            XCTFail("顶簇单动作派发有误："
+            XCTFail("顶带单动作派发有误："
                 + violations.joined(separator: "; "))
         }
     }
@@ -146,11 +200,15 @@ final class TopBarSingleActionTapTests: XCTestCase {
     /// 的形态逐项验（定案见 hub-tap-misfire-hunt-
     /// self-20261113 与 hub-layout-overflow 报告）：
     /// - 点头像开枢纽：页头 ✕ 与分享钮完整在屏内；
-    /// - 模型单行入口（当前模型名＋chevron）在屏内
-    ///   且可点，点开的是正牌模型选择面；
+    /// - §434 后枢纽身份头下有「选择模型」入口
+    ///   （用户 2026-11-24 亲点恢复，复用聊天页同
+    ///   一选择器；旧「无模型入口」口径作废）；
     /// - 枢纽内不存在目录行（抽查目录深处三 id）；
-    /// - 七段逐段可达、每次切段后页头仍在屏内；末
-    ///   段（身份）内容区可滚到底且页头不失。
+    /// - 段集由注册表动态渲染（§434）：必达＝工作/
+    ///   身份（锚格）；审核/电脑/邮箱随能力回读长
+    ///   格，演示装配里缺席不算违规、在场则须可达
+    ///   且切段后页头不失；末段（身份）内容区可滚
+    ///   到底且页头不失。
     func testHubLayoutWithFullCatalog() throws {
         var lines: [String] = []
         var violations: [String] = []
@@ -159,7 +217,7 @@ final class TopBarSingleActionTapTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
 
-        let capsuleEl = app.buttons["topbar.modelCapsule"]
+        let capsuleEl = app.buttons["topbar.identityCapsule"]
         let avatarEl = app.buttons["topbar.hubAvatarButton"]
         guard capsuleEl.waitForExistence(timeout: 30),
               avatarEl.waitForExistence(timeout: 10)
@@ -225,17 +283,22 @@ final class TopBarSingleActionTapTests: XCTestCase {
             lines.append("shareKin=\(labels)")
         }
 
-        // 模型单行入口在屏内
+        // §434 模型入口（用户 2026-11-24 亲点）：
+        // 身份头下、分段条上应有「选择模型」入口，
+        // 点开是与聊天页胶囊同一套选择器；旧「枢纽
+        // 内无模型入口」断言（结构归位包口径）作废
         let entry = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH '会话模型：'")
+            NSPredicate(format: "label BEGINSWITH '选择模型'")
         ).firstMatch
-        if entry.waitForExistence(timeout: 5), entry.isHittable,
-           isFullyOnScreen(entry.frame, in: win) {
-            lines.append(
-                "modelEntry=\(fmt(entry.frame)) label=\(entry.label)")
+        if entry.waitForExistence(timeout: 5), entry.isHittable {
+            lines.append("modelEntry=\\(fmt(entry.frame))")
         } else {
-            violations.append("模型单行入口不在屏内或不可点")
+            violations.append("枢纽内缺 §434 选择模型入口")
         }
+        // §434 push 全页：底栏应被推页盖住/隐藏
+        // （软留痕：环境差异大，只记不断言）
+        lines.append("tabBarExistsWhileHubOpen="
+            + "\(app.tabBars.firstMatch.exists)")
 
         // 枢纽内不存在目录行：三 id 只可能以目录行
         // 形态出现在枢纽里（非当前模型、选择面未开）
@@ -249,61 +312,11 @@ final class TopBarSingleActionTapTests: XCTestCase {
             }
         }
 
-        // 入口点开正牌选择面（以探针行 deepseek-v4-
-        // pro 在面内出现为据，与派发门口径同源）
-        if entry.exists, entry.isHittable {
-            entry.tap()
-            if modelRow(app).waitForExistence(timeout: 6) {
-                lines.append("picker=open via hub entry")
-                // 关面：取消钮（本环境本地化串解析为英
-                // 文 Cancel——首轮 CI 树扫描实证；双标
-                // 签都试）→ 兜底点当前模型行（选中即关
-                // 面、同模型重选无副作用）
-                var closed = false
-                for label in ["取消", "Cancel"] {
-                    let cancel = app.buttons[label]
-                    if cancel.exists, cancel.isHittable {
-                        cancel.tap()
-                        break
-                    }
-                }
-                var deadline = Date().addingTimeInterval(8)
-                while Date() < deadline {
-                    if !modelRow(app).exists { closed = true; break }
-                    Thread.sleep(forTimeInterval: 0.25)
-                }
-                if !closed {
-                    let current = app.buttons.matching(
-                        NSPredicate(format:
-                            "label CONTAINS[c] 'deepseek-flash'"
-                            + " AND label CONTAINS 'Via gateway'")
-                    ).firstMatch
-                    if current.exists, current.isHittable {
-                        current.tap()
-                        deadline = Date().addingTimeInterval(8)
-                        while Date() < deadline {
-                            if !modelRow(app).exists {
-                                closed = true
-                                break
-                            }
-                            Thread.sleep(forTimeInterval: 0.25)
-                        }
-                    }
-                }
-                if !closed {
-                    violations.append("选择面关不掉")
-                }
-                if hubCloseButton(app) == nil {
-                    violations.append("关选择面后枢纽页头 ✕ 不在屏内")
-                }
-            } else {
-                violations.append("模型入口未打开选择面")
-            }
-        }
 
-        // 七段逐段可达＋切段后页头不失
-        for name in ["活动", "任务", "审核", "浏览器",
-                     "定时", "监测", "身份"] {
+        // §434 注册表段集：锚格（工作/身份）必达；
+        // 能力格（审核/电脑/邮箱）随真回读长格——
+        // 演示装配缺席不违规，在场则须可达且页头不失
+        for name in ["工作", "身份"] {
             let seg = segmentButton(app, name)
             if seg.waitForExistence(timeout: 4), seg.isHittable {
                 seg.tap()
@@ -312,8 +325,29 @@ final class TopBarSingleActionTapTests: XCTestCase {
                     violations.append("切到「\(name)」段后页头 ✕ 不在屏内")
                 }
             } else {
-                violations.append("分段「\(name)」不可达")
+                violations.append("锚格分段「\(name)」不可达")
             }
+        }
+        var optionalPresent: [String] = []
+        for name in ["审核", "电脑", "邮箱"] {
+            let seg = segmentButton(app, name)
+            if seg.waitForExistence(timeout: 2), seg.isHittable {
+                optionalPresent.append(name)
+                seg.tap()
+                Thread.sleep(forTimeInterval: 0.4)
+                if hubCloseButton(app) == nil {
+                    violations.append("切到「\(name)」段后页头 ✕ 不在屏内")
+                }
+            }
+        }
+        lines.append("optionalSegmentsPresent="
+            + optionalPresent.joined(separator: ","))
+        // 回身份段做末段滚动验收（与旧口径同落点）
+        let identitySeg = segmentButton(app, "身份")
+        if identitySeg.waitForExistence(timeout: 4),
+           identitySeg.isHittable {
+            identitySeg.tap()
+            Thread.sleep(forTimeInterval: 0.4)
         }
 
         // 末段（身份）内容区滚到底：探针文本（分段
@@ -383,12 +417,6 @@ final class TopBarSingleActionTapTests: XCTestCase {
 
     // MARK: - 呈现探测与关闭
 
-    private func modelRow(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] 'deepseek-v4-pro'")
-        ).firstMatch
-    }
-
     /// 枢纽 ✕ 钮查找（2026-11-13 在屏语义改版）：旧版
     /// 按标签查到「存在」即认——枢纽布局溢出时 ✕ 被
     /// 顶到 y≈−1500 仍 exists、照样判绿（rig 盲区定
@@ -398,10 +426,16 @@ final class TopBarSingleActionTapTests: XCTestCase {
     /// 屏闸、再看位置/尺寸
     private func hubCloseButton(_ app: XCUIApplication) -> XCUIElement? {
         let win = app.windows.firstMatch.frame
+        // 标签支也必须带帧位约束：通知 sheet 里同有
+        // 「关闭」钮、无约束时被误认枢纽 ✕（BELL-C
+        // fired=hub 实证）；枢纽 ✕ 恒在左上带
+        // (16,66 44×44)，与回落支同界
         for label in ["关闭", "Close"] {
             let el = app.buttons[label]
             if el.exists, el.isHittable,
-               isFullyOnScreen(el.frame, in: win) {
+               isFullyOnScreen(el.frame, in: win),
+               el.frame.minX < 70, el.frame.minY < 140,
+               el.frame.width <= 44, el.frame.width > 0 {
                 return el
             }
         }
@@ -422,66 +456,129 @@ final class TopBarSingleActionTapTests: XCTestCase {
             && frame.maxX <= win.maxX + 1 && frame.maxY <= win.maxY + 1
     }
 
-    /// 等待并判定升起的面：model（模型行出现）／
-    /// hub（胶囊被盖住且枢纽 ✕ 钮出现）／none
+    /// 带面落定等待：呈现往返（尤其抽屉关闭动画）
+    /// 后前景帧仍在移动，按静止帧算的下一点位会打
+    /// 空（BELL-C 首跑实证）——头像帧连续两读不变
+    /// 才算落定，上限 4s
+    private func settleBand(
+        _ app: XCUIApplication, avatarEl: XCUIElement
+    ) {
+        var last = avatarEl.frame
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.3)
+            let now = avatarEl.frame
+            if now == last { return }
+            last = now
+        }
+    }
+
+    /// 抽屉行（任一可命中的会话行＝抽屉已开的信
+    /// 号；抽屉关时行在屏外、不可命中）
+    private func drawerRow(
+        _ app: XCUIApplication
+    ) -> XCUIElement? {
+        let rows = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'drawer.row.'"))
+        return rows.allElementsBoundByIndex.first {
+            $0.isHittable
+        }
+    }
+
+    /// 通知 sheet 在场判据：sheet 容器在场＋枢纽 ✕
+    /// 不在屏＋抽屉行不可命中（三者合取排除 push/
+    /// 抽屉两态的误认）。不用「胶囊被盖」作条件：
+    /// iOS 26 sheet 下底层元素 AX 仍报可命中，该条
+    /// 件永假（BELL-C 两跑实证：sheet 实际已升、信
+    /// 号却判 none）；sheet 内容在演示态可能为空、
+    /// 亦不以标题文本为据
+    private func notificationSheet(
+        _ app: XCUIApplication
+    ) -> Bool {
+        // iOS 26 下本 sheet 在 AX 里不以 .sheet 类型
+        // 出现（铃诊断实证：sheets=0 而通知面全文在
+        // 树）——信号改以面标题静态文本为准
+        app.staticTexts["通知"].exists
+            && hubCloseButton(app) == nil
+            && drawerRow(app) == nil
+    }
+
+    /// 等待并判定升起的面：hub（枢纽 ✕ 在屏且身份
+    /// 胶囊被盖）／drawer（抽屉行可命中）／sheet
+    /// （通知 sheet 在场）／none
     private func awaitSurface(
         _ app: XCUIApplication, expect: Expect
     ) -> String {
-        let capsuleEl = app.buttons["topbar.modelCapsule"]
+        let capsuleEl = app.buttons["topbar.identityCapsule"]
         let deadline = Date().addingTimeInterval(
             expect == .none ? 1.8 : 6
         )
         while Date() < deadline {
-            if modelRow(app).exists { return "model" }
             if !capsuleEl.isHittable, hubCloseButton(app) != nil {
                 return "hub"
             }
+            if drawerRow(app) != nil { return "drawer" }
+            if notificationSheet(app) { return "sheet" }
             Thread.sleep(forTimeInterval: 0.25)
         }
-        if modelRow(app).exists { return "model" }
         if !capsuleEl.isHittable, hubCloseButton(app) != nil {
             return "hub"
         }
+        if drawerRow(app) != nil { return "drawer" }
+        if notificationSheet(app) { return "sheet" }
         return "none"
     }
 
     private func dismissSurfaces(_ app: XCUIApplication) {
-        let capsuleEl = app.buttons["topbar.modelCapsule"]
-        if modelRow(app).exists {
-            // 模型面关闭一：sheet 元素下滑消散（生产
-            // sheet 无 interactiveDismissDisabled）
-            let sheet = app.sheets.firstMatch
-            if sheet.exists {
-                sheet.swipeDown()
-                let deadline = Date().addingTimeInterval(4)
-                while modelRow(app).exists, Date() < deadline {
-                    Thread.sleep(forTimeInterval: 0.25)
-                }
-            }
-            // 关闭二（兜底）：点「当前已选行」关面
-            // （点行即落账关面；选当前行不换模型——
-            // 换模型会改胶囊标签宽度、令后续点位帧
-            // 过期；按可命中过滤，防误认被盖住的胶
-            // 囊钮——其标签同含模型名）
-            if modelRow(app).exists {
-                let row = app.buttons.matching(
-                    NSPredicate(
-                        format: "label CONTAINS[c] 'deepseek'"
-                    )
-                ).allElementsBoundByIndex.first {
-                    $0.isHittable && $0.isSelected
-                }
-                row?.tap()
-                let deadline = Date().addingTimeInterval(4)
-                while modelRow(app).exists, Date() < deadline {
-                    Thread.sleep(forTimeInterval: 0.25)
-                }
-            }
-        }
+        let capsuleEl = app.buttons["topbar.identityCapsule"]
+        // 枢纽：点页头 ✕（生产自带关闭口）
         if !capsuleEl.isHittable, let close = hubCloseButton(app) {
             close.tap()
             let deadline = Date().addingTimeInterval(5)
             while !capsuleEl.isHittable, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+        }
+        // 抽屉：点露出窄条关闭（容器自带关闭口，
+        // ContentView 沿革「点露出窄条关」）。不点
+        // 会话行：演示态首行是频道行、点它跳服务器
+        // 会话页回不到主聊天（BELLSEQ 诊断实证、
+        // BELL-C 三跑连挂的真因）；窄条点不通时退
+        // 左拖页卡跟手关
+        if drawerRow(app) != nil {
+            let win = app.windows.firstMatch.frame
+            let origin = app.windows.firstMatch.coordinate(
+                withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            origin.withOffset(CGVector(
+                dx: win.width * 0.93, dy: win.height * 0.5)).tap()
+            var deadline = Date().addingTimeInterval(3)
+            while drawerRow(app) != nil, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            if drawerRow(app) != nil {
+                let start = origin.withOffset(CGVector(
+                    dx: win.width * 0.75, dy: win.height * 0.5))
+                let end = origin.withOffset(CGVector(
+                    dx: win.width * 0.2, dy: win.height * 0.5))
+                start.press(forDuration: 0.1, thenDragTo: end)
+                deadline = Date().addingTimeInterval(5)
+                while drawerRow(app) != nil, Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.25)
+                }
+            }
+        }
+        // 通知 sheet：手势下滑消散（生产 sheet 无关
+        // 闭禁令；AX 里无 .sheet 元素可 swipe、改窗
+        // 口坐标拖拽，铃诊断定版）
+        if notificationSheet(app) {
+            let start = app.windows.firstMatch.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            let end = app.windows.firstMatch.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+            start.press(forDuration: 0.1, thenDragTo: end)
+            let deadline = Date().addingTimeInterval(4)
+            while notificationSheet(app), Date() < deadline {
                 Thread.sleep(forTimeInterval: 0.25)
             }
         }
@@ -491,50 +588,53 @@ final class TopBarSingleActionTapTests: XCTestCase {
 
     private func planPoints() -> [TapPoint] {
         [
-            TapPoint(name: "CAP-C", expect: .model) { c, _ in
-                CGPoint(x: c.midX, y: c.midY)
+            TapPoint(name: "AVA-C", expect: .hub) { f in
+                CGPoint(x: f.avatar.midX, y: f.avatar.midY)
             },
-            TapPoint(name: "CAP-L", expect: .model) { c, _ in
-                CGPoint(x: c.minX + 6, y: c.midY)
+            TapPoint(name: "AVA-L", expect: .hub) { f in
+                CGPoint(x: f.avatar.minX + 5, y: f.avatar.midY)
             },
-            TapPoint(name: "CAP-R", expect: .model) { c, _ in
-                CGPoint(x: c.maxX - 6, y: c.midY)
+            TapPoint(name: "AVA-R", expect: .hub) { f in
+                CGPoint(x: f.avatar.maxX - 5, y: f.avatar.midY)
             },
-            TapPoint(name: "CAP-T", expect: .model) { c, _ in
-                CGPoint(x: c.midX, y: c.minY + 3)
+            TapPoint(name: "AVA-T", expect: .hub) { f in
+                CGPoint(x: f.avatar.midX, y: f.avatar.minY + 5)
             },
-            TapPoint(name: "CAP-B", expect: .model) { c, _ in
-                CGPoint(x: c.midX, y: c.maxY - 3)
+            // 头像底缘内点避开胶囊压叠区（胶囊顶在头
+            // 像底上方 ≈8pt），取底上 12
+            TapPoint(name: "AVA-B", expect: .hub) { f in
+                CGPoint(x: f.avatar.midX, y: f.avatar.maxY - 12)
             },
-            TapPoint(name: "AVA-C", expect: .hub) { _, a in
-                CGPoint(x: a.midX, y: a.midY)
+            TapPoint(name: "CAP-C", expect: .hub) { f in
+                CGPoint(x: f.capsule.midX, y: f.capsule.midY)
             },
-            TapPoint(name: "AVA-L", expect: .hub) { _, a in
-                CGPoint(x: a.minX + 5, y: a.midY)
+            TapPoint(name: "CAP-L", expect: .hub) { f in
+                CGPoint(x: f.capsule.minX + 6, y: f.capsule.midY)
             },
-            TapPoint(name: "AVA-R", expect: .hub) { _, a in
-                CGPoint(x: a.maxX - 5, y: a.midY)
+            TapPoint(name: "CAP-R", expect: .hub) { f in
+                CGPoint(x: f.capsule.maxX - 6, y: f.capsule.midY)
             },
-            TapPoint(name: "AVA-T", expect: .hub) { _, a in
-                CGPoint(x: a.midX, y: a.minY + 5)
+            TapPoint(name: "DRAWER-C", expect: .drawer) { f in
+                CGPoint(x: f.drawer.midX, y: f.drawer.midY)
             },
-            TapPoint(name: "AVA-B", expect: .hub) { _, a in
-                CGPoint(x: a.midX, y: a.maxY - 5)
+            TapPoint(name: "BELL-C", expect: .sheet) { f in
+                CGPoint(x: f.bell.midX, y: f.bell.midY)
             },
-            TapPoint(name: "GAP", expect: .none) { c, a in
-                CGPoint(x: (a.maxX + c.minX) / 2, y: c.midY)
+            // 死带：钮与头像同带的横向间隙中点（左
+            // 右）与头像顶上——命中域互不融接的构造
+            // 判据，任何面都不许升
+            TapPoint(name: "GAP-L", expect: .none) { f in
+                CGPoint(
+                    x: (f.drawer.maxX + f.avatar.minX) / 2,
+                    y: f.avatar.midY)
             },
-            // 死带探针（§202.6）：run 43378398732
-            // 边界点已定界——两钮命中域比无障碍帧
-            // 外扩约 4pt（平台宽容），属各钮自身的
-            // 宽容带、与相邻域无关，不作违规点；本
-            // 组只守 16pt 间隔中央死带（中点 ±2），
-            // 三点两面都不许升
-            TapPoint(name: "DEAD-L", expect: .none) { c, a in
-                CGPoint(x: (a.maxX + c.minX) / 2 - 2, y: c.midY)
+            TapPoint(name: "GAP-R", expect: .none) { f in
+                CGPoint(
+                    x: (f.avatar.maxX + f.bell.minX) / 2,
+                    y: f.avatar.midY)
             },
-            TapPoint(name: "DEAD-R", expect: .none) { c, a in
-                CGPoint(x: (a.maxX + c.minX) / 2 + 2, y: c.midY)
+            TapPoint(name: "GAP-TOP", expect: .none) { f in
+                CGPoint(x: f.avatar.midX, y: f.avatar.minY - 6)
             },
         ]
     }

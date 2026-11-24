@@ -1,13 +1,14 @@
 import OneDayDesign
 import SwiftUI
 
-/// 枢纽头像钮（§202，路线 B「一个胶囊一个动作」
-/// 的另一半）：身份头像自此是顶簇里一个**独立**
-/// 圆形按钮——自带头像＋在线状态点，点它开枢纽
-/// （fullScreenCover 呈现在 ChatView 根，本件只
-/// 管触发）。与模型胶囊（ModelCapsuleView）是两
-/// 个分开的元素：顶簇内横排间距 ≥8pt（ChatView
-/// 侧 spacingS），各自命中域独立、不相邻融接。
+/// 枢纽头像钮（§202 立、§434 升 hero 档、§449
+/// 沿用）：身份头像是顶带里居中的**独立**圆形
+/// 按钮——自带头像＋状态角点（§449 去重后在线
+/// 状态全簇唯一呈现点），点它开枢纽（呈现＝
+/// ChatView 导航 push＋zoom，本件只管触发）。
+/// §202 时与它同排的模型胶囊（ModelCapsule-
+/// View）已随 §449 第 2 条整件退役（模型入口
+/// 唯一收中枢），顶带内不再有相邻融接之虞。
 ///
 /// 沿革：0.6.0–0.50.26 头像/名/状态与模型同装一
 /// 颗双动作胶囊（IdentityCapsuleView），融域命中
@@ -25,6 +26,9 @@ import SwiftUI
 /// 右下、衬一圈页面色环保证压在头像上也可辨。
 struct HubAvatarButton: View {
     var avatar: Image
+    /// 活头像控制器（§479）：在位时盘内改播状态
+    /// 片段（静态图作兜底）；不在位维持纯静态呈现
+    var livingAvatar: LivingAvatarController? = nil
     var displayName: String
     var statusWord: String
     var statusColor: Color
@@ -36,15 +40,24 @@ struct HubAvatarButton: View {
             onOpenHub()
         } label: {
             ZStack(alignment: .bottomTrailing) {
-                avatar
-                    .resizable()
-                    .scaledToFill()
-                    .frame(
-                        width: avatarPointSize,
-                        height: avatarPointSize
-                    )
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
+                Group {
+                    if let livingAvatar {
+                        LivingAvatarView(
+                            controller: livingAvatar,
+                            fallback: avatar
+                        )
+                    } else {
+                        avatar
+                            .resizable()
+                            .scaledToFill()
+                    }
+                }
+                .frame(
+                    width: avatarPointSize,
+                    height: avatarPointSize
+                )
+                .clipShape(Circle())
+                .accessibilityHidden(true)
                 StatusDot(color: statusColor)
                     .background {
                         Circle()
@@ -56,9 +69,13 @@ struct HubAvatarButton: View {
                 width: avatarPointSize,
                 height: avatarPointSize
             )
+            // §434：命中帧取大者——形象档（≤34）时恒
+            // 为 44 外扩、旧行为不变；聊天页 hero 档
+            // （67）时以头像本体为准，不许 44 帧反压
+            // 大头像致布局溢出
             .frame(
-                width: OneDayMetrics.minTapTarget,
-                height: OneDayMetrics.minTapTarget
+                width: max(avatarPointSize, OneDayMetrics.minTapTarget),
+                height: max(avatarPointSize, OneDayMetrics.minTapTarget)
             )
             .contentShape(Circle())
         }

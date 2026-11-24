@@ -155,23 +155,37 @@ struct DeviceFileItem: Identifiable, Sendable {
 /// 的）。写纪律落在这里：回读验证——写完必须重新取
 /// 回对象才许报成功；回读不到即失败原文。
 final class EventKitEngine: @unchecked Sendable {
-    let store = EKEventStore()
+    /// §468：store 不再终身一只——授权状态变化后
+    /// 旧实例的源缓存可能停在旧授权面，官方口径是
+    /// 授权落定后以新实例读、读前 refreshSources-
+    /// IfNecessary 刷新源。授权请求成功即重建，
+    /// 每次框架读入口先刷新源
+    private(set) var store = EKEventStore()
+
+    private func rebuildStore() {
+        store = EKEventStore()
+    }
 
     // MARK: 授权
 
     func requestCalendarAccess() async -> DevicePermissionState {
         _ = try? await store.requestFullAccessToEvents()
-        return DevicePermissions.calendarState()
+        let state = DevicePermissions.calendarState()
+        if state.isUsable { rebuildStore() }
+        return state
     }
 
     func requestRemindersAccess() async -> DevicePermissionState {
         _ = try? await store.requestFullAccessToReminders()
-        return DevicePermissions.remindersState()
+        let state = DevicePermissions.remindersState()
+        if state.isUsable { rebuildStore() }
+        return state
     }
 
     // MARK: 日历读
 
     func events(from start: Date, to end: Date) -> [DeviceAgendaEvent] {
+        store.refreshSourcesIfNecessary()
         let predicate = store.predicateForEvents(
             withStart: start, end: end, calendars: nil
         )
@@ -228,6 +242,7 @@ final class EventKitEngine: @unchecked Sendable {
     /// calendar_list_events 结果：窗口内事件＋readAt
     /// （现读时刻，诚实口径的证据）
     func listEventsResult(window: CalendarListWindow) -> JSONValue {
+        store.refreshSourcesIfNecessary()
         let predicate = store.predicateForEvents(
             withStart: window.start, end: window.end, calendars: nil
         )
@@ -340,6 +355,7 @@ final class EventKitEngine: @unchecked Sendable {
     func syncOccurrences(
         from start: Date, to end: Date
     ) -> [SyncCalendarRecord] {
+        store.refreshSourcesIfNecessary()
         let predicate = store.predicateForEvents(
             withStart: start, end: end, calendars: nil
         )
@@ -361,12 +377,14 @@ final class EventKitEngine: @unchecked Sendable {
     }
 
     /// 同步快照：未完成提醒全量记录＋聚合（今日已
-    /// 完成/已过期，Core 同口径计算）
-    func reminderSyncSnapshot() async -> (
+    /// 完成/已过期，Core 同口径计算）。读取失败向
+    /// 上抛（§468）：提醒是全量整换，读不到绝不许
+    /// 拿空集去把服务器副本清零
+    func reminderSyncSnapshot() async throws -> (
         records: [SyncReminderRecord],
         aggregates: SyncReminderAggregates
     ) {
-        let all = await fetchAllReminders()
+        let all = try await fetchAllReminders()
         let inputs = all.map { reminder in
             SyncReminderInput(
                 due: reminder.dueDateComponents.flatMap {
@@ -401,14 +419,63 @@ final class EventKitEngine: @unchecked Sendable {
         let reminders: [EKReminder]
     }
 
-    private func fetchAllReminders() async -> [EKReminder] {
+    /// continuation 一次性 resume 盒（§468）：框架
+    /// 回调与超时兜底两路竞速，先到者赢、后到者丢
+    /// 弃——CheckedContinuation 重复 resume 是致命
+    /// 错误，必须有这层守卫
+    private final class ResumeOnceBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation:
+            CheckedContinuation<ReminderBox, Error>?
+
+        init(_ continuation: CheckedContinuation<ReminderBox, Error>) {
+            self.continuation = continuation
+        }
+
+        func resume(returning box: ReminderBox) {
+            take()?.resume(returning: box)
+        }
+
+        func resume(throwing error: Error) {
+            take()?.resume(throwing: error)
+        }
+
+        private func take()
+            -> CheckedContinuation<ReminderBox, Error>?
+        {
+            lock.lock()
+            defer { lock.unlock() }
+            let taken = continuation
+            continuation = nil
+            return taken
+        }
+    }
+
+    /// §468：fetchReminders 的完成回调在系统侧丢
+    /// 失时，旧写法让这一轮同步永久挂起（continu-
+    /// ation 永不 resume、进度残留锁死后续每一
+    /// 轮）。加 20 秒超时兜底：超时按失败抛错，本
+    /// 轮落账失败、下轮照常——绝不拿空集冒充读到
+    private func fetchAllReminders() async throws -> [EKReminder] {
+        store.refreshSourcesIfNecessary()
         let calendars = store.calendars(for: .reminder)
         guard !calendars.isEmpty else { return [] }
         let predicate = store.predicateForReminders(in: calendars)
-        let box = await withCheckedContinuation { continuation in
+        let box = try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<ReminderBox, Error>)
+            in
+            let once = ResumeOnceBox(continuation)
             store.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(
+                once.resume(
                     returning: ReminderBox(reminders: reminders ?? [])
+                )
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(20))
+                once.resume(
+                    throwing: DeviceToolError.failed(
+                        "读取提醒超时（系统没有回话）"
+                    )
                 )
             }
         }
@@ -416,7 +483,8 @@ final class EventKitEngine: @unchecked Sendable {
     }
 
     func reminderItems() async -> [DeviceReminderItem] {
-        await fetchAllReminders().map(Self.reminderItem)
+        let all = (try? await fetchAllReminders()) ?? []
+        return all.map(Self.reminderItem)
     }
 
     static func reminderItem(_ reminder: EKReminder) -> DeviceReminderItem {
@@ -455,7 +523,7 @@ final class EventKitEngine: @unchecked Sendable {
     /// reminders_list 结果：只回未完成项＋计数（含今
     /// 日已完成数），不回已完成历史（设计档粒度）
     func listRemindersResult() async -> JSONValue {
-        let all = await fetchAllReminders()
+        let all = (try? await fetchAllReminders()) ?? []
         let lists = store.calendars(for: .reminder)
         let todayStart = Calendar.current.startOfDay(for: Date())
         var groups: [[String: JSONValue]] = []
@@ -1985,7 +2053,7 @@ final class DeviceToolDispatcher: @unchecked Sendable {
 
     func execute(
         call: DeviceIncomingCall,
-        permissions: [DeviceSourceID: DevicePermissionState],
+        permissions permissionsSnapshotFallback: [DeviceSourceID: DevicePermissionState],
         agentCallEnabled: [DeviceSourceID: Bool]
     ) async -> (result: JSONValue?, error: DeviceToolError?) {
         guard let spec = DeviceToolRegistry.spec(call.tool) else {
@@ -1995,9 +2063,15 @@ final class DeviceToolDispatcher: @unchecked Sendable {
               DeviceSourceDirectory.descriptor(source).isWired else {
             return (nil, .toolUnavailable("工具 \(call.tool) 尚未接线"))
         }
-        // 通知无同步读状态 API：判门前先刷新真状态，
-        // 不许拿进页时的缓存快照放行或误拒（§113）
-        var permissions = permissions
+        // 判门逐调现读（§244 G9）：注册快照会旧（用户
+        // 在设置里改完权限、快照还没随重注册刷新时最
+        // 明显），判门一律以执行这一刻的真状态为准；
+        // 入参快照只在现读缺项时兜底。通知无同步读法，
+        // 保留既有异步现读覆写
+        var permissions = DevicePermissions.currentStates()
+        for (key, value) in permissionsSnapshotFallback {
+            if permissions[key] == nil { permissions[key] = value }
+        }
         if source == .notifications {
             permissions[.notifications] =
                 await NotificationEngine.readSystemState()

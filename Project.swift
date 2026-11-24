@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.50.29",
-        "CURRENT_PROJECT_VERSION": "157",
+        "MARKETING_VERSION": "0.50.125",
+        "CURRENT_PROJECT_VERSION": "253",
     ]),
     targets: [
         .target(
@@ -20,7 +20,8 @@ let project = Project(
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
-            dependencies: []
+            // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
+            dependencies: [.external(name: "Markdown")]
         ),
         .target(
             name: "OneDayDesign",
@@ -43,8 +44,12 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.50.29",
-                "CFBundleVersion": "157",                "ITSAppUsesNonExemptEncryption": false,
+                "CFBundleShortVersionString": "0.50.125",
+                "CFBundleVersion": "253",                "ITSAppUsesNonExemptEncryption": false,
+                // 实时活动（总表 163，DESIGN §385.3）：
+                // App 内发起的聊天运行进行态上锁屏/灵
+                // 动岛；缺此键 Activity.request 必失败
+                "NSSupportsLiveActivities": true,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
                 // 公网服务器仍走 https；上架前如需收紧在此复核
@@ -87,7 +92,7 @@ let project = Project(
                 // 起方与落点——图片只存进 OneDay 自
                 // 己文件夹、不进系统相册；缺此键取景
                 // 界面打不开
-                "NSCameraUsageDescription": "OneDay 需要使用相机：只有智能体在对话里请你拍照或扫描文档、或你在相机详情页亲手点拍照时才会打开取景框；拍到的图片只存进 OneDay 自己的文件夹，不进系统相册。",
+                "NSCameraUsageDescription": "OneDay 需要使用相机：只有智能体在对话里请你拍照或扫描文档、你在相机详情页亲手点拍照、或你在连接页亲手点扫码连接服务器时才会打开取景框；拍到的图片只存进 OneDay 自己的文件夹，不进系统相册，扫码画面不拍照、不保存。",
                 // 本人确认（设备扩容批三）：Face ID
                 // 的用途说明——系统在每次验证时把这
                 // 句与发起方给的理由一同显示；缺此键
@@ -126,7 +131,30 @@ let project = Project(
             dependencies: [
                 .target(name: "OneDayCore"),
                 .target(name: "OneDayDesign"),
+                .target(name: "OneDayWidgets"),
+                // §418（#23 图片管线换底）：Nuke 核心＋
+                // NukeUI（版本钉死在 Tuist/Package.swift）
+                .external(name: "Nuke"),
+                .external(name: "NukeUI"),
             ]
+        ),
+        .target(
+            // 实时活动呈现扩展（总表 163，DESIGN
+            // §385.3）：只承载 RunLiveActivity 的锁屏
+            // 面与灵动岛，无桌面小组件；属性型与 App
+            // 共用 OneDayCore 的 RunLiveActivityAttributes
+            name: "OneDayWidgets",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "site.didichou.oneday.widgets",
+            deploymentTargets: iOS26,
+            infoPlist: .extendingDefault(with: [
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
+                ],
+            ]),
+            sources: ["Sources/OneDayWidgets/**"],
+            dependencies: [.target(name: "OneDayCore")]
         ),
         .target(
             name: "OneDayCoreTests",
@@ -154,6 +182,7 @@ let project = Project(
             sources: ["Tests/OneDayAppTests/**"],
             dependencies: [
                 .target(name: "OneDayApp"),
+                .external(name: "Nuke"),
             ]
         ),
         // UI 测试（症二阶段二动作级验证起）：系统级

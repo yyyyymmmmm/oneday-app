@@ -11,6 +11,7 @@ struct UsageDetailView: View {
 
     @State private var days: Int = 7
     @State private var usage: UsageAnalytics?
+    @State private var loadedDays: Int = 7
     @State private var models: ModelAnalytics?
     @State private var errorMessage: String?
     @State private var isLoading = false
@@ -63,14 +64,15 @@ struct UsageDetailView: View {
         // 请求/会话/费用作卡内次级读数
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(AdminFormat.count(usage.totals.tokens))
-                    .font(.title)
+                RollingNumberText(
+                    key: "usage.\(appState.config?.baseString ?? "").\(loadedDays).tokens",
+                    value: usage.totals.tokens, font: .title,
+                    format: { AdminFormat.count($0) }
+                )
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .tabularDigits()
-                    .contentTransition(.numericText())
-                Text("Token 总数（近 \(days) 天）")
+                Text("Token 总数（近 \(loadedDays) 天）")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -79,20 +81,14 @@ struct UsageDetailView: View {
             .padding(.bottom, OneDayMetrics.spacingS)
             GroupDivider()
             VStack(spacing: 0) {
-                LabeledContent("请求数") {
-                    Text(AdminFormat.count(usage.totals.totalAPICalls ?? 0))
-                        .font(.system(.callout, design: .monospaced))
-                }
+                // 键值行走 KeyValueRow（台账 198 收敛
+                // S5：本页是裸 LabeledContent 入组卡贴
+                // 边溢出的实锤页，自此只许共用件）
+                KeyValueRow("请求数", value: AdminFormat.count(usage.totals.totalAPICalls ?? 0))
                 GroupDivider()
-                LabeledContent("会话数") {
-                    Text(AdminFormat.count(usage.totals.totalSessions ?? 0))
-                        .font(.system(.callout, design: .monospaced))
-                }
+                KeyValueRow("会话数", value: AdminFormat.count(usage.totals.totalSessions ?? 0))
                 GroupDivider()
-                LabeledContent("估算费用") {
-                    Text(AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0))
-                        .font(.system(.callout, design: .monospaced))
-                }
+                KeyValueRow("估算费用", value: AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0))
             }
         }
         .odGroup()
@@ -103,7 +99,7 @@ struct UsageDetailView: View {
         let maxTokens = max(usage.daily.map(\.tokens).max() ?? 0, 1)
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("按日趋势")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(usage.daily.enumerated()), id: \.element.id) { index, day in
@@ -152,7 +148,7 @@ struct UsageDetailView: View {
         let total = max(models.models.map(\.tokens).reduce(0, +), 1)
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("按模型分布")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(models.models.enumerated()), id: \.element.id) { index, model in
@@ -178,6 +174,7 @@ struct UsageDetailView: View {
                                 .foregroundStyle(Palette.ink)
                             Text(String(format: "%.0f%%", model.tokens / total * 100))
                                 .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                     }
@@ -195,10 +192,12 @@ struct UsageDetailView: View {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
+        let requestedDays = days
         do {
             usage = try await appState.performAdmin { client, config in
-                try await client.usageAnalytics(config: config, days: days)
+                try await client.usageAnalytics(config: config, days: requestedDays)
             }
+            loadedDays = requestedDays
             errorMessage = nil
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "用量没读出来，可能是网络或服务暂时没响应"

@@ -9,41 +9,44 @@ final class ClosureLoopTests: XCTestCase {
 
     // MARK: - H1 GoalEcho
 
-    private func link(
-        _ id: String, taskId: String,
-        completionEntryAt: Double? = nil
-    ) -> BridgeGoalTaskLink {
-        BridgeGoalTaskLink(
-            id: id, goalId: "g_1", taskId: taskId,
-            createdAt: 1, completionEntryAt: completionEntryAt
+    /// §308 单轨后回响的输入是 GD-2 归属行：completion
+    /// 戳在行上（桥回声账的投影），身份就是任务本身
+    private func row(
+        _ taskId: String, completionEntryAt: Double? = nil
+    ) -> BridgeGoalTask {
+        BridgeGoalTask(
+            taskId: taskId, goalId: "g_1", title: "",
+            status: nil, bucket: nil, updatedAt: nil,
+            completionEntryAt: completionEntryAt,
+            milestoneId: nil
         )
     }
 
     private func linked(
-        _ link: BridgeGoalTaskLink, _ task: KanbanTask?
+        _ row: BridgeGoalTask, _ task: KanbanTask?
     ) -> GoalAssociations.LinkedTask {
-        GoalAssociations.LinkedTask(link: link, task: task)
+        GoalAssociations.LinkedTask(row: row, task: task)
     }
 
     func testEchoPlanDelegatedOnlyWhenStateUnknown() {
         // 任务在板上但还在排队：只落「已安排」，不脑补进展
         let plan = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(id: "t_1", title: "打印发言稿", status: "ready")
             )],
             existingKeys: []
         )
         XCTAssertEqual(plan.map(\.kind), [.delegated])
         XCTAssertEqual(
-            plan.first?.key, "goalTask:gl_1:delegated"
+            plan.first?.key, "goalTask:t_1:delegated"
         )
     }
 
     func testEchoPlanRunningNeedsInputFailed() {
         let running = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(id: "t_1", title: "甲", status: "running")
             )],
             existingKeys: []
@@ -52,7 +55,7 @@ final class ClosureLoopTests: XCTestCase {
 
         let needsInput = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(
                     id: "t_1", title: "甲", status: "blocked",
                     blockKind: "needs_input"
@@ -67,7 +70,7 @@ final class ClosureLoopTests: XCTestCase {
         // 失败＝blocked+transient+错误在场的呈现判定
         let failed = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(
                     id: "t_1", title: "甲", status: "blocked",
                     blockKind: "transient",
@@ -81,7 +84,7 @@ final class ClosureLoopTests: XCTestCase {
         // 普通阻塞不是失败：不落失败回响
         let blocked = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(
                     id: "t_1", title: "甲", status: "blocked",
                     blockKind: "dependency"
@@ -93,10 +96,10 @@ final class ClosureLoopTests: XCTestCase {
     }
 
     func testEchoPlanCompletedOnlyFromBridgeStamp() {
-        // 完成只认桥戳：板上状态 done 但无戳 → 不落完成
+        // 完成只认桥戳：板上状态 done 但行无戳 → 不落完成
         let noStamp = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1"),
+                row("t_1"),
                 KanbanTask(id: "t_1", title: "甲", status: "done")
             )],
             existingKeys: []
@@ -105,7 +108,7 @@ final class ClosureLoopTests: XCTestCase {
         // 有戳（哪怕任务板没取到任务）→ 落完成
         let stamped = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_gone", completionEntryAt: 99),
+                row("t_gone", completionEntryAt: 99),
                 nil
             )],
             existingKeys: []
@@ -117,11 +120,11 @@ final class ClosureLoopTests: XCTestCase {
     func testEchoPlanSkipsExistingKeys() {
         let plan = GoalEcho.plan(
             linkedTasks: [linked(
-                link("gl_1", taskId: "t_1", completionEntryAt: 5),
+                row("t_1", completionEntryAt: 5),
                 KanbanTask(id: "t_1", title: "甲", status: "done")
             )],
             existingKeys: [
-                "goalTask:gl_1:delegated", "goalTask:gl_1:completed",
+                "goalTask:t_1:delegated", "goalTask:t_1:completed",
             ]
         )
         XCTAssertTrue(plan.isEmpty)
@@ -140,6 +143,98 @@ final class ClosureLoopTests: XCTestCase {
             GoalEcho.text(kind: .failed, taskTitle: "甲"),
             "《甲》执行失败了，详情在目标的关联任务里。"
         )
+    }
+
+    // MARK: - §308 归属字段契约
+
+    func testTaskGoalAssignmentDecodesFullAndCleared() throws {
+        let decoder = JSONDecoder()
+        let full = """
+        {"taskId": "t_1", "goalId": "g_1",
+         "milestoneId": "ms_1", "assignedAt": 1794200000.0}
+        """
+        let a = try decoder.decode(
+            BridgeTaskGoalAssignment.self, from: Data(full.utf8)
+        )
+        XCTAssertEqual(a.goalId, "g_1")
+        // G-6：milestoneId 已自归属模型移除，旧载荷同
+        // 名键解码忽略（能解到这里即证明）
+        XCTAssertEqual(a.assignedAt, 1794200000.0)
+        let cleared = """
+        {"taskId": "t_1", "goalId": null,
+         "milestoneId": null, "assignedAt": null}
+        """
+        let b = try decoder.decode(
+            BridgeTaskGoalAssignment.self, from: Data(cleared.utf8)
+        )
+        XCTAssertNil(b.goalId)
+        XCTAssertNil(b.assignedAt)
+    }
+
+    func testTaskGoalWriteEncodesExplicitNullGoalId() throws {
+        // 清除归属必须显式送 null：桥靠键在不在区分
+        // 「清除」与「漏传」（漏传 400），合成编码把
+        // nil 键省略掉就会把清除写成漏传
+        let data = try JSONEncoder().encode(
+            BridgeTaskGoalWrite(goalId: nil)
+        )
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
+        )
+        XCTAssertTrue(json.keys.contains("goalId"))
+        XCTAssertTrue(json["goalId"] is NSNull)
+        let set = try JSONEncoder().encode(
+            BridgeTaskGoalWrite(goalId: "g_1")
+        )
+        let setJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: set)
+                as? [String: Any]
+        )
+        XCTAssertEqual(setJSON["goalId"] as? String, "g_1")
+        // G-6：写体不再带 milestoneId 键
+        XCTAssertNil(setJSON["milestoneId"])
+    }
+
+    func testGoalDelegateRequestEncodes() throws {
+        let data = try JSONEncoder().encode(
+            BridgeGoalDelegateRequest(
+                title: "订场地",
+                idempotencyKey: "k-1"
+            )
+        )
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
+        )
+        XCTAssertEqual(json["title"] as? String, "订场地")
+        XCTAssertEqual(json["idempotencyKey"] as? String, "k-1")
+    }
+
+    func testLinkedTasksOnlyTrustRowGoalId() {
+        // 只认行自带的 goalId：混进别的目标的行不进本
+        // 目标的关联段，同任务重复行只出一次
+        let rows = [
+            BridgeGoalTask(
+                taskId: "t_1", goalId: "g_1", title: "甲",
+                status: nil, bucket: nil, updatedAt: nil,
+                milestoneId: nil
+            ),
+            BridgeGoalTask(
+                taskId: "t_2", goalId: "g_2", title: "乙",
+                status: nil, bucket: nil, updatedAt: nil,
+                milestoneId: nil
+            ),
+            BridgeGoalTask(
+                taskId: "t_1", goalId: "g_1", title: "甲",
+                status: nil, bucket: nil, updatedAt: nil,
+                milestoneId: nil
+            ),
+        ]
+        let resolved = GoalAssociations.linkedTasks(
+            goalID: "g_1", rows: rows, tasks: []
+        )
+        XCTAssertEqual(resolved.map(\.row.taskId), ["t_1"])
     }
 
     // MARK: - H2 NotificationDestination

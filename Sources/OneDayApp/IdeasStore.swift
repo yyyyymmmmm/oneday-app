@@ -4,8 +4,10 @@ import OneDayCore
 /// 点子数据中枢（P5，0.11.0；0.32.0 P1 升级）：oneday-
 /// bridge 点子仓的状态面＋「转任务」的执行面。口径：
 /// ①桥未连接/未开通与 GoalsStore 同分法（共用其静态
-/// 映射，不另立一套说法）；②写动作回读确认才算完成；
-/// ③转任务经 P3 KanbanStore 适配层落板——板未开通
+/// 映射，不另立一套说法）；②写动作分档（§233）：转
+/// 任务/新建/删除等确认类仍回读确认才算完成；**放
+/// 下/忽略改乐观**——卡当拍离场、后台 PATCH，失败
+/// 卡回来＋行内提示；③转任务经 P3 KanbanStore 适配层落板——板未开通
 /// 如实提示、不假成功，确认建卡后把任务 id 经 PATCH
 /// 回写桥端 idea（taskId＋status=adopted，服务端为
 /// 「已转」唯一真源；0.32.0 退役旧本地 convertedIdeaIDs
@@ -35,15 +37,28 @@ final class IdeasStore {
     private(set) var createError: String?
     /// 卡内行内提示（转任务/忽略/删除的人话，不弹模态）
     private(set) var notes: [String: String] = [:]
+    /// 最近一次删除的成功回响（同类面口径：文件页/
+    /// 交付物页删成落「已删除「名」。」小字明示）；
+    /// 只在回读确认消失时落字，新一次删除开始即清、
+    /// 不叠旧回响；删除未落定不落此字（只走 notes）
+    private(set) var deleteNotice: String?
 
-    private let client = OneDayBridgeClient()
+    private let client: OneDayBridgeClientProtocol
     private var loadInFlight = false
+    /// 新鲜度门（§367）：读触发先过门，TTL 内零请求
+    private var freshness = FreshnessGate(
+        ttl: FreshnessGate.standardListTTL
+    )
+
+    init(client: OneDayBridgeClientProtocol = OneDayBridgeClient()) {
+        self.client = client
+    }
 
     // MARK: - 呈现口径（收口在 Core IdeaBoard）
 
     /// 待阅：生成卡在前、手记在后，各按时间倒序。
     /// §177 后只余内部用途（忽略回读确认判据），不
-    /// 再是页面分区——页面结构走 categorySections
+    /// 再是页面分区——页面结构走 domainSections
     var pendingIdeas: [BridgeIdea] {
         IdeaBoard.pendingList(ideas)
     }
@@ -54,16 +69,34 @@ final class IdeasStore {
         IdeaBoard.adoptedList(ideas, now: Date().timeIntervalSince1970)
     }
 
-    /// 页面唯一结构（§177）：分类小节（标题＋卡片），
-    /// 无分类的卡不进列表，口径收口在 Core IdeaBoard
-    var categorySections: [IdeaCategorySection] {
-        IdeaBoard.categorySections(
+    /// 页面唯一结构（§177 立形、§459 换键）：领域
+    /// 小节（标题＋卡片），分节键＝domain（旧
+    /// category 只作折算兜底），口径收口在 Core
+    /// IdeaBoard.domainSections。
+    /// §415 改存储快照：旧计算属性每次访问重分组
+    /// （body 一趟多次访问多次付账）——现由三个数
+    /// 据变更漏斗（installLoadedIdeas/applyOpti-
+    /// misticDismiss/restoreDismissed）在落点重算，
+    /// 呈现侧读零计算（照资源库快照模板收口）
+    private(set) var domainSections: [IdeaDomainSection] = []
+
+    /// 分节快照修订号（§415）：每次重算 +1，钉测
+    /// 以此断言呈现侧反复读不重算
+    private(set) var domainSectionsRevision = 0
+
+    /// 快照重算落点（数据变更漏斗共用）：入参口径
+    /// 与旧计算属性逐字同（IdeaBoard.domainSec-
+    /// tions＋当前时刻——已采纳 30 天窗随数据变更
+    /// 刷新，与旧「下次访问重算」在可见面同果）
+    private func refreshDomainSections() {
+        domainSections = IdeaBoard.domainSections(
             ideas, now: Date().timeIntervalSince1970
         )
+        domainSectionsRevision += 1
     }
 
     var hasVisibleIdeas: Bool {
-        !categorySections.isEmpty
+        !domainSections.isEmpty
     }
 
     /// 空态分法：还没生产过 vs 这一轮已清完
@@ -98,7 +131,23 @@ final class IdeasStore {
 
     // MARK: - 加载
 
-    func load(appState: AppState) async {
+    /// 读触发入口（§367 新鲜度门）：TTL 内且配置没变
+    /// 直接用已载数据、零请求；首载/过期/换服务器才
+    /// 走 load 全量。下拉刷新与错误态重试不经此门、
+    /// 恒走 load 强制
+    func loadIfNeeded(appState: AppState) async {
+        await loadIfNeeded(appState: appState, now: Date())
+    }
+
+    /// 时刻注入的门控本体（钉测用：推进时刻验过期）
+    func loadIfNeeded(appState: AppState, now: Date) async {
+        guard !freshness.isFresh(
+            configKey: appState.config?.baseString, now: now
+        ) else { return }
+        await load(appState: appState, now: now)
+    }
+
+    func load(appState: AppState, now: Date = Date()) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
             loadState = .failed(L10n.string("尚未连接服务器。"))
@@ -107,8 +156,19 @@ final class IdeasStore {
         loadInFlight = true
         defer { loadInFlight = false }
         do {
-            ideas = try await client.ideas(config: config)
+            installLoadedIdeas(
+                try await client.ideas(config: config)
+            )
             loadState = .ready
+            freshness.stamp(configKey: config.baseString, now: now)
+            // §219：名单到手即扫 §219 前的旧点子预填
+            // 存量（逐字再生须拿原点子，这是最早能严
+            // 格核验的时点；判定从严、亲笔零误伤，
+            // 与 FeedStore 的动态清扫同式）
+            appState.sideChats.purgeLegacyIdeaDrafts(
+                ideas: ideas,
+                links: appState.sessionLedger.ideaThreadIDs
+            )
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = GoalsStore.state(for: error)
@@ -131,7 +191,12 @@ final class IdeasStore {
     private func refetch(appState: AppState) async {
         guard let config = appState.config else { return }
         if let fetched = try? await client.ideas(config: config) {
-            ideas = fetched
+            installLoadedIdeas(fetched)
+            // 写后回读即全量现值：落账新鲜度（回读本身
+            // 不经门、不许被门跳过，§367.4）
+            freshness.stamp(
+                configKey: config.baseString, now: Date()
+            )
         }
         if let fetched = try? await client.goals(config: config) {
             goals = fetched
@@ -183,6 +248,9 @@ final class IdeasStore {
     // MARK: - 删除（DELETE→回读确认消失才算完成）
 
     func delete(appState: AppState, idea: BridgeIdea) async {
+        // 新一次删除动作开始：旧回响先清，落点由本次
+        // 回读定（未连接等早退分支同口径，不留陈字）
+        deleteNotice = nil
         guard !actingIDs.contains(idea.id) else { return }
         guard let config = appState.config else {
             notes[idea.id] = L10n.string("尚未连接服务器。")
@@ -194,13 +262,18 @@ final class IdeasStore {
         do {
             try await client.deleteIdea(config: config, id: idea.id)
             await refetch(appState: appState)
-            if ideas.contains(where: { $0.id == idea.id }) {
-                notes[idea.id] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
-            }
+            applyDeleteOutcome(
+                idea: idea,
+                stillPresent: ideas.contains(
+                    where: { $0.id == idea.id }
+                )
+            )
         } catch let error as OneDayBridgeError {
             if case .recordGone = error {
                 await refetch(appState: appState)
                 if !ideas.contains(where: { $0.id == idea.id }) {
+                    // 服务端已无此条＝删成（以回读为准）
+                    applyDeleteOutcome(idea: idea, stillPresent: false)
                     return
                 }
             }
@@ -210,11 +283,52 @@ final class IdeasStore {
         }
     }
 
-    // MARK: - 忽略（PATCH dismissed→回读确认离场）
+    /// 删除回读落点收口（列表长按菜单与详情 sheet
+    /// 两处确认路径共用一个漏斗）：回读确认消失才算
+    /// 删成——落删除回响明示删了哪条；还在列表＝未
+    /// 落定，只留痕不报已删
+    func applyDeleteOutcome(idea: BridgeIdea, stillPresent: Bool) {
+        if stillPresent {
+            notes[idea.id] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
+        } else {
+            deleteNotice = L10n.format("已删除「%@」。", idea.title)
+        }
+    }
 
-    /// 低风险动作：不弹确认；回读后点子不在待阅列才
-    /// 算数。已忽略是终态（设计档 §1.4），页内不给恢复
-    /// 入口——想留的点子请用删除前的详情页细看。
+    // MARK: - 忽略（§233 乐观：卡先离场，后台 PATCH）
+
+    /// 名单装载收口（load/回读/测试共用一个落点）
+    func installLoadedIdeas(_ loaded: [BridgeIdea]) {
+        ideas = loaded
+        refreshDomainSections()
+    }
+
+    /// 乐观离场落点：把点子从本地名单摘掉并返回摘下
+    /// 的原条（失败恢复用）；不在名单里返回 nil
+    func applyOptimisticDismiss(ideaID: String) -> BridgeIdea? {
+        guard let index = ideas.firstIndex(
+            where: { $0.id == ideaID }
+        ) else { return nil }
+        let removed = ideas.remove(at: index)
+        refreshDomainSections()
+        return removed
+    }
+
+    /// 失败恢复落点：原条放回名单（呈现序由 IdeaBoard
+    /// 派生排序，不靠数组位置）；已在名单里不重复插
+    func restoreDismissed(_ idea: BridgeIdea) {
+        guard !ideas.contains(where: { $0.id == idea.id })
+        else { return }
+        ideas.append(idea)
+        refreshDomainSections()
+    }
+
+    /// 低风险动作：不弹确认；**卡当拍先离场**，后台
+    /// PATCH dismissed＋回读对账——回读后仍在待阅列
+    /// 说明服务端没落定，呈现已随回读把卡带回＋留
+    /// 提示；网络失败把卡放回＋行内提示。已忽略是终
+    /// 态（设计档 §1.4），页内不给恢复入口——想留的
+    /// 点子请用删除前的详情页细看。
     /// tooGeneric＝用户标「太泛了」（0.39.0）：随 PATCH 带
     /// dismissReason，桥计入下一轮生成的避让与具体性校准
     func dismiss(
@@ -229,6 +343,7 @@ final class IdeasStore {
         actingIDs.insert(idea.id)
         notes.removeValue(forKey: idea.id)
         defer { actingIDs.remove(idea.id) }
+        let removed = applyOptimisticDismiss(ideaID: idea.id)
         do {
             _ = try await client.patchIdea(
                 config: config, id: idea.id,
@@ -242,8 +357,10 @@ final class IdeasStore {
                 notes[idea.id] = L10n.string("忽略已发出，但列表里还在，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
+            if let removed { restoreDismissed(removed) }
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
+            if let removed { restoreDismissed(removed) }
             notes[idea.id] = L10n.string("忽略失败，请稍后再试。")
         }
     }
@@ -321,4 +438,122 @@ final class IdeasStore {
             notes[idea.id] = L10n.string("任务已建在任务板上，但回写点子状态失败，请刷新核对。")
         }
     }
+
+    // MARK: - kind 落地（§459）：立为目标／建为例行
+
+    /// 立为目标：POST /goals 建目标（标题＝点子标题、
+    /// 备注＝点子正文、分类＝旧 category 折算的目
+    /// 标分类）→ 回读目标列表确认新目标在列 → PATCH
+    /// 点子 adopted 回写 → 回读确认点子状态落字才算
+    /// 完成（回读判据，与转任务同档）。回写失败时目
+    /// 标已建成、点子未标：如实留 notes、不假成功、
+    /// 不回滚目标
+    func convertToGoal(appState: AppState, idea: BridgeIdea) async {
+        guard !actingIDs.contains(idea.id) else { return }
+        guard !isConverted(idea) else {
+            notes[idea.id] = L10n.string("这个点子已经落地了。")
+            return
+        }
+        guard let config = appState.config else {
+            notes[idea.id] = L10n.string("尚未连接服务器。")
+            return
+        }
+        actingIDs.insert(idea.id)
+        notes.removeValue(forKey: idea.id)
+        defer { actingIDs.remove(idea.id) }
+        do {
+            let created = try await client.createGoal(
+                config: config,
+                request: BridgeGoalCreateRequest.make(
+                    title: idea.title,
+                    note: idea.detail,
+                    category: GoalCategory.from(idea.category)
+                )
+            )
+            // 回读判据一：目标已在列表（服务端真源）
+            if let fetched = try? await client.goals(
+                config: config
+            ) {
+                goals = fetched
+            }
+            guard goals.contains(where: { $0.id == created.id })
+            else {
+                notes[idea.id] = L10n.string(
+                    "目标已提交，但回读列表里还没确认到，请刷新核对。"
+                )
+                return
+            }
+            try await markAdopted(appState: appState, idea: idea)
+        } catch is IdeaAdoptionUnconfirmed {
+            // notes 已在回写段就地落字，不覆写
+        } catch let error as OneDayBridgeError {
+            notes[idea.id] = GoalsStore.message(for: error)
+        } catch {
+            notes[idea.id] = L10n.string("立为目标失败，请稍后再试。")
+        }
+    }
+
+    /// 建为例行的回写段：例行本体由 CronJobFormView
+    /// 建成、存在性回读在视图侧（共享 CronStore 名
+    /// 单含新 job id）先行确认后以 routineConfirmed
+    /// 传入；未确认到不回写、如实留 notes（不许标
+    /// 已采纳）；确认后只做点子侧回写＋回读确认
+    func markAdoptedForRoutine(
+        appState: AppState, idea: BridgeIdea,
+        routineConfirmed: Bool
+    ) async {
+        guard !actingIDs.contains(idea.id) else { return }
+        guard appState.config != nil else {
+            notes[idea.id] = L10n.string("尚未连接服务器。")
+            return
+        }
+        guard routineConfirmed else {
+            notes[idea.id] = L10n.string(
+                "例行已提交，但回读列表里还没确认到，请刷新核对。"
+            )
+            return
+        }
+        actingIDs.insert(idea.id)
+        notes.removeValue(forKey: idea.id)
+        defer { actingIDs.remove(idea.id) }
+        do {
+            try await markAdopted(appState: appState, idea: idea)
+        } catch is IdeaAdoptionUnconfirmed {
+            // notes 已在回写段就地落字，不覆写
+        } catch let error as OneDayBridgeError {
+            notes[idea.id] = GoalsStore.message(for: error)
+        } catch {
+            notes[idea.id] = L10n.string("例行已建成，但点子状态回写失败，请刷新核对。")
+        }
+    }
+
+    /// 采纳回写共用段：PATCH {status: adopted} → 静
+    /// 默回读 → 点子状态落 adopted 才算成；未落字
+    /// 以 OneDayBridgeError 之外的哨兵错误上抛由调用
+    /// 方落 notes（此处直接落 notes 并以 throw 收口
+    /// 防双写——调用方 catch 只处理桥错误与未知错
+    /// 误，本段的未确认分支已自带 notes、经哨兵跳过）
+    private func markAdopted(
+        appState: AppState, idea: BridgeIdea
+    ) async throws {
+        guard let config = appState.config else { return }
+        _ = try await client.patchIdea(
+            config: config, id: idea.id,
+            request: BridgeIdeaPatchRequest(status: .adopted)
+        )
+        await refetch(appState: appState)
+        let after = ideas.first { $0.id == idea.id }
+        if after?.status == .adopted {
+            Haptics.success()
+        } else {
+            notes[idea.id] = L10n.string(
+                "已建成，但点子的「已落地」标记回写后没确认上，请刷新核对。"
+            )
+            throw IdeaAdoptionUnconfirmed()
+        }
+    }
+
+    /// 采纳回写未确认哨兵（notes 已就地落字，catch
+    /// 侧勿再覆写）
+    private struct IdeaAdoptionUnconfirmed: Error {}
 }

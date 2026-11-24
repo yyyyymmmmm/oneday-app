@@ -82,22 +82,23 @@ final class AccessibilityPackageTests: XCTestCase {
 
     // MARK: - D1 发送舱按档几何
 
-    /// 基准档字体恒 16pt（0.2.9 定案不漂移）；档位
+    /// 基准档字体恒 17pt（0.2.9 定案 16pt、2026-11-15
+    /// 第 84 条裁升 Body 17 与正文同档，§265）；档位
     /// 两端单调（小档更小、AX 档更大）
     func testBodyFontScalesWithCategory() {
         XCTAssertEqual(
             ComposerTextMetrics.bodyFont(for: .large).pointSize,
-            16, accuracy: 0.01
+            17, accuracy: 0.01
         )
         XCTAssertLessThan(
             ComposerTextMetrics.bodyFont(for: .extraSmall).pointSize,
-            16
+            17
         )
         XCTAssertGreaterThan(
             ComposerTextMetrics.bodyFont(
                 for: .accessibilityExtraExtraExtraLarge
             ).pointSize,
-            16
+            17
         )
     }
 
@@ -111,7 +112,8 @@ final class AccessibilityPackageTests: XCTestCase {
         )
         let ax = UIContentSizeCategory.accessibilityExtraLarge
         let expected = ComposerLayout.lineHeight
-            * ComposerTextMetrics.bodyFont(for: ax).pointSize / 16
+            * ComposerTextMetrics.bodyFont(for: ax).pointSize
+            / ComposerTextMetrics.basePointSize
         XCTAssertEqual(
             ComposerLayout.lineHeight(for: ax), expected,
             accuracy: 0.0001
@@ -131,26 +133,27 @@ final class AccessibilityPackageTests: XCTestCase {
         XCTAssertLessThan(heights.first!, heights.last!)
     }
 
-    /// 封顶与胶囊基准：.large 档下旧钉值全数不变
-    /// （封顶 115.02、空文案胶囊 46）；AX 档胶囊随
-    /// 行高长高（发送舱在大字下不截字的几何前提）
+    /// 封顶与胶囊基准：.large 档钉值随第 84 条基准
+    /// 升 17 改钉（封顶 122.22、空文案胶囊 46.37）；
+    /// AX 档胶囊随行高长高（发送舱在大字下不截字
+    /// 的几何前提）
     func testComposerBaselineUnchangedAndAXGrows() {
         XCTAssertEqual(
             ComposerLayout.maxTextHeight(for: .large),
-            115.02, accuracy: 0.001
+            122.22, accuracy: 0.001
         )
         XCTAssertEqual(
             ComposerTextMetrics.capsuleHeight(
                 for: "", containerWidth: 402, category: .large
             ),
-            46, accuracy: 0.001
+            46.37, accuracy: 0.001
         )
         XCTAssertGreaterThan(
             ComposerTextMetrics.capsuleHeight(
                 for: "", containerWidth: 402,
                 category: .accessibilityExtraExtraExtraLarge
             ),
-            46
+            46.37
         )
     }
 

@@ -83,7 +83,7 @@ struct SoulEditorView: View {
         case .saved:
             Label("已保存", systemImage: "checkmark.circle.fill")
                 .font(.footnote)
-                .foregroundStyle(Palette.success)
+                .foregroundStyle(Palette.successText)
         case .unconfirmed:
             Label(
                 "没能确认保存成功，你写的内容还在这里，请再试一次。",

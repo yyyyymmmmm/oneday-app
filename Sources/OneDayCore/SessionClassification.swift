@@ -50,34 +50,109 @@ public enum SessionSources {
         "dashboard", "cli",
     ]
 
-    /// 外部平台源（R6）：Hermes 网关的平台名全集
-    /// （规格点名 whatsapp/telegram/feishu/wechat
-    /// ＋网关其余平台）。命中即归对应外部频道——
-    /// 一期无行无页、规则先行（规格 §7）
+    /// 外部平台源（R6）：Hermes 网关的平台名全集。
+    /// 2026-11-13 频道扩展一期对账（规格 §2.3）：本
+    /// 表以网关 Platform 枚举实值为唯一真源——旧表
+    /// 的 wechat/qq 与网关实值 weixin/qqbot 错位（微
+    /// 信/QQ 会话会穿透落 Hermes 频道），且缺 11 个
+    /// 平台。命中即归对应外部频道。
     public static let platforms: Set<String> = [
-        "whatsapp", "telegram", "feishu", "wechat",
-        "dingtalk", "wecom", "qq", "discord", "slack",
-        "signal", "matrix", "sms",
+        "telegram", "discord", "whatsapp", "whatsapp_cloud",
+        "slack", "signal", "mattermost", "matrix", "email",
+        "sms", "dingtalk", "feishu", "wecom", "wecom_callback",
+        "weixin", "bluebubbles", "qqbot", "yuanbao",
+        "line", "teams", "google_chat", "photon", "simplex",
     ]
 
+    /// 历史别名（旧表口径与个别插件的旧名）：归一到
+    /// 网关实值再判定，别名本身不作频道 id 出现
+    public static let platformAliases: [String: String] = [
+        "wechat": "weixin",
+        "qq": "qqbot",
+    ]
+
+    /// 平台名归一：别名映射到网关实值，其余原样
+    public static func canonicalPlatform(_ source: String) -> String {
+        platformAliases[source] ?? source
+    }
+
     /// 平台源的人话名（频道注册表给平台频道命名用；
-    /// 未列者回落原值——一期无平台行上屏，此表只作
-    /// 注册表完备性）
+    /// 未列者回落原值）
     public static func platformDisplayName(_ source: String) -> String {
         switch source {
         case "whatsapp": return "WhatsApp"
+        case "whatsapp_cloud": return "WhatsApp"
         case "telegram": return "Telegram"
         case "feishu": return "飞书"
-        case "wechat": return "微信"
+        case "weixin", "wechat": return "微信"
         case "dingtalk": return "钉钉"
-        case "wecom": return "企业微信"
-        case "qq": return "QQ"
+        case "wecom", "wecom_callback": return "企业微信"
+        case "qqbot", "qq": return "QQ"
         case "discord": return "Discord"
         case "slack": return "Slack"
         case "signal": return "Signal"
         case "matrix": return "Matrix"
+        case "mattermost": return "Mattermost"
+        case "email": return "邮箱"
         case "sms": return "短信"
+        case "bluebubbles": return "iMessage"
+        case "yuanbao": return "腾讯元宝"
+        case "line": return "LINE"
+        case "teams": return "Teams"
+        case "google_chat": return "Google Chat"
+        case "photon": return "Photon"
+        case "simplex": return "SimpleX"
         default: return source
+        }
+    }
+
+    /// 平台官方品牌图标资产名（宪法 §4：官方原图入
+    /// 资产才登记；没有合格原图的平台回 nil，呈现层
+    /// 不许拿仿绘/字母块顶替）。一期登记 Telegram；
+    /// 二期续登飞书与令牌四家（钉钉/QQ/Discord/
+    /// Slack），均为官方 App 图标原图（来源见
+    /// channels-phase1／channels-feishu／
+    /// channels-token-batch 三报告）。微信图标随
+    /// 二期微信行下架一并退役（2026-11-13 用户拍
+    /// 板），故此处不再登记 weixin
+    ///
+    /// 2026-11-15 图标统一批（待办第 86 条，审计 C
+    /// 线硬伤 2-1）：全部对话页与抽屉统一为一条口
+    /// 径——有官方原图才上行。本批续登十家：WhatsApp
+    /// （whatsapp_cloud 同品牌共用）、Signal、LINE、
+    /// 企业微信（wecom_callback 共用）、Teams、
+    /// Google Chat、Mattermost、SimpleX、腾讯元宝
+    /// 均取 Apple iTunes lookup 官方 App artwork
+    /// 512；BlueBubbles 取其官方仓库 iOS AppIcon
+    /// 1024 原图（该产品未上架 App Store）。来源逐
+    /// 个登记于 platform-icons-unify-20261115 报
+    /// 告。仍回 nil 的五家：matrix（官方仅横式字标、
+    /// 无应用级原图，拼凑成图标即仿绘）、photon
+    /// （官网仅装饰图形、无官方图标资产）、email／
+    /// sms（无品牌通用通道）、weixin（沿 2026-11-13
+    /// 拍板退役，非资产缺失）
+    public static func platformIconAssetName(
+        _ source: String
+    ) -> String? {
+        switch source {
+        case "telegram": return "ChannelTelegram"
+        case "feishu": return "ChannelFeishu"
+        case "dingtalk": return "ChannelDingtalk"
+        case "qqbot", "qq": return "ChannelQQ"
+        case "discord": return "ChannelDiscord"
+        case "slack": return "ChannelSlack"
+        case "whatsapp", "whatsapp_cloud":
+            return "ChannelWhatsApp"
+        case "signal": return "ChannelSignal"
+        case "line": return "ChannelLINE"
+        case "wecom", "wecom_callback": return "ChannelWecom"
+        case "teams": return "ChannelTeams"
+        case "google_chat": return "ChannelGoogleChat"
+        case "mattermost": return "ChannelMattermost"
+        case "simplex": return "ChannelSimpleX"
+        case "yuanbao": return "ChannelYuanbao"
+        case "bluebubbles": return "ChannelBlueBubbles"
+        default: return nil
         }
     }
 
@@ -154,9 +229,26 @@ public struct ChannelDescriptor: Identifiable, Equatable, Sendable {
     }
 }
 
-/// 频道注册表（规格 §3.3/§7）：一期仅 Hermes 一条；
-/// 外部频道接入时按注册表加行（descriptor(for:)
-/// 已能为平台源派生描述，行显与页面属二期）。
+/// 频道配对形态（呈现层据此决定行尾与点开的目的
+/// 地，规格 §4/§6）。冻结形态（frozen）随二期微
+/// 信行下架退役（2026-11-13 用户拍板删行），枚举
+/// 一并摘除、留痕见 channels-feishu-report
+public enum ChannelPairingKind: Equatable, Sendable {
+    /// 不是外部平台（Hermes 频道本体，无配对概念）
+    case none
+    /// 填钥匙配对（Telegram、飞书等）
+    case token
+    /// 扫码配对（WhatsApp，后续批次开放）
+    case qr
+}
+
+/// 频道注册表（规格 §3.3/§7）：2026-11-13 频道扩
+/// 展一期——抽屉清单恒显 Hermes＋Telegram＋微信
+/// （冻结行）；二期（同日用户改口径）——微信行下
+/// 架、飞书上行，清单＝Hermes＋Telegram＋飞书；
+/// 其余平台随各自接入批次往 drawerList 里加
+/// （descriptor(for:) 已能为任意平台源派生描述，
+/// 频道段/频道页不挑批次）。
 public enum ChannelRegistry {
     public static let hermesChannelID = "hermes"
 
@@ -164,29 +256,165 @@ public enum ChannelRegistry {
     /// 他表面（网页/接口）的会话收纳处。图标复用
     /// 0.36.3 已登记的本机服务 Hermes 定制图面资产
     /// （LocalServices 同款 LocalHermes，台账 D 节）
+    /// 用户面展示名（§241，2026-11-14 大厂九项⑨拍
+    /// 板）：「服务器会话」——频道 id 与代码符号仍为
+    /// hermes 不动，用户面不再直呼服务端产品名
     public static let hermes = ChannelDescriptor(
         id: hermesChannelID,
-        name: "Hermes",
+        name: "服务器会话",
         pageSubtitle: "在这台 Hermes 的其他地方（网页、接口）发生的对话",
         iconAssetName: "LocalHermes"
+    )
+
+    /// Telegram 频道（一期打样）：配对走填钥匙，图
+    /// 标为官方品牌原图资产 ChannelTelegram
+    public static let telegram = ChannelDescriptor(
+        id: "telegram",
+        name: "Telegram",
+        pageSubtitle: "在 Telegram 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("telegram")
+    )
+
+    /// 飞书频道（二期）：配对走填应用凭证（App ID
+    /// ＋App Secret，飞书开放平台企业自建应用），图
+    /// 标为官方品牌原图资产 ChannelFeishu。微信行已
+    /// 于二期下架（2026-11-13 用户拍板）：与 ClawBot
+    /// 同底座的冻结行连同其说明页、图标资产一并退
+    /// 役；来源分类层对 weixin 的归一与识别保留（历
+    /// 史来源事实，不属配对面）
+    public static let feishu = ChannelDescriptor(
+        id: "feishu",
+        name: "飞书",
+        pageSubtitle: "在飞书里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("feishu")
+    )
+
+    /// 钉钉（二期令牌批）：企业内部应用机器人，
+    /// Stream 长连接接入，填 Client ID／Client
+    /// Secret 配对；图标为官方 App 原图
+    public static let dingtalk = ChannelDescriptor(
+        id: "dingtalk",
+        name: "钉钉",
+        pageSubtitle: "在钉钉里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("dingtalk")
+    )
+
+    /// QQ 机器人（二期令牌批）：QQ 机器人开放平
+    /// 台官方机器人，填 AppID／Client Secret 配对
+    public static let qqbot = ChannelDescriptor(
+        id: "qqbot",
+        name: "QQ",
+        pageSubtitle: "在 QQ 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("qqbot")
+    )
+
+    /// Discord（二期令牌批）：开发者门户机器人，
+    /// 填 Bot 令牌配对
+    public static let discord = ChannelDescriptor(
+        id: "discord",
+        name: "Discord",
+        pageSubtitle: "在 Discord 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("discord")
+    )
+
+    /// Slack（二期令牌批）：Socket Mode 双钥匙
+    /// （Bot Token＋App Token）配对
+    public static let slack = ChannelDescriptor(
+        id: "slack",
+        name: "Slack",
+        pageSubtitle: "在 Slack 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("slack")
     )
 
     /// 一期注册表（显行判定与频道段行源）
     public static let phaseOne: [ChannelDescriptor] = [hermes]
 
-    /// 按频道 id 取描述：Hermes 恒有；平台频道按平
-    /// 台名派生（一期只备不用）；其余 nil
+    /// 抽屉频道区恒显清单（2026-11-13 新口径覆盖
+    /// 0.36.29「通一个显一个」：支持的都列、配好的
+    /// 能用、没配的给路）。排序：Hermes（恒在首位、
+    /// 本机频道）→ Telegram → 飞书（二期换下微信
+    /// 行）→ 二期令牌四家（钉钉/QQ/Discord/Slack）
+    public static let drawerList: [ChannelDescriptor] = [
+        hermes, telegram, feishu, dingtalk, qqbot, discord, slack,
+
+    ]
+
+    /// 平台的配对形态（呈现层据此决定行尾与目的地：
+    /// 已配对/token 未配对进引导页/qr 待后续批次）。
+    /// Hermes 与未知平台为 none
+    public static func pairingKind(
+        for channelID: String
+    ) -> ChannelPairingKind {
+        switch channelID {
+        case "telegram", "feishu", "dingtalk", "qqbot",
+             "discord", "slack":
+            return .token
+        case "whatsapp": return .qr
+        default: return .none
+        }
+    }
+
+    /// 按频道 id 取描述：注册表恒有条目优先；其余平
+    /// 台按平台名派生（图标走平台资产登记，无登记
+    /// 为 nil）；非平台 id 为 nil
     public static func descriptor(for channelID: String) -> ChannelDescriptor? {
-        if channelID == hermesChannelID { return hermes }
+        switch channelID {
+        case hermesChannelID: return hermes
+        case telegram.id: return telegram
+        case feishu.id: return feishu
+        case dingtalk.id: return dingtalk
+        case qqbot.id: return qqbot
+        case discord.id: return discord
+        case slack.id: return slack
+        default: break
+        }
         if SessionSources.platforms.contains(channelID) {
             return ChannelDescriptor(
                 id: channelID,
                 name: SessionSources.platformDisplayName(channelID),
                 pageSubtitle: "",
-                iconAssetName: nil
+                iconAssetName: SessionSources.platformIconAssetName(
+                    channelID
+                )
             )
         }
         return nil
+    }
+}
+
+/// 凭据保存后的生效相位（频道文案小包，2026-11-13）：
+/// 伴生 1.0.46 起保存回执带 applyTriggered/
+/// applyError——已触发网关重启时，网关记录翻
+/// connected 之前有一个「正在生效」的空窗，只看
+/// status 会显成笼统的等待态。呈现层据回执先行给
+/// 相位、status 翻终态（connected/error）后相位退
+/// 场、呈现完全归 status。判定收成纯逻辑，回执字
+/// 段缺失（旧版伴生）时回落 .none、与旧行为同形。
+
+public enum ChannelApplyPhase: Equatable, Sendable {
+    /// 无保存流程态：呈现完全按 status 走
+    case none
+    /// 已触发即时生效、等网关记录翻 connected
+    case applying
+    /// 即时生效触发失败：如实显等待生效＋桥回的原因
+    case applyFailed(reason: String)
+    /// 已保存但未触发即时生效（桥没有即时通道）：
+    /// 等网关下次重启，呈现落回 status 的等待态
+    case awaitingRestart
+
+    public static func resolve(
+        applyTriggered: Bool?,
+        applyError: String?,
+        statusState: String?
+    ) -> ChannelApplyPhase {
+        if statusState == "connected" || statusState == "error" {
+            return .none
+        }
+        guard let applyTriggered else { return .none }
+        if let applyError, !applyError.isEmpty {
+            return .applyFailed(reason: applyError)
+        }
+        return applyTriggered ? .applying : .awaitingRestart
     }
 }
 
@@ -316,10 +544,14 @@ public enum SessionClassifier {
            SessionSources.structuralSystem.contains(effective) {
             return .system
         }
-        // R6 平台源 → 对应外部频道（一期无行无页）
-        if let effective,
-           SessionSources.platforms.contains(effective) {
-            return .channel(effective)
+        // R6 平台源 → 对应外部频道：先按别名归一到
+        // 网关实值（wechat→weixin、qq→qqbot）再判，
+        // 频道 id 恒为网关实值（2026-11-13 对账 §2.3）
+        if let effective {
+            let canonical = SessionSources.canonicalPlatform(effective)
+            if SessionSources.platforms.contains(canonical) {
+                return .channel(canonical)
+            }
         }
         // R7 Hermes 人工表面（网页/命令行）
         if let effective,

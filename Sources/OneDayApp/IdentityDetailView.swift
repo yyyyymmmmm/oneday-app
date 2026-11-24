@@ -45,7 +45,7 @@ struct IdentityDetailView: View {
                 AgentAvatarEditorView()
             case .name:
                 AgentNameEditorView(
-                    initialOverride: appState.profileNameOverride
+                    initialName: appState.identityName ?? ""
                 )
             }
         }
@@ -62,7 +62,10 @@ struct IdentityDetailView: View {
                 appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 88, height: 88)
+                    .frame(
+                        width: OneDayMetrics.avatarPageHead,
+                        height: OneDayMetrics.avatarPageHead
+                    )
                     .clipShape(Circle())
                     .overlay {
                         Circle().stroke(Palette.hairline, lineWidth: 0.5)
@@ -121,10 +124,7 @@ struct IdentityDetailView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -145,10 +145,7 @@ struct IdentityDetailView: View {
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundStyle(Palette.inkMuted)
-                        .accessibilityHidden(true)
+                    DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())

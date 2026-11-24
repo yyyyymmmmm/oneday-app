@@ -9,6 +9,7 @@ import OneDayCore
 /// 明见 Core FilePinSet）。
 @MainActor
 @Observable
+/// §416 新鲜度普查豁免：本地置顶落盘店，无远端新鲜度问题（判定表见 DESIGN §416）
 final class FilePinStore {
     static let shared = FilePinStore()
 

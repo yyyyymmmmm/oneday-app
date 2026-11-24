@@ -1,13 +1,15 @@
 import Foundation
 
-/// 文件类型图标解析（§128，C8 定版）：扩展名→图标资产
+/// 文件类型图标解析（§128，C8 定版）：扩展名→图标
 /// slug 的单一事实源，供 FileIconBox／FileTypeFace 查
-/// 表渲染。资产是 15 枚自制 3D 黏土风图标（256×256
-/// 白底 PNG，Assets 内 fileicon-<slug>，路线 A 白色圆
-/// 角砖承载、深色模式保持亮砖），构成对表 Muse 内部
-/// legacy 文件家族（通用文档＋格式变体＋文件夹开合＋
-/// 影音＋归档），映射口径以 file-icons-assets/README
-/// 为准、对表 §125 的 FileItemCategory／FileOpenRoute。
+/// 表渲染（§452.4 起渲染为程序绘制扁平图标、本表只
+/// 供分类）。原 15 枚自制 3D 黏土风 PNG（Assets 内
+/// fileicon-<slug>）已于 §489（HIG 批 A／P2-05）删
+/// 除退役——渲染自 §452.4 起不再引用，assetName／
+/// fallbackAssetName 仅作名义口径留存。家族构成对表
+/// Muse 内部 legacy 文件家族（通用文档＋格式变体＋
+/// 文件夹开合＋影音＋归档），对表 §125 的
+/// FileItemCategory／FileOpenRoute。
 ///
 /// 历史口径就此退役：0.22.0 的「身份色块＋白色粗体单
 /// 字／SF 符号」字形表（W/P/X 字母块）——C8 调研定案
@@ -27,7 +29,7 @@ public struct DeliverableIconStyle: Equatable, Sendable {
         self.slug = slug
     }
 
-    /// Assets.xcassets 内的 imageset 名
+    /// 退役资产名（§489 已删资产，仅名义口径留存）
     public var assetName: String { "fileicon-\(slug)" }
 
     /// 回落 slug／资源名：任一枚资源缺失时呈现端落它，

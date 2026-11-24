@@ -338,6 +338,207 @@ public struct MCPServersResponse: Decodable, Sendable {
     }
 }
 
+
+// MARK: - MCP 目录（/api/mcp/catalog，§388 H7）
+//
+// 部署实查（v0.23.0 web_routers/mcp.py:439＋_catalog_entry_
+// json:398）：GET 返回 {"entries":[…], "diagnostics":[…]}，
+// 条目是 Nous 批准目录（optional-mcps 清单），带本 profile
+// 的 installed/enabled 标注；POST /api/mcp/catalog/install
+// {name, env, enable} 装进 config.yaml——env 只许条目声明
+// 过的键、声明里密钥类走 .env，git 自举条目后台装（回执
+// background=true）。目录是服务端单源，App 只拉取不缓存冒充。
+
+/// 目录条目声明的一个环境变量（只有名与提示，永不含值）
+public struct MCPCatalogEnvSpec: Decodable, Sendable, Identifiable {
+    public let name: String
+    public let prompt: String
+    public let required: Bool
+
+    public var id: String { name }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, prompt, required
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        prompt = try container.decodeIfPresent(String.self, forKey: .prompt) ?? ""
+        required = try container.decodeIfPresent(Bool.self, forKey: .required) ?? false
+    }
+
+    public init(name: String, prompt: String = "", required: Bool = false) {
+        self.name = name
+        self.prompt = prompt
+        self.required = required
+    }
+
+    /// 密钥类启发式：目录 JSON 不带 secret 标记（服务端内部
+    /// 属性未出网），按名判——命中者表单用 SecureField 呈现
+    public var looksSecret: Bool {
+        let upper = name.uppercased()
+        return ["KEY", "TOKEN", "SECRET", "PASSWORD", "AUTH"]
+            .contains { upper.contains($0) }
+    }
+}
+
+/// 目录条目：信任模型要求把 command/args/url/自举步骤全量
+/// 摊给用户看（服务端注释原文），故全字段建模上屏
+public struct MCPCatalogEntry: Decodable, Sendable, Identifiable {
+    public let name: String
+    public let description: String
+    public let connectorSlug: String?
+    public let source: String?
+    /// "http" / "stdio" 等传输类型原文
+    public let transport: String?
+    public let authType: String?
+    public let requiredEnv: [MCPCatalogEnvSpec]
+    public let command: String?
+    public let args: [String]
+    public let url: String?
+    public let installUrl: String?
+    public let installRef: String?
+    public let bootstrap: [String]
+    public let postInstall: String
+    /// true＝装时要跑 git 自举（后台装、耗时不定）
+    public let needsInstall: Bool
+    public let installed: Bool
+    public let enabled: Bool
+
+    public var id: String { name }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, description, source, transport, command, args, url
+        case bootstrap
+        case connectorSlug = "connector_slug"
+        case authType = "auth_type"
+        case requiredEnv = "required_env"
+        case installUrl = "install_url"
+        case installRef = "install_ref"
+        case postInstall = "post_install"
+        case needsInstall = "needs_install"
+        case installed, enabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        connectorSlug = try container.decodeIfPresent(String.self, forKey: .connectorSlug)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        transport = try container.decodeIfPresent(String.self, forKey: .transport)
+        authType = try container.decodeIfPresent(String.self, forKey: .authType)
+        requiredEnv = try container.decodeIfPresent(
+            [MCPCatalogEnvSpec].self, forKey: .requiredEnv
+        ) ?? []
+        command = try container.decodeIfPresent(String.self, forKey: .command)
+        args = try container.decodeIfPresent([String].self, forKey: .args) ?? []
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+        installUrl = try container.decodeIfPresent(String.self, forKey: .installUrl)
+        installRef = try container.decodeIfPresent(String.self, forKey: .installRef)
+        bootstrap = try container.decodeIfPresent([String].self, forKey: .bootstrap) ?? []
+        postInstall = try container.decodeIfPresent(String.self, forKey: .postInstall) ?? ""
+        needsInstall = try container.decodeIfPresent(Bool.self, forKey: .needsInstall) ?? false
+        installed = try container.decodeIfPresent(Bool.self, forKey: .installed) ?? false
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+    }
+
+    public init(
+        name: String, description: String = "", connectorSlug: String? = nil,
+        source: String? = nil, transport: String? = nil, authType: String? = nil,
+        requiredEnv: [MCPCatalogEnvSpec] = [], command: String? = nil,
+        args: [String] = [], url: String? = nil, installUrl: String? = nil,
+        installRef: String? = nil, bootstrap: [String] = [],
+        postInstall: String = "", needsInstall: Bool = false,
+        installed: Bool = false, enabled: Bool = false
+    ) {
+        self.name = name
+        self.description = description
+        self.connectorSlug = connectorSlug
+        self.source = source
+        self.transport = transport
+        self.authType = authType
+        self.requiredEnv = requiredEnv
+        self.command = command
+        self.args = args
+        self.url = url
+        self.installUrl = installUrl
+        self.installRef = installRef
+        self.bootstrap = bootstrap
+        self.postInstall = postInstall
+        self.needsInstall = needsInstall
+        self.installed = installed
+        self.enabled = enabled
+    }
+
+    /// 状态人话：已装且启用/已装未启用/未装三态
+    public var stateLabel: String {
+        if !installed { return "未安装" }
+        return enabled ? "已安装 · 已启用" : "已安装 · 未启用"
+    }
+
+    /// 启动命令整行（stdio 类信任展示）：command＋args 拼行
+    public var commandLine: String? {
+        guard let command, !command.isEmpty else { return nil }
+        return ([command] + args).joined(separator: " ")
+    }
+}
+
+/// 目录诊断行（服务端清单解析问题如实上屏，不吞）
+public struct MCPCatalogDiagnostic: Decodable, Sendable {
+    public let name: String
+    public let kind: String
+    public let message: String
+
+    private enum CodingKeys: String, CodingKey { case name, kind, message }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        kind = try container.decodeIfPresent(String.self, forKey: .kind) ?? ""
+        message = try container.decodeIfPresent(String.self, forKey: .message) ?? ""
+    }
+}
+
+public struct MCPCatalogResponse: Decodable, Sendable {
+    public let entries: [MCPCatalogEntry]
+    public let diagnostics: [MCPCatalogDiagnostic]
+
+    private enum CodingKeys: String, CodingKey { case entries, diagnostics }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        entries = try container.decodeIfPresent(
+            [MCPCatalogEntry].self, forKey: .entries
+        ) ?? []
+        diagnostics = try container.decodeIfPresent(
+            [MCPCatalogDiagnostic].self, forKey: .diagnostics
+        ) ?? []
+    }
+}
+
+/// 安装回执：{ok, name, background, action?}——回执只当受理
+/// 信号，落定靠回读目录 installed 标注对账（§388.1 口径）
+public struct MCPInstallReceipt: Decodable, Sendable {
+    public let ok: Bool
+    public let name: String
+    /// true＝git 自举条目转后台装，回读一时见不到属正常
+    public let background: Bool
+    public let action: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case ok, name, background, action
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try container.decodeIfPresent(Bool.self, forKey: .ok) ?? false
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        background = try container.decodeIfPresent(Bool.self, forKey: .background) ?? false
+        action = try container.decodeIfPresent(String.self, forKey: .action)
+    }
+}
 /// MCP 测试回执：形状未实样（POST 属写面、本包未对生
 /// 产发），ok/status/message/error/tools 多键宽容收，
 /// 成败判定只认显式信号——皆缺时不判成功（与盒终端

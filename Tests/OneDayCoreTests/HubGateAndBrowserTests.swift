@@ -56,6 +56,111 @@ final class HubGateAndBrowserTests: XCTestCase {
         XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "智能体工具调用")
     }
 
+    /// §245 立项／B-05（§301）单字段契约：reason＋
+    /// reason_phase 解码——带预检原因即防呆态
+    /// （isBlocked），可裁决性本身不变（驳回仍开）；
+    /// 无字段/空白串都按无结论；阶段标未知时防呆
+    /// 不丢（非 execution 即按预检）；旧载荷
+    /// blocked_reason 不再读（直接切换口径钉测——
+    /// 1.0.63 起服务端旧字段零产出）
+    func testRecordBlockedReasonDecode() throws {
+        let blocked = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "62927061", "subsystem": "skills", "action": "batch",
+         "summary": "s", "origin": "background_review",
+         "created_at": "2026-11-11T14:58:53Z",
+         "reason": "Description is 82 chars; over the 60-char budget.",
+         "reason_phase": "pre-check"}
+        """.utf8))
+        XCTAssertEqual(
+            blocked.reason,
+            "Description is 82 chars; over the 60-char budget."
+        )
+        XCTAssertEqual(blocked.reasonPhase, .preCheck)
+        XCTAssertTrue(blocked.isBlocked)
+        XCTAssertTrue(blocked.canDecide)
+
+        let plain = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "z", "subsystem": "skills", "action": "create",
+         "summary": "s", "origin": "foreground", "created_at": null}
+        """.utf8))
+        XCTAssertNil(plain.reason)
+        XCTAssertNil(plain.reasonPhase)
+        XCTAssertFalse(plain.isBlocked)
+
+        let blank = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "w", "subsystem": "skills", "action": "create",
+         "summary": "s", "origin": "foreground", "created_at": null,
+         "reason": "  ", "reason_phase": "pre-check"}
+        """.utf8))
+        XCTAssertNil(blank.reason)
+        XCTAssertNil(blank.reasonPhase)
+        XCTAssertFalse(blank.isBlocked)
+
+        // 阶段标未知：原因保留、防呆不丢
+        let unknownPhase = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "u", "subsystem": "skills", "action": "create",
+         "summary": "s", "origin": "foreground", "created_at": null,
+         "reason": "boom", "reason_phase": "later"}
+        """.utf8))
+        XCTAssertEqual(unknownPhase.reason, "boom")
+        XCTAssertNil(unknownPhase.reasonPhase)
+        XCTAssertTrue(unknownPhase.isBlocked)
+
+        // 旧载荷（1.0.62 及更早的 blocked_reason）：
+        // 直接切换——不再读，解码不崩、按无结论落
+        let legacy = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "62927061", "subsystem": "skills", "action": "batch",
+         "summary": "s", "origin": "background_review",
+         "created_at": "2026-11-11T14:58:53Z",
+         "blocked_reason": "Description is 82 chars; over the 60-char budget."}
+        """.utf8))
+        XCTAssertNil(legacy.reason)
+        XCTAssertFalse(legacy.isBlocked)
+    }
+
+    /// §245 立项／B-05（§301）：回执 reason＋
+    /// reason_phase 解码——失败回执带结构化原因
+    /// （阶段恒 execution）；桥解析不出时 reason 键
+    /// 带 null、同按无原因；成功回执恒无原因；旧
+    /// 载荷 failure_reason 不再读（直接切换钉测）
+    func testDecisionResponseFailureReasonDecode() throws {
+        let failed = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": false, "output": "Failed:\\n  abc: boom",
+             "decision": "approved", "reason": "boom",
+             "reason_phase": "execution"}
+            """.utf8))
+        XCTAssertFalse(failed.success)
+        XCTAssertEqual(failed.reason, "boom")
+        XCTAssertEqual(failed.reasonPhase, .execution)
+
+        let unparsed = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": false, "output": "Failed:\\n  (unparsed)",
+             "decision": "approved", "reason": null,
+             "reason_phase": "execution"}
+            """.utf8))
+        XCTAssertFalse(unparsed.success)
+        XCTAssertNil(unparsed.reason)
+        XCTAssertNil(unparsed.reasonPhase)
+
+        let ok = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": true, "output": "", "decision": "approved"}
+            """.utf8))
+        XCTAssertTrue(ok.success)
+        XCTAssertNil(ok.reason)
+        XCTAssertNil(ok.reasonPhase)
+
+        let legacy = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": false, "output": "Failed:\\n  abc: boom",
+             "decision": "approved", "failure_reason": "boom"}
+            """.utf8))
+        XCTAssertFalse(legacy.success)
+        XCTAssertNil(legacy.reason)
+    }
+
     func testSectionStateResolve() {
         let off = WriteGateStatus(
             supported: true, memoryGateEnabled: false,

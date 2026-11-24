@@ -261,6 +261,64 @@ final class ApprovalCopyTests: XCTestCase {
         )
     }
 
+    // MARK: - 原因行单读口（B-05，§301）
+
+    /// 卡面呈现对拍：同一 reason 串，阶段决定前缀
+    /// 句式——记录面预检＝「这条无法批准：…」、回
+    /// 执面执行＝「裁决未生效：…」；无 reason 两面
+    /// 恒 nil；阶段标缺失按载体缺省（记录＝预检、
+    /// 回执＝执行，与桥两面唯一产出阶段同口径）
+    func testReasonLinePresentation() throws {
+        let zh = Locale(identifier: "zh-Hans")
+        let record = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "62927061", "subsystem": "skills", "action": "batch",
+         "summary": "s", "origin": "background_review", "created_at": null,
+         "reason": "Description is 82 chars; over the 60-char budget.",
+         "reason_phase": "pre-check"}
+        """.utf8))
+        XCTAssertEqual(
+            ApprovalCardCopy.reasonLine(for: record, locale: zh),
+            "这条无法批准：Description is 82 chars; over the 60-char budget."
+        )
+
+        let failed = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": false, "output": "o", "decision": "approved",
+             "reason": "boom", "reason_phase": "execution"}
+            """.utf8))
+        XCTAssertEqual(
+            ApprovalCardCopy.reasonLine(for: failed, locale: zh),
+            "裁决未生效：boom"
+        )
+
+        // 阶段标缺失：按载体缺省拼句，不丢原因
+        let recordNoPhase = WriteGateRecord(
+            id: "n1", subsystem: .skills, action: "create",
+            summary: "s", origin: "foreground", createdAt: nil,
+            reason: "boom"
+        )
+        XCTAssertEqual(
+            ApprovalCardCopy.reasonLine(for: recordNoPhase, locale: zh),
+            "这条无法批准：boom"
+        )
+        let responseNoPhase = WriteGateDecisionResponse(
+            success: false, output: nil, decision: "approved",
+            reason: "boom"
+        )
+        XCTAssertEqual(
+            ApprovalCardCopy.reasonLine(for: responseNoPhase, locale: zh),
+            "裁决未生效：boom"
+        )
+
+        // 无 reason：两面恒 nil（调用方走无原因分支）
+        let plain = try makeRecord(subsystem: "memory", action: "append")
+        XCTAssertNil(ApprovalCardCopy.reasonLine(for: plain, locale: zh))
+        let ok = WriteGateDecisionResponse(
+            success: true, output: "", decision: "approved"
+        )
+        XCTAssertNil(ApprovalCardCopy.reasonLine(for: ok, locale: zh))
+    }
+
     // MARK: - 规则模型
 
     func testRuleDecodeAndScopeLabel() throws {

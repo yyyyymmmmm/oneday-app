@@ -11,6 +11,14 @@ public enum FeedPostKind: String, Sendable {
     case digest
     case morning
     case research
+    /// 本地事件帖（§459 复活）：用户 OneDay 记录里的
+    /// 实事（新点子/目标简报/监测变化/任务动态）成帖，
+    /// 与研究帖同流混排；refs 指向事件源头实体
+    case event
+    /// FA-2 首次种子帖（App 内置、不进桥数据）：kind 只在
+    /// 本地构造时出现，桥永不下发；label 即规格要求的
+    /// kicker 明示——不冒充生成帖
+    case seed
     case unknown
 
     public static func from(_ raw: String?) -> FeedPostKind {
@@ -25,6 +33,8 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "sunrise"
         case .research: return "magnifyingglass"
         case .digest: return "doc.text"
+        case .event: return "clock.arrow.circlepath"
+        case .seed: return "sparkles"
         case .unknown: return "doc.text"
         }
     }
@@ -34,6 +44,8 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "晨报"
         case .research: return "调研"
         case .digest: return "今日动态"
+        case .event: return "本地动态"
+        case .seed: return "上手指南"
         case .unknown: return "动态"
         }
     }
@@ -45,6 +57,8 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "🌅"
         case .research: return "🔍"
         case .digest: return "📰"
+        case .event: return "📋"
+        case .seed: return "🧭"
         case .unknown: return "📰"
         }
     }
@@ -262,6 +276,15 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     public let sourceCard: BridgeFeedSourceCard?
     /// 所属简报方向名（调研帖才有）
     public let direction: String?
+    /// 话题分类（§459）：简报方向原文（如「GitHub
+    /// 热门」）；事件帖/小结帖为 nil——卡面 chip 与
+    /// 详情呈现的数据源，与 direction 旧字段并行下
+    /// 发（服务端 category 缺失时以 direction 折算）
+    public let category: String?
+    /// 有用度（§459）：服务端按点赞/讨论/已读/新鲜
+    /// 度算的分（列表近三日序的依据）；App 只作弱
+    /// 提示呈现（详情一行），不许拿它本地再排序
+    public let usefulness: Double?
     /// 行首内容 emoji（0.47.0，§117）：research 由桥
     /// 按主题选定、digest 固定 📰；旧帖为 nil，呈现
     /// 走 kind 缺省（displayEmoji）
@@ -272,8 +295,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     /// 已读时刻；nil＝未读
     public let readAt: Double?
     /// 点赞时刻（epoch 秒）；nil＝未赞（FA-1，契约
-    /// rev2 §1.9 冻结：桥 `_feed_view` 下发、桥为真
-    /// 源，App 只读呈现、绝不本地自立点赞账）
+    /// rev2 §1.9 冻结：桥 `_feed_view` 下发、桥为最
+    /// 终真源；§233 起呈现走乐观翻面＋回执对账，见
+    /// withLikedAt）
     public let likedAt: Double?
 
     public var isRead: Bool { readAt != nil }
@@ -303,7 +327,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         direction: String? = nil,
         createdAt: Double, expiresAt: Double? = nil,
         readAt: Double? = nil, emoji: String? = nil,
-        likedAt: Double? = nil
+        likedAt: Double? = nil,
+        category: String? = nil, usefulness: Double? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -320,6 +345,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         self.readAt = readAt
         self.emoji = emoji
         self.likedAt = likedAt
+        self.category = category
+        self.usefulness = usefulness
     }
 
     /// 本地已读副本（回执到达前的呈现不回退用；真源
@@ -331,13 +358,16 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             images: images, sourceCard: sourceCard,
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
-            readAt: ts, emoji: emoji, likedAt: likedAt
+            readAt: ts, emoji: emoji, likedAt: likedAt,
+            category: category, usefulness: usefulness
         )
     }
 
-    /// 点赞态副本（桥回执到达前的衔接不用本地造——
-    /// 本函数只供解码后同形重组与测试构造；呈现真源
-    /// 恒为桥回执整帖替换，见 FeedStore.setLiked）
+    /// 点赞态副本（§233 起改口径）：轻动作乐观化——
+    /// 点按即以本副本翻呈现，后台回执到达再整帖替换
+    /// 对账，失败以原帖副本恢复＋轻提醒；桥仍是最终
+    /// 真源，只是呈现不再等回执（旧口径「不许本地
+    /// 先翻」就此退役）
     public func withLikedAt(_ ts: Double?) -> BridgeFeedPost {
         BridgeFeedPost(
             id: id, kind: kind, title: title, body: body,
@@ -345,7 +375,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             images: images, sourceCard: sourceCard,
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
-            readAt: readAt, emoji: emoji, likedAt: ts
+            readAt: readAt, emoji: emoji, likedAt: ts,
+            category: category, usefulness: usefulness
         )
     }
 
@@ -353,6 +384,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         case id, kind, title, body, refs, links, why
         case images, sourceCard, direction
         case createdAt, expiresAt, readAt, emoji, likedAt
+        case category, usefulness
     }
 
     public init(from decoder: Decoder) throws {
@@ -397,6 +429,12 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         )
         likedAt = try container.decodeIfPresent(
             Double.self, forKey: .likedAt
+        )
+        category = try container.decodeIfPresent(
+            String.self, forKey: .category
+        )
+        usefulness = try container.decodeIfPresent(
+            Double.self, forKey: .usefulness
         )
     }
 }
@@ -548,8 +586,11 @@ public struct BridgeFeedGeneration: Decodable, Equatable, Sendable {
 // MARK: - 动态页呈现口径（P3，设计档第三章）
 
 public enum FeedBoard {
-    /// 列表排序：发布时间倒序（设计档定版：有用度
-    /// 排序缓办）；同刻以 id 定序，保证稳定
+    /// 时间倒序工具（同刻以 id 定序，保证稳定）：
+    /// §459 起动态列表不再消费本函数——列表序照单
+    /// 全收服务端序（近三日已按 usefulness 排好，
+    /// 见 FeedListSnapshot）；本函数只余枢纽台账段
+    /// dayGroups 的入参口径（FeedStore.sortedPosts）
     public static func sorted(_ posts: [BridgeFeedPost]) -> [BridgeFeedPost] {
         posts.sorted {
             if $0.createdAt != $1.createdAt {
@@ -644,6 +685,87 @@ public enum FeedBoard {
             let absolute = DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
             return "\(absolute) \(time)"
         }
+    }
+
+    /// 动作行短相对时间（§453 对 Muse 动态卡底
+    /// 定版）：刚刚／N分钟／N小时／N天，满 7 天走
+    /// 日期（无时刻）；恒短式单行——卡面不带精确
+    /// 时刻，精确时刻住「关于」展开节（preciseText）
+    public static func relativeShortText(
+        for ts: Double, now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        let date = Date(timeIntervalSince1970: ts)
+        let diff = now.timeIntervalSince(date)
+        if diff < 60 {
+            return L10n.string("刚刚", locale: locale)
+        }
+        let dayDiff = DisplayDate.dayDifference(
+            of: date, now: now, calendar: calendar
+        )
+        if dayDiff <= 0 {
+            if diff < 3600 {
+                return L10n.format(
+                    "%@分钟", locale: locale,
+                    String(Int(diff / 60))
+                )
+            }
+            return L10n.format(
+                "%@小时", locale: locale,
+                String(Int(diff / 3600))
+            )
+        }
+        if dayDiff <= 6 {
+            return L10n.format(
+                "%@天", locale: locale, String(dayDiff)
+            )
+        }
+        return DisplayDate.absoluteDate(
+            of: date, now: now, calendar: calendar, locale: locale
+        )
+    }
+
+    /// 「关于」展开节底部精确时刻（§453 对 Muse
+    /// 定版：星期六08:22 式——星期＋HH:mm 连写）
+    public static func preciseText(
+        for ts: Double, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        let date = Date(timeIntervalSince1970: ts)
+        let weekday = DisplayDate.weekdayText(
+            of: date, calendar: calendar, locale: locale
+        )
+        let time = DisplayDate.timeText(
+            of: date, calendar: calendar, locale: locale
+        )
+        return "\(weekday)\(time)"
+    }
+
+    /// 「关于」展开节内容裁决（§453）：有生成理由
+    /// （why 真字段）→标题＋理由＋精确时刻；无理由
+    /// →只给精确时刻，不许编理由
+    public struct AboutSection: Equatable, Sendable {
+        public let showsHeading: Bool
+        public let reason: String?
+        public let preciseTime: String
+    }
+
+    public static func aboutSection(
+        for post: BridgeFeedPost, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> AboutSection {
+        let reason = post.why?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let hasReason = !(reason?.isEmpty ?? true)
+        return AboutSection(
+            showsHeading: hasReason,
+            reason: hasReason ? reason : nil,
+            preciseTime: preciseText(
+                for: post.createdAt, calendar: calendar,
+                locale: locale
+            )
+        )
     }
 
     public static func unreadCount(_ posts: [BridgeFeedPost]) -> Int {

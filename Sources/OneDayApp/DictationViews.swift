@@ -58,7 +58,19 @@ struct DictationBar: View {
                     height: ComposerLayout.buttonHeight
                 )
                 .background(Palette.fieldFill, in: Circle())
-                .contentShape(Circle())
+                // 第 83 条（命中域收口）：视觉盘 30 不变、
+                // 命中域外扩 44（外层矩形取代旧 30 圆命中
+                // 形）；负内边距抵消外扩、录音条布局仍按
+                // 30 走
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
+                .padding(
+                    -(OneDayMetrics.minTapTarget
+                        - ComposerLayout.buttonHeight) / 2
+                )
         }
         .buttonStyle(.odPressable)
         .disabled(!controls.discardEnabled)
@@ -78,7 +90,19 @@ struct DictationBar: View {
                     height: ComposerLayout.buttonHeight
                 )
                 .background(Palette.fieldFill, in: Circle())
-                .contentShape(Circle())
+                // 第 83 条（命中域收口）：视觉盘 30 不变、
+                // 命中域外扩 44（外层矩形取代旧 30 圆命中
+                // 形）；负内边距抵消外扩、录音条布局仍按
+                // 30 走
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
+                .padding(
+                    -(OneDayMetrics.minTapTarget
+                        - ComposerLayout.buttonHeight) / 2
+                )
         }
         .buttonStyle(.odPressable)
         .disabled(!controls.stopEnabled)
@@ -98,7 +122,19 @@ struct DictationBar: View {
                     height: ComposerLayout.buttonHeight
                 )
                 .background(Palette.primaryPale, in: Circle())
-                .contentShape(Circle())
+                // 第 83 条（命中域收口）：视觉盘 30 不变、
+                // 命中域外扩 44（外层矩形取代旧 30 圆命中
+                // 形）；负内边距抵消外扩、录音条布局仍按
+                // 30 走
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
+                .padding(
+                    -(OneDayMetrics.minTapTarget
+                        - ComposerLayout.buttonHeight) / 2
+                )
         }
         .buttonStyle(.odPressable)
         .disabled(!controls.sendEnabled)
@@ -135,12 +171,10 @@ struct DictationBar: View {
                 } else {
                     waveform
                 }
-                Text(DictationTiming.format(
-                    elapsedSeconds: controller.elapsedSeconds))
-                    .font(.subheadline)
-                    .monospacedDigit()
+                NumberText(DictationTiming.format(
+                    elapsedSeconds: controller.elapsedSeconds), font: .subheadline)
                     .foregroundStyle(controller.isTimingWarning
-                        ? Palette.warning : Palette.inkSecondary)
+                        ? Palette.warningText : Palette.inkSecondary)
             }
         }
     }
@@ -261,47 +295,12 @@ struct DictationPrepSheet: View {
                 Text("键盘听写：点输入框后，用键盘上的麦克风按钮也能说话输入，不需要这里的权限。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
-
-                DictationStageDiagnosticLine()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, OneDayMetrics.spacingS)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingM)
         }
         .presentationDragIndicator(.visible)
         .onDisappear { controller.prepDismissed() }
-    }
-}
-
-/// 诊断行（0.36.9，礼记同案后手）：末阶段面包屑
-/// 上屏——闪退后用户重开截一张图即知上次死在哪一
-/// 步，不再靠猜。阶段码是内部记号、非用户文案，
-/// 故整行明标「诊断信息」以别于正文口径
-/// 0.36.12 扩串：同行附诊断串（引擎种类＋规范化
-/// locale＋草稿/定稿计数）——「实时不出字」下次录
-/// 屏截一张图即可读出：实际跑的哪个引擎、草稿到
-/// 底到没到（vol＞0）还是全程只有定稿（vol＝0）
-/// 0.36.13：串内加四格（预设/sup/inst/avail，见
-/// DictationController 仪表四格注）；同批曾在录音
-/// 条上加实时版一行（录音成功时本行不在场、用户
-/// 看不见——22:26 录屏实证后补）。0.36.17 改判：
-/// 实时版整组撤下（录音条零文字），本行回归唯一
-/// 诊断面载体（预备页页脚＋失败行）。串内的停后
-/// 落字 ms 记账已随复杂度清理退役（审计第 8 项）
-struct DictationStageDiagnosticLine: View {
-    var body: some View {
-        Text("诊断信息 · 上次语音停在："
-            + (DictationController.lastStageSnapshot ?? "暂无记录")
-            + diagSuffix)
-            .font(.caption2)
-            .foregroundStyle(Palette.inkSecondary)
-    }
-
-    private var diagSuffix: String {
-        guard let diag = DictationController.lastDiagSnapshot
-        else { return "" }
-        return "｜" + diag
     }
 }
 

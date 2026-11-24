@@ -157,6 +157,149 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(info.summaryLine(locale: zh), "延迟 10 ms")
     }
 
+    // MARK: - 引导段 needed() 判定（全矩阵钉死）
+
+    /// 段位全集与顺序：连接在前、通知在后（流程顺序）
+    func testGuideSegmentsAreTwoInOrder() {
+        XCTAssertEqual(
+            GuideSegment.allCases, [.connect, .notifications]
+        )
+    }
+
+    /// 没连接＋通知未决定：两段都要、顺序为流程顺序
+    func testNeededWhenNothingDone() {
+        XCTAssertEqual(
+            OnboardingGuide.neededSegments(
+                hasConnection: false, notificationState: .notDetermined
+            ),
+            [.connect, .notifications]
+        )
+    }
+
+    /// 没连接＋通知已决定（无论哪向）：只剩连接段
+    func testNeededSkipsNotificationsOnceDecided() {
+        for state in [
+            DevicePermissionState.granted, .limited, .writeOnly,
+            .denied, .restricted, .notApplicable,
+        ] {
+            XCTAssertEqual(
+                OnboardingGuide.neededSegments(
+                    hasConnection: false, notificationState: state
+                ),
+                [.connect],
+                "\(state)"
+            )
+        }
+    }
+
+    /// 已连接＋通知未决定：连接段自动跳过、只剩通知段
+    func testNeededSkipsConnectOnceConnected() {
+        XCTAssertEqual(
+            OnboardingGuide.neededSegments(
+                hasConnection: true, notificationState: .notDetermined
+            ),
+            [.notifications]
+        )
+    }
+
+    /// 已连接＋通知已决定：引导无段可出（全矩阵收尾）
+    func testNeededEmptyWhenAllDone() {
+        for state in [
+            DevicePermissionState.granted, .limited, .writeOnly,
+            .denied, .restricted, .notApplicable,
+        ] {
+            XCTAssertEqual(
+                OnboardingGuide.neededSegments(
+                    hasConnection: true, notificationState: state
+                ),
+                [],
+                "\(state)"
+            )
+        }
+    }
+
+    // MARK: - 通知段模板：动作映射（铁律判定全档）
+
+    /// 未决定才发那一次请求——模板动作的命门
+    func testNotificationActionRequestsOnlyWhenNotDetermined() {
+        XCTAssertEqual(
+            NotificationGuideSegment.action(for: .notDetermined),
+            .requestOnce
+        )
+    }
+
+    /// 已可用档只继续、永不重走请求
+    func testNotificationActionContinuesWhenUsable() {
+        for state in [
+            DevicePermissionState.granted, .limited, .notApplicable,
+        ] {
+            XCTAssertEqual(
+                NotificationGuideSegment.action(for: state),
+                .continueNext,
+                "\(state)"
+            )
+        }
+    }
+
+    /// 已拒绝档只给设置路、不请求不纠缠
+    func testNotificationActionOpensSettingsWhenDegraded() {
+        for state in [
+            DevicePermissionState.denied, .restricted, .writeOnly,
+        ] {
+            XCTAssertEqual(
+                NotificationGuideSegment.action(for: state),
+                .openSettings,
+                "\(state)"
+            )
+        }
+    }
+
+    // MARK: - 通知段模板：文案成套
+
+    /// 三种主按钮文案互不相同且非空（段内随状态变
+    /// 按钮、不许三态一词）
+    func testNotificationPrimaryTitlesDifferPerAction() {
+        let actions: [PermissionSegmentAction] = [
+            .requestOnce, .continueNext, .openSettings,
+        ]
+        let titles = actions.map {
+            NotificationGuideSegment.primaryButtonTitle(
+                for: $0, locale: zh
+            )
+        }
+        XCTAssertEqual(Set(titles).count, actions.count)
+        for title in titles {
+            XCTAssertFalse(title.isEmpty)
+        }
+    }
+
+    /// 用途恰两条、各有图标/标题/说明（模板纪律：
+    /// 只列具体用途，不泛泛要权限）
+    func testNotificationUseCasesAreTwoWithSymbols() {
+        let uses = NotificationGuideSegment.useCases(locale: zh)
+        XCTAssertEqual(uses.count, 2)
+        for use in uses {
+            XCTAssertFalse(use.symbol.isEmpty)
+            XCTAssertFalse(use.title.isEmpty)
+            XCTAssertFalse(use.detail.isEmpty)
+        }
+    }
+
+    /// 标题/跳过/细字/已开启确认行齐全非空
+    func testNotificationCopyComplete() {
+        XCTAssertFalse(NotificationGuideSegment.title(locale: zh).isEmpty)
+        XCTAssertFalse(NotificationGuideSegment.intro(locale: zh).isEmpty)
+        XCTAssertFalse(
+            NotificationGuideSegment.skipTitle(locale: zh).isEmpty
+        )
+        XCTAssertFalse(
+            NotificationGuideSegment.finePrint(locale: zh).isEmpty
+        )
+        XCTAssertFalse(
+            NotificationGuideSegment.enabledNote(locale: zh).isEmpty
+        )
+    }
+
     // MARK: - 建议条
 
     func testSuggestionsThreeWithSymbols() {

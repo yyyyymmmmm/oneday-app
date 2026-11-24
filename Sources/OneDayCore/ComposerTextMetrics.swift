@@ -14,10 +14,13 @@ import UIKit
 /// 文本视图本体一致（lineFragmentPadding 0、无容器内边
 /// 距、按词缠绕），数出的行数就是视图里渲染的行数。
 public enum ComposerTextMetrics {
-    /// 正文字体基准（.large 档）：16pt 系统字体——
-    /// 0.2.9 定案的量测基准，本档下量测与排版与旧
-    /// 固定口径逐字一致
-    public static let basePointSize: CGFloat = 16
+    /// 正文字体基准（.large 档）：17pt 系统字体。
+    /// 0.2.9 定案时为 16pt；2026-11-15 第 84 条行
+    /// 高回规格包主线裁升 Body 17 与聊天正文同档
+    /// （HIG Body 字阶 17/22），量测基准随之升 17
+    /// ——量测与渲染同读本口的构造不变（DESIGN
+    /// §265）
+    public static let basePointSize: CGFloat = 17
 
     /// 正文字体单一来源（0.43.0 无障碍专项 A11Y-D1
     /// 改版）：按 Dynamic Type 档位经 UIFontMetrics

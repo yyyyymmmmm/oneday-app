@@ -88,6 +88,12 @@ final class FileOpenFailureTests: XCTestCase {
             FileOpenFailure.classify(error: .cancelled),
             .other
         )
+        // sessionBusy 是删会话围栏信号，文件打开面实际
+        // 不会收到；归 other 兜底，不冒充服务不可用
+        XCTAssertEqual(
+            FileOpenFailure.classify(error: .sessionBusy),
+            .other
+        )
         XCTAssertEqual(
             FileOpenFailure.classify(
                 error: .decodingFailed(endpoint: "文件下载")
@@ -106,6 +112,20 @@ final class FileOpenFailureTests: XCTestCase {
         )
         XCTAssertFalse(
             FileOpenFailure.isInvalidPath("attachments/a.zip")
+        )
+    }
+
+    /// §259：转码失败分型随表格转码呈现退役——分型
+    /// 集只剩打开链八档，QL 资格档（unsupported-
+    /// Type）保留（单轨后的没法预览落点）
+    func testFailureCasesAfterTranscodeRetirement() {
+        XCTAssertEqual(
+            Set(FileOpenFailure.allCases),
+            [
+                .notFound, .tooLarge, .serviceUnavailable,
+                .timeout, .invalidPath, .forbidden,
+                .unsupportedType, .other,
+            ]
         )
     }
 

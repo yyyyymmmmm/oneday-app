@@ -23,17 +23,66 @@ import UIKit
 /// 卡平铺＋结果内联＋整轮 isLive）退役。
 /// plain＝组内嵌模式：无自家卡面（组卡承接），行
 /// 本体与详情展开同口径。
+///
+/// 活动线形态（2026-11-20 结构归位·对话页，纲要
+/// 原则 10、D3-4）：独立落定卡（非 plain、状态非
+/// 进行中）默认压成一行活动线——类别字形＋标题＋
+/// 摘要＋状态同行小字呈现、无卡面，左界与气泡正
+/// 文对齐（与思考头行同为「线」族）；点开才成段
+/// （发丝线下展开既有详情区）。进行中卡保持卡面
+/// （过程反馈须在场）；组内嵌 plain 卡由组头承担
+/// 压线、不在此列。行高合成器同口径分支在
+/// ChatNativeRowHeight.toolCardHeightUncached。
 struct ToolCardView: View {
     let card: ToolCard
     var plain: Bool = false
-    @State private var expanded = false
+    /// §329 行状态账本（聊天列表面传入）：展开态改
+    /// 存账本——行高合成器须看得见（.absolute 回
+    /// 喂）；无账本环境回落本地 @State、行为不变
+    var expansionKey: String? = nil
+    var ledger: ChatRowStateLedger? = nil
+    @State private var localExpanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var expanded: Bool {
+        if let ledger, let expansionKey {
+            return ledger.expansionOverride(
+                for: expansionKey
+            ) ?? false
+        }
+        return localExpanded
+    }
+
+    private func setExpanded(_ value: Bool) {
+        if let ledger, let expansionKey {
+            ledger.setExpansion(value, for: expansionKey)
+        } else {
+            localExpanded = value
+        }
+    }
 
     private var state: ToolCardPresentation.State {
         ToolCardPresentation.state(of: card)
     }
 
+    /// 活动线形态判据（与行高合成器同口径单点）：
+    /// 独立卡＋已落定（成功/失败）才压线；进行中与
+    /// 组内嵌恒走卡面/行本体
+    private var usesLineForm: Bool {
+        !plain && state != .running
+    }
+
     var body: some View {
+        if usesLineForm {
+            lineBody
+        } else {
+            cardBody
+        }
+    }
+
+    /// 活动线形态：头行一线（默认）＋展开成段（详
+    /// 情区与卡面展开同体，见 detailBody）
+    private var lineBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 withAnimation(
@@ -41,7 +90,88 @@ struct ToolCardView: View {
                         MotionTokens.swap, reduceMotion: reduceMotion
                     )
                 ) {
-                    expanded.toggle()
+                    setExpanded(!expanded)
+                }
+            } label: {
+                lineContent
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel(
+                "\(card.title)，\(ToolCardPresentation.statusLine(of: card))"
+            )
+            .accessibilityHint(expanded ? "收起详情" : "展开详情")
+            if expanded {
+                Rectangle()
+                    .fill(Palette.hairline)
+                    .frame(height: 1)
+                    .padding(.top, OneDayMetrics.spacingS)
+                detailBody
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
+        }
+        .padding(.leading, OneDayMetrics.bubblePaddingH)
+    }
+
+    /// 活动线头行：类别字形＋标题＋摘要＋状态，一
+    /// 行小字、无卡面；命中域纵向补到 minTapTarget
+    /// （与思考头行同式：视觉一行、命中 44）
+    private var lineContent: some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: card.category.symbol)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .accessibilityHidden(true)
+            Text(card.title)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            lineStatusMark
+        }
+        .frame(minHeight: OneDayMetrics.minTapTarget)
+        .contentShape(Rectangle())
+    }
+
+    /// 活动线状态字：失败恒显徽标（失败不隐藏，与
+    /// 组头口径同）；成功＝展开指示 chevron
+    @ViewBuilder
+    private var lineStatusMark: some View {
+        switch state {
+        case .failed:
+            Text("失败")
+                .font(.badgeOnly.weight(.medium))
+                .foregroundStyle(Palette.danger)
+                .padding(.horizontal, 7)
+                .padding(.vertical, OneDayMetrics.stackGap)
+                .background(
+                    Palette.errorSurface,
+                    in: Capsule()
+                )
+        case .succeeded, .running:
+            Image(
+                systemName: expanded ? "chevron.up" : "chevron.down"
+            )
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Palette.inkSecondary)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var cardBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    )
+                ) {
+                    setExpanded(!expanded)
                 }
             } label: {
                 rowContent
@@ -258,8 +388,30 @@ struct ToolCardView: View {
 /// 情。单卡轮次不走本组件、保持单行卡
 struct ToolCardGroupView: View {
     let cards: [ToolCard]
-    @State private var expanded = false
+    /// §329 行状态账本（同 ToolCardView）：组展开
+    /// 存账本、组内逐卡键＝组键/卡 id（ChatRow-
+    /// StateKeys.toolGroupCard 单点派生）
+    var expansionKey: String? = nil
+    var ledger: ChatRowStateLedger? = nil
+    @State private var localExpanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var expanded: Bool {
+        if let ledger, let expansionKey {
+            return ledger.expansionOverride(
+                for: expansionKey
+            ) ?? false
+        }
+        return localExpanded
+    }
+
+    private func setExpanded(_ value: Bool) {
+        if let ledger, let expansionKey {
+            ledger.setExpansion(value, for: expansionKey)
+        } else {
+            localExpanded = value
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -269,7 +421,7 @@ struct ToolCardGroupView: View {
                         MotionTokens.swap, reduceMotion: reduceMotion
                     )
                 ) {
-                    expanded.toggle()
+                    setExpanded(!expanded)
                 }
             } label: {
                 HStack(spacing: OneDayMetrics.spacingS) {
@@ -317,7 +469,16 @@ struct ToolCardGroupView: View {
                                     .vertical, OneDayMetrics.spacingS
                                 )
                         }
-                        ToolCardView(card: card, plain: true)
+                        ToolCardView(
+                            card: card, plain: true,
+                            expansionKey: expansionKey.map {
+                                ChatRowStateKeys.toolGroupCard(
+                                    groupKey: $0,
+                                    cardID: card.id
+                                )
+                            },
+                            ledger: ledger
+                        )
                     }
                 }
                 .padding(.top, OneDayMetrics.spacingS)
@@ -433,10 +594,16 @@ struct ServerRemoteImage: View {
             } else if failed {
                 // §130：失败态同卡尺寸（占位卡口
                 // 径 190 高），不再随文案宽高变
+                // 基础止血包（P8）：失败卡可点重试——
+                // 高优先级手势抢在调用方的「点开查看
+                // 器」之前（失败图没东西可看，先重试）；
+                // 旧口径 failed 置真即锁死、本视图内永
+                // 不重试，只能滑出屏靠视图重建碰运气
                 ZStack {
                     HStack(spacing: OneDayMetrics.rowInnerGap) {
                         Image(systemName: "photo")
-                        Text("图片加载失败")
+                        Text(L10n.string("图片加载失败"))
+                        Image(systemName: "arrow.clockwise")
                     }
                     .font(.caption)
                     // 0.23.0（审计 C4）：本字落在
@@ -461,6 +628,14 @@ struct ServerRemoteImage: View {
                         cornerRadius: OneDayMetrics.radiusCard
                     )
                 )
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    TapGesture().onEnded {
+                        Task { await retryLoad() }
+                    }
+                )
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(L10n.string("点按重新加载图片"))
             } else {
                 // §130：加载占位同卡高（190），消除
                 // 旧 220×150 占位 → 实际高度的跳变；
@@ -502,6 +677,14 @@ struct ServerRemoteImage: View {
         } else {
             failed = true
         }
+    }
+
+    /// 失败重试（基础止血包 P8）：清失败标记重走
+    /// load()——管线三级缓存原样复用（命中即出图、
+    /// 未命中重新取回），不在此处另开取图路
+    private func retryLoad() async {
+        failed = false
+        await load()
     }
 }
 
@@ -689,6 +872,29 @@ struct ZoomableImageView: UIViewRepresentable {
 /// 长按仍沿用消息菜单，两路并存。大小回读改走
 /// ensureSize（D1：可见即回读一趟，不再等打开页
 /// 才补；单试口径见 FileMetadataStore）。
+/// 文件卡几何（§452.2 定版，微信式独立卡）：定宽
+/// 252、视觉位 40×50、内距 12/10——行高公式
+/// （ChatNativeRowHeight.fileChipHeight）与本处同
+/// 读这一组数，不许两处各写一份
+enum FileCardMetrics {
+    static let cardWidth: CGFloat = 252
+    static let visualWidth: CGFloat = 40
+    static let visualHeight: CGFloat = 50
+    static let horizontalPadding: CGFloat = 12
+    static let verticalPadding: CGFloat = 10
+    static let columnSpacing: CGFloat = 8
+}
+
+/// 聊天文件卡（§452.2/452.5）：微信式独立卡——名左
+/// 图右、副行只显大小、卡面无 ⋮（动作走卡片长按
+/// 菜单，与旧 ⋮ 同源 FileActionPolicy 不丢一项）。
+/// ①类（Muse 渲染集合：PDF/DOCX/图片/视频/HTML）
+/// 视觉位出真缩略（系统管线生成、失败留图标，不冒
+/// 充）；②类出扁平类型图标。下载状态学 TG 状态机
+/// （ChatFileStore）：未下载徽标↓、下载中进度环＋
+/// 副行「已下载/共」、已下载无徽标、失败↻；整卡
+/// 点按分流（下载中取消、未下载开下并续开、已下载
+/// 打开、失败重试）
 struct FileChip: View {
     @Environment(AppState.self) private var appState
 
@@ -698,6 +904,9 @@ struct FileChip: View {
     @State private var shareItem: FileShareItem?
     @State private var deletePending = false
     @State private var notice: String?
+    @State private var thumbnail: UIImage?
+
+    private var store: ChatFileStore { .shared }
 
     private var name: String {
         (path as NSString).lastPathComponent
@@ -718,73 +927,61 @@ struct FileChip: View {
         FileActionPolicy.menuActions(for: entry)
     }
 
+    private var fileState: ChatFileStore.State {
+        store.state(for: path)
+    }
+
+    /// ①渲染集合（§452.1）：PDF/Word/图片/视频/
+    /// HTML——视觉位尝试真缩略；其余②类恒图标
+    private var isRenderableKind: Bool {
+        switch entry.mediaKind {
+        case .image, .video: return true
+        case .audio: return false
+        case nil: break
+        }
+        switch FileActionPolicy.category(
+            forFileName: name, mediaKind: entry.mediaKind
+        ) {
+        case .pdf, .html:
+            return true
+        case .office:
+            let ext = (name as NSString).pathExtension.lowercased()
+            return ext == "doc" || ext == "docx"
+        default:
+            return false
+        }
+    }
+
     private var subtitle: String {
-        let type = DeliverableFileType.label(forFileName: name)
-        let sizeText = FileMetadataStore.shared
-            .metadata(for: path)?.size
-            .map {
-                ByteCountFormatter.string(
-                    fromByteCount: $0, countStyle: .file
-                )
+        switch fileState {
+        case .downloading(let received, let expected):
+            if expected > 0 {
+                return "\(FileSizeText.compact(received))"
+                    + " / \(FileSizeText.compact(expected))"
             }
-        return [type, sizeText]
-            .compactMap { $0 }.joined(separator: " · ")
+            return "下载中…"
+        case .failed:
+            return "下载失败，点按重试"
+        case .idle, .ready:
+            if let size = FileMetadataStore.shared
+                .metadata(for: path)?.size {
+                return FileSizeText.compact(size)
+            }
+            return DeliverableFileType.label(forFileName: name)
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-            HStack(spacing: 0) {
-                Button(action: onOpen) {
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        FileIconBox(name: name, size: 40)
-                        VStack(
-                            alignment: .leading,
-                            spacing: OneDayMetrics.spacingXS
-                        ) {
-                            Text(name)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(Palette.ink)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-                if !actions.isEmpty {
-                    Menu {
-                        actionItems
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
-                            .font(.system(size: 18, weight: .regular))
-                            .foregroundStyle(Palette.inkSecondary)
-                            // 命中域 44（与文件页行 ⋮ 同
-                            // 口径，字形不变）
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("更多操作")
-                }
+            Button {
+                tap()
+            } label: {
+                cardBody
             }
-            .padding(.leading, OneDayMetrics.spacingSM)
-            .padding(.vertical, 10)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusPreview
-                )
-            )
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusPreview
-                )
-            )
+            .buttonStyle(.odPressable)
+            .contextMenu {
+                actionItems
+            }
             if let notice {
                 Text(notice)
                     .font(.footnote)
@@ -795,6 +992,7 @@ struct FileChip: View {
             await FileMetadataStore.shared.ensureSize(
                 path: path, appState: appState
             )
+            await loadThumbnail()
         }
         .sheet(item: $shareItem) { item in
             FileShareSheet(url: item.url)
@@ -814,9 +1012,191 @@ struct FileChip: View {
         }
     }
 
-    /// 菜单项与文件页行同源渲染：删除走确认框，其余
-    /// 直达 perform（与 DeliverablesView.actionItems
-    /// 同式）
+    private var cardBody: some View {
+        HStack(spacing: FileCardMetrics.columnSpacing) {
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingXS
+            ) {
+                Text(name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            visualSlot
+        }
+        .padding(.horizontal, FileCardMetrics.horizontalPadding)
+        .padding(.vertical, FileCardMetrics.verticalPadding)
+        .frame(width: FileCardMetrics.cardWidth)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard
+            )
+        )
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard
+            )
+        )
+    }
+
+    /// 视觉位 40×50：真缩略（圆角 6 裁切）或扁平图
+    /// 标；左下叠状态徽标（TG 状态机呈现，§452.5）
+    private var visualSlot: some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    FileTypeIconView(
+                        fileName: name, height: 46
+                    )
+                }
+            }
+            .frame(
+                width: FileCardMetrics.visualWidth,
+                height: FileCardMetrics.visualHeight
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            statusBadge
+        }
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        switch fileState {
+        case .ready:
+            EmptyView()
+        case .idle:
+            badgeSymbol("arrow.down") {
+                Circle().fill(Palette.primary)
+            }
+        case .failed:
+            badgeSymbol("arrow.clockwise") {
+                Circle().fill(Palette.danger)
+            }
+        case .downloading(let received, let expected):
+            ZStack {
+                Circle().fill(Palette.surface)
+                Circle()
+                    .stroke(
+                        Palette.inkMuted.opacity(0.35),
+                        lineWidth: 2
+                    )
+                if expected > 0 {
+                    Circle()
+                        .trim(
+                            from: 0,
+                            to: min(
+                                1,
+                                Double(received) / Double(expected)
+                            )
+                        )
+                        .stroke(
+                            Palette.primary,
+                            style: StrokeStyle(
+                                lineWidth: 2, lineCap: .round
+                            )
+                        )
+                        .rotationEffect(.degrees(-90))
+                }
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Palette.ink)
+                    .frame(width: 6, height: 6)
+            }
+            .frame(width: 20, height: 20)
+            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+            .offset(x: -4, y: 4)
+        }
+    }
+
+    private func badgeSymbol(
+        _ symbol: String,
+        background: () -> some View
+    ) -> some View {
+        ZStack {
+            background()
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 20, height: 20)
+        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        .offset(x: -4, y: 4)
+    }
+
+    // MARK: 点按分流与缩略
+
+    private func tap() {
+        notice = nil
+        switch fileState {
+        case .downloading:
+            store.cancel(path: path)
+        case .ready:
+            onOpen()
+        case .idle, .failed:
+            Task {
+                do {
+                    _ = try await store.download(
+                        path: path, appState: appState
+                    )
+                    onOpen()
+                } catch is CancellationError {
+                    // 用户点按取消：静默（TG 同口径）
+                } catch {
+                    // 状态已落 .failed、副行即重试文案
+                }
+            }
+        }
+    }
+
+    /// 封面只认真图：①类经 FileThumbnailStore 系统
+    /// 管线生成（图走变体、视频走 poster、文档走
+    /// QLThumbnail）；字节经 ChatFileStore 落缓存
+    /// （顺带把 ready 态做实）。自动取图上限 8MB
+    /// （已知大小超限只等点按下载，TG 自动下载同理）
+    private func loadThumbnail() async {
+        guard isRenderableKind, thumbnail == nil else { return }
+        if let size = FileMetadataStore.shared
+            .metadata(for: path)?.size,
+           size > 8 * 1024 * 1024,
+           entry.mediaKind == nil {
+            return
+        }
+        // 本地缓存先在主线取定（loader 闭包非隔离、
+        // 不直摸 @MainActor 店的同步面）
+        let cachedURL = store.localURL(for: path)
+        let image = await FileThumbnailStore.shared.thumbnail(
+            for: entry, targetPixelSize: 200,
+            loader: {
+                if let cachedURL {
+                    return try? Data(contentsOf: cachedURL)
+                }
+                guard let url = try? await ChatFileStore.shared
+                    .download(path: path, appState: appState)
+                else { return nil }
+                return try? Data(contentsOf: url)
+            },
+            renditionLoader: FileThumbnailStore.renditionLoader(
+                appState: appState, path: path
+            )
+        )
+        if let image {
+            thumbnail = image
+        }
+    }
+
+    // MARK: 长按动作（与旧 ⋮ 同源同处理）
+
     @ViewBuilder
     private var actionItems: some View {
         ForEach(actions, id: \.self) { action in
@@ -840,7 +1220,7 @@ struct FileChip: View {
         notice = nil
         switch action {
         case .preview:
-            onOpen()
+            tap()
         case .copyText:
             Task { await copyText() }
         case .exportPDF:
@@ -850,16 +1230,14 @@ struct FileChip: View {
         case .delete:
             deletePending = true
         case .pin, .unpin, .rename, .openInFiles:
-            // menuActions 不出这四项（打开页专属，见
-            // openPageActions），落到即策略表漂移——
-            // 静默不执行（与打开页 performSecondary 同口径）
+            // menuActions 不出这四项（打开页专属），落
+            // 到即策略表漂移——静默不执行（旧口径同）
             break
         }
     }
 
     /// 取字节（与打开页 fetchBytes 同通道）：只取数
-    /// 不回填——下载不兼任元数据源（复杂度清理第 6
-    /// 项砍下载回填，大小只走发送记账与父目录回读）
+    /// 不回填——下载不兼任元数据源
     private func fetchBytes() async throws -> Data {
         try await appState.performAdmin {
             client, config in
@@ -956,17 +1334,6 @@ struct FileChip: View {
         }
     }
 }
-
-/// 助手侧文件牌的存在性门（§129）：正文探测来的
-/// 路径没有登记背书（用户侧 @file: 登记制不走本
-/// 门），渲染前先经 FileMetadataStore 校验——确
-/// 证存在才出 FileChip；确证不在、还没查完、或
-/// 校验没查成（网络类，只记 unverified 不下「不
-/// 在」的结论），一律降为纯文本一行（路径原文照
-/// 显、可选中，不假装是可点的文件）。校验是异步
-/// 升级：消息先以文本落位，查实后原地换成牌，
-/// 不阻塞整条消息渲染。历史消息同享此判定——存
-/// 量坏牌不改数据、渲染层自动降级。
 struct AssistantFileChip: View {
     @Environment(AppState.self) private var appState
 
@@ -984,6 +1351,75 @@ struct AssistantFileChip: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .task(id: path) {
+            await FileMetadataStore.shared.verifyExistence(
+                path: path, appState: appState
+            )
+        }
+    }
+}
+
+/// 整条裸路径消息的文件形态（聊天可靠性包，
+/// 2026-11-13）：消息本身就是交付物、不是正文提
+/// 及，故不走 §129 的「查无降纯文本」——确证存
+/// 在/未确证走既有 FileChip（点开经下载通道取字
+/// 节、失败在打开页如实呈现）；确证不在出失效附
+/// 件卡（文件名＋「文件已不存在」），永不把整条
+/// 路径原样当正文。存在性校验与 §129 同源（父目
+/// 录列表），口径见 FileMetadataStore
+struct BarePathFileCard: View {
+    @Environment(AppState.self) private var appState
+
+    let path: String
+    let onOpen: () -> Void
+
+    private var name: String {
+        (path as NSString).lastPathComponent
+    }
+
+    var body: some View {
+        Group {
+            if FileMetadataStore.shared.existence(for: path)
+                == .missing {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    FileIconBox(name: name, size: 40)
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        Text(name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(L10n.string("文件已不存在"))
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, OneDayMetrics.spacingSM)
+                .padding(.vertical, 10)
+                .background(
+                    Palette.surface,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(name)，\(L10n.string("文件已不存在"))"
+                )
+            } else {
+                FileChip(path: path, onOpen: onOpen)
             }
         }
         .task(id: path) {
@@ -1015,18 +1451,20 @@ struct AssistantMediaImage: View {
         Group {
             if FileMetadataStore.shared.existence(for: path)
                 == .exists {
-                ServerRemoteImage(path: path)
-                    .onTapGesture { onOpen() }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        A11yText.imageLabel(
-                            fileName: (path as NSString)
-                                .lastPathComponent
-                        )
+                Button {
+                    onOpen()
+                } label: {
+                    ServerRemoteImage(path: path)
+                }
+                .buttonStyle(.odPressable)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    A11yText.imageLabel(
+                        fileName: (path as NSString)
+                            .lastPathComponent
                     )
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityHint(L10n.string("查看大图"))
-                    .accessibilityAction { onOpen() }
+                )
+                .accessibilityHint(L10n.string("查看大图"))
             }
         }
         .task(id: path) {

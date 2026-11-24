@@ -524,6 +524,176 @@ public enum DeviceSyncPlanner {
     }
 }
 
+// MARK: - 同步健康判定（规格 A-1/A-2，§468）
+
+/// 逐数据集健康级（规格 A-1）：绿＝24h 内有成功
+/// 同步；黄＝24–72h；红＝>72h、从未同步、或权限
+/// 不可用。副本过期判据全仓统一一处（规格 A-2）：
+/// 年龄 >24h 即过期，与新鲜度句的 24h 口径同源
+public enum SyncHealthLevel: Equatable, Sendable {
+    case green
+    case yellow
+    case red
+}
+
+public enum DeviceSyncHealth {
+    public static let freshWindow: TimeInterval = 24 * 3600
+    public static let staleWindow: TimeInterval = 72 * 3600
+
+    public static func level(
+        syncedAt: Date?, permissionUsable: Bool, now: Date
+    ) -> SyncHealthLevel {
+        guard permissionUsable else { return .red }
+        guard let syncedAt else { return .red }
+        let age = now.timeIntervalSince(syncedAt)
+        if age <= freshWindow { return .green }
+        if age <= staleWindow { return .yellow }
+        return .red
+    }
+
+    /// 副本是否过期（消费侧「数据截至」注记的判
+    /// 据，规格 A-2）：从未同步也算过期——没有新
+    /// 鲜数据可用，不许拿缺失当新鲜
+    public static func isExpired(syncedAt: Date?, now: Date) -> Bool {
+        guard let syncedAt else { return true }
+        return now.timeIntervalSince(syncedAt) > freshWindow
+    }
+}
+
+// MARK: - 前台自检处置（规格 A-5/A-6，§468）
+
+/// 前台自检对每件数据集的结论（规格 A-6）：同步/
+/// 节流跳过/退避等候/权限挡住，四种都要落账显
+/// 形——旧口径的病根正是判定只在内存里过一遍，
+/// 挡住与跳过都不留痕、健康面无从显形。权限挡
+/// 住带分型，健康面据此给出去路（规格 A-5）
+public enum SyncSelfCheckOutcome: Equatable, Sendable {
+    case willSync
+    case throttled
+    case backoffDeferred(nextAllowedAt: Date)
+    case blockedPermission(DevicePermissionState)
+
+    public func line(
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        switch self {
+        case .willSync:
+            return L10n.string("已发起同步", locale: locale)
+        case .throttled:
+            return L10n.string("刚同步过，按节流跳过", locale: locale)
+        case .backoffDeferred(let nextAllowedAt):
+            return L10n.format(
+                "上次全量同步没成，按退避等到 %@ 再试",
+                locale: locale,
+                DeviceSyncPresentation.dayLabel(
+                    nextAllowedAt, now: now, calendar: calendar,
+                    locale: locale
+                )
+            )
+        case .blockedPermission(let state):
+            return Self.blockedLine(state, locale: locale)
+        }
+    }
+
+    /// 权限挡住的人话（规格 A-5 的显形口径：说清
+    /// 楚是哪种关法、去哪开，不许只写「权限不足」）
+    public static func blockedLine(
+        _ state: DevicePermissionState, locale: Locale
+    ) -> String {
+        switch state {
+        case .notDetermined:
+            return L10n.string(
+                "权限还没开：开启后会自动同步", locale: locale
+            )
+        case .writeOnly:
+            return L10n.string(
+                "现在是仅写入权限：需要完全访问才能同步",
+                locale: locale
+            )
+        case .denied:
+            return L10n.string(
+                "权限已关：去系统设置里开启", locale: locale
+            )
+        case .restricted:
+            return L10n.string(
+                "这件被系统限制住了（家长控制等）", locale: locale
+            )
+        case .granted, .limited, .notApplicable:
+            return L10n.string("权限不可用", locale: locale)
+        }
+    }
+}
+
+public enum DeviceSyncSelfCheck {
+    /// 自检结论合成（纯函数）：权限门优先，其次
+    /// 计划器判定，全量退避只拦「本该同步」的轮次
+    public static func outcome(
+        permission: DevicePermissionState,
+        decision: SyncForegroundDecision,
+        backoffNextAllowedAt: Date?, now: Date
+    ) -> SyncSelfCheckOutcome {
+        guard permission.isUsable else {
+            return .blockedPermission(permission)
+        }
+        switch decision {
+        case .blockedPermission:
+            return .blockedPermission(permission)
+        case .skipThrottled:
+            return .throttled
+        case .sync:
+            if let nextAllowedAt = backoffNextAllowedAt,
+               nextAllowedAt > now
+            {
+                return .backoffDeferred(nextAllowedAt: nextAllowedAt)
+            }
+            return .willSync
+        }
+    }
+}
+
+// MARK: - 全量重同步退避（规格 A-3，§468）
+
+/// 全量重同步退避（规格 A-3）：全量型数据集同
+/// 步失败后不许每轮回前台都整表重推——间隔按连
+/// 续失败次数递增（15 分钟 → 1 小时 → 6 小时封
+/// 顶），成功即清零。状态由 App 层落盘，本处只
+/// 算；从未失败过（failureCount＝0）恒可尝试，
+/// 首次全量不被退避拦
+public struct FullResyncBackoff: Equatable, Sendable, Codable {
+    public var failureCount: Int
+    public var nextAllowedAt: Date?
+
+    public init(failureCount: Int = 0, nextAllowedAt: Date? = nil) {
+        self.failureCount = failureCount
+        self.nextAllowedAt = nextAllowedAt
+    }
+
+    public static let intervals: [TimeInterval] = [
+        15 * 60, 3600, 6 * 3600,
+    ]
+
+    public func canAttempt(now: Date) -> Bool {
+        guard failureCount > 0, let nextAllowedAt else { return true }
+        return now >= nextAllowedAt
+    }
+
+    public func recordingFailure(at now: Date) -> FullResyncBackoff {
+        let count = failureCount + 1
+        let index = min(count - 1, Self.intervals.count - 1)
+        return FullResyncBackoff(
+            failureCount: count,
+            nextAllowedAt: now.addingTimeInterval(
+                Self.intervals[index]
+            )
+        )
+    }
+
+    public func recordingSuccess() -> FullResyncBackoff {
+        FullResyncBackoff()
+    }
+}
+
 // MARK: - 批次切分（规格 §3.1 每批 ≤500 条）
 
 public enum SyncBatchPlan {

@@ -42,3 +42,118 @@ final class AgentIdentityTests: XCTestCase {
         XCTAssertEqual(AgentName.fallback, "Hermes")
     }
 }
+
+/// 改名写口（§383 包一）：校验与标题行手术与桥
+/// _validate_new_name/_find_title_line 逐条同
+/// 口径的把守——迁直连后规则在 App 侧，漂移即
+/// 服务端行为变化
+final class AgentNameWriteTests: XCTestCase {
+
+    func testValidatedNewNameAcceptsAndTrims() throws {
+        XCTAssertEqual(
+            try AgentName.validatedNewName(" 三狗 "), "三狗"
+        )
+        XCTAssertEqual(
+            try AgentName.validatedNewName("Hermes 助手"),
+            "Hermes 助手"
+        )
+        let twenty = String(repeating: "名", count: 20)
+        XCTAssertEqual(
+            try AgentName.validatedNewName(twenty), twenty
+        )
+    }
+
+    func testValidatedNewNameRejects() {
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("  ")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError, .empty
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName(
+                String(repeating: "名", count: 21)
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError, .tooLong
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("小赫。")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError, .punctuation
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("Soul")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError, .structural
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("灵魂")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError, .structural
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("a#b")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError,
+                .illegalCharacter
+            )
+        }
+        XCTAssertThrowsError(
+            try AgentName.validatedNewName("a\u{01}b")
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentNameWriteError,
+                .illegalCharacter
+            )
+        }
+    }
+
+    func testApplyingNewNameReplacesTitleInWindow() {
+        let soul = "# 旧名\n\n正文第一行\n## 小节\n正文"
+        XCTAssertEqual(
+            AgentName.applyingNewName("新名", to: soul),
+            "# 新名\n\n正文第一行\n## 小节\n正文"
+        )
+    }
+
+    func testApplyingNewNameInsertsWhenNoTitle() {
+        let soul = "开头没有标题\n第二行"
+        XCTAssertEqual(
+            AgentName.applyingNewName("新名", to: soul),
+            "# 新名\n开头没有标题\n第二行"
+        )
+    }
+
+    func testApplyingNewNameTitleBeyondWindowInserts() {
+        // 前 3 个非空行之外才出现的一级标题不在窗
+        // 口内——按桥口径视为无标题、首行插入
+        let soul = "一\n二\n三\n# 远处标题\n正文"
+        XCTAssertEqual(
+            AgentName.applyingNewName("新名", to: soul),
+            "# 新名\n一\n二\n三\n# 远处标题\n正文"
+        )
+    }
+
+    func testHasIdentityTitleWindow() {
+        XCTAssertTrue(
+            AgentName.hasIdentityTitle(in: "\n\n# 名\n正文")
+        )
+        XCTAssertFalse(
+            AgentName.hasIdentityTitle(in: "一\n二\n三\n# 名")
+        )
+        XCTAssertFalse(
+            AgentName.hasIdentityTitle(in: "## 二级标题\n正文")
+        )
+    }
+}

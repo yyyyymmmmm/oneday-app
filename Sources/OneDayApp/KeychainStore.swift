@@ -5,6 +5,9 @@ import Security
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
 enum CredentialKey {
     static let baseURL = "server.baseURL"
+    /// §244 退役：面板密码无账号概念，登录链不再读写本
+    /// 键；键名留档＋留在 all 里（断开连接时随三件套一
+    /// 并清掉存量值），成功登录时也顺手删
     static let username = "auth.username"
     static let password = "auth.password"
     static let apiKey = "api.key"
@@ -17,6 +20,21 @@ enum CredentialKey {
     static let writeGateKey = "writegate.key"
 
     static let all = [baseURL, username, password, apiKey]
+}
+
+/// 身份键名（根治版包 1，DESIGN §330）：主线钦定身
+/// 份键（主线线程/服务端会话 id＋链接确认位）自
+/// UserDefaults 迁 Keychain 与凭据同级，键名集中在
+/// 此一处（SessionLedger 经 IdentityValueStore 读写）。
+/// 不并入 CredentialKey.all：断开连接不清身份——重
+/// 连同一台服务器还要认得出主线；旧 UserDefaults 键
+/// （sideChats.main*）留作一版双轨镜像保回滚（与归
+/// 档列同口径，停写归下一大版本）。
+enum IdentityKey {
+    static let mainThreadID = "identity.mainThreadID"
+    static let mainServerSessionID = "identity.mainServerSessionID"
+    static let mainServerConfirmed = "identity.mainServerConfirmed"
+    static let mainServerSeeded = "identity.mainServerSeeded"
 }
 
 /// 桥客户端统一取钥（0.33.1，用户 16:08 定版）：用户

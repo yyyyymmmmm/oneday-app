@@ -104,14 +104,16 @@ final class FeedV2Tests: XCTestCase {
         XCTAssertEqual(gen.segmentTwo?.lastRunAt, 7)
     }
 
-    // MARK: - 简报两层文档
+    // MARK: - 简报文档（§459 单层）
 
     func testBriefDocDecodesFullShape() throws {
         let json = #"""
         {"brief": "正式简报正文", "interest": "我想看开源",
          "briefUpdatedAt": 111, "interestUpdatedAt": 100,
          "expanding": true, "expandError": null,
-         "expandStarted": true}
+         "expandStarted": true,
+         "text": "我想看开源", "polished": false,
+         "polishState": "pending"}
         """#
         let doc = try JSONDecoder().decode(
             BridgeBriefDoc.self, from: Data(json.utf8)
@@ -121,6 +123,9 @@ final class FeedV2Tests: XCTestCase {
         XCTAssertTrue(doc.expanding)
         XCTAssertEqual(doc.expandStarted, true)
         XCTAssertNil(doc.expandError)
+        XCTAssertEqual(doc.text, "我想看开源")
+        XCTAssertFalse(doc.polished)
+        XCTAssertEqual(doc.polishState, .pending)
     }
 
     func testBriefDocToleratesOldShape() throws {
@@ -132,9 +137,25 @@ final class FeedV2Tests: XCTestCase {
         XCTAssertEqual(doc.interest, "")
         XCTAssertFalse(doc.expanding)
         XCTAssertNil(doc.expandStarted)
+        // §459 新字段缺失时宽容缺省：text 空、未润色、
+        // 状态 idle——不许缺省冒充已润色
+        XCTAssertEqual(doc.text, "")
+        XCTAssertFalse(doc.polished)
+        XCTAssertEqual(doc.polishState, .idle)
     }
 
     func testBriefSaveRequestEncodesOnlySetLayer() throws {
+        // §459 单层保存：只发 {text}，两层字段不混发
+        let textOnly = try JSONEncoder().encode(
+            BridgeBriefSaveRequest(text: "生效全文")
+        )
+        let textObj = try JSONSerialization.jsonObject(
+            with: textOnly
+        ) as? [String: Any]
+        XCTAssertEqual(textObj?["text"] as? String, "生效全文")
+        XCTAssertNil(textObj?["interest"])
+        XCTAssertNil(textObj?["brief"])
+
         let interestOnly = try JSONEncoder().encode(
             BridgeBriefSaveRequest(interest: "兴趣")
         )
@@ -143,6 +164,7 @@ final class FeedV2Tests: XCTestCase {
         ) as? [String: Any]
         XCTAssertEqual(interestObj?["interest"] as? String, "兴趣")
         XCTAssertNil(interestObj?["brief"])
+        XCTAssertNil(interestObj?["text"])
 
         let briefOnly = try JSONEncoder().encode(
             BridgeBriefSaveRequest(brief: "执行层")
@@ -152,6 +174,66 @@ final class FeedV2Tests: XCTestCase {
         ) as? [String: Any]
         XCTAssertEqual(briefObj?["brief"] as? String, "执行层")
         XCTAssertNil(briefObj?["interest"])
+        XCTAssertNil(briefObj?["text"])
+    }
+
+    // MARK: - §459 单层呈现口径
+
+    func testEffectiveTextPrefersServerText() {
+        let doc = BridgeBriefDoc(
+            brief: "执行层", interest: "兴趣层",
+            text: "生效全文", polished: true,
+            polishStateRaw: "done"
+        )
+        XCTAssertEqual(FeedBriefBoard.effectiveText(doc), "生效全文")
+    }
+
+    func testEffectiveTextFallsBackForOldBridge() {
+        // 旧桥无 text：兴趣层优先、其次执行层
+        let interestDoc = BridgeBriefDoc(
+            brief: "执行层", interest: "兴趣层"
+        )
+        XCTAssertEqual(
+            FeedBriefBoard.effectiveText(interestDoc), "兴趣层"
+        )
+        let briefDoc = BridgeBriefDoc(brief: "执行层", interest: "")
+        XCTAssertEqual(
+            FeedBriefBoard.effectiveText(briefDoc), "执行层"
+        )
+    }
+
+    func testPolishHintIsTruthful() {
+        // done 但 text 是原文（polished=false）：不许
+        // 冒充已润色，不出提示
+        let doneOriginal = BridgeBriefDoc(
+            brief: "", interest: "", text: "原文",
+            polished: false, polishStateRaw: "done"
+        )
+        XCTAssertNil(FeedBriefBoard.polishHint(doneOriginal))
+        // done 且润色稿生效：如实说明
+        let donePolished = BridgeBriefDoc(
+            brief: "", interest: "", text: "润色稿",
+            polished: true, polishStateRaw: "done"
+        )
+        XCTAssertNotNil(FeedBriefBoard.polishHint(donePolished))
+        // pending / error 恒如实出
+        let pending = BridgeBriefDoc(
+            brief: "", interest: "", polishStateRaw: "pending"
+        )
+        XCTAssertNotNil(FeedBriefBoard.polishHint(pending))
+        let error = BridgeBriefDoc(
+            brief: "", interest: "", polishStateRaw: "error"
+        )
+        XCTAssertNotNil(FeedBriefBoard.polishHint(error))
+        // idle 无事可报
+        let idle = BridgeBriefDoc(brief: "", interest: "")
+        XCTAssertNil(FeedBriefBoard.polishHint(idle))
+        // 未知状态值折 idle，不猜
+        let unknown = BridgeBriefDoc(
+            brief: "", interest: "", polishStateRaw: "weird"
+        )
+        XCTAssertEqual(unknown.polishState, .idle)
+        XCTAssertNil(FeedBriefBoard.polishHint(unknown))
     }
 
     // MARK: - 简报呈现口径
@@ -183,12 +265,49 @@ final class FeedV2Tests: XCTestCase {
         XCTAssertTrue(FeedBriefBoard.textChanged("", "有内容"))
     }
 
-    func testExampleInterestCoversThreeDirections() {
-        let example = FeedBriefBoard.exampleInterest
-        XCTAssertTrue(example.contains("GitHub"))
-        XCTAssertTrue(example.contains("AI"))
-        XCTAssertTrue(example.contains("副业"))
-        XCTAssertTrue(example.contains("中文"))
-        XCTAssertTrue(example.contains("割韭菜"))
+    // MARK: - §459 动态新字段（category/usefulness/event）
+
+    func testFeedPostDecodesCategoryAndUsefulness() throws {
+        let json = #"""
+        {"id": "f1", "kind": "research", "title": "t",
+         "body": "b", "createdAt": 10,
+         "category": "GitHub 热门", "usefulness": 85.5}
+        """#
+        let post = try JSONDecoder().decode(
+            BridgeFeedPost.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(post.category, "GitHub 热门")
+        XCTAssertEqual(post.usefulness, 85.5)
+        // 本地副本（已读/点赞翻面）不丢新字段
+        XCTAssertEqual(post.markedRead(at: 20).category, "GitHub 热门")
+        XCTAssertEqual(post.withLikedAt(30).usefulness, 85.5)
     }
+
+    func testFeedPostToleratesMissingParityFields() throws {
+        let json = #"""
+        {"id": "f2", "kind": "research", "title": "t",
+         "body": "b", "createdAt": 10}
+        """#
+        let post = try JSONDecoder().decode(
+            BridgeFeedPost.self, from: Data(json.utf8)
+        )
+        XCTAssertNil(post.category)
+        XCTAssertNil(post.usefulness)
+    }
+
+    func testEventPostKindDecodes() throws {
+        let json = #"""
+        {"id": "f3", "kind": "event", "title": "新点子",
+         "body": "b", "createdAt": 10, "category": null,
+         "refs": [{"type": "idea", "id": "i1"}]}
+        """#
+        let post = try JSONDecoder().decode(
+            BridgeFeedPost.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(post.kind, .event)
+        XCTAssertEqual(post.kind.label, "本地动态")
+        XCTAssertNil(post.category)
+        XCTAssertEqual(post.refs.first?.refType, .idea)
+    }
+
 }

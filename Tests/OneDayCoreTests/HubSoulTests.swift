@@ -87,4 +87,313 @@ final class HubSoulTests: XCTestCase {
         XCTAssertNil(sections.style)
         XCTAssertEqual(sections.displayedPersona, "第一段。\n\n第二段。")
     }
+
+    // MARK: - 屏上呈现提炼（§218）
+
+    /// 生产形态复刻：首行名标题＋整篇正文（无已知分段
+    /// 标题）——名标题段须摘除、`#` 脚手架不许上屏、
+    /// 正文按空行分段且一字不改
+    func testPresentationDropsNameHeadingAndSplitsParagraphs() {
+        let sections = SoulSectionParser.parse("""
+        # 三狗
+        You are Hermes Agent, built by Nous Research.
+
+        Be direct: answer first.
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        // §477 摘要化：简介区只呈身份首段，第二段撤
+        // 出本页（全文在 SOUL 卡详情/编辑面、零丢失）
+        XCTAssertEqual(presentation.introParagraphs, [
+            "You are Hermes Agent, built by Nous Research.",
+        ])
+        XCTAssertTrue(presentation.styleParagraphs.isEmpty)
+        XCTAssertFalse(presentation.isEmpty)
+    }
+
+    /// 已知分段标题：人设与风格分别清洗；段内小标题剥
+    /// `#` 留文本（不摘除，只有名标题摘除）
+    func testPresentationCleansStyleAndInnerHeadings() {
+        let sections = SoulSectionParser.parse("""
+        # 人设
+        ## 我是谁
+        住在用户设备里的合伙人。
+        # 风格
+        直接、克制。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(presentation.introParagraphs, ["我是谁\n住在用户设备里的合伙人。"])
+        XCTAssertEqual(presentation.styleParagraphs, ["直接、克制。"])
+    }
+
+    /// 名标题只在「首段＋纯标题＋与显示名同文」时摘除：
+    /// 正文里出现同名句子不动；显示名对不上也不摘
+    func testPresentationNameDropIsConservative() {
+        let sections = SoulSectionParser.parse("# 三狗\n三狗 是开头一句。")
+        let kept = SoulPresentationBuilder.build(
+            from: sections, displayName: "别的名"
+        )
+        XCTAssertEqual(kept.introParagraphs, ["三狗\n三狗 是开头一句。"])
+    }
+
+    func testPresentationEmptySoul() {
+        let sections = SoulSectionParser.parse("")
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertTrue(presentation.isEmpty)
+    }
+
+    // MARK: - 真提炼层（§253：系统提示词段收起）
+
+    /// 生产形态复刻：规程段（我怎么工作/学到的伤疤）
+    /// 整段收起，人设本体段（我是什么/关系/还不知
+    /// 道）原样呈现，收起数如实报
+    func testDistillationWithholdsSystemSections() {
+        let sections = SoulSectionParser.parse("""
+        # SOUL.md
+
+        ## 我是什么
+        我是常驻代理，住在用户自己的设备里。
+
+        ## 我怎么工作
+        - 结论先行、数字殿后。
+        - 只写亲眼验证过的。
+
+        ## 我学到的伤疤
+        - 拿旧口径当现状至少三次。
+
+        ## 我和用户的关系
+        我是他的技术合伙人。
+
+        ## 我还不知道的
+        - 我的记忆是文件，不是亲历。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        let joined = presentation.introParagraphs.joined(separator: "\n")
+        XCTAssertTrue(joined.contains("我是常驻代理"))
+        XCTAssertFalse(joined.contains("结论先行"))
+        XCTAssertFalse(joined.contains("拿旧口径当现状"))
+        XCTAssertEqual(presentation.withheldSegmentCount, 2)
+        // §477：本体段「保留」的口径移到提炼层验——
+        // 提炼后可见文本仍含全部本体段（关系/还不知
+        // 道），呈现层摘要化只收本页呈现量、不丢内容
+        let distilled = SoulDistillation.visibleText(
+            from: sections.displayedPersona
+        )
+        XCTAssertTrue(distilled.text.contains("技术合伙人"))
+        XCTAssertTrue(distilled.text.contains("我的记忆是文件"))
+    }
+
+    /// 无标题前言与未登记标题段一律保留（宁可多呈、
+    /// 不可错藏人设本体）
+    func testDistillationKeepsPreambleAndUnknownSections() {
+        let sections = SoulSectionParser.parse("""
+        开头自述，没有标题。
+
+        ## 我喜欢的东西
+        喜欢下雨天。
+
+        ## 工具
+        只在工具段出现的话。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        let joined = presentation.introParagraphs.joined(separator: "\n")
+        XCTAssertTrue(joined.contains("开头自述"))
+        XCTAssertFalse(joined.contains("只在工具段出现的话"))
+        XCTAssertEqual(presentation.withheldSegmentCount, 1)
+        // §477：未知标题段本体在提炼层仍保留（同上
+        // 一例口径），只是不再全量上本页
+        let distilled = SoulDistillation.visibleText(
+            from: sections.displayedPersona
+        )
+        XCTAssertTrue(distilled.text.contains("喜欢下雨天"))
+    }
+
+    /// 全篇皆系统段：回落原文整篇呈现——身份段不许
+    /// 被提炼成空白，收起数报 0（没有真的收起）
+    func testDistillationAllSystemFallsBackToFullText() {
+        let sections = SoulSectionParser.parse("""
+        ## 我怎么工作
+
+        守则一：先看证据。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        let joined = presentation.introParagraphs.joined(separator: "\n")
+        XCTAssertTrue(joined.contains("守则一：先看证据。"))
+        XCTAssertEqual(presentation.withheldSegmentCount, 0)
+        XCTAssertFalse(presentation.isEmpty)
+    }
+
+    /// 英文模板的指令性章节同收（How I Work/
+    /// Boundaries），本体自述（Core Truths）保留
+    func testDistillationEnglishSystemSections() {
+        let sections = SoulSectionParser.parse("""
+        ## Core Truths
+        Be genuinely helpful, not performatively helpful.
+
+        ## How I Work
+        Check first, act second.
+
+        ## Boundaries
+        Ask before external actions.
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "Hermes"
+        )
+        let joined = presentation.introParagraphs.joined(separator: "\n")
+        XCTAssertTrue(joined.contains("genuinely helpful"))
+        XCTAssertFalse(joined.contains("Check first"))
+        XCTAssertFalse(joined.contains("Ask before external"))
+        XCTAssertEqual(presentation.withheldSegmentCount, 2)
+    }
+
+    /// 风格块是呈现本体、不在收起面：人设侧收起系
+    /// 统段不影响风格段原文呈现
+    func testDistillationLeavesStyleUntouched() {
+        let sections = SoulSectionParser.parse("""
+        # 人设
+        ## 我是什么
+        正经人设一句。
+        ## 我怎么工作
+        守则正文。
+        # 风格
+        直接、克制。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(
+            presentation.introParagraphs, ["我是什么\n正经人设一句。"]
+        )
+        XCTAssertEqual(presentation.styleParagraphs, ["直接、克制。"])
+        XCTAssertEqual(presentation.withheldSegmentCount, 1)
+    }
+
+    // MARK: - §449.8 身份页与 Muse 对齐（平文标题/子弹/气质/日期键）
+
+    /// 服务端回执 camelCase updatedAt（epoch）须解出
+    /// （identity_bridge 同口径；旧键表只有 snake_
+    /// case、SOUL 卡日期恒 nil 的定因回归钉）
+    func testUpdatedAtCamelCase() throws {
+        let epoch = try decode(#"{"content": "x", "updatedAt": 1762700000}"#)
+        XCTAssertEqual(epoch.updatedAt?.timeIntervalSince1970, 1762700000)
+        let iso = try decode(
+            #"{"content": "x", "updatedAt": "2026-11-21T03:00:00Z"}"#
+        )
+        XCTAssertNotNil(iso.updatedAt)
+    }
+
+    /// 平文标题分桶：服务端 SOUL 实际形态（无 ATX
+    /// 的「风格口径（…）」标题行＋子弹列）须分出风
+    /// 格桶，前言归人设
+    func testPlainHeadingStyleSplit() {
+        let sections = SoulSectionParser.parse("""
+        我是三狗，OneDay 的智能体，底层运行在 Hermes 上。
+        风格口径（与主线三狗共用一份，2026-11-24 对齐）
+        - 气质：直接、克制、认账快。
+        - 结论先行、数字殿后；没查过不说。
+        """)
+        XCTAssertEqual(
+            sections.persona,
+            "我是三狗，OneDay 的智能体，底层运行在 Hermes 上。"
+        )
+        XCTAssertEqual(
+            sections.style,
+            "- 气质：直接、克制、认账快。\n- 结论先行、数字殿后；没查过不说。"
+        )
+    }
+
+    /// 带句读的正文行不许被平文标题误认（整篇仍归
+    /// 人设、风格不出）
+    func testPlainProseLineNotHeading() {
+        let sections = SoulSectionParser.parse("""
+        先说结论。
+        风格要稳重，话要留三分。
+        """)
+        XCTAssertNil(sections.style)
+        XCTAssertEqual(
+            sections.displayedPersona,
+            "先说结论。\n风格要稳重，话要留三分。"
+        )
+    }
+
+    /// 呈现：子弹逐条成段剥标记、气质条提作灰字摘
+    /// 要（风格块内原文保留），与 Muse 结构同形
+    func testPresentationBulletsAndTemperament() {
+        let sections = SoulSectionParser.parse("""
+        我是三狗，OneDay 的智能体，底层运行在 Hermes 上。
+        风格口径（与主线三狗共用一份，2026-11-24 对齐）
+        - 气质：直接、克制、认账快。
+        - 结论先行、数字殿后；没查过不说。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(presentation.introParagraphs, [
+            "我是三狗，OneDay 的智能体，底层运行在 Hermes 上。",
+            "直接、克制、认账快。",
+        ])
+        XCTAssertEqual(presentation.styleParagraphs, [
+            "气质：直接、克制、认账快。",
+            "结论先行、数字殿后；没查过不说。",
+        ])
+    }
+
+    // MARK: - §477 摘要化与内部注记过滤
+
+    /// 摘要封顶：多段人设只呈首段＋气质摘要，其余
+    /// 本体段不进 intro（撤出本页、非删除——提炼层
+    /// 可见文本仍全量，见上两例的提炼层断言）
+    func testPresentationSummaryCap() {
+        let sections = SoulSectionParser.parse("""
+        我是三狗，住在用户设备里。
+
+        第二段本体内容，不上摘要。
+
+        第三段本体内容，同样不上。
+        风格口径
+        - 气质：直接、克制。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(presentation.introParagraphs, [
+            "我是三狗，住在用户设备里。",
+            "直接、克制。",
+        ])
+    }
+
+    /// 内部注记过滤：带 ISO 日期的括号注整组剥除、
+    /// 正文一字不动；无标记的普通括号内容保留
+    func testPresentationStripsInternalNotes() {
+        let noted = SoulSectionParser.parse(
+            "我是三狗（与主线三狗共用一份，2026-11-24 对齐），住在用户设备里。"
+        )
+        let notedPresentation = SoulPresentationBuilder.build(
+            from: noted, displayName: "三狗"
+        )
+        XCTAssertEqual(notedPresentation.introParagraphs, [
+            "我是三狗，住在用户设备里。",
+        ])
+
+        let plain = SoulSectionParser.parse(
+            "我是三狗（OneDay 的智能体），住在用户设备里。"
+        )
+        let plainPresentation = SoulPresentationBuilder.build(
+            from: plain, displayName: "三狗"
+        )
+        XCTAssertEqual(plainPresentation.introParagraphs, [
+            "我是三狗（OneDay 的智能体），住在用户设备里。",
+        ])
+    }
 }

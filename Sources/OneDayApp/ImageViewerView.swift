@@ -61,7 +61,15 @@ struct ImageViewerView: View {
     /// 复制/分享）作用于当前页已加载的图
     @State private var loadedImages: [String: UIImage] = [:]
     @State private var shareItem: FileShareItem?
-    @State private var notice: String?
+    /// 提示分型（OB-I3，DESIGN §391）：成功/状态类沿
+    /// 旧制 2.5 秒自清；失败类（动作没成、含权限缺失）
+    /// 常驻、点按关闭——需要人知道的失败不自动消失
+    @State private var notice: ViewerNotice?
+
+    private struct ViewerNotice: Equatable {
+        let text: String
+        let isFailure: Bool
+    }
     /// 下拉关闭的跟手位移（0.36.4 追加验收项，用户
     /// 点名「下拉返回不了」）：未放大时纵拖写入、整
     /// 面跟随＋渐隐，过阈值松手 dismiss、未过弹簧
@@ -331,10 +339,12 @@ struct ImageViewerView: View {
         }
     }
 
-    private func noticeOverlay(_ text: String) -> some View {
+    private func noticeOverlay(
+        _ notice: ViewerNotice
+    ) -> some View {
         VStack {
             Spacer()
-            Text(text)
+            Text(notice.text)
                 .font(.footnote)
                 .foregroundStyle(Palette.ink)
                 .padding(.horizontal, OneDayMetrics.spacingM)
@@ -342,10 +352,16 @@ struct ImageViewerView: View {
                 .glassEffect(.regular, in: Capsule())
                 .padding(.bottom, OneDayMetrics.spacingXXL)
         }
-        .allowsHitTesting(false)
-        .task(id: text) {
+        // 失败类常驻可点关；成功/状态类不挡操作、2.5
+        // 秒自清（旧制）
+        .allowsHitTesting(notice.isFailure)
+        .onTapGesture {
+            if notice.isFailure { self.notice = nil }
+        }
+        .task(id: notice.text) {
+            guard !notice.isFailure else { return }
             try? await Task.sleep(for: .seconds(2.5))
-            if notice == text { notice = nil }
+            if self.notice == notice { self.notice = nil }
         }
     }
 
@@ -362,14 +378,19 @@ struct ImageViewerView: View {
 
     private func saveCurrent() async {
         guard let image = currentImage else {
-            notice = "图片还没加载完，请稍后再试。"
+            notice = ViewerNotice(
+                text: "图片还没加载完，请稍后再试。", isFailure: true
+            )
             return
         }
         let status = await PHPhotoLibrary.requestAuthorization(
             for: .addOnly
         )
         guard status == .authorized || status == .limited else {
-            notice = "没有相册保存权限，请在系统设置里允许后再试。"
+            notice = ViewerNotice(
+                text: "没有相册保存权限，请在系统设置里允许后再试。",
+                isFailure: true
+            )
             Haptics.error()
             return
         }
@@ -379,28 +400,38 @@ struct ImageViewerView: View {
                     from: image
                 )
             }
-            notice = "已保存到相册。"
+            notice = ViewerNotice(
+                text: "已保存到相册。", isFailure: false
+            )
             Haptics.success()
         } catch {
-            notice = "保存失败，请稍后再试。"
+            notice = ViewerNotice(
+                text: "保存失败，请稍后再试。", isFailure: true
+            )
             Haptics.error()
         }
     }
 
     private func copyCurrent() {
         guard let image = currentImage else {
-            notice = "图片还没加载完，请稍后再试。"
+            notice = ViewerNotice(
+                text: "图片还没加载完，请稍后再试。", isFailure: true
+            )
             return
         }
         UIPasteboard.general.image = image
-        notice = "已复制。"
+        notice = ViewerNotice(
+            text: "已复制。", isFailure: false
+        )
         Haptics.success()
     }
 
     private func shareCurrent() {
         guard let image = currentImage,
               let data = image.pngData() else {
-            notice = "图片还没加载完，请稍后再试。"
+            notice = ViewerNotice(
+                text: "图片还没加载完，请稍后再试。", isFailure: true
+            )
             return
         }
         // 分享临时文件名：远端图沿原文件名（分享单
@@ -415,7 +446,9 @@ struct ImageViewerView: View {
         if let item = try? FileShareItem.write(data: data, name: name) {
             shareItem = item
         } else {
-            notice = "分享准备失败，请稍后再试。"
+            notice = ViewerNotice(
+                text: "分享准备失败，请稍后再试。", isFailure: true
+            )
             Haptics.error()
         }
     }
@@ -430,23 +463,101 @@ struct ImageViewerView: View {
     }
 }
 
-// MARK: - 聊天侧转场承载（UIKit zoom）
+// MARK: - 聊天侧转场承载（UIKit zoom，§247.2 试点）
 
-/// 聊天页呈现承载（0.36.4）：聊天页当前无 Naviga-
-/// tionStack，zoom 转场走 UIKit 系统机制——宿主
-/// VC 设 preferredTransition＝.zoom（规格 §3.4 过
-/// 渡方案）。源视图提供者暂缺（聊天缩略是 SwiftUI
-/// 视图、无现成 UIView 句柄可交），系统在无源时
-/// 的确切降级形态真机待验、不在此断言；聊天栈化
-/// 时并轨 matchedTransitionSource（文件侧已用）。
+/// Zoom 源视图登记表（动效规矩包 §247.2 试点）：聊天
+/// 缩略图是 SwiftUI 视图、无现成 UIView 句柄——入口以
+/// ZoomSourceAnchor 在缩略图同位挂一枚透明 UIView 并
+/// 按图片条目 id 登记于此，呈现时 ZoomHostingController
+/// 的源提供者按 id 取回。弱引用持有：缩略图滚出屏/被
+/// 列表回收后登记自动失效，提供者返回 nil、转场按
+/// Core ZoomTransitionPolicy 回标准呈现，不假放大。
+/// 并发口径：可变状态只有 table 一处、全部读写经
+/// NSLock 串行，故 @unchecked Sendable 成立。
+final class ZoomSourceRegistry: @unchecked Sendable {
+    static let shared = ZoomSourceRegistry()
+
+    private final class WeakView {
+        weak var view: UIView?
+        init(_ view: UIView) { self.view = view }
+    }
+
+    private var table: [String: WeakView] = [:]
+    private let lock = NSLock()
+
+    func register(id: String, view: UIView) {
+        lock.lock()
+        defer { lock.unlock() }
+        table[id] = WeakView(view)
+    }
+
+    /// 只注销同一实例的登记（同 id 后登记者不被前者误撤）
+    func unregister(id: String, view: UIView) {
+        lock.lock()
+        defer { lock.unlock() }
+        if table[id]?.view === view {
+            table.removeValue(forKey: id)
+        }
+    }
+
+    func view(for id: String) -> UIView? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = table[id] else { return nil }
+        if entry.view == nil {
+            table.removeValue(forKey: id)
+            return nil
+        }
+        return entry.view
+    }
+}
+
+/// Zoom 源锚点：铺满宿主（缩略图）帧的透明 UIView，
+/// 不拦命中（调用方再叠 .allowsHitTesting(false) 双
+/// 保险），出现/更新即登记、拆解即注销。仅 §247.2 试
+/// 点面（聊天消息流图片两主面）挂载，其余入口不挂、
+/// 提供者回 nil 走标准呈现。
+struct ZoomSourceAnchor: UIViewRepresentable {
+    let sourceID: String
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        ZoomSourceRegistry.shared.register(id: sourceID, view: view)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        ZoomSourceRegistry.shared.register(id: sourceID, view: view)
+    }
+
+    // 无 dismantle 注销：登记为弱引用，视图随缩略图
+    // 离树释放后登记自动失效（提供者查死登记即清表）。
+}
+
+/// 聊天页呈现承载（0.36.4；§247.2 试点改造）：聊天页
+/// 当前无 NavigationStack，zoom 转场走 UIKit 系统机
+/// 制——宿主 VC 设 preferredTransition＝.zoom。试点前
+/// 源提供者恒返回 nil（无源降级形态未验）；试点后按
+/// Core ZoomTransitionPolicy 裁决：Reduce Motion 开
+/// 启不设 zoom（标准呈现）；否则提供者按 sourceID 查
+/// ZoomSourceRegistry，查到真源才长出、查不到回 nil
+/// 由系统标准降级。聊天栈化时并轨 matchedTransition-
+/// Source（文件侧已用），本承载随之退役。
 struct ZoomTransitionCover<Content: View>:
     UIViewControllerRepresentable {
+    /// 本次呈现的起始图片条目 id（会话集合的初始页）；
+    /// nil＝调用方未声明源，转场恒标准呈现
+    var sourceID: String? = nil
     @ViewBuilder var content: () -> Content
 
     func makeUIViewController(
         context: Context
     ) -> UIHostingController<Content> {
-        ZoomHostingController(rootView: content())
+        ZoomHostingController(
+            rootView: content(), sourceID: sourceID
+        )
     }
 
     func updateUIViewController(
@@ -457,13 +568,42 @@ struct ZoomTransitionCover<Content: View>:
     }
 }
 
-private final class ZoomHostingController<Content: View>:
+final class ZoomHostingController<Content: View>:
     UIHostingController<Content> {
+    private let sourceID: String?
+
+    init(rootView: Content, sourceID: String?) {
+        self.sourceID = sourceID
+        super.init(rootView: rootView)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        self.sourceID = nil
+        super.init(coder: aDecoder)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        // A-21/H2：宿主安全区派生清零（查看器全幅由
+        // 内容根 .ignoresSafeArea 自排，宿主不许再派
+        // 生安全区内边距与全幅几何叠加；与抽屉双宿
+        // 主同口径，§315）
+        safeAreaRegions = []
+        // 裁决在呈现定型时问一次 Core 策略：Reduce
+        // Motion 时不设 zoom；源可用性由提供者在转场
+        // 发生时实时查表（登记随滚动生灭，定型时快照
+        // 会过期），查不到即 nil＝该次回标准呈现——与
+        // 策略「无源不 zoom」在效果上等价（见 §247.2）。
+        let decision = ZoomTransitionPolicy.decide(
+            reduceMotion: UIAccessibility.isReduceMotionEnabled,
+            sourceAvailable: sourceID != nil
+        )
+        guard decision == .zoom, let sourceID else { return }
         preferredTransition = .zoom(
             options: UIViewController.Transition.ZoomOptions(),
-            sourceViewProvider: { _ in nil }
+            sourceViewProvider: { _ in
+                ZoomSourceRegistry.shared.view(for: sourceID)
+            }
         )
     }
 }
@@ -648,7 +788,7 @@ private struct ImageViewerPage: View {
             // 种子先行：第一帧有图（管线内存/磁盘里
             // 入口已到手的那张）
             if displayedImage == nil,
-               let seed = RemoteImagePipeline.shared.seedImage(
+               let seed = await RemoteImagePipeline.shared.seedImage(
                    path: path, mtime: item.mtime) {
                 progression.seedArrived()
                 displayedImage = seed

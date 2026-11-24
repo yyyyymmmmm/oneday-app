@@ -41,11 +41,10 @@ final class GoalDepthTests: XCTestCase {
     private func goal(
         _ id: String, status: GoalStatus = .active,
         parentId: String? = nil, note: String = "",
-        milestones: [BridgeMilestone] = [],
         latestEntry: BridgeGoalEntry? = nil
     ) -> BridgeGoal {
         BridgeGoal(
-            id: id, title: id, note: note, milestones: milestones,
+            id: id, title: id, note: note,
             createdAt: 0, updatedAt: 0, status: status,
             parentId: parentId, latestEntry: latestEntry
         )
@@ -115,7 +114,7 @@ final class GoalDepthTests: XCTestCase {
 
     func testCreateSubgoalCarriesParentAndManualSource() throws {
         let request = BridgeGoalCreateRequest.make(
-            title: " 子目标 ", note: "", milestoneTitles: [],
+            title: " 子目标 ", note: "",
             parentId: "g_top1"
         )
         let object = try jsonObject(request)
@@ -126,7 +125,7 @@ final class GoalDepthTests: XCTestCase {
 
     func testCreateTopLevelOmitsParentAndSource() throws {
         let request = BridgeGoalCreateRequest.make(
-            title: "顶层", note: "", milestoneTitles: []
+            title: "顶层", note: ""
         )
         let object = try jsonObject(request)
         XCTAssertNil(object["parentId"])
@@ -177,7 +176,7 @@ final class GoalDepthTests: XCTestCase {
         XCTAssertEqual(small.hiddenCount, 0)
     }
 
-    func testSummaryPrefersLatestEntryThenNoteThenMilestones() {
+    func testSummaryPrefersLatestEntryThenNote() {
         let entry = BridgeGoalEntry(
             id: "e_1", goalId: "g", body: "最新条目",
             source: .user, createdAt: 1
@@ -193,43 +192,10 @@ final class GoalDepthTests: XCTestCase {
         XCTAssertEqual(
             GoalBoard.summary(for: withNote, latestEntry: nil), "备注"
         )
-        let withMilestones = goal(
-            "g",
-            milestones: [
-                BridgeMilestone(id: "m_1", title: "a", done: true),
-                BridgeMilestone(id: "m_2", title: "b", done: false),
-            ]
-        )
-        XCTAssertEqual(
-            GoalBoard.summary(for: withMilestones, latestEntry: nil),
-            "1/2 里程碑"
-        )
+        // G-6：里程碑兜底分支已移除——无条目无备注即空串
         XCTAssertEqual(
             GoalBoard.summary(for: goal("g"), latestEntry: nil), ""
         )
     }
 
-    func testAllMilestonesDone() {
-        XCTAssertFalse(GoalBoard.allMilestonesDone(goal("g")))
-        XCTAssertTrue(
-            GoalBoard.allMilestonesDone(
-                goal(
-                    "g",
-                    milestones: [
-                        BridgeMilestone(id: "m", title: "a", done: true)
-                    ]
-                )
-            )
-        )
-        XCTAssertFalse(
-            GoalBoard.allMilestonesDone(
-                goal(
-                    "g",
-                    milestones: [
-                        BridgeMilestone(id: "m", title: "a", done: false)
-                    ]
-                )
-            )
-        )
-    }
 }

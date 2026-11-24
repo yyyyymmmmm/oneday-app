@@ -29,7 +29,8 @@ final class DrawerUnadoptedSideChatsTests: XCTestCase {
             isArchived: nil, isPinned: nil, model: nil, profile: nil,
             startedAt: startedAt, endedAt: endedAt, endReason: nil,
             messageCount: nil, toolCallCount: nil,
-            inputTokens: nil, outputTokens: nil
+            inputTokens: nil, outputTokens: nil,
+            runtimeRevision: nil, runtimeGeneration: nil
         )
     }
 

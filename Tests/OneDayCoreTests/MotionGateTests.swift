@@ -16,6 +16,8 @@ final class MotionGateTests: XCTestCase {
         let tokens: [Animation] = [
             MotionTokens.press,
             MotionTokens.swap,
+            MotionTokens.sectionCollapse,
+            MotionTokens.systemDefault,
             MotionTokens.liquidSpring,
             MotionTokens.entrance,
             MotionTokens.pageCrossfade,
@@ -38,10 +40,16 @@ final class MotionGateTests: XCTestCase {
 
     // MARK: - 发送舱右端状态机
 
-    func testTrailingStateStreamingWinsOverCanSend() {
+    /// §446 改判（用户 2026-11-24 亲裁，§419 双钮
+    /// 作废）：单槽位按内容切换——有可发送内容恒
+    /// 出发送（流式中点按走 §419 入队）；流式空输
+    /// 入出停止。双钮态 .stopAndSend 退役：真机实
+    /// 证双钮 62pt 溢出 30pt 槽位、发送钮被挤出屏
+    /// 幕点不到（0.50.105 verdict，DESIGN §446）
+    func testTrailingStateStreamingWithCanSendQueues() {
         XCTAssertEqual(
             ComposerTrailingState.resolve(isStreaming: true, canSend: true),
-            .stop
+            .send
         )
         XCTAssertEqual(
             ComposerTrailingState.resolve(isStreaming: true, canSend: false),

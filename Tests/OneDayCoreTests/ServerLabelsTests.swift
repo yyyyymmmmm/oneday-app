@@ -32,6 +32,50 @@ final class ServerLabelsTests: XCTestCase {
         XCTAssertEqual(ServerLabels.gatewayState(nil, running: false, locale: Locale(identifier: "zh-Hans")), "未运行")
     }
 
+    /// 设置根页网关状态词（台账 198 收敛 B6）：原
+    /// SettingsView 与 RestartGatewayView 两份复制的
+    /// 逐值口径——没读到整份状态显「—」、读到但值未
+    /// 知显「未知」，不许与 gatewayState 的「未运行」
+    /// 回落串味
+    func testGatewayStateWordForSettings() throws {
+        let zh = Locale(identifier: "zh-Hans")
+        XCTAssertEqual(ServerLabels.gatewayStateWord(for: nil, locale: zh), "—")
+        let decoder = JSONDecoder()
+        func status(_ json: String) throws -> ServerStatus {
+            try decoder.decode(ServerStatus.self, from: Data(json.utf8))
+        }
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status(#"{"gateway_state": "running"}"#), locale: zh
+            ), "运行中"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status(#"{"gateway_state": "STOPPED"}"#), locale: zh
+            ), "已停止"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status(#"{"gateway_state": "failed"}"#), locale: zh
+            ), "异常"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status(#"{"gateway_state": "error"}"#), locale: zh
+            ), "异常"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status(#"{"gateway_state": "booting"}"#), locale: zh
+            ), "未知"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayStateWord(
+                for: try status("{}"), locale: zh
+            ), "未知"
+        )
+    }
+
     func testCategoryMapping() {
         XCTAssertEqual(ServerLabels.categoryLabel("llm", locale: Locale(identifier: "zh-Hans")), "模型")
         XCTAssertEqual(ServerLabels.categoryLabel("search", locale: Locale(identifier: "zh-Hans")), "搜索")

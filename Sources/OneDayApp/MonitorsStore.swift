@@ -11,9 +11,11 @@ import OneDayCore
 /// （noKey/401）露桥未连接；已就绪后刷新失败保持
 /// 旧数据不翻态；标记已读后回读列表对账未读数。
 /// 0.12.1 桥上线后补控制动作（新建/立即检查/暂停
-/// 恢复/删除）：一律动作→回读确认（出现/时刻推进/
-/// 状态翻转/消失）才算成，未确认与失败的人话留
-/// 行内（notes），不许乐观假成功。
+/// 恢复/删除）：新建/检查/删除仍动作→回读确认才算
+/// 成；**暂停/恢复（启停开关）§233 起改乐观**——先
+/// 翻开关、后台保存、失败回滚＋行内提示，与技能/
+/// MCP 开关同构。未确认与失败的人话留行内
+/// （notes），不许假成功。
 @MainActor
 @Observable
 final class MonitorsStore {
@@ -44,6 +46,11 @@ final class MonitorsStore {
 
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
+    /// 新鲜度门（§416 收编，§367 口径）：读触发先
+    /// 过门，TTL 内零请求
+    private var freshness = FreshnessGate(
+        ttl: FreshnessGate.standardListTTL
+    )
 
     /// 呈现序（未读多者靠前，纯函数在 Core）
     var sortedMonitors: [BridgeMonitor] {
@@ -61,6 +68,52 @@ final class MonitorsStore {
     // MARK: - 加载
 
     func load(appState: AppState) async {
+        await load(appState: appState, now: Date())
+    }
+
+    /// 时刻注入的加载（钉测拨时刻验过期）
+    func load(appState: AppState, now: Date) async {
+        await load(
+            appState: appState, now: now,
+            fetch: { config in
+                try await client.monitors(config: config)
+            }
+        )
+    }
+
+    /// 读触发入口（§416 新鲜度门）：TTL 内且配置没
+    /// 变直接用已载名单、零请求；首拉/过期/换服务
+    /// 器才走 load 全量。下拉刷新与错误重试不经此
+    /// 门、恒走 load 强制
+    func loadIfNeeded(appState: AppState) async {
+        await loadIfNeeded(appState: appState, now: Date())
+    }
+
+    func loadIfNeeded(appState: AppState, now: Date) async {
+        await loadIfNeeded(appState: appState, now: now) { config in
+            try await client.monitors(config: config)
+        }
+    }
+
+    /// 读触发口的注入缝重载（钉测数请求用）：门内新鲜
+    /// 直接回、否则走带缝 load
+    func loadIfNeeded(
+        appState: AppState, now: Date,
+        fetch: (ServerConfig) async throws -> [BridgeMonitor]
+    ) async {
+        guard !freshness.isFresh(
+            configKey: appState.config?.baseString, now: now
+        ) else { return }
+        await load(appState: appState, now: now, fetch: fetch)
+    }
+
+    /// 加载本体（名单读口可注入，与 ArchiveStore
+    /// loadCheckpoints(fetch:) 同式；生产恒走桥客
+    /// 户端）。成功落 freshness stamp（§416）
+    func load(
+        appState: AppState, now: Date,
+        fetch: (ServerConfig) async throws -> [BridgeMonitor]
+    ) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
             loadState = .failed(L10n.string("尚未连接服务器。"))
@@ -69,8 +122,13 @@ final class MonitorsStore {
         loadInFlight = true
         defer { loadInFlight = false }
         do {
-            monitors = try await client.monitors(config: config)
+            installLoadedMonitors(
+                try await fetch(config)
+            )
             loadState = .ready
+            freshness.stamp(
+                configKey: config.baseString, now: now
+            )
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = Self.state(for: error)
@@ -84,7 +142,26 @@ final class MonitorsStore {
     private func refetch(appState: AppState) async {
         guard let config = appState.config else { return }
         if let fetched = try? await client.monitors(config: config) {
-            monitors = fetched
+            installLoadedMonitors(fetched)
+            // 写后回读即全量现值：落账新鲜度（回读本
+            // 身不经门、不许被门跳过，§367.4/§416）
+            freshness.stamp(
+                configKey: config.baseString, now: Date()
+            )
+        }
+    }
+
+    /// 名单装载收口（load/回读/测试共用一个落点）
+    func installLoadedMonitors(_ loaded: [BridgeMonitor]) {
+        monitors = loaded
+    }
+
+    /// 乐观呈现落点（§233）：以同 id 副本整行替换本
+    /// 地呈现（启停即时翻面与失败恢复共用）；名单里
+    /// 没有该 id 时不动
+    func applyMonitor(_ monitor: BridgeMonitor) {
+        monitors = monitors.map {
+            $0.id == monitor.id ? monitor : $0
         }
     }
 
@@ -267,12 +344,17 @@ final class MonitorsStore {
         }
     }
 
-    // MARK: - 暂停/恢复（POST→回读确认 enabled 已翻转）
+    // MARK: - 暂停/恢复（§233 乐观：先翻开关，后台保存＋回读对账）
 
+    /// 启停开关与技能/MCP 开关同构：**点按当拍先翻
+    /// 本地 enabled**，后台 POST 后回读对账；网络失
+    /// 败恢复原值＋行内提示，回读仍是旧值时呈现已随
+    /// 回读回到服务端现值、只留提示
     func setEnabled(
         appState: AppState, monitorID: String, enabled: Bool
     ) async {
         guard !actingIDs.contains(monitorID) else { return }
+        guard let original = monitor(id: monitorID) else { return }
         guard let config = appState.config else {
             notes[monitorID] = L10n.string("尚未连接服务器。")
             return
@@ -280,6 +362,7 @@ final class MonitorsStore {
         actingIDs.insert(monitorID)
         notes.removeValue(forKey: monitorID)
         defer { actingIDs.remove(monitorID) }
+        applyMonitor(original.withEnabled(enabled))
         do {
             if enabled {
                 _ = try await client.resumeMonitor(
@@ -301,8 +384,10 @@ final class MonitorsStore {
                     : L10n.string("暂停已发出，但再确认时仍是启用状态，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
+            applyMonitor(original)
             notes[monitorID] = Self.message(for: error)
         } catch {
+            applyMonitor(original)
             notes[monitorID] = enabled
                 ? L10n.string("恢复失败，请稍后再试。")
                 : L10n.string("暂停失败，请稍后再试。")

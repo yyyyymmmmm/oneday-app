@@ -969,6 +969,9 @@ public enum KanbanAction: String, CaseIterable, Equatable, Sendable {
     case approve
     case requestChanges
     case answer
+    /// 自动拆解（H8，DESIGN §390）：服务端 kanban
+    /// decompose 把一个大任务拆成子任务（目标面入口）
+    case decompose
 
     public var title: String { title(locale: AppLocale.uiLocale) }
 
@@ -983,6 +986,7 @@ public enum KanbanAction: String, CaseIterable, Equatable, Sendable {
         case .approve: return L10n.string("批准", locale: locale)
         case .requestChanges: return L10n.string("打回", locale: locale)
         case .answer: return L10n.string("回答", locale: locale)
+        case .decompose: return L10n.string("自动拆解", locale: locale)
         }
     }
 
@@ -996,6 +1000,7 @@ public enum KanbanAction: String, CaseIterable, Equatable, Sendable {
         case .approve: return "checkmark.circle"
         case .requestChanges: return "arrow.uturn.backward.circle"
         case .answer: return "text.bubble"
+        case .decompose: return "square.split.2x1"
         }
     }
 
@@ -1004,7 +1009,8 @@ public enum KanbanAction: String, CaseIterable, Equatable, Sendable {
     /// 停止/取消/批准是收束动作、接管中照常可用
     public var isDispatchClass: Bool {
         switch self {
-        case .create, .resume, .retry, .answer, .requestChanges:
+        case .create, .resume, .retry, .answer, .requestChanges,
+             .decompose:
             return true
         case .stop, .cancel, .approve:
             return false
@@ -1023,6 +1029,7 @@ public enum KanbanControlStep: Equatable, Sendable {
     case deleteTask(taskID: String)
     case comment(taskID: String)
     case dispatch
+    case decompose(taskID: String)
 }
 
 public enum KanbanControlPlan {
@@ -1060,6 +1067,8 @@ public enum KanbanControlPlan {
                 .comment(taskID: task.id),
                 .patchStatus(taskID: task.id, status: "ready"),
             ]
+        case .decompose:
+            return [.decompose(taskID: task.id)]
         }
     }
 
@@ -1094,7 +1103,7 @@ public enum KanbanActionPolicy {
         case .queued:
             return [.cancel]
         case .scheduled, .triage:
-            return [.resume, .cancel]
+            return [.decompose, .resume, .cancel]
         case .done, .archived, .unknown:
             return []
         }

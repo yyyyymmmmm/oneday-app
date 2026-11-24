@@ -56,7 +56,10 @@ final class ChatThemeTests: XCTestCase {
         // 0.41.0（浅档专项）：accentLight 按 §66.1 候
         // 选 (a) 加深一档，与旧值脱钩是本钉的本意——
         // 回潮到 0x1473C8 会让对比闸④转红
-        XCTAssertEqual(theme.accentLight, 0x136FC1)
+        // 2026-11-15（第 85 条）：再深一档至 0x1268B8
+        // （压助手泡面 4.45 差线），回潮到 0x136FC1
+        // 会让对比闸⑥转红
+        XCTAssertEqual(theme.accentLight, 0x1268B8)
         XCTAssertEqual(theme.accentDark, 0x5EB1EF)
         XCTAssertEqual(theme.tintLight, 0xEDF7FD)
         XCTAssertEqual(theme.tintDark, 0x16242E)
@@ -257,4 +260,136 @@ extension ChatThemeTests {
             )
         }
     }
+
+    /// 对比闸⑥（2026-11-15，第 85 条对比度收口）：
+    /// 全款浅档强调对助手泡面（#EEEEF0＝Palette.
+    /// bubbleFill 浅档）≥4.5——泡内链接/强调字可读。
+    /// 立闸前实算：sangou 4.45／iceBlue 4.39 两款差
+    /// 线（审计原稿只报默认款），均已同色相深一档
+    /// （0x1268B8／0x1B6AB9）；余款本已过闸（最低
+    /// pink 4.51、peach 4.60）。暗档同组合由闸④
+    /// （对 #2C2C2E）辖，不在此重复
+    func testAccentContrastOnBubbleLightGate() {
+        for theme in ChatThemes.all {
+            let ratio = WCAGContrast.ratio(
+                hexForeground: theme.accentLight,
+                hexBackground: 0xEEEEF0
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratio, 4.5, "\(theme.id) 浅档强调对助手泡面对比 \(ratio)"
+            )
+        }
+    }
+
+    // MARK: - 气泡浅填深字定版（台账 197）
+
+    /// 解析口径钉（197 定版／§335，188 单档口径的
+    /// 浅档半边改判）：浅＝同款 bubbleLight 浅填＋
+    /// 同款 bubbleTextLight 深字、暗＝现 bubbleDark
+    /// ＋现泡字（188 暗档维持），全款无第二路；曜
+    /// 黑暗档定值钉 0x585E65（旧 0x2C3138 对暗页底
+    /// 仅 1.60 的留账清账值，回潮即红）
+    func testSingleBubbleResolution() {
+        for theme in ChatThemes.all {
+            XCTAssertEqual(
+                theme.bubbleFill(dark: false),
+                theme.bubbleLight, theme.id
+            )
+            XCTAssertEqual(
+                theme.bubbleText(dark: false),
+                theme.bubbleTextLight, theme.id
+            )
+            XCTAssertEqual(
+                theme.bubbleFill(dark: true),
+                theme.bubbleDark, theme.id
+            )
+            XCTAssertEqual(
+                theme.bubbleText(dark: true),
+                theme.bubbleTextDark, theme.id
+            )
+        }
+        XCTAssertEqual(
+            ChatThemes.theme(forID: "obsidian").bubbleDark,
+            0x585E65
+        )
+    }
+
+    /// 对比闸⑦（台账 197 改判口径／§335，188 的
+    /// 2.90 参照线退役）：泡字 vs 泡面 ≥4.5 两档
+    /// 恒守（与闸①同线）；泡面 vs 页底（浅
+    /// #FCFCFC／暗 #000000）——浅档浅填款 ∈
+    /// [1.10, 1.60]（与闸⑧同带：可辨靠形不靠对
+    /// 比，样板 Muse 用户泡实测 1.26／iMessage
+    /// 同级 ≈1.2；2.90 线当年取自 OpenBot 饱和
+    /// 形态、不普适，退役）、深泡款曜黑浅档（泡/
+    /// 页 14.66）豁免带只守字闸、暗档维持 188 的
+    /// ≥2.9（深饱实填对黑页）。实算（2026-11-21
+    /// 逐值）：浅 字/泡 7.64–15.04、泡/页 1.16–
+    /// 1.50（曜黑 14.66 豁免）；暗 字/泡 4.87–
+    /// 6.72、泡/页 3.12–4.32，全款过线
+    func testSingleBubbleContrastGates() {
+        for theme in ChatThemes.all {
+            for dark in [false, true] {
+                let fill = theme.bubbleFill(dark: dark)
+                let text = theme.bubbleText(dark: dark)
+                let textRatio = WCAGContrast.ratio(
+                    hexForeground: text, hexBackground: fill
+                )
+                XCTAssertGreaterThanOrEqual(
+                    textRatio, 4.5,
+                    "\(theme.id) dark=\(dark) 泡字对比 \(textRatio)"
+                )
+                let page: UInt32 = dark ? 0x000000 : 0xFCFCFC
+                let pageRatio = WCAGContrast.ratio(
+                    hexForeground: fill, hexBackground: page
+                )
+                if dark {
+                    XCTAssertGreaterThanOrEqual(
+                        pageRatio, 2.9,
+                        "\(theme.id) dark=true 泡面对页底 \(pageRatio)＜下限 2.9"
+                    )
+                } else if theme.id != "obsidian" {
+                    XCTAssertGreaterThanOrEqual(
+                        pageRatio, 1.10,
+                        "\(theme.id) 浅填泡面对页底 \(pageRatio)＜带下限 1.10"
+                    )
+                    XCTAssertLessThanOrEqual(
+                        pageRatio, 1.60,
+                        "\(theme.id) 浅填泡面对页底 \(pageRatio)＞带上限 1.60"
+                    )
+                }
+            }
+        }
+    }
+
+
+    /// §431（2026-11-24 主题对位包）：八款 bubbleLight
+    /// 与参照应用（Muse）外观页色板工具采样逐值对钉
+    /// （采样表见 DESIGN §431）；默认款三狗为定版锚、
+    /// 与采样表无关、值不许漂移，此处并钉全表防逐
+    /// 款漂移。深档 bubbleDark 无参照样本、不在本钉
+    /// 范围（§431 明示无据不动）
+    func testThemeBubbleLightMatchesReferenceSamples431() {
+        let expected: [String: UInt32] = [
+            "sangou": 0xC8E7FF,
+            "iceBlue": 0xCBE5FE,
+            "obsidian": 0x000000,
+            "greige": 0xE4DAD1,
+            "skyBlue": 0xB8DAFD,
+            "lavender": 0xDBC6F1,
+            "pink": 0xFDB9DE,
+            "peach": 0xFFD7B5,
+        ]
+        XCTAssertEqual(Set(ChatThemes.all.map(\.id)), Set(expected.keys))
+        for theme in ChatThemes.all {
+            XCTAssertEqual(
+                theme.bubbleLight, expected[theme.id],
+                "\(theme.id) bubbleLight 与 §431 采样表不符"
+            )
+        }
+    }
+
+    // 184 的浓淡偏好测试（testBubbleFillStyle-
+    // Preference）已随 188 删机制退役：键与读口
+    // 均不存在、无偏好可测
 }
