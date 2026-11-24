@@ -72,17 +72,20 @@ public enum HubCardTransition {
     public static let underlayMaxBlurRadius: CGFloat = 14
 
     /// 底层模糊降级开关（灰底根治留档）：真机拖动
-    /// 帧率验收不过时置 false——全链只压暗不模糊
-    /// （壳层亮度驱动、开销近零）；不许回退合成背
-    /// 板替身
-    public static var underlayBlurEnabled = true
+    /// 帧率验收不过时把本常量改 false 重编——全链
+    /// 只压暗不模糊（壳层亮度驱动、开销近零）；不
+    /// 许回退合成背板替身。常量式（非可变全局）守
+    /// Swift 6 并发口径，派生函数留 blurEnabled 形
+    /// 参供钉测直验降级档
+    public static let underlayBlurEnabled = true
 
     /// 底层模糊半径：强度 0 即 0（静止无处理）、满
-    /// 强度达上限；降级开关关时恒 0
+    /// 强度达上限；降级档（blurEnabled=false）恒 0
     public static func underlayBlurRadius(
-        forStrength strength: CGFloat
+        forStrength strength: CGFloat,
+        blurEnabled: Bool = underlayBlurEnabled
     ) -> CGFloat {
-        guard underlayBlurEnabled else { return 0 }
+        guard blurEnabled else { return 0 }
         let t = min(1, max(0, strength))
         return underlayMaxBlurRadius * t
     }

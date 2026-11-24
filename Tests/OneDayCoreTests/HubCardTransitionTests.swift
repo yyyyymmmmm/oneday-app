@@ -150,11 +150,12 @@ final class HubCardTransitionTests: XCTestCase {
     }
 
     func testUnderlayBlurDegradeSwitchKeepsDimOnly() {
-        // 降级档（真机帧率留档开关）：关模糊、只压暗
-        HubCardTransition.underlayBlurEnabled = false
-        defer { HubCardTransition.underlayBlurEnabled = true }
+        // 降级档（真机帧率留档开关）：关模糊、只压暗；
+        // 出厂常量默认开（全量形态），翻档改常量重编
+        XCTAssertTrue(HubCardTransition.underlayBlurEnabled)
         XCTAssertEqual(
-            HubCardTransition.underlayBlurRadius(forStrength: 1),
+            HubCardTransition.underlayBlurRadius(
+                forStrength: 1, blurEnabled: false),
             0, accuracy: 0.0001)
         XCTAssertEqual(
             HubCardTransition.underlayBrightnessDelta(
