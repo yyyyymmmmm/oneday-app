@@ -127,10 +127,12 @@ final class StreamingTokenScopeTests: XCTestCase {
         )
     }
 
-    /// 第 104 条：打字动画开关落位——外观页含「回复
-    /// 呈现」节、Toggle 绑 Core 键的 AppStorage；聊天
-    /// 侧不得另立同义键字面量（单一事实源）
-    func testTypewriterSwitchLivesInAppearanceReplySection() throws {
+    /// §503 改判：第 104 条的打字动画开关随「回复
+    /// 呈现」整节退役——外观页不再有该节与两开关
+    /// 写口；聊天页入场计划恒传 true（定死常开），
+    /// 流式回滚开关（ChatStreamingFeature）在
+    /// ChatView 与 Core 均不存在
+    func testTypewriterSwitchRetired503() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -140,10 +142,17 @@ final class StreamingTokenScopeTests: XCTestCase {
                 "Sources/OneDayApp/AppearanceView.swift")
         let appearance = Self.stripComments(
             try String(contentsOf: appearanceURL, encoding: .utf8))
-        XCTAssertTrue(appearance.contains("replyPresentationSection"))
-        XCTAssertTrue(appearance.contains(
-            "StreamingTypewriterFeature.defaultsKey"))
-        XCTAssertTrue(appearance.contains("打字动画"))
+        XCTAssertFalse(appearance.contains("replyPresentationSection"))
+        XCTAssertFalse(appearance.contains("StreamingTypewriterFeature"))
+        XCTAssertFalse(appearance.contains("ChatStreamingFeature"))
+        XCTAssertFalse(appearance.contains("打字动画"))
+        let chatURL = root
+            .appendingPathComponent(
+                "Sources/OneDayApp/ChatView.swift")
+        let chat = Self.stripComments(
+            try String(contentsOf: chatURL, encoding: .utf8))
+        XCTAssertFalse(chat.contains("ChatStreamingFeature"))
+        XCTAssertTrue(chat.contains("typewriterEnabled: true"))
         let streaming = Self.stripComments(try streamingTextSource())
         XCTAssertFalse(
             streaming.contains("\"chat.streaming.typewriter\""),

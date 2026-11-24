@@ -84,8 +84,8 @@ struct ChatNativeRowHeightComposer {
     ) {
         self.contentWidth = screenWidth
             - horizontalPadding * 2
-        self.assistantTextWidth = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
+        self.assistantTextWidth = OneDayMetrics
+            .assistantTextWidth(screenWidth: screenWidth)
         self.sizeCategory = sizeCategory
         self.boldText = boldText
         self.displayScale = displayScale
@@ -111,8 +111,8 @@ struct ChatNativeRowHeightComposer {
     ) {
         self.contentWidth = screenWidth
             - horizontalPadding * 2
-        self.assistantTextWidth = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
+        self.assistantTextWidth = OneDayMetrics
+            .assistantTextWidth(screenWidth: screenWidth)
         self.sizeCategory = sizeCategory
         self.boldText = boldText
         self.displayScale = displayScale

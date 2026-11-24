@@ -34,7 +34,7 @@ final class ChatNativeRowHeightFittingTests: XCTestCase {
     private let screenW: CGFloat = 402
     private var contentW: CGFloat { screenW - 40 }
     private var textW: CGFloat {
-        screenW * OneDayMetrics.assistantTextWidthFraction
+        OneDayMetrics.assistantTextWidth(screenWidth: screenW)
     }
 
     private func makeComposer(

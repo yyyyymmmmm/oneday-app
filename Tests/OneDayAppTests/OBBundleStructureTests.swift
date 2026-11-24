@@ -175,7 +175,10 @@ final class OBBundleStructureTests: XCTestCase {
         let appearance = try codeLines(
             source("Sources/OneDayApp/AppearanceView.swift")
         )
-        XCTAssertTrue(appearance.contains("personalizationSection"))
+        // §503 改判：personalizationSection 拆为背景/
+        // 圆角两节（原二合一节退役），键引用不变
+        XCTAssertTrue(appearance.contains("backgroundSection"))
+        XCTAssertTrue(appearance.contains("bubbleCornerSection"))
         XCTAssertTrue(
             appearance.contains(
                 "AppearanceStorageKeys.chatBubbleStyle"
@@ -199,10 +202,14 @@ final class OBBundleStructureTests: XCTestCase {
             )
         )
         XCTAssertTrue(palette.contains("static var chatBackground"))
-        // 聊天页背景层读个性化口（非旧 chatSurface 直读）
+        // §503：聊天页背景层改走单源呈现面 ChatBack-
+        // groundSurface（其内读 Palette.chatBack-
+        // ground 个性化口＋图案叠绘），外观预览同面
+        XCTAssertTrue(palette.contains("struct ChatBackgroundSurface"))
+        XCTAssertTrue(palette.contains("Palette.chatBackground"))
         let chat = try codeLines(
             source("Sources/OneDayApp/ChatView.swift")
         )
-        XCTAssertTrue(chat.contains("Palette.chatBackground"))
+        XCTAssertTrue(chat.contains("ChatBackgroundSurface()"))
     }
 }
