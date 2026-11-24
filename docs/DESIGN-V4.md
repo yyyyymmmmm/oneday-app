@@ -17951,3 +17951,14 @@ TG 出处（ChatMessageInteractiveFileNode.updateStatus/progressPressed）：未
 - **打包**：Release BUILD SUCCEEDED；IPA OneDay-0.50.123-251.ipa，28,061,220 字节，md5 f8b30177b74ddf72f90af5daeb4ec652（Mac/VM 双边一致）；unzip 直验主 App 本体 plist 三值 0.50.123／251／site.didichou.oneday；已回传 VM ~/workspace/。
 - **节号对照**：现行最大节号 §503（查找落码节，随本版合入）；本组版节取 §504；中枢卡片线 §502 在其分支、待其组版时按并集连排。
 - **真机门**：沿用 §503 六项，归用户 verdict。
+## §506 组版 0.50.124（2026-11-24，分支 rel-05124，基线 rel-05123 @a9cb0886）
+
+内容：合入 feat/hub-card-presentation @e2a61477（§502 中枢卡片呈现根治，合并提交 20850a04）；版本号 0.50.124／build 252（版本戳提交 56a794c7：Project.swift 四处→tuist generate 带 DEVELOPER_DIR 27.2→Derived plist 亲验 0.50.124/252、未还原 Derived）。
+
+- **合并图**：代码 8 文件自动合并零冲突（AgentHubView／ChatView／新增 HubCardPresentation.swift／新增 HubCardTransition.swift／改钉测试等）；DESIGN 尾附冲突亲解——卡片分支 §502 与 123 树 §503/§504 同尾追加，重排为 §502→§503→§504 连排、冲突标记清零。
+- **发布集对账**：自 123 正式门 bundle（rel123-fa-unit.xcresult／rel123-fa-ui.xcresult）以 xcresulttool 提取全限定名——单元 1561、UI 13，与 123 名单双向零差异。本版新钉：HubCardTransitionTests 19＋HubCardPresentationUITests 5（合并树源码实数）。**改名对账**：HubSegmentsConsolidationTests 内 testHubPushPresentationIsFullPageNotSheet 被卡片线改钉更名为 testHubCardPresentationIsFullScreenNotSheet（§502 改钉归因，套件仍 5 项）——发布集按「1561−1＋1＋19」计，单元集 1580 项、UI 集 18 项。
+- **整跑实数（正式门，FA408EE9）**：单元整跑（dd-05124-test）实跑 1579 项＝**1578 过／1 红／0 跳**，唯一红 MarkdownEngineDifferentialTests/testPerformanceGate（#13 性能门，整树老红、逐版同红已裁）；更名项不在整跑名单内（名单源 123 bundle 为旧名），整线补跑 HubSegmentsConsolidationTests 整套 5/5 全绿（含更名项）——发布集全量口径 **1580 项＝1579 过／1 红／0 跳**，名单外新红为零、未改钉。UI 18 项＝**16 过／0 红／2 跳**（跳为 ChatGestureNativeSurfaceTests 两项，与历版同形）。
+- **通道纪律**：开跑前 ps 无在飞 xcodebuild、共享通道末位 RUN 有 EXIT 配对（闲）；当晚通道两度抖断自恢复，本线按 122/123 先例走正式门设备 FA408EE9＋独立 DerivedData 直跑，未碰共享通道、未抢道。中途已 push rel-05124 @56a794c7 供云端交叉验证（dispatch 归主线）。
+- **打包**：Release BUILD SUCCEEDED（dd-05124-release、CODE_SIGNING_ALLOWED=NO）；IPA OneDay-0.50.124-252.ipa，28,071,523 字节，md5 1079fa264e2ee0cac00aaf0d627540dc（Mac/VM 双边一致）；unzip 直验主 App 本体 plist 三值 0.50.124／252／site.didichou.oneday；已回传 VM ~/workspace/。
+- **节号对照**：§502 卡片呈现（本版合入、保留其自占号）；§503 查找（123 已入）；§504＝123 组版节；§505 已被中枢行型线（feat/hub-rows-consume）在其分支自占、待 128 组版并入；本组版节取 §506。
+- **真机门**：沿用 §502 八项，归用户 verdict。
