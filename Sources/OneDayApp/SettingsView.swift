@@ -209,6 +209,10 @@ struct SettingsView: View {
                     LogsView()
                 case .appearance:
                     AppearanceView()
+                case .language:
+                    LanguageSettingsView()
+                case .interaction:
+                    ReactionSettingsView()
                 case .identity:
                     IdentityDetailView(
                         serverStatusText: identityServerStatusText,
@@ -743,6 +747,8 @@ struct SettingsView: View {
         case "envVars": return "key"
         case "usage": return "chart.bar"
         case "appearance": return "sun.max"
+        case "language": return "globe"
+        case "interaction": return "face.smiling"
         case "help": return "questionmark.circle"
         case "about": return "info.circle"
         // 台账 198 收敛 S11：与体检行同为 stethoscope

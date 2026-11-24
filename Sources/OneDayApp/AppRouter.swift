@@ -48,6 +48,12 @@ enum SettingsRoute: Hashable {
     case agent(AgentRoute)
     /// 0.2.1：外观（主题）
     case appearance
+    /// 语言面（§503）：外观页语言节迁出独立页（Core
+    /// 目录 language 条目直达）
+    case language
+    /// 互动面（§503）：反应浮排＋AI 反应两开关（Core
+    /// 目录 interaction 条目直达）
+    case interaction
     /// 设置页重塑（DESIGN §164）：身份卡详情页与支持
     /// 组三页（帮助/关于/协议草稿）——目的地与 Core
     /// SettingsCatalog 一一对应
@@ -121,6 +127,8 @@ extension SettingsRoute {
         case .gateway: return .gateway
         case .logs: return .logs
         case .appearance: return .appearance
+        case .language: return .language
+        case .interaction: return .interaction
         case .help: return .help
         case .about: return .about
         case .privacy: return .privacy

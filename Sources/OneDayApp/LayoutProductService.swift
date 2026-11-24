@@ -185,7 +185,7 @@ final class LayoutProductService: @unchecked Sendable {
             ? screenWidth
                 - OneDayMetrics.bubblePaddingH * 2
                 - OneDayMetrics.bubbleSideInset
-            : screenWidth * OneDayMetrics.assistantTextWidthFraction
+            : OneDayMetrics.assistantTextWidth(screenWidth: screenWidth)
     }
 
     func preheat(

@@ -37,6 +37,8 @@ final class SettingsCatalogTests: XCTestCase {
             "connectors", "devicePermissions",
             "voice",
             "appearance", "help", "about",
+            // §503 新增两叶子页条目
+            "language", "interaction",
             "disconnect",
         ] {
             XCTAssertTrue(ids.contains(id), "索引缺条目 \(id)")
@@ -76,6 +78,8 @@ final class SettingsCatalogTests: XCTestCase {
             .serverDetail, .connectors, .devicePermissions,
             .gateway, .logs,
             .appearance, .help, .about, .privacy, .terms,
+            // §503 新增（语言/互动两叶子页）
+            .language, .interaction,
             // prototype-2 叶子（枢纽目的地已退役；重启
             // 网关目的地随台账 198 收敛 S4 一并退役）
             .mainSession,
@@ -181,7 +185,9 @@ final class SettingsCatalogTests: XCTestCase {
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .preferences).map(\.id),
             // §493：审批规则整页迁中枢审核段（D3）——偏好组六行→五行
-            ["appearance", "voice", "notifications", "connectors", "devicePermissions"]
+            // §503：语言（随外观后）/互动（随通知后）两
+            // 叶子页拆出独立条目——五行→七行
+            ["appearance", "language", "voice", "notifications", "interaction", "connectors", "devicePermissions"]
         )
     }
 
@@ -424,7 +430,11 @@ final class SettingsCatalogTests: XCTestCase {
         // 出根页（住当前服务器页页末），根页渲染行
         // 17→16＝浏览行合计、与目录逐字一致（本测
         // 浏览口径不变）
-        XCTAssertEqual(SettingsCatalog.entries.count, 30)
+        // §503 再增：条目 30→32（语言/互动两叶子页
+        // 自外观页拆出独立条目）、偏好组浏览行 5→7、
+        // 浏览行合计 16→18；根页渲染行＝浏览行合计
+        // （§496 后无手写行、逐字一致口径不变）
+        XCTAssertEqual(SettingsCatalog.entries.count, 32)
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .top).count, 0
         )
@@ -439,7 +449,7 @@ final class SettingsCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .preferences).count,
-            5
+            7
         )
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .support).count, 2

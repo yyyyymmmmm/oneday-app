@@ -288,7 +288,8 @@ final class RenderMeasureTests: XCTestCase {
     /// #F0F0F2＋双泡中性断言）；0.6.1 用户亲令配色改用
     /// OpenMuse，封存口径正式让位，本测试改钉它的令牌：
     /// ①浅色解析值＝OpenMuse 原值（助手泡 #EEEEF0＝
-    /// chat.tsx:593、用户泡原 #C8E7FF＝colors.blue、
+    /// chat.tsx:593【§503 改判：助手面浅档改 Muse
+    /// 实测 #E9EAEC、逐值钉在本测正文】、用户泡原 #C8E7FF＝colors.blue、
     /// selectionFill #F0F1F2＝底栏激活 App.tsx:464）；
     /// 【台账 184→188（2026-11-20 用户拍板）】用户
     /// 泡浅色钉改从本值：184 曾设浓淡两式、默认实
@@ -310,11 +311,15 @@ final class RenderMeasureTests: XCTestCase {
     func testBubbleColorsFollowOpenMuseTokens() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         let dark = UITraitCollection(userInterfaceStyle: .dark)
+        // §503 改判：助手面＝AI 全宽卡面，浅档定值
+        // 改 Muse 实测 #E9EAEC（默认主题 aiCard 行；
+        // 旧 OpenMuse #EEEEF0 自本版退役，见文件头
+        // ①注的 §503 续记）
         XCTAssertEqual(
             UIColor(Palette.bubbleFill).resolvedColor(with: light),
             UIColor(
-                red: 0xEE / 255.0, green: 0xEE / 255.0,
-                blue: 0xF0 / 255.0, alpha: 1
+                red: 0xE9 / 255.0, green: 0xEA / 255.0,
+                blue: 0xEC / 255.0, alpha: 1
             )
         )
         XCTAssertEqual(
@@ -345,7 +350,7 @@ final class RenderMeasureTests: XCTestCase {
             .getRed(&r, green: &g, blue: &b, alpha: &a)
         XCTAssertLessThanOrEqual(
             abs(r - b), 4.0 / 255.0,
-            "浅色助手泡须守近中性（OpenMuse #EEEEF0 原貌）"
+            "浅色 AI 卡面须守近中性（§503 Muse 实测 #E9EAEC，|R−B|＝3）"
         )
         // selectionFill（0.6.1）：OpenMuse 底栏激活项原值
         XCTAssertEqual(

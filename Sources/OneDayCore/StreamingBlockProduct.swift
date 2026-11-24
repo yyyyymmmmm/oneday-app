@@ -19,9 +19,11 @@ import Foundation
 ///   StreamingSettleMap）：流式行以本轮用户条目 id
 ///   为键，落定新建的助手条目沿用同一键在承载侧
 ///   原位 reconfigure，即「落定不换装」的身份基础。
-/// - 流式呈现开关（ChatStreamingFeature）：新路
-///   （块级增量）与旧路（TokenFlow 逐词元全量
-///   arrange）的独立回滚开关，包 6 清理。
+/// - 流式呈现开关（ChatStreamingFeature）：§503
+///   退役——流式呈现定死常开（用户终裁：呈现类开
+///   关收敛），枚举与死读口 isIncrementalEnabled
+///   一并删除；键 chat.streaming.gen4 本体保留不
+///   读（存量值惰性，同退役键先例）。
 ///
 /// 行高口径与主线裁定一致（包 3 登记待裁已裁）：
 /// 产物估算起步＋托管量实回填覆盖同 key 估算、量
@@ -29,38 +31,24 @@ import Foundation
 /// 喂估算侧，量实覆盖在承载侧（ChatListCarrier），
 /// 本文件不持任何量实值。
 
-// MARK: - 流式呈现开关（回滚路）
+// MARK: - 流式呈现开关（§503 退役）
 
-/// 流式呈现路径开关（蓝图 §2 包 4 回滚条款：流式
-/// 呈现路径独立开关回 TokenFlow 旧路、保留一包、
-/// 包 6 清理）。UserDefaults 布尔键，**缺省 true**
-/// ＝块级增量新路（本包交付物即默认形态）；显式
-/// false 才回旧路——与 ChatCarrierFeature 的缺省
-/// false 方向相反，因为本键管的是呈现算法而非承
-/// 载：承载默认旧（包 3 开关）时本键无消费方，承
-/// 载切新后呈现默认走新路、出问题单独关本键即回
-/// 逐词渐显，不必连承载一并退回
-public enum ChatStreamingFeature {
-    public static let defaultsKey = "chat.streaming.gen4"
-
-    public static func isIncrementalEnabled(
-        defaults: UserDefaults = .standard
-    ) -> Bool {
-        guard defaults.object(forKey: defaultsKey) != nil
-        else { return true }
-        return defaults.bool(forKey: defaultsKey)
-    }
-}
+// ChatStreamingFeature（回滚开关）已于 §503 删除：
+// 流式呈现定死常开、不再有回 TokenFlow 旧路的用户
+// 开关（TokenFlow 元件本体早已退役）。键 chat.
+// streaming.gen4 在设备上可能残留存量值——无任何消
+// 费方（惰性残留，不读不写不清，同 188 退役键先例）。
 
 // MARK: - 打字动画开关与入场计划（第 104 条）
 
 /// 打字动画开关（2026-11-15 流式块级口径拍板时备好
-/// 的规格、2026-11-16 第 104 条落地）：设置→外观
-/// 「回复呈现」节的「打字动画」。UserDefaults 布尔
-/// 键，**缺省 true**＝流式新词元带单次轻渐显；显式
-/// false＝整批直显。Reduce Motion 不读本键——它在
-/// 入场计划层优先于本开关（见 StreamingEntrance），
-/// 本键只表达用户口味、不表达无障碍需求
+/// 的规格、2026-11-16 第 104 条落地）：原设置→外观
+/// 「回复呈现」节的「打字动画」开关已于 §503 退役
+/// ——打字渐显定死常开（ChatView 入场计划恒传 true，
+/// 仍服从 Reduce Motion 的恒压过）。本枚举保留为键
+/// 名档案（退役元件 StreamingText 仍引本键名、键名
+/// 字面量单源纪律不破）；isEnabled 自 §503 起无生
+/// 产消费方
 public enum StreamingTypewriterFeature {
     public static let defaultsKey = "chat.streaming.typewriter"
 

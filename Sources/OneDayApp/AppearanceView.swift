@@ -29,108 +29,85 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// 外观页（0.26.0 重做，用户 10:28 对标 Muse 外观页
-/// 令）：0.4.0 的「只剩模式三档」占位结构退役，重做为
-/// 四件套——①顶部实时预览（迷你聊天框：头像＋名签、
-/// 用户泡×2、助手泡、灰卡块；气泡色跟主题、头像跟
-/// 形象档、明暗跟模式，框内局部强制 colorScheme 演
-/// 示、不动全 App 当前呈现）②聊天主题（横滑圆形色
-/// 板，机制＝Palette 级主题变体、Core ChatThemes 单
-/// 一真源，切换即时生效于真实聊天页）③虚拟形象大小
-/// （原生 Menu 行，大/中/小，作用面＝聊天胶囊头像＋
-/// 空态形象）④模式（三行勾选行，复用既有
-/// preferredColorScheme 链）。§145 续加 ⑤语言四档
-/// （勾选行与 ④ 同构、区脚注明系统托管面仍随系统
-/// 语言，见 languageSection）；第 104 条在模式与
-/// 语言之间续加 ⑤回复呈现（打字动画开关，见
-/// replyPresentationSection，语言顺延 ⑥）；台账
-/// 198 收敛 S6 起同组并入「流式增量呈现」开关（键
-/// chat.streaming.gen4 与关于页旧实验开关同键同
-/// 源、旧写口已删）。全页
-/// 遵 0.24.0 定版：
-/// List(.insetGrouped)＋settingsBG、行题 Body 17
-/// regular（rowTitleL）、分区头 Footnote 13
-/// （sectionLabel）＋inkSecondary、行高 settingsRow-
-/// Height、图标槽 iconSlot 30/图字距 12——与设置首
-/// 页同规格（settingsHeader 形态在本页复刻同口径助
-/// 手）。参考图的分区头约 15pt 灰不直搬（守 0.24.0
-/// 角色表），差异登记 §53。三组持久化键见 Core
-/// AppearanceStorageKeys（appearanceMode 为 0.4.0
-/// 既有键、不改名不迁移，老用户已选值原样保留）。
+extension ChatTextSizeTier {
+    /// §503 映射单源（App 层）：固定档→DynamicType-
+    /// Size；跟随系统＝nil（消费方回落环境值）。
+    /// DynamicTypeSize.large 即系统默认正文档、故
+    /// 「标准」档落 .large。聊天页与本页预览同读
+    var fixedDynamicTypeSize: DynamicTypeSize? {
+        switch self {
+        case .system: return nil
+        case .small: return .small
+        case .standard: return .large
+        case .large: return .xLarge
+        case .xlarge: return .xxLarge
+        }
+    }
+}
+
+/// 外观页（0.26.0 重做；§503 按 TG 骨架再重构，
+/// 2026-11-24 用户三层框架＋18:36 终裁）：骨架自
+/// 上而下——①实时预览（**单数据源**：预览直接渲
+/// 染与真实聊天同一组 Palette/主题读口——真背景
+/// 面打底、用户泡带字、AI 全宽卡带字＋引用块；改
+/// 任一设置，预览与真实聊天同刻同变；旧预览的空
+/// 形状＋写死 pageBG 底已整卡废弃）②聊天主题
+/// （整包主题卡片列、带名——一款主题同辖 AI 卡/
+/// 用户泡/背景/强调，见 Core ChatTheme §503 整包
+/// 化；旧纯色圆无名形态与默认款头像图混格退役）
+/// ③聊天背景（Menu 行：跟随主题＋纯色盘＋图案
+/// 三款，相册图列二期缺件见 §503）④强调色（TG
+/// 预设 11 色点列＋「跟随主题」复位，覆盖键辖）
+/// ⑤文字大小（五档，聊天面字阶覆盖层）⑥气泡圆
+/// 角（原「气泡样式」假名行归位——实只辖圆角）
+/// ⑦虚拟形象大小（沿旧）⑧模式（沿旧）。
+/// §503 退役：「回复呈现」整节删除（流式/打字渐
+/// 显定死常开、仍服从 Reduce Motion；反应浮排＋
+/// AI 反应两开关迁「互动」页 ReactionSettings-
+/// View）；语言整节迁「语言」页 LanguageSettings-
+/// View。全页规格沿 0.24.0 定版（List insetGrouped
+/// ＋settingsBG、行题 rowTitleL、分区头 Settings-
+/// SectionHeader、行高 settingsRowHeight）。持久
+/// 化键见 Core AppearanceStorageKeys（既有键不改
+/// 名不迁移、老用户已选值原样保留）。
 struct AppearanceView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AppearanceStorageKeys.appearanceMode)
     private var appearanceModeRaw = AppearanceMode.system.rawValue
     @AppStorage(AppearanceStorageKeys.chatTheme)
     private var chatThemeID = ChatThemes.defaultID
     // 气泡浓淡（台账 184）已随 188 定版整套退役：
-    // 用户泡单档定死（饱和实填＋白字），本页不再
-    // 有浓淡写口、chatBubbleFillStyle 键无消费方
+    // 用户泡单档定死，本页不再有浓淡写口
     @AppStorage(AppearanceStorageKeys.avatarSize)
     private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
-    /// 语言四档（§145）：与模式同形态——AppStorage
-    /// 单一事实源（LanguageStorageKeys.appLanguage），
-    /// 本页写、根层 OneDayApp 消费（.environment＋
-    /// .id 整树重建，即时生效不重启）
-    @AppStorage(LanguageStorageKeys.appLanguage)
-    private var appLanguageRaw = AppLanguagePreference.system.rawValue
-    /// 打字动画（第 104 条）：键 chat.streaming.-
-    /// typewriter（Core StreamingTypewriterFeature
-    /// 单一事实源），本页写、聊天页 StreamingText
-    /// 读；缺省开
-    @AppStorage(StreamingTypewriterFeature.defaultsKey)
-    private var typewriterEnabled = true
-    /// 流式增量呈现（台账 198 收敛 S6 归位）：键
-    /// chat.streaming.gen4（Core ChatStreamingFeature
-    /// 单一事实源），本页写、聊天页读；缺省开。与关
-    /// 于页旧「内部实验」开关是同一键的第二个写口
-    /// ——旧写口已删、键不变无迁移，老用户已选值原
-    /// 样保留；两键语义不同不合并（增量方式 vs 渐显
-    /// 口味，见 replyPresentationSection 区脚互指）
-    @AppStorage(ChatStreamingFeature.defaultsKey)
-    private var streamingEnabled = true
-    /// 反应浮排（DESIGN §343）：键 chat.reactions.
-    /// floatingBar（Core ChatReactionsFloatingBar-
-    /// Feature 单一事实源），本页写、聊天页读；缺
-    /// 省开，关＝长按回系统菜单「添加反应」子菜单
-    @AppStorage(ChatReactionsFloatingBarFeature.defaultsKey)
-    private var floatingBarEnabled = true
-    /// AI 反应（DESIGN §432）：键 chat.reactions.
-    /// aiSelf（Core ChatReactionsAISelfFeature 单一
-    /// 事实源），本页写、聊天页角标判定读；缺省
-    /// 开，关＝只隐藏本机呈现（数据不删、重开全量
-    /// 回来）。行显隐由服务端能力位门控（见
-    /// aiSelfRowVisible），无能力位整行不出
-    @AppStorage(ChatReactionsAISelfFeature.defaultsKey)
-    private var aiSelfReactionsEnabled = true
-
-    /// AI 反应行显隐（§432）：单读 AppState 的能力
-    /// 协商结论（Core SelfReactionsSettingsRow-
-    /// Policy 判定），未探得/未广告恒不出
-    private var aiSelfRowVisible: Bool {
-        SelfReactionsSettingsRowPolicy.isRowVisible(
-            availability: appState.selfReactionsAvailability
-        )
-    }
-    /// 气泡样式（台账 179，OB-I1）：键 chatBubbleStyle
-    /// （Core AppearanceStorageKeys 单源），本页写、
-    /// Palette 圆角读口现读；缺省定版 standard
+    /// 气泡圆角（台账 179，§503 改行名）：键 chat-
+    /// BubbleStyle（Core 单源），本页写、Palette 圆
+    /// 角读口现读；缺省定版 standard
     @AppStorage(AppearanceStorageKeys.chatBubbleStyle)
     private var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
-    /// 聊天背景（台账 179）：键 chatBackground，本页
-    /// 写、Palette.chatBackground 现读；缺省定版
-    /// standard（与 chatSurface 同值）
+    /// 聊天背景（台账 179，§503 扩容）：键 chat-
+    /// Background，本页写、Palette.chatBackground
+    /// 现读；缺省定版 standard（与 chatSurface 同值）
     @AppStorage(AppearanceStorageKeys.chatBackground)
     private var chatBackgroundRaw =
         ChatBackgroundStyle.standard.rawValue
+    /// 聊天文字大小（§503）：键 chatTextSize，本页
+    /// 写、聊天页生效字阶读口读；缺省跟随系统
+    @AppStorage(AppearanceStorageKeys.chatTextSize)
+    private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
+    /// 强调色覆盖（§503）：键 chatAccentOverride 存
+    /// hex 整数；「跟随主题」以 -1 哨兵落盘（App-
+    /// Storage 无删键口）——Core 读口 Appearance-
+    /// Preferences.accentOverride 按范围过滤、-1
+    /// 与删键等效回 nil，Palette 覆盖判定只认读口
+    @AppStorage(AppearanceStorageKeys.chatAccentOverride)
+    private var accentOverrideRaw = -1
 
-    /// §431 触感落点计数（形象大小 Menu 点开）：标签
-    /// 点按一次 +1、经声明式 impact .light 施加；本页
-    /// 其余四点（主题／模式／语言／形象大小选择）走
-    /// selection＋值变化触发，见 Haptics.swift 头部
-    /// §431 修宪与各分区尾修饰
+    /// §431 触感落点计数（形象大小 Menu 点开）：标
+    /// 签点按一次 +1、经声明式 impact .light 施加
     @State private var avatarMenuTapCount = 0
 
     private var bubbleStyle: ChatBubbleStyle {
@@ -140,6 +117,10 @@ struct AppearanceView: View {
     private var backgroundStyle: ChatBackgroundStyle {
         ChatBackgroundStyle(rawValue: chatBackgroundRaw)
             ?? .standard
+    }
+
+    private var textSizeTier: ChatTextSizeTier {
+        ChatTextSizeTier(rawValue: chatTextSizeRaw) ?? .system
     }
 
     private var bubbleStyleBinding: Binding<ChatBubbleStyle> {
@@ -157,8 +138,11 @@ struct AppearanceView: View {
         )
     }
 
-    private var languagePreference: AppLanguagePreference {
-        AppLanguagePreference(rawValue: appLanguageRaw) ?? .system
+    private var textSizeBinding: Binding<ChatTextSizeTier> {
+        Binding(
+            get: { textSizeTier },
+            set: { chatTextSizeRaw = $0.rawValue }
+        )
     }
 
     private var mode: AppearanceMode {
@@ -173,8 +157,18 @@ struct AppearanceView: View {
         AvatarSizeTier(rawValue: avatarSizeRaw) ?? .medium
     }
 
-    /// 预览演示明暗：模式显式选浅/暗按所选演示、跟随
-    /// 系统按当前系统——只喂预览框与色板的局部呈现
+    /// 当前强调覆盖（nil＝跟随主题）：与 Core 读
+    /// 口同口径——键值 <0 或 >0xFFFFFF 均视未设
+    /// （本页哨兵 -1 即在此过滤）
+    private var accentOverrideHex: UInt32? {
+        guard accentOverrideRaw >= 0,
+              accentOverrideRaw <= 0xFFFFFF
+        else { return nil }
+        return UInt32(accentOverrideRaw)
+    }
+
+    /// 预览演示明暗：模式显式选浅/暗按所选演示、跟
+    /// 随系统按当前系统——只喂预览框的局部呈现
     private var previewScheme: ColorScheme {
         switch mode {
         case .light: return .light
@@ -185,23 +179,16 @@ struct AppearanceView: View {
 
     private var previewIsDark: Bool { previewScheme == .dark }
 
-    // （行盒已于台账 198 收敛 B7 上收设计层
-    // OneDayMetrics.settingsRowInsets 单源，本页不再
-    // 复刻；口径不变：横向 20 与页 gutter 对齐、纵
-    // 向 0 靠行内容 minHeight 定高）
-
     var body: some View {
         List {
             previewSection
             themeSection
-            personalizationSection
+            backgroundSection
+            accentSection
+            textSizeSection
+            bubbleCornerSection
             avatarSection
             modeSection
-            replyPresentationSection
-            languageSection
-        }
-        .task {
-            await appState.refreshSelfReactionsAvailability()
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -211,15 +198,14 @@ struct AppearanceView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: - 分区头（台账 198 收敛 B7：走设计层共
-    // 用件 SettingsSectionHeader，本页只留转发壳保
-    // 既有调用点不动）
+    // MARK: - 分区头（走设计层共用件 SettingsSect-
+    // ionHeader，本页只留转发壳保既有调用点不动）
 
     private func appearanceHeader(_ title: String) -> some View {
         SettingsSectionHeader(title)
     }
 
-    // MARK: - ① 实时预览
+    // MARK: - ① 实时预览（§503 单数据源重做）
 
     private var previewSection: some View {
         Section {
@@ -231,22 +217,21 @@ struct AppearanceView: View {
         )
     }
 
-    /// 迷你聊天框：全为演示形状（空白泡/卡块，无假文
-    /// 字）；用户泡与描边走当前主题在预览明暗下的实
-    /// 色、助手泡与卡块走 Palette 泡色（经框内
-    /// colorScheme 演示档解析）、头像边长走当前形象
-    /// 档——三组选择任一改动在此立即可见
+    /// 迷你聊天框（§503）：与真实聊天同一组读口现
+    /// 渲——背景＝ChatBackgroundSurface（底色＋图
+    /// 案、与聊天页背景层同一消费面）、用户泡＝
+    /// Palette.userBubbleFill/userBubbleText 带真
+    /// 字、AI 卡＝Palette.bubbleFill 全宽卡（内含
+    /// 引用块：强调竖线＋次级字），头像＋名签读档
+    /// 案、字阶读文字大小档。任一设置改动在此与真
+    /// 实聊天同刻同变（预览无副本、无第二数据源）
     private var previewCard: some View {
-        let bubble = hexColor(
-            theme.bubbleFill(dark: previewIsDark)
-        )
         let accent = hexColor(
             previewIsDark ? theme.accentDark : theme.accentLight
         )
         return VStack(spacing: OneDayMetrics.spacingSM) {
             VStack(spacing: -5) {
-                // 0.36.22：预览卡的头像与名读档案（预览
-                // 的就是用户真实所见，不许演旧名旧头像）
+                // 预览头像与名读档案（用户真实所见）
                 appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
@@ -268,32 +253,70 @@ struct AppearanceView: View {
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity)
+            // 用户泡（带字、主题色现读）
             HStack {
-                Spacer(minLength: 56)
-                previewBubble(width: 148, height: 44, fill: bubble)
-            }
-            HStack {
-                previewBubble(
-                    width: 188, height: 30, fill: Palette.bubbleFill
-                )
-                Spacer(minLength: 56)
-            }
-            HStack {
-                Spacer(minLength: 104)
-                previewBubble(width: 108, height: 30, fill: bubble)
-            }
-            HStack {
-                RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
-                    .fill(Palette.bubbleFill)
-                    .frame(width: 205, height: 58)
+                Spacer(minLength: OneDayMetrics.bubbleSideInset)
+                Text("帮我看下明早去车站的高铁票")
+                    .font(.body)
+                    .foregroundStyle(Palette.userBubbleText)
+                    .padding(
+                        .horizontal, OneDayMetrics.bubblePaddingH
+                    )
+                    .padding(
+                        .vertical, OneDayMetrics.bubblePaddingV
+                    )
+                    .background {
+                        RoundedRectangle(
+                            cornerRadius: OneDayMetrics.bubbleCorner
+                        )
+                        .fill(Palette.userBubbleFill)
+                    }
                     .accessibilityHidden(true)
-                Spacer(minLength: 40)
+            }
+            // AI 全宽卡（带字＋引用块、卡面现读）
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingS
+            ) {
+                HStack(
+                    alignment: .top,
+                    spacing: OneDayMetrics.spacingS
+                ) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Palette.primary)
+                        .frame(width: 3, height: 18)
+                        .accessibilityHidden(true)
+                    Text("明早去车站的高铁票")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityHidden(true)
+                }
+                Text("订好了，9:05 发车，提前 40 分钟到站就行。")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+            .padding(.vertical, OneDayMetrics.bubblePaddingV)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(
+                    cornerRadius:
+                        OneDayMetrics.assistantBubbleCorner
+                )
+                .fill(Palette.bubbleFill)
             }
         }
         .padding(OneDayMetrics.spacingM)
         .frame(maxWidth: .infinity)
-        .background(Palette.pageBG)
+        .background {
+            ChatBackgroundSurface()
+        }
         .environment(\.colorScheme, previewScheme)
+        .environment(
+            \.dynamicTypeSize,
+            textSizeTier.fixedDynamicTypeSize ?? systemTypeSize
+        )
         .clipShape(
             RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
         )
@@ -307,23 +330,14 @@ struct AppearanceView: View {
         .accessibilityLabel("外观预览")
     }
 
-    private func previewBubble(
-        width: CGFloat, height: CGFloat, fill: Color
-    ) -> some View {
-        RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
-            .fill(fill)
-            .frame(width: width, height: height)
-            .accessibilityHidden(true)
-    }
-
-    // MARK: - ② 聊天主题
+    // MARK: - ② 聊天主题（§503 卡片列）
 
     private var themeSection: some View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     ForEach(ChatThemes.all) { item in
-                        themeSwatch(item)
+                        themeCard(item)
                     }
                 }
                 .padding(.vertical, OneDayMetrics.spacingXS)
@@ -332,8 +346,6 @@ struct AppearanceView: View {
             .listRowInsets(
                 EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 0)
             )
-            // 气泡浓淡分段（台账 184）已随 188 定版
-            // 删除：用户泡单档定死、本区只剩主题选择
         } header: {
             appearanceHeader("聊天主题")
         }
@@ -341,15 +353,14 @@ struct AppearanceView: View {
         .sensoryFeedback(.selection, trigger: chatThemeID)
     }
 
-    /// 色板一格（44pt 圆）：默认款以三狗头像图为样、
-    /// 余款以其气泡色（预览明暗档）填充；选中＝强调
-    /// 色描边环＋泡字色对勾（参考图形态）；点按写键
-    /// 即全 App 生效，动效走 MotionTokens.swap 出口
-    private func themeSwatch(_ item: ChatTheme) -> some View {
+    /// 主题卡片一格（§503）：缩略场景（该款背景打
+    /// 底＋用户泡小条＋AI 卡小条、三值皆该款整包在
+    /// 预览明暗下的实值）＋款名；选中＝强调描边环。
+    /// 旧形态（纯色圆无名、默认款头像图混格）退役
+    /// ——卡片自带名字与整包预告，与 TG 主题列同构
+    private func themeCard(_ item: ChatTheme) -> some View {
         let selected = item.id == theme.id
-        let checkColor = hexColor(
-            item.bubbleText(dark: previewIsDark)
-        )
+        let dark = previewIsDark
         return Button {
             withAnimation(
                 MotionTokens.resolved(
@@ -359,36 +370,64 @@ struct AppearanceView: View {
                 chatThemeID = item.id
             }
         } label: {
-            Group {
-                if item.id == ChatThemes.defaultID {
-                    Image("SangouPartner")
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Circle().fill(
-                        hexColor(
-                            item.bubbleFill(dark: previewIsDark)
-                        )
+            VStack(spacing: OneDayMetrics.spacingXS) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(hexColor(item.chatBackground(dark: dark)))
+                    VStack(spacing: 3) {
+                        HStack {
+                            Spacer()
+                            Capsule()
+                                .fill(
+                                    hexColor(item.bubbleFill(dark: dark))
+                                )
+                                .frame(width: 26, height: 9)
+                        }
+                        HStack {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(
+                                    hexColor(item.aiCardFill(dark: dark))
+                                )
+                                .frame(width: 40, height: 9)
+                            Spacer()
+                        }
+                    }
+                    .padding(5)
+                }
+                .frame(width: 58, height: 42)
+                .overlay {
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Palette.primary)
+                            .background(Palette.surface, in: Circle())
+                            .offset(x: 4, y: -4)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .topTrailing
+                            )
+                    }
+                }
+                Text(item.displayName)
+                    .font(.caption)
+                    .foregroundStyle(
+                        selected ? Palette.primary : Palette.ink
                     )
-                }
             }
-            .frame(width: 44, height: 44)
-            .clipShape(Circle())
+            .padding(OneDayMetrics.spacingS)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(cornerRadius: 12)
+            )
             .overlay {
-                Circle().stroke(
-                    selected ? Palette.primary : Palette.hairline,
-                    lineWidth: selected ? 2.5 : 1
-                )
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        selected ? Palette.primary : Palette.hairline,
+                        lineWidth: selected ? 2 : 1
+                    )
             }
-            .overlay {
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .bold))
-                        .foregroundStyle(checkColor)
-                }
-            }
-            .frame(width: 48, height: 48)
-            .contentShape(Circle())
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(
@@ -396,34 +435,218 @@ struct AppearanceView: View {
         )
     }
 
-    // MARK: - 聊天个性化（台账 179，OB-I1；§391）
+    // MARK: - Menu 行共用件（背景/文字/圆角三行同式）
 
-    /// 可选开关、默认定版：气泡样式与聊天背景两项，
-    /// 不动任何默认值——没改过的用户呈现与定版逐值
-    /// 相同；智能体专属 backdrop 未在本区（缺口见 §391）
-    private var personalizationSection: some View {
-        Section {
-            Picker("气泡样式", selection: bubbleStyleBinding) {
-                ForEach(
-                    ChatBubbleStyle.allCases, id: \.self
-                ) { style in
-                    Text(style.displayName).tag(style)
-                }
-            }
-            Picker("聊天背景", selection: backgroundStyleBinding) {
-                ForEach(
-                    ChatBackgroundStyle.allCases, id: \.self
-                ) { style in
-                    Text(style.displayName).tag(style)
-                }
-            }
-        } header: {
-            appearanceHeader("聊天个性化")
+    /// Menu 行标签（与形象大小行同式）：题＋当前值
+    /// ＋上下 chevron；点开走原生 Menu（内嵌 Picker）
+    private func menuRowLabel(
+        title: String, value: String
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Color.clear
+                .frame(width: OneDayMetrics.iconSlot)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+            Spacer()
+            Text(value)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.inkSecondary)
+            DisclosureChevron(
+                .upDown,
+                font: .system(
+                    size: FrameworkIcon.smallGlyphSize,
+                    weight: .semibold
+                )
+            )
         }
-        .listRowBackground(Palette.surface)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
     }
 
-    // MARK: - ③ 虚拟形象大小
+    // MARK: - ③ 聊天背景
+
+    private var backgroundSection: some View {
+        Section {
+            Menu {
+                Picker("聊天背景", selection: backgroundStyleBinding) {
+                    ForEach(
+                        ChatBackgroundStyle.allCases, id: \.self
+                    ) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+            } label: {
+                menuRowLabel(
+                    title: "聊天背景",
+                    value: backgroundStyle.displayName
+                )
+            }
+        } header: {
+            appearanceHeader("聊天背景")
+        } footer: {
+            Text("「跟随主题」随所选主题整包的背景；图案只改底面质感，不影响阅读。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        .sensoryFeedback(.selection, trigger: chatBackgroundRaw)
+    }
+
+    // MARK: - ④ 强调色（§503，TG 预设盘）
+
+    /// 预设色名（与 ChatAccentPresets.values 同序，
+    /// 只供无障碍标签与区脚说明、不参与解析）
+    private static let accentPresetNames = [
+        "蓝", "青", "绿", "粉", "橙", "紫", "红", "黄", "灰", "黑", "白",
+    ]
+
+    private var accentSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    accentDot(
+                        hex: previewIsDark
+                            ? theme.accentDark : theme.accentLight,
+                        name: "跟随主题",
+                        selected: accentOverrideHex == nil
+                    ) {
+                        accentOverrideRaw = -1
+                    }
+                    ForEach(
+                        Array(
+                            ChatAccentPresets.values.enumerated()
+                        ), id: \.offset
+                    ) { index, hex in
+                        accentDot(
+                            hex: hex,
+                            name: Self.accentPresetNames[index],
+                            selected: accentOverrideHex == hex
+                        ) {
+                            accentOverrideRaw = Int(hex)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.trailing, 20)
+            }
+            .listRowInsets(
+                EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 0)
+            )
+        } header: {
+            appearanceHeader("强调色")
+        } footer: {
+            Text("用于链接、引用标记与选中状态；第一颗是跟随当前主题的强调色。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .sensoryFeedback(.selection, trigger: accentOverrideRaw)
+    }
+
+    /// 强调色点一颗：30pt 实色圆；选中＝同色描边
+    /// 环＋对勾（勾色按该色明暗取黑/白、保证可辨）
+    private func accentDot(
+        hex: UInt32, name: String, selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let luminance = (0.299 * Double((hex >> 16) & 0xFF)
+            + 0.587 * Double((hex >> 8) & 0xFF)
+            + 0.114 * Double(hex & 0xFF)) / 255.0
+        return Button {
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.swap, reduceMotion: reduceMotion
+                )
+            ) {
+                action()
+            }
+        } label: {
+            Circle()
+                .fill(hexColor(hex))
+                .frame(width: 30, height: 30)
+                .overlay {
+                    Circle().stroke(
+                        selected ? Palette.primary : Palette.hairline,
+                        lineWidth: selected ? 2.5 : 1
+                    )
+                }
+                .overlay {
+                    if selected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(
+                                luminance > 0.6
+                                    ? Color.black : Color.white
+                            )
+                    }
+                }
+                .frame(width: 34, height: 34)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel(name + (selected ? "，已选" : ""))
+    }
+
+    // MARK: - ⑤ 文字大小（§503）
+
+    private var textSizeSection: some View {
+        Section {
+            Menu {
+                Picker("文字大小", selection: textSizeBinding) {
+                    ForEach(
+                        ChatTextSizeTier.allCases, id: \.self
+                    ) { tier in
+                        Text(tier.displayName).tag(tier)
+                    }
+                }
+            } label: {
+                menuRowLabel(
+                    title: "文字大小",
+                    value: textSizeTier.displayName
+                )
+            }
+        } header: {
+            appearanceHeader("文字大小")
+        } footer: {
+            Text("只影响聊天页的文字大小；「跟随系统」与系统「显示与文字大小」一致。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        .sensoryFeedback(.selection, trigger: chatTextSizeRaw)
+    }
+
+    // MARK: - ⑥ 气泡圆角（§503 归位，原「气泡样式」）
+
+    private var bubbleCornerSection: some View {
+        Section {
+            Menu {
+                Picker("气泡圆角", selection: bubbleStyleBinding) {
+                    ForEach(
+                        ChatBubbleStyle.allCases, id: \.self
+                    ) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+            } label: {
+                menuRowLabel(
+                    title: "气泡圆角",
+                    value: bubbleStyle.displayName
+                )
+            }
+        } header: {
+            appearanceHeader("气泡圆角")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        .sensoryFeedback(.selection, trigger: bubbleStyleRaw)
+    }
+
+    // MARK: - ⑦ 虚拟形象大小（沿旧）
 
     private var avatarTierBinding: Binding<AvatarSizeTier> {
         Binding(
@@ -442,7 +665,7 @@ struct AppearanceView: View {
                 }
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    // 0.36.22：形象大小选择器标签头像读档案
+                    // 形象大小选择器标签头像读档案
                     appState.agentAvatarImage
                         .resizable()
                         .scaledToFill()
@@ -476,7 +699,7 @@ struct AppearanceView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: avatarMenuTapCount)
     }
 
-    // MARK: - ④ 模式
+    // MARK: - ⑧ 模式（沿旧）
 
     private var modeSection: some View {
         Section {
@@ -522,124 +745,11 @@ struct AppearanceView: View {
         .sensoryFeedback(.selection, trigger: appearanceModeRaw)
     }
 
-    // MARK: - ⑤ 回复呈现（第 104 条）
-
-    /// 回复呈现组（第 104 条＋台账 198 收敛 S6）：
-    /// 两件相邻成组、文案互指——「流式增量呈现」管
-    /// 回复怎么长出来（按块增量／逐词出现），「打字
-    /// 动画」只管新文字带不带单次轻渐显（首批恒直
-    /// 显）；两键语义不同、不合并。流式开关原在关于
-    /// 页「内部实验」节（与本键同键的第二写口），已
-    /// 随 S6 删除、只留本页一位。Reduce Motion 的优
-    /// 先关系不在开关行表达——它在入场计划层（Core
-    /// StreamingEntrance）恒压过打字动画，区脚只如
-    /// 实注明结果
-    private var replyPresentationSection: some View {
-        Section {
-            Toggle(isOn: $streamingEnabled) {
-                Text(L10n.string("流式增量呈现"))
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            Toggle(isOn: $typewriterEnabled) {
-                Text(L10n.string("打字动画"))
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            Toggle(isOn: $floatingBarEnabled) {
-                Text(L10n.string("反应浮排"))
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            // §432：AI 反应行——服务端未广告 self_
-            // reactions 能力位时整行不出（僵尸禁令）
-            if aiSelfRowVisible {
-                Toggle(isOn: $aiSelfReactionsEnabled) {
-                    Text(L10n.string("AI 反应"))
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            }
-        } header: {
-            appearanceHeader(L10n.string("回复呈现"))
-        } footer: {
-            Text(replyPresentationFooter)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-    }
-
-    /// 回复呈现区脚（§432 增补）：AI 反应一句只在
-    /// 开关行在场时拼入——行不在场不提不存在的开
-    /// 关；句内写清关开关的语义（只关本机呈现、
-    /// 数据不删、重开全量回来，施工图 §4 口径）
-    private var replyPresentationFooter: String {
-        var text = L10n.string("流式增量呈现管回复怎么长出来：开着按块增量刷新，关掉回到逐词出现。打字动画只管新文字带不带渐显，与增量方式是两件事。系统开启减弱动态效果时，始终直接显示。反应浮排管长按消息时的反应入口：开着先浮出表情排，关掉回到菜单里的「添加反应」。")
-        if aiSelfRowVisible {
-            text += L10n.string("AI 反应管助手贴在你消息上的表情：关了只是本机不显示，记录还在，重新打开会全量回来。")
-        }
-        return text
-    }
-
-    // MARK: - ⑥ 语言（§145）
-
-    /// 语言四档勾选行（形态与 ④ 模式同构）：档名
-    /// 经 L10n 按当前界面语言取词（切档瞬间整树重
-    /// 建、新语言下重渲本页，档名随之换语）；区脚
-    /// 小字如实注明系统托管面（权限弹窗/分享单等）
-    /// 仍随系统语言——平台常态、不在本档承诺内
-    private var languageSection: some View {
-        Section {
-            ForEach(AppLanguagePreference.allCases) { item in
-                Button {
-                    appLanguageRaw = item.rawValue
-                } label: {
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        Color.clear
-                            .frame(width: OneDayMetrics.iconSlot)
-                            .accessibilityHidden(true)
-                        Text(L10n.string(item.displayKey))
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                        if item == languagePreference {
-                            Image(systemName: "checkmark")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(Palette.primary)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel(
-                    L10n.string(item.displayKey)
-                        + (item == languagePreference ? "，已选" : "")
-                )
-            }
-        } header: {
-            appearanceHeader(L10n.string("语言"))
-        } footer: {
-            Text(L10n.string("系统弹窗与分享界面等由系统显示的部分，仍跟随系统语言。"))
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-        .sensoryFeedback(.selection, trigger: appLanguageRaw)
-    }
-
     // MARK: - 工具
 
-    /// 主题十六进制值 → SwiftUI 色（预览/色板需按预览
-    /// 明暗显式取档，不能走 Palette 的 traits 解析）
+    /// 主题十六进制值 → SwiftUI 色（预览/卡片/色点
+    /// 需按预览明暗显式取档，不能走 Palette 的
+    /// traits 解析）
     private func hexColor(_ hex: UInt32) -> Color {
         Color(
             red: Double((hex >> 16) & 0xFF) / 255.0,

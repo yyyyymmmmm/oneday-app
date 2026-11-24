@@ -88,7 +88,26 @@ struct ChatView: View {
     /// 字号档（0.43.0，A11Y-D1）：发送舱量测按档贯穿
     /// ——经 OneDayDesign 映射交给 ComposerBarLayout，
     /// 与文本视图自身 trait 档同源（量测≡排版）
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dynamicTypeSize)
+    private var systemDynamicTypeSize
+    /// §503 聊天文字大小档（外观页写、本页读）：未设
+    /// ＝「跟随系统」
+    @AppStorage(AppearanceStorageKeys.chatTextSize)
+    private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
+    /// 聊天面生效字阶（§503 单源）：档位覆盖优先、
+    /// 「跟随系统」恒等环境值。档位→DynamicType-
+    /// Size 的映射单源在 ChatTextSizeTier.fixed-
+    /// DynamicTypeSize（外观页文件）。本视图全部字阶消费点（量测喂入/
+    /// 行高合成/行样式键/原生面 facets）同读本口，
+    /// 量测≡排版不分叉；聊天根另以同值施 .dynamic-
+    /// TypeSize 环境覆盖（见 nativeListSurface 挂载
+    /// 点），SwiftUI 渲染与原生量测同源
+    private var dynamicTypeSize: DynamicTypeSize {
+        let tier = ChatTextSizeTier(
+            rawValue: chatTextSizeRaw
+        ) ?? .system
+        return tier.fixedDynamicTypeSize ?? systemDynamicTypeSize
+    }
     /// 0.20.0 恢复链：本页自此观察前后台（此前全页无
     /// scenePhase 观察——切后台杀流后回前台无人对账，
     /// 是「显示无网络」误报的生命周期半侧定因）
@@ -605,18 +624,12 @@ struct ChatView: View {
     private func surfaceFocusEntry(_ id: UUID) {
         nativeHandle.focusEntry(id)
     }
-    /// §247（换代包 4）：流式呈现开关（Core Chat-
-    /// StreamingFeature，缺省 true＝块级增量新
-    /// 路；关＝流式行回 TokenFlow 逐词渐显旧路，
-    /// 回滚口、包 6 清理）与落定行键映射（流式行
-    /// 键→落定条目的同键沿用记账，会话内不落盘）
-    @AppStorage(ChatStreamingFeature.defaultsKey)
-    private var gen4StreamingEnabled = true
-    /// §494：打字动画开关读口（设置→外观写、本
-    /// 页直播行入场计划读；Core StreamingType-
-    /// writerFeature 单源，§409 后一度无消费方）
-    @AppStorage(StreamingTypewriterFeature.defaultsKey)
-    private var typewriterEnabled = true
+    /// §503：流式呈现与打字渐显两开关退役（原
+    /// §247 回滚口/§494 读口）——呈现定死常开：
+    /// 直播行恒走块级增量、入场计划恒启渐显（仍
+    /// 服从 Reduce Motion 恒压过）；两键存量值惰
+    /// 性不读（Core 侧 ChatStreamingFeature 已删、
+    /// StreamingTypewriterFeature 只留键名档案）
     /// 反应浮排开关（DESIGN §343；Core ChatReactions-
     /// FloatingBarFeature 单一事实源，缺省开）：设置
     /// →外观→回复呈现写、本页 messageMenu 读；关＝
@@ -1479,7 +1492,10 @@ struct ChatView: View {
                     // ——默认档与 chatSurface 逐值相同，
                     // 改选只动本层（抽屉等共用 chatSur-
                     // face 的面不跟随）
-                    Palette.chatBackground
+                    // §503：背景呈现走单源面（底色现
+                    // 读＋图案档叠绘）——与外观页预
+                    // 览同一消费面，改选同刻同变
+                    ChatBackgroundSurface()
                         .ignoresSafeArea()
                 }
                 // §186 配套（诊断 K1）：聚焦打字时隐藏导航坞——
@@ -2845,6 +2861,9 @@ struct ChatView: View {
                 firstFrameSettle(for: id)
             }
         }
+        // §503：聊天文字大小档的环境覆盖（与量测 facets
+        // 同读 dynamicTypeSize 计算口、单源不分叉）
+        .dynamicTypeSize(dynamicTypeSize)
     }
 
     /// 原生面回调：与 carrierCallbacks 同式——几何
@@ -3936,17 +3955,17 @@ struct ChatView: View {
     /// 条目同键建行、承载侧原位 reconfigure＝落
     /// 定不换装，§247 身份桥）；高＝逐块估算
     /// （闭合块备忘命中、只尾块新算，见 Stream-
-    /// ingLiveText.estimatedHeight）＋气泡纵内
-    /// 距，标临界走布局量实回填（估算起步＋量
-    /// 实覆盖，§247 行高口径）。出 Nil 的四种
-    /// 情形：gen4 开关关（回占位行旧形态＝天然
-    /// 回滚路）／未武装（恢复轮）／尚无发布快
-    /// 照（首增量未到）／半截条目在屏（防双份）
+    /// ingLiveText.estimatedHeight）＋卡纵内距，
+    /// 标临界走布局量实回填（估算起步＋量实覆
+    /// 盖，§247 行高口径）。出 Nil 的三种情形：
+    /// 未武装（恢复轮）／尚无发布快照（首增量
+    /// 未到）／半截条目在屏（防双份）。§503 前
+    /// 尚有「gen4 开关关回占位行」的回滚路——开
+    /// 关退役后该路整条删除、呈现恒走本行
     private func liveStreamingRow(
         composer: ChatNativeRowHeightComposer
     ) -> ChatNativeRow? {
-        guard gen4StreamingEnabled,
-              streamPresentationArmed,
+        guard streamPresentationArmed,
               !livePublishedText.isEmpty,
               livePartialEntryIDs.isEmpty
         else { return nil }
@@ -4001,7 +4020,10 @@ struct ChatView: View {
             StreamingLiveText(
                 text: text,
                 entrancePlan: StreamingEntrance.plan(
-                    typewriterEnabled: typewriterEnabled,
+                    // §503：打字渐显定死常开（开关
+                    // 退役）；Reduce Motion 仍在计划
+                    // 层恒压过（下一行实参不变）
+                    typewriterEnabled: true,
                     reduceMotion: reduceMotion,
                     isFirstBatchOfGeneration:
                         streamPublishGate.publishCount <= 1
@@ -7248,116 +7270,43 @@ struct ChatView: View {
         .accessibilityLabel("回到目标")
     }
 
-    /// 助手消息行（0.2.5 曾定浅灰软填充泡＋圆角卡，见下
-    /// 改判沿革）：左对齐、右侧留白上限与用户泡的 44pt
-    /// 让位同逻辑，内外边距沿旧泡口径。
-    /// 割裂感 A 止血档 A1 改判（2026-11-13，用户 17:02
-    /// 拍板提队）：撤 bubbleFill 背景——散文直落
-    /// chatSurface 大面（助手散文不成卡；代码块/表格/
-    /// 工具卡/文件卡等异构件保留各自承载，本函数只包
-    /// 散文与流式半截/等待点，两者同路落面）。泡内子件
-    /// 对比账当时按调研 A1 逐项复核：次级文字落面后两
-    /// 档均升（原泡面 #EEEEF0 上 5.04／5.29），子件无
-    /// 一因落面跌破原账，令牌零改动。
-    /// §225 再改判（2026-11-14，用户 09:46 点选三项
-    /// 全改＋亲口澄清形态）：**恢复气泡**——A1 撤泡口
-    /// 径作废。用户原话钉死形态：「气泡的内容是纯文
-    /// 字，不是把气泡颜色改没」：泡只是中性浅灰容
-    /// 器，正文维持现行纯文字呈现与排版，不做彩色
-    /// 卡、不加描边/阴影、不改字色字阶。落法＝恢复
-    /// A1 撤销的背景层（bubbleFill＋assistantBubble-
-    /// Corner 22），几何与 A1 前逐字一致；填充
-    /// #EEEEF0 与 Muse 真机实测 #E9EAEC 仅 Δ≈4–5
-    /// （muse-color-drawer-diff-20261114.md），用库
-    /// 存令牌不新造色。泡内子件对比回位 A1 前原账
-    /// （inkSecondaryOnFill 对 #EEEEF0＝5.04:1）。波
-    /// 及面：代码块/表格在 MarkdownText 内部以自身次
-    /// 档填充渲染、零改动，只随正文一同被泡面包住；
-    /// 异构件在本函数之外、不受影响。函数名沿旧名
-    /// 以保调用点零改动与沿革可追。
-    /// §321 三度改判（2026-11-17，用户真机录屏实报
-    /// 「回复消息怎么还是这种？大厂怎么做的？和大
-    /// 厂对齐」）：§225 恢复气泡口径**作废**——助手
-    /// 回复对齐 Muse/Muse 式无气泡呈现：撤
-    /// bubbleFill 填充，散文直落 chatSurface（与 A1
-    /// 同形），§225「内容是纯文字」的本意保留（正
-    /// 文排版/字阶/字色逐字不动，被撤的只是承载
-    /// 面）。与 A1 的差别：§265 整行菜单的宿主背
-    /// 景层保留（填充改 .clear——菜单挂载面与内边
-    /// 距带命中不依赖填充色），几何 §263 逐值不动
-    /// （列宽/左缘/内边距全保留，量测喂入同值、行
-    /// 高产物零失效）；代码块/表格等异构件自有填
-    /// 充逐字不动、只不再被泡面包住。原生散文
-    /// cell 当时同步撤填充（§321 注）；§325 起散
-    /// 文 cell 整件退役、本函数即唯一呈现口径。
-    /// 全档 reply-rendering-alignment-20261117.md。
-    /// §334 四度改判（2026-11-21，台账 191，用户
-    /// 00:36 纠正＋00:38 拍板「AI 气泡也上底色、
-    /// 双边都有泡」）：§321 无气泡口径**作废**——
-    /// 背景层填充恢复 Palette.bubbleFill（浅
-    /// #EEEEF0／暗 #2C2C2E，令牌本体零改动、本函
-    /// 数是助手正文唯一填充口：落定/流式/等待点
-    /// 四态同宿主，grep 全量核对无第二填充口）。
-    /// §321 的正文排版口径（17/22、段距 16、字阶
-    /// 字色）保留不动、只改判容器；§263 几何逐值
-    /// 不动（列宽/左缘/内边距），行高产物零失效；
-    /// 进泡＝正文/引用/代码块（泡内 codeFill 次
-    /// 档）/表格（泡内横滚），推理块/工具卡/图
-    /// 片/文件牌/交付项维持独立承载。AI 泡对比走
-    /// 新立闸⑧（字/泡 ≥4.5、泡/页 ∈[1.10,1.60]，
-    /// 与用户泡闸⑦成套）；登记 DESIGN §334，出
-    /// 图 pkg-191-ai-bubble-design-20261121.md。
+    /// 助手正文承载（§321 起沿革）：§321 无气泡裸
+    /// 排→§334（台账 191）恢复底色成泡（双边都有
+    /// 泡）→**§503 五度改判（2026-11-24 用户 18:36
+    /// 终裁）：改 Muse 式全宽底衬卡**——卡缘对齐
+    /// 自家 pageGutter（行容器既有内距、卡满行宽）、
+    /// 卡面走 Palette.bubbleFill（主题整包 aiCard
+    /// 行：默认 #E9EAEC/#2C2C2E＝Muse 本 App 实测
+    /// ＋在册暗值）；§263 的窄列几何（左缘占屏比/
+    /// 文宽占屏比/侧让位）整套退役，文宽单源改
+    /// OneDayMetrics.assistantTextWidth（屏宽−2×
+    /// pageGutter−2×内距，@402＝330）。卡内距维持
+    /// 16/13、圆角走 assistantBubbleCorner（圆角参
+    /// 数辖区）；菜单宿主口径沿 §265：落定行传
+    /// menuEntry 时菜单挂卡身（含内边距带）、流式
+    /// 卡不传（无菜单、形态同此）。进卡＝正文/引
+    /// 用/代码块/表格（沿 §334 归属）；推理块/工
+    /// 具卡/图片/文件牌/交付项维持泡外独立承载、
+    /// 层级秩序不动。按段拆分（splitBubbles）时一
+    /// 段一卡、卡与卡仍走行间 H1 均匀距——per-pair
+    /// 紧凑距须改列表布局匣间距模型、属列表引擎领
+    /// 地，本包明示缺件登记 §503（卡同宽同色成组
+    /// 衔接先行）
     private func assistantBubble<Content: View>(
         menuEntry: ChatEntry? = nil,
         @ViewBuilder _ content: () -> Content
     ) -> some View {
-        // §263：正文列几何对齐 Muse 同机实测——左缘
-        // ＝屏宽×左缘占屏比（402pt 屏上 33pt）、文宽
-        // ＝屏宽×文宽占屏比（≈309pt）。旧账左缘＝
-        // pageGutter＋bubblePaddingH＝36、列宽被侧让
-        // 位 44 封在 W−116；新落法：左缘差额以负
-        // leading 收（按比例、随屏宽变），列宽以气
-        // 泡 maxWidth 封顶（短文仍可抱合、长文封顶
-        // 换行），量测喂入同值（LayoutProductService
-        // .textWidth 单源）。用户泡几何不动
-        let screenWidth = UIScreen.main.bounds.width
-        let columnCap = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
-            + OneDayMetrics.bubblePaddingH * 2
-        let leading = screenWidth
-            * OneDayMetrics.assistantTextLeadingFraction
-            - OneDayMetrics.pageGutter
-            - OneDayMetrics.bubblePaddingH
-        let base = HStack(alignment: .top) {
-            content()
-                .padding(.horizontal, OneDayMetrics.bubblePaddingH)
-                .padding(.vertical, OneDayMetrics.bubblePaddingV)
-                .background {
-                    // §265（换代包 5·S3）：落定行传
-                    // menuEntry 时整行菜单挂本背景层
-                    // （气泡背景＋内边距带）——与用户泡
-                    // 同口径：背景层不是文本视图的祖
-                    // 先，长按文本归 UITextView 原生；
-                    // 流式泡不传（无菜单、形态逐字不变）
-                    // §321：填充改 .clear——本层自此只
-                    // 作菜单宿主、不再是可见气泡面（助
-                    // 手散文直落 chatSurface）；形状与
-                    // 挂载点逐字不动，菜单命中带不变
-                    // §334（台账 191）：填充恢复
-                    // Palette.bubbleFill——双边都有泡；
-                    // 本层仍是 §265 菜单宿主，形状/挂载
-                    // 点/命中带逐字不动，只恢复填充
-                    RoundedRectangle(
-                        cornerRadius:
-                            OneDayMetrics.assistantBubbleCorner
-                    )
-                    .fill(Palette.bubbleFill)
-                }
-                .frame(maxWidth: columnCap, alignment: .leading)
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, leading)
-
+        let base = content()
+            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+            .padding(.vertical, OneDayMetrics.bubblePaddingV)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(
+                    cornerRadius:
+                        OneDayMetrics.assistantBubbleCorner
+                )
+                .fill(Palette.bubbleFill)
+            }
         if let menuEntry {
             return AnyView(base.modifier(messageMenu(for: menuEntry)))
         } else {

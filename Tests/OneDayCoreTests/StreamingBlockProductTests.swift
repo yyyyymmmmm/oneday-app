@@ -182,16 +182,35 @@ final class StreamingBlockProductTests: XCTestCase {
 
     // MARK: - 开关与落定映射（存量件回归）
 
-    func testStreamingFeatureDefaultsToIncremental() {
-        let defaults = UserDefaults(
-            suiteName: "test-streaming-485-\(UUID().uuidString)")!
-        XCTAssertTrue(
-            ChatStreamingFeature.isIncrementalEnabled(
-                defaults: defaults))
-        defaults.set(false, forKey: ChatStreamingFeature.defaultsKey)
-        XCTAssertFalse(
-            ChatStreamingFeature.isIncrementalEnabled(
-                defaults: defaults))
+    /// §503 退役钉：流式呈现开关（ChatStreaming-
+    /// Feature）整件删除——呈现定死常开、无回滚
+    /// 开关可读；入场计划的裁定行为不变（开关参
+    /// 数由调用方恒传 true，Reduce Motion 恒压过
+    /// 与首批直显两条沿 §104 口径由其他用例钉住）
+    func testStreamingFeatureRetired503() {
+        // 退役后类型不存在即编译期事实；本用例钉
+        // 入场计划在「恒开」入参下的三路裁定不漂移
+        XCTAssertEqual(
+            StreamingEntrance.plan(
+                typewriterEnabled: true, reduceMotion: false,
+                isFirstBatchOfGeneration: false
+            ),
+            .batchFade
+        )
+        XCTAssertEqual(
+            StreamingEntrance.plan(
+                typewriterEnabled: true, reduceMotion: true,
+                isFirstBatchOfGeneration: false
+            ),
+            .instant
+        )
+        XCTAssertEqual(
+            StreamingEntrance.plan(
+                typewriterEnabled: true, reduceMotion: false,
+                isFirstBatchOfGeneration: true
+            ),
+            .instant
+        )
     }
 
     func testSettleMapFirstClaimantWins() {
