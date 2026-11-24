@@ -71,6 +71,7 @@ final class LibraryListStoreC4Tests: XCTestCase {
     /// 假服务端：名单请求与删除请求分别计数；名单
     /// 内容可换；fetch 执行瞬间回调探针（断言「拉取
     /// 发起时屏上已是快照」用）
+    @MainActor
     private final class FakeServer {
         var list: [Deliverable] = []
         var listError: Error?
