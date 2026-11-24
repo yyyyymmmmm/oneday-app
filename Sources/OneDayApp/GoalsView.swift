@@ -24,7 +24,6 @@ import SwiftUI
 private enum GoalCreateSheet: Identifiable {
     case categories
     case intro(GoalCategory)
-    case form(GoalCategory?)
 
     var id: String {
         switch self {
@@ -32,8 +31,6 @@ private enum GoalCreateSheet: Identifiable {
             return "categories"
         case .intro(let category):
             return "intro-\(category.rawValue)"
-        case .form(let category):
-            return "form-\(category?.rawValue ?? "none")"
         }
     }
 }
@@ -171,12 +168,7 @@ struct GoalsView: View {
                 case .intro(let category):
                     GoalIntroView(
                         category: category,
-                        onStart: { openGoalChat(category) },
-                        onForm: { createSheet = .form(category) }
-                    )
-                case .form(let category):
-                    GoalCreateView(
-                        store: store, presetCategory: category
+                        onStart: { openGoalChat(category) }
                     )
                 }
             }

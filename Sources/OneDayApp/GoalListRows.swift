@@ -230,7 +230,6 @@ struct GoalCategorySheetView: View {
 struct GoalIntroView: View {
     let category: GoalCategory
     var onStart: () -> Void
-    var onForm: () -> Void
 
     var body: some View {
         ScrollView {
@@ -254,46 +253,34 @@ struct GoalIntroView: View {
                         .font(.body)
                         .foregroundStyle(Palette.bodyInk)
                 }
-                VStack(spacing: OneDayMetrics.spacingS) {
-                    Button {
-                        onStart()
-                    } label: {
-                        HStack(spacing: OneDayMetrics.spacingS) {
-                            // 对话气泡图标照 Muse 参照
-                            // （§459 形态）；取色行归 108
-                            // 包、本包不动（见类型注）
-                            Image(systemName: "bubble.left")
-                            Text("开始吧")
-                        }
-                        .font(.headline)
-                        // 主按钮统一口径（2026-11-24 主线
-                        // 裁决，§453 改判后续）：目标介绍
-                        // 卡主钮同点子「开始吧」——饱和
-                        // 蓝底＋白字（primarySaturated），
-                        // 不再走第 85 条 BC-1 的
-                        // primaryPale＋onPrimary 配对
-                        // （§459 合并注：形态与文案取
-                        // §459 半屏稿、取色以 108 主钮
-                        // 包为准，本行即其落点）
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            Palette.primarySaturated, in: Capsule()
-                        )
+                Button {
+                    onStart()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        // 对话气泡图标照 Muse 参照
+                        // （§459 形态）；取色行归 108
+                        // 包、本包不动（见类型注）
+                        Image(systemName: "bubble.left")
+                        Text("开始吧")
                     }
-                    .buttonStyle(.odPressable)
-                    Button {
-                        onForm()
-                    } label: {
-                        Text("直接填写")
-                            .font(.body)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                    }
-                    .buttonStyle(.odPressable)
+                    .font(.headline)
+                    // 主按钮统一口径（2026-11-24 主线
+                    // 裁决，§453 改判后续）：目标介绍
+                    // 卡主钮同点子「开始吧」——饱和
+                    // 蓝底＋白字（primarySaturated），
+                    // 不再走第 85 条 BC-1 的
+                    // primaryPale＋onPrimary 配对
+                    // （§459 合并注：形态与文案取
+                    // §459 半屏稿、取色以 108 主钮
+                    // 包为准，本行即其落点）
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        Palette.primarySaturated, in: Capsule()
+                    )
                 }
+                .buttonStyle(.odPressable)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingL)
