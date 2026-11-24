@@ -178,9 +178,9 @@ struct FeedView: View {
             // 的工具栏滑杆钮与 .searchable 工具栏落点
             // 随之退役（滑杆进页头簇、搜索进字段槽）
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             .onChange(of: isSearching) { _, searching in
                 if !searching {
                     searchText = ""
@@ -248,6 +248,7 @@ struct FeedView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
         .topAnchoredPanel(isPresented: $briefEditorShown) { size in
             FeedBriefEditorView(
                 store: store,
@@ -280,7 +281,11 @@ struct FeedView: View {
     private var feedPageHead: some View {
         VStack(alignment: .leading, spacing: 0) {
             ContentPageHeader(
-                onOpenHub: { showHub = true }
+                onOpenHub: {
+                    HubCoverPresenter.present(
+                        $showHub, reduceMotion: reduceMotion
+                    )
+                }
             ) {
                 PageHeaderCircleButton(
                     symbol: "slider.horizontal.3",

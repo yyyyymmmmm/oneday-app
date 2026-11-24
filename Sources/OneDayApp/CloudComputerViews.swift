@@ -324,6 +324,7 @@ struct AddComputerView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func providerRow(

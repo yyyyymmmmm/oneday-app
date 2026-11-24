@@ -328,5 +328,6 @@ struct WebhookCreateForm: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }

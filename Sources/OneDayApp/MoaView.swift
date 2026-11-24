@@ -292,6 +292,7 @@ struct MoaPresetEditor: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 一个槽的服务商/模型：快捷菜单（默认服务商模型＋

@@ -109,6 +109,7 @@ struct PlatformChannelView: View {
             // §232 恢复回行：本页直读账本投影，引擎恢
             // 复时账本名单回行即自动呈现（第 67 条包二）
         }
+        .fullscreenPopBridge()
         .task {
             await store.load(
                 appState: appState, localThreads: threads

@@ -376,6 +376,7 @@ struct LearningNodeDetailView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
         .task { await loadContent() }
         .confirmationDialog(
             isMemory ? "删掉这条记忆？" : "归档这个技能？",

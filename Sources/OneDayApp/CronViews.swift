@@ -807,6 +807,7 @@ struct CronJobFormView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func presetButton(_ title: String, _ expression: String) -> some View {

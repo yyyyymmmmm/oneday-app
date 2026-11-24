@@ -77,6 +77,8 @@ struct GoalFoldHandleGlyph: View {
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     /// 台账 199：目标店走 AppState 共享单例（§259
     /// 先例补齐），与动态格同一份，不再私建
     private var store: GoalsStore {
@@ -141,9 +143,9 @@ struct GoalsView: View {
             // 由目的地自理（GoalDetailView/Ungrou-
             // pedTasksView 均自带 navigationTitle）
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             .task {
                 await store.loadIfNeeded(appState: appState)
             }
@@ -201,6 +203,7 @@ struct GoalsView: View {
                 Text("子目标、进展记录与简报会一并删除。挂在这个目标上的点子会解除关联（点子本身保留）。")
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 开目标旁聊（GA-1/GA-2 终局，§238）：新建一条旁
@@ -228,7 +231,13 @@ struct GoalsView: View {
     /// 钮（···）功能单帧未验证（审计 §六），造空菜
     /// 单违僵尸禁令——§498 右位登记为空
     private var identityHeader: some View {
-        ContentPageHeader(onOpenHub: { showHub = true }) {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
+            }
+        ) {
             EmptyView()
         }
     }

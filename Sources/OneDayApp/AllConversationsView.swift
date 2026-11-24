@@ -219,6 +219,7 @@ struct AllConversationsView: View {
                         onCloseHost: onClose
                     )
                 }
+                .fullscreenPopBridge()
             }
             .navigationDestination(isPresented: $showMaintenance) {
                 ConversationMaintenanceView(
@@ -227,6 +228,7 @@ struct AllConversationsView: View {
                 )
             }
         }
+        .fullscreenPopBridge()
         .task {
             await reload()
             // 存量迁移：挂载点已迁账本（第 90 条收

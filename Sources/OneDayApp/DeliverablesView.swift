@@ -197,9 +197,9 @@ struct DeliverablesView: View {
                     .ignoresSafeArea()
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             // §125：打开分流收口——非图条目一律落文
             // 件打开页（中间页），文本类的阅读在其页
             // 内主钮进阅读页；旧 previewEntry/
@@ -292,6 +292,7 @@ struct DeliverablesView: View {
                 FileShareSheet(url: item.url)
             }
         }
+        .fullscreenPopBridge()
     }
 
     // MARK: - 页大标题（§473 件四②）
@@ -319,7 +320,13 @@ struct DeliverablesView: View {
     /// 胶囊＋headerCircleButton 私有副本。右位登记
     /// ＝放大镜（开搜索行）＋菜单钮（下四组功能）
     private var identityHeader: some View {
-        ContentPageHeader(onOpenHub: { showHub = true }) {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
+            }
+        ) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 // §452.9：搜索钮——放大镜图标钮与菜单
                 // 钮同排同级（点开顶栏下原地展开搜索

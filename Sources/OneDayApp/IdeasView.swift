@@ -30,6 +30,8 @@ enum IdeaDetailSheet {
 
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     /// 台账 199：点子店走 AppState 共享单例（§259
     /// 先例补齐），与动态格／目标详情同一份，不再
     /// 私建
@@ -105,9 +107,9 @@ struct IdeasView: View {
             // 页此前整簇缺失（状态栏下 87.7pt 空白直
             // 达标题，审计 §2.2），系统导航栏在根隐藏
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             .task {
                 await store.loadIfNeeded(appState: appState)
                 // §177：底栏角标退役后进页不再推进
@@ -184,6 +186,7 @@ struct IdeasView: View {
                 Button("好", role: .cancel) {}
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 点子回跳落点判定（§219，FeedView 的
@@ -208,7 +211,13 @@ struct IdeasView: View {
     /// 口径）。87.7pt 顶部空白就此消除
     private var ideasPageHead: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ContentPageHeader(onOpenHub: { showHub = true }) {
+            ContentPageHeader(
+                onOpenHub: {
+                    HubCoverPresenter.present(
+                        $showHub, reduceMotion: reduceMotion
+                    )
+                }
+            ) {
                 EmptyView()
             }
             Text("点子")

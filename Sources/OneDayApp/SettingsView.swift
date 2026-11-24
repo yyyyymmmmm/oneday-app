@@ -268,6 +268,7 @@ struct SettingsView: View {
                 Text("将清除这台手机上保存的服务器凭据与登录会话。本地聊天记录保留。")
             }
         }
+        .fullscreenPopBridge()
     }
 
     @ViewBuilder

@@ -430,6 +430,7 @@ struct ContentView: View {
                 NavigationStack {
                     ChatView(overviewStore: overviewStore)
                 }
+                .fullscreenPopBridge()
                 .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.chat)

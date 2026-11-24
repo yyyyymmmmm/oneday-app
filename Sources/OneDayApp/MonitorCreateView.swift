@@ -107,6 +107,7 @@ struct MonitorCreateView: View {
                 store.clearCreateError()
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 频率说明：手动档说清只在点检查时跑；自动档

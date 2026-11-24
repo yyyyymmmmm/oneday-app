@@ -161,6 +161,7 @@ struct HermesChannelView: View {
             // 擎恢复时账本名单回行即自动呈现，不再需
             // 要恢复信号重拉（第 67 条包二）
         }
+        .fullscreenPopBridge()
         .task {
             await store.load(
                 appState: appState, localThreads: threads
