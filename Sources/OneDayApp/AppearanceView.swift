@@ -238,16 +238,6 @@ struct AppearanceView: View {
 
     // MARK: - ① 实时预览（§503 单数据源重做）
 
-    private var previewSection: some View {
-        Section {
-            previewCard
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(
-            EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
-        )
-    }
-
     /// 迷你聊天框（§503）：与真实聊天同一组读口现
     /// 渲——背景＝ChatBackgroundSurface（底色＋图
     /// 案、与聊天页背景层同一消费面）、用户泡＝

@@ -48,6 +48,8 @@ struct CrashReportsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("崩溃报告")
         .navigationBarTitleDisplayMode(.inline)
