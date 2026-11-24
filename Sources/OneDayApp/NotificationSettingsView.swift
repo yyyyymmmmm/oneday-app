@@ -72,7 +72,7 @@ struct NotificationSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("通知")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func categoryToggle(

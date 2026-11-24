@@ -78,7 +78,7 @@ struct VoiceSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("语音")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await speechPlayer.refreshAvailability(
                 appState: appState, force: true

@@ -190,6 +190,7 @@ private struct PermissionCardView: View {
                     Task { await flow.allow(cardID: card.id, host: host) }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Palette.primarySaturated)
             }
         case .asking, .resuming:
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -210,6 +211,7 @@ private struct PermissionCardView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Palette.primarySaturated)
             }
         case .parked:
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -217,6 +219,7 @@ private struct PermissionCardView: View {
                     .buttonStyle(.bordered)
                 Button("继续") { flow.reopen(cardID: card.id) }
                     .buttonStyle(.borderedProminent)
+                .tint(Palette.primarySaturated)
             }
         case .switchOff:
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -230,6 +233,7 @@ private struct PermissionCardView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Palette.primarySaturated)
             }
         case .failed:
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -239,6 +243,7 @@ private struct PermissionCardView: View {
                     Task { await flow.resume(cardID: card.id, host: host) }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Palette.primarySaturated)
             }
         default:
             EmptyView()

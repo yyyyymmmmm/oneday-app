@@ -78,7 +78,7 @@ struct PairingManagementView: View {
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("设备配对")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.load(
                 operations: operations, serverBase: serverBase
