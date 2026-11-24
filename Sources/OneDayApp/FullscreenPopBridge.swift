@@ -148,9 +148,13 @@ final class FullscreenPopController: NSObject,
         guard let nav = navigationController,
               let pan = gestureRecognizer as? UIPanGestureRecognizer
         else { return false }
+        let translationPoint = pan.translation(in: nav.view)
         let scene = FullscreenPopPolicy.Scene(
             stackDepth: nav.viewControllers.count,
-            translation: pan.translation(in: nav.view),
+            translation: CGSize(
+                width: translationPoint.x,
+                height: translationPoint.y
+            ),
             isTransitioning: nav.transitionCoordinator != nil,
             startsInExemptRegion:
                 FullscreenPopExemption.hierarchyContainsMarker(
@@ -197,6 +201,7 @@ extension View {
 enum FullscreenPopExemption {
     /// 触点（root 坐标系）是否落在层级内任一豁
     /// 免标记的帧里
+    @MainActor
     static func hierarchyContainsMarker(
         in root: UIView, at point: CGPoint
     ) -> Bool {
