@@ -450,7 +450,12 @@ final class ChatEntry {
     /// 排除 sendFailed（.failed 的 remainsInQueue
     /// 为真、靠此项摘出）；delivered/无状态为假
     var isUnconfirmedSend: Bool {
+        // 发送失败机制包（双轴语义）：.accepted 仍在
+        // 发件箱记账内（remainsInQueue 为真），但服务
+        // 端已确认收到——呈现口径是「已确认」（满色、
+        // 无时钟，§426），不许被记账语义拖回未确认态
         sendState?.remainsInQueue == true && !sendFailed
+            && sendState != .accepted
     }
 
     /// 发送准备失败的保留落盘（聊天可靠性包）：条
@@ -486,7 +491,10 @@ final class ChatEntry {
         switch state {
         case .failed:
             sendFailed = true
-        case .delivered:
+        case .accepted, .delivered:
+            // 受理与落定同组：确认收到即清失败标记与
+            // 待发标记（§426 呈现口径）；两者的差别
+            // 只在发件箱记账语义（Core remainsInQueue）
             sendFailed = false
             deliveryState = nil
         case .queued, .uploading, .linking, .sending:

@@ -213,6 +213,10 @@ struct ChatView: View {
         case rejected
         case prepareFailed
         case offlineParked
+        /// 限流停泊（发送失败机制包·等待门）：服务
+        /// 端明示等待时长，条目折回待发、唤醒钟已
+        /// 在停泊点排好，到点自动续——不是失败
+        case rateLimitedParked
         case stopped
     }
     /// 本轮 run 的状态机（0.31.0）：相位与终态证据的
@@ -266,9 +270,11 @@ struct ChatView: View {
     /// 0.2.1：非错误提示条。§140 提示纪律起分档自消：
     /// 呈现状态与代号在 Core NoticePresentation，赋值
     /// 一律走 showNotice（中性 5s／重要 8s 自清）；错
-    /// 误族走 errorMessage、常驻不动（动作位原注记
-    /// 「归二包」，基础止血包 P2 已兑现：失败轮次的
-    /// 横幅带「重新发送」，见 failedResendTarget）
+    /// 误族走 errorMessage、常驻不动。发送失败机制
+    /// 包（语义 5）起横幅只投影全局状况（凭据失效/
+    /// 服务不可用）、无重发动作位——单条失败的呈
+    /// 现与恢复全在条目行内（叹号）＋小提示，见
+    /// presentSendFailure
     @State private var noticePresentation = NoticePresentation()
     @State private var noticeDismissTask: Task<Void, Never>?
     /// §119 未配模型引导卡：「先等等」点过后本次不再
@@ -475,11 +481,17 @@ struct ChatView: View {
     private var stagedSendStore: StagedSendAttachmentStore {
         StagedSendAttachmentStore.defaultStore()
     }
-    /// 基础止血包（P1/P2）：最近一轮失败的用户条目
-    /// id——错误横幅据此出「重新发送」动作位（仅当
-    /// 条目属当前线程且仍挂失败标记时呈现，呈现判定
-    /// 在 errorBanner 调用点）
-    @State private var failedResendEntryID: UUID?
+    /// 发送失败机制包：退避/等待门唤醒钟——退避只
+    /// 有闸没有钟是弱环 B3（到点靠偶然触发），本钟
+    /// 由提交泵在判退避/停泊时排下、到期踢泵续发；
+    /// 只留最早一记（更早的到期点后排者不覆盖）
+    @State private var outboxWakeTask: Task<Void, Never>?
+    @State private var outboxWakeAt: Date?
+    /// 发送失败机制包：App 启动排空发件箱的一次性
+    /// 标记——触发源正确集合（语义 4）里「进/切线
+    /// 程」只许对账、不许触发提交轴重投，drain 只
+    /// 在启动首拍与回前台/网络恢复走
+    @State private var launchDrainedThreadIDs: Set<UUID> = []
     /// 基础止血包（P7）：本轮正处文件上传段的事实位
     /// ——等待呈现据此说上传中、不再冒充生成中
     @State private var isUploadingFiles = false
@@ -1824,10 +1836,11 @@ struct ChatView: View {
                 Task {
                     await refreshEchoTraces()
                 }
-                // 台账 154（DESIGN §336）：一轮落定同
-                // 沿排发件箱——刚恢复的连接顺手把队里
-                // 的旧失败条目带走，不必等下个触发点
-                Task { drainOutboxIfNeeded() }
+                // 发送失败机制包（语义 4）：落定同沿
+                // 的 drain 删除——它是死循环的自激触
+                // 发源（落定失败→下降沿→drain 踢泵→
+                // 重投→再落定失败）；触发源只剩用户
+                // 手点、网络恢复、回前台、退避唤醒钟
             }
         }
         // 0.36.15：离开聊天页关预热总闸并弃置产物
@@ -1856,9 +1869,20 @@ struct ChatView: View {
         .task(id: currentThreadID) {
             await resumeRunIfNeeded()
             // 台账 154（DESIGN §336）：进/切对话排本
-            // 线程发件箱（对账收尾后同拍——账本轮落
-            // 定失败的条目正好接上自动重试）
-            drainOutboxIfNeeded()
+            // 线程发件箱。发送失败机制包（语义 4）：
+            // 收敛为每线程每会话一次——旧口径每次触
+            // 发都全量 drain（触发源之一），积压续发
+            // 改由提交泵＋唤醒钟＋网络/前台事件驱动。
+            // 一次性按线程 id 记账且只在真有当前线程
+            // 时落记：挂载初期视图先以无线程态触发过
+            // 一次 .task，无线程的空触发不许把额度耗
+            // 掉（钉测实证：额度被空触发吃掉后线程打
+            // 开再不 drain、泵永不启动）
+            if let thread = currentThread,
+               !launchDrainedThreadIDs.contains(thread.id) {
+                launchDrainedThreadIDs.insert(thread.id)
+                drainOutboxIfNeeded()
+            }
             // 0.36.21：进/切对话刷新待批（就地卡数据源，
             // 与枢纽共享同一 store）
             await appState.sharedHubStore().refreshApprovalForChat()
@@ -2391,14 +2415,7 @@ struct ChatView: View {
             importRetrySessionID: importRetryContext?.sessionID,
             historySyncBarView: AnyView(historySyncBar),
             errorBannerView: errorMessage.map { message in
-                AnyView(
-                    errorBanner(
-                        message,
-                        onResend: failedResendTarget.map { target in
-                            { resendFailedEntry(target) }
-                        }
-                    )
-                )
+                AnyView(errorBanner(message))
             },
             errorMessageValue: errorMessage,
             noticeBarView: noticePresentation.current.map {
@@ -7604,36 +7621,63 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
-    /// 错误横幅的「重新发送」目标（基础止血包 P2 横
-    /// 幅动作位）：最近失败条目仍在当前线程且仍挂失
-    /// 败标记时才有——§140 注记里欠的「动作位归二
-    /// 包」在此兑现（气泡旁叹号是同一动作的另一入
-    /// 口，两处同走 resendFailedEntry）
-    private var failedResendTarget: ChatEntry? {
-        guard let id = failedResendEntryID,
-              let thread = currentThread,
-              let entry = thread.entries.first(
-                  where: { $0.id == id }
-              ), entry.sendFailed else { return nil }
-        return entry
-    }
-
     /// G-03 错误横幅赋值口（§389）：HermesError 驱
     /// 动的失败一律走此口——主文案＝userMessage
     /// （人话、无状态码/子系统名）、详情＝
     /// diagnosticDetail（技术原文只许在此，缺省
     /// nil 时横幅不显详情钮）、时刻＝当下。字面文
     /// 案赋值点不走此口（本就人话、无技术原文可
-    /// 收），其时刻由组装口 onChange 补记
+    /// 收），其时刻由组装口 onChange 补记。
+    /// 发送失败机制包补同文去抖：同文案同详情已在
+    /// 席时不刷新时刻不重建——旧口径无条件覆写，
+    /// 失败环里横幅以失败周期整条重建（录屏叠字
+    /// 的呈现一环）
     private func presentError(_ error: HermesError) {
+        if errorMessage == error.userMessage,
+           errorDetail == error.diagnosticDetail {
+            return
+        }
         errorMessage = error.userMessage
         errorDetail = error.diagnosticDetail
         errorOccurredAt = Date()
         errorDetailExpanded = false
     }
 
+    /// 发送失败呈现投影（发送失败机制包·语义 5，
+    /// 单一数据源）：发送链的失败呈现只许走本口，
+    /// 投影规则只认成因 kind——全局状况（kind.
+    /// presentsGlobally：凭据失效/服务不可用）进横
+    /// 幅（无重发钮、无单条指向）；单条失败不进横
+    /// 幅：行内叹号（状态投影）＋一条常驻小提示承
+    /// 载文案（单槽换代、不叠字）。旧形态是调用点
+    /// 各自直写 errorMessage＋横幅单槽指向最近失败
+    /// 条（B6：连环失败时重发钮指错条），呈现与成
+    /// 因两本账
+    private func presentSendFailure(
+        kind: SendFailureKind,
+        message: String? = nil,
+        detail: String? = nil
+    ) {
+        let copy = message ?? SendFailureCopy.message(kind: kind)
+        if kind.presentsGlobally {
+            if errorMessage == copy, errorDetail == detail {
+                return
+            }
+            errorMessage = copy
+            errorDetail = detail
+            errorOccurredAt = Date()
+            errorDetailExpanded = false
+        } else {
+            showNotice(copy, tier: .persistent)
+        }
+    }
+
+    /// 错误横幅（发送失败机制包·语义 5 后形态）：
+    /// 只投影全局状况——无「重新发送」动作位（单
+    /// 条失败的恢复只在条目行内，旧横幅重发钮指向
+    /// 最近失败条、连环失败时指错条，B6 退役）
     private func errorBanner(
-        _ message: String, onResend: (() -> Void)? = nil
+        _ message: String
     ) -> some View {
         VStack(spacing: 0) {
             Rectangle()
@@ -7677,23 +7721,8 @@ struct ChatView: View {
                     .buttonStyle(.odPressable)
                     .accessibilityLabel("错误详情")
                 }
-                if let onResend {
-                    Button {
-                        onResend()
-                    } label: {
-                        Text("重新发送")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Palette.primary)
-                            .frame(
-                                minHeight: OneDayMetrics.minTapTarget
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.odPressable)
-                }
                 Button {
                     errorMessage = nil
-                    failedResendEntryID = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
@@ -10536,7 +10565,7 @@ private struct ComposerBarLayout: Layout {
         // 本条不再等上一轮落定：下方 launchTurn 登
         // 记工单入提交泵，本条立即提交、服务端 FIFO
         // 排班（§419 的客户端排队形态就此作废）；变
-        // 色只挂受理回执（markAcceptedEntryDelivered
+        // 色只挂受理回执（markAcceptedEntryAccepted
         // 在 POST 202 同点），上一轮还在生成不挡本
         // 条满色
         // 上下文组装走共用出口 outgoingContext（组装
@@ -10636,17 +10665,26 @@ private struct ComposerBarLayout: Layout {
 
     /// 本轮失败的统一落点（基础止血包 P1/P2）：条目
     /// 留原地挂失败标记——不删条目、不回退输入框；
-    /// 文件载荷在场时暂存供重发补传；横幅「重新发
-    /// 送」动作位的目标 id 同步记账。成功落定清标记
+    /// 文件载荷在场时暂存供重发补传。成功落定清标记
     /// 在 applySettledTurn，重发启动清标记在 resend-
-    /// FailedEntry
+    /// FailedEntry。
+    /// 发送失败机制包：成因同点落账（outboxRetry.
+    /// setFailureKind）——政策准入与呈现投影的唯一
+    /// 材料；旧落点不记成因，成因只活在各出口的局
+    /// 部变量里，政策只能看状态、呈现只能拼整句。
+    /// 横幅单槽指向（failedResendEntryID）随语义 5
+    /// 退役：横幅不再指向任何单条
     private func markTurnFailed(
         entry: ChatEntry,
-        filePayloads: [(name: String, data: Data)] = []
+        filePayloads: [(name: String, data: Data)] = [],
+        failureKind: SendFailureKind
     ) {
         // §237：失败标记走统一状态写口（sendStateRaw
         // 与 sendFailed 同步落盘，不许再散写）
         entry.markSendState(.failed, in: modelContext)
+        appState.outboxRetry.setFailureKind(
+            entryID: entry.id, kind: failureKind
+        )
         if !filePayloads.isEmpty {
             failedFilePayloads[entry.id] = filePayloads
             // §237 P1：载荷同步落盘暂存——进程重启后
@@ -10658,7 +10696,6 @@ private struct ComposerBarLayout: Layout {
                 }
             )
         }
-        failedResendEntryID = entry.id
     }
 
     /// §237 P1：重发载荷的统一取数——同次运行先查
@@ -10679,14 +10716,19 @@ private struct ComposerBarLayout: Layout {
 
     /// run 落定失败的标记落点（P2）：按账本里的用户
     /// 条目 id 回找条目挂标记——条目已不在（线程被
-    /// 清）则静默跳过
+    /// 清）则静默跳过。成因走运行面分类（语义 3：
+    /// 生成失败永不自动重发，kind 落账即钉死）
     private func markRunFailure(
-        entry: RunLedgerEntry, in thread: ChatThread
+        entry: RunLedgerEntry, in thread: ChatThread,
+        failure: HermesError
     ) {
         guard let userEntry = thread.entries.first(
             where: { $0.id.uuidString == entry.userEntryID }
         ) else { return }
-        markTurnFailed(entry: userEntry)
+        markTurnFailed(
+            entry: userEntry,
+            failureKind: SendFailureKind.classify(run: failure)
+        )
     }
 
     /// 失败条目重发（基础止血包 P1/P2，微信点感叹号
@@ -10711,11 +10753,11 @@ private struct ComposerBarLayout: Layout {
         // §451：在飞闸退役——重发只登记工单入泵，
         // 同线程有未落定轮次不再挡（服务端 FIFO 排
         // 班），本条按线程内序位提交；若本条正是堵
-        // 泵的失败头条，手点重发即解堵口
+        // 泵的失败头条，手点重发即解堵口。发送失败
+        // 机制包：手点重发不清重试记账（清账点全集
+        // 只有落定成功/撤回/编辑重投——预算是条目
+        // 一生的账，用户意志重置只认编辑重投）
         errorMessage = nil
-        if failedResendEntryID == entry.id {
-            failedResendEntryID = nil
-        }
         sendFrameStartedAt = Date()
         sendFrameRestickLogged = false
         entry.sendFailed = false
@@ -10813,6 +10855,15 @@ private struct ComposerBarLayout: Layout {
                 forUserEntryID: entry.id
             ) == nil
                 && !pumpInFlightEntryIDs.contains(entry.id)
+        case .accepted:
+            // 发送失败机制包（双轴语义）：已受理条目
+            // 恒有账本、对账链管辖，不进发件箱动作
+            // 面；账本缺失的受理态是孤儿变体（账本被
+            // 异常清走）——浮回发件箱面交用户裁决，
+            // 不许无声卡死
+            return appState.runLedger.entry(
+                forUserEntryID: entry.id
+            ) == nil
         case .delivered:
             return false
         }
@@ -10863,10 +10914,6 @@ private struct ComposerBarLayout: Layout {
         if unsentEditTargetID == entryID {
             unsentEditTargetID = nil
             unsentEditFilesRepresented = false
-        }
-        if failedResendEntryID == entryID {
-            failedResendEntryID = nil
-            errorMessage = nil
         }
         failedFilePayloads[entryID] = nil
         pendingResendAttachments[entryID] = nil
@@ -10991,6 +11038,11 @@ private struct ComposerBarLayout: Layout {
             target.remoteFilePathsData = nil
             try? modelContext.save()
         }
+        // 发送失败机制包（语义 1 清账点③）：编辑重
+        // 投＝用户显式新尝试——重试记账在此清零（预
+        // 算由用户意志重置）；手点原样重发不清（见
+        // resendFailedEntry 注）
+        appState.outboxRetry.clear(entryID: target.id)
         resumeOutboxEntry(target)
     }
 
@@ -11087,6 +11139,9 @@ private struct ComposerBarLayout: Layout {
             )
             var laneEntries: [SubmissionLane.Entry] = []
             var byID: [UUID: ChatEntry] = [:]
+            // 本趟见到的最早退避到期点：泵退出时排唤
+            // 醒钟（语义 4——闸与钟同源，B3 关账）
+            var earliestBackoff: Date?
             for entry in thread.sortedEntries
             where isOutboxEntry(entry)
                 || ledgerIDs.contains(entry.id.uuidString) {
@@ -11098,21 +11153,48 @@ private struct ComposerBarLayout: Layout {
                     state: entry.sendState, record: record,
                     now: Date()
                 )
+                if case .backoff(let until) = policy {
+                    earliestBackoff = min(
+                        earliestBackoff ?? until, until
+                    )
+                }
                 let hasLedger = ledgerIDs.contains(
                     entry.id.uuidString
                 )
                 let failed = entry.sendState == .failed
                     && !hasLedger
+                // 准备段条目在退避中（P1-2 记账后）：与
+                // 未受理失败同格堵泵等到点——不许被车
+                // 道当残影跳过、更不许越过它先发后条
+                // （严格保序）；有登记工单（用户编辑重
+                // 投/手点）在场时不走此格、走提交格
+                let prepInBackoff = !hasLedger && !failed
+                    && submitJobs[entry.id] == nil
+                    && (entry.sendState == .queued
+                        || entry.sendState == .uploading
+                        || entry.sendState == .linking)
+                    && policy != .autoNow
+                    && policy != .manualOnly
+                    && policy != .notInQueue
                 laneEntries.append(SubmissionLane.Entry(
                     entryID: entry.id,
                     hasLedgerEntry: hasLedger,
-                    manualOnly: policy == .manualOnly,
-                    unacceptedFailure: failed,
+                    // 登记工单在场＝用户显式意志（手点
+                    // 重发/编辑重投）：压过政策的人工接
+                    // 管与成因钉死——否则钉死类成因的
+                    // 条目点重发会被车道先堵死、工单永
+                    // 不消费（钉测实证的生产缺陷）
+                    manualOnly: policy == .manualOnly
+                        && submitJobs[entry.id] == nil,
+                    unacceptedFailure: failed || prepInBackoff,
                     failureRetryDue: failed
-                        && policy == .autoNow,
+                        && (policy == .autoNow
+                            || submitJobs[entry.id] != nil),
                     awaitingSubmission: !hasLedger && !failed
                         && entry.sendState != .sending
-                        && policy != .manualOnly
+                        && entry.sendState != .accepted
+                        && (submitJobs[entry.id] != nil
+                            || policy == .autoNow)
                 ))
             }
             switch SubmissionLane.decision(
@@ -11126,27 +11208,97 @@ private struct ComposerBarLayout: Layout {
                         thread: thread, entry: entry
                     )
                 submitJobs[entryID] = nil
-                // 车道重组工单提交一条已失败条目＝自动
-                // 重试、先记账（退避/上限由策略管辖）；
-                // 登记工单（本会话主动发送/手点重发）
-                // 是首投/人工投递，不计自动尝试
-                if registeredJob == nil,
-                   entry.sendState == .failed {
-                    appState.outboxRetry.noteAutoAttempt(
-                        entryID: entryID, at: Date()
-                    )
-                }
+                // 派发前状态快照：记账只认「已失败条目
+                // 的再投」——首投（待发条目进程重启后
+                // 被泵重建工单派发）不是重试、不记账
+                // （ChatFailKeepPinTests 存储面钉）
+                let wasFailed = entry.sendState == .failed
                 let outcome = await performSubmission(job: job)
+                // 自动重投记账（语义 2）：无登记工单＋
+                // 派发前已失败＝策略批准的自动重投，
+                // 执行完毕才记一笔（与成因同落——成因
+                // 已在失败落点写入）；登记工单（本会话
+                // 主动发送/手点重发/编辑重投）不计。
+                // 离线停泊（没出门）与停止不计。旧口径
+                // 执行前记账＋受理清账，两头夹击把账
+                // 扫没
+                if registeredJob == nil, wasFailed {
+                    switch outcome {
+                    case .accepted, .rejected, .prepareFailed:
+                        // 抖动手本点一次抽定（语义 4）：
+                        // 退避到期点须全程同值；泵每秒一轮
+                        // 重算，若在判定处重抽会翻面
+                        appState.outboxRetry.noteAutoAttempt(
+                            entryID: entryID, at: Date(),
+                            jitterUnit: Double.random(in: 0...1)
+                        )
+                    case .offlineParked, .rateLimitedParked,
+                         .stopped:
+                        break
+                    }
+                }
                 switch outcome {
                 case .accepted:
+                    // 受理不清账（语义 1）：重试账活到
+                    // run 真终态——落定成功在 applySet-
+                    // tledTurn 清、落定失败留账钉死。
+                    // 旧口径在此整线程扫清非发件箱条目
+                    // 的账，是死循环的清账入口之一
                     kickConsumer()
-                    clearDeliveredOutboxRecords(in: thread)
                 case .rejected, .prepareFailed,
-                     .offlineParked, .stopped:
+                     .offlineParked, .rateLimitedParked,
+                     .stopped:
+                    armOutboxWake(
+                        earliestBackoff, threadID: thread.id
+                    )
                     return
                 }
             case .blocked, .blockedManual, .idle:
+                armOutboxWake(
+                    earliestBackoff, threadID: thread.id
+                )
                 return
+            }
+        }
+    }
+
+    /// 退避唤醒钟排布（语义 4）：泵退出时若本线程有
+    /// 条目在退避中，把最早到期点排给调度器——到期
+    /// 由 scheduleOutboxWake 踢泵续发，不许有闸无钟
+    /// 靠下一次偶然触发（B3）
+    private func armOutboxWake(
+        _ earliestBackoff: Date?, threadID: UUID
+    ) {
+        guard let earliestBackoff else { return }
+        scheduleOutboxWake(at: earliestBackoff, threadID: threadID)
+    }
+
+    /// 唤醒调度器：只留最早一记（已有更早的到期点
+    /// 在排时不覆盖）；到期先踢本线程提交泵、在看
+    /// 线程同走 drain 记账卫生。回前台/网络恢复仍
+    /// 是触发源（drain），本钟只补退避/等待门到期
+    /// 这一类「时间到了」的事件
+    private func scheduleOutboxWake(
+        at date: Date, threadID: UUID
+    ) {
+        if let scheduled = outboxWakeAt, scheduled <= date {
+            return
+        }
+        outboxWakeTask?.cancel()
+        outboxWakeAt = date
+        outboxWakeTask = Task { @MainActor in
+            let delay = date.timeIntervalSinceNow
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+            }
+            guard !Task.isCancelled else { return }
+            outboxWakeAt = nil
+            guard let thread = threads.first(
+                where: { $0.id == threadID }
+            ) else { return }
+            kickSubmitPump(thread: thread)
+            if thread.id == currentThreadID {
+                drainOutboxIfNeeded()
             }
         }
     }
@@ -11180,11 +11332,20 @@ private struct ComposerBarLayout: Layout {
                 if showsUploadUI { isUploadingFiles = false }
                 markTurnFailed(
                     entry: userEntry,
-                    filePayloads: job.filePayloads
+                    filePayloads: job.filePayloads,
+                    failureKind: .prepareFailed
                 )
-                errorMessage = "文件「\(failure.fileName)」没能上传，这条还没发出去："
-                    + failure.reason
-                    + "处理后点这条消息旁的感叹号重新发送。"
+                // 拼接走收尾归一（P2-2）：reason 是服
+                // 务端/系统自由文本、自带尾标点时旧拼
+                // 法出双句号
+                presentSendFailure(
+                    kind: .prepareFailed,
+                    message: SendFailureCopy.joiningReason(
+                        head: "文件「\(failure.fileName)」没能上传，这条还没发出去：",
+                        reason: failure.reason,
+                        tail: "处理后点这条消息旁的感叹号重新发送。"
+                    )
+                )
                 Haptics.error()
                 return .prepareFailed
             } catch is CancellationError {
@@ -11192,11 +11353,20 @@ private struct ComposerBarLayout: Layout {
                 return .stopped
             } catch {
                 if showsUploadUI { isUploadingFiles = false }
+                // 未知上传异常的文案也走分类（P5-1）：
+                // 旧口径一句「文件上传失败…请稍后再
+                // 试」包打天下，网络/服务端/解码不分。
+                // 成因落账恒 .prepareFailed（语义 3：
+                // 准备段失败钉死），分类只供呈现取词
+                let presentKind = (error as? HermesError).map {
+                    SendFailureKind.classify(submit: $0)
+                } ?? .prepareFailed
                 markTurnFailed(
                     entry: userEntry,
-                    filePayloads: job.filePayloads
+                    filePayloads: job.filePayloads,
+                    failureKind: .prepareFailed
                 )
-                errorMessage = "文件上传失败，这条还没发出去，请稍后再试。"
+                presentSendFailure(kind: presentKind)
                 Haptics.error()
                 return .prepareFailed
             }
@@ -11233,11 +11403,21 @@ private struct ComposerBarLayout: Layout {
             return .stopped
         } catch {
             if Task.isCancelled { return .stopped }
-            markTurnFailed(entry: userEntry)
-            errorMessage = "会话链接失败，这条还没发出去："
-                + ((error as? HermesError)?.userMessage
-                    ?? "服务端会话建立失败")
-                + "。链接恢复后，点这条消息旁的感叹号重新发送。"
+            markTurnFailed(
+                entry: userEntry, failureKind: .prepareFailed
+            )
+            // 拼接走收尾归一（P2-1）：userMessage 自
+            // 带「。」时旧拼出「请稍后再试。。链接恢
+            // 复后…」双句号叠字
+            presentSendFailure(
+                kind: .prepareFailed,
+                message: SendFailureCopy.joiningReason(
+                    head: "会话链接失败，这条还没发出去：",
+                    reason: (error as? HermesError)?.userMessage
+                        ?? "服务端会话建立失败",
+                    tail: "链接恢复后，点这条消息旁的感叹号重新发送。"
+                )
+            )
             Haptics.error()
             return .prepareFailed
         }
@@ -11277,8 +11457,10 @@ private struct ComposerBarLayout: Layout {
         guard let config = appState.config,
               let apiKey = appState.apiKey, !apiKey.isEmpty
         else {
-            markTurnFailed(entry: userEntry)
-            presentError(.sessionExpired)
+            markTurnFailed(
+                entry: userEntry, failureKind: .authRejected
+            )
+            presentSendFailure(kind: .authRejected)
             return .rejected
         }
         let input: RunInput = tail.parts == nil
@@ -11298,6 +11480,8 @@ private struct ComposerBarLayout: Layout {
             submittedAt: Date()
         ))
         var attempt = 0
+        var unknownAttempts = 0
+        var gateWaits = 0
         while true {
             attempt += 1
             do {
@@ -11317,7 +11501,7 @@ private struct ComposerBarLayout: Layout {
                     userEntryID: userEntry.id.uuidString,
                     submittedAt: Date()
                 ))
-                markAcceptedEntryDelivered(
+                markAcceptedEntryAccepted(
                     thread: thread,
                     userEntryID: userEntry.id.uuidString
                 )
@@ -11329,6 +11513,39 @@ private struct ComposerBarLayout: Layout {
                         userEntryID: userEntry.id
                     )
                     return .stopped
+                }
+                // 限流等待门（语义 3）：服务端明示等
+                // 多久就等多久——不落失败、不计账；门
+                // 内等满两轮仍被限，折回待发停泊＋排
+                // 唤醒钟，到点自动续（仍不是失败）
+                if let hermesError = submitError as? HermesError,
+                   case .rateLimited(let retryAfter) = hermesError {
+                    if gateWaits < 2 {
+                        gateWaits += 1
+                        try? await Task.sleep(
+                            for: .seconds(min(retryAfter ?? 1, 30))
+                        )
+                        if Task.isCancelled {
+                            markLedgerStopRequested(
+                                userEntryID: userEntry.id
+                            )
+                            return .stopped
+                        }
+                        continue
+                    }
+                    appState.runLedger.remove(
+                        userEntryID: userEntry.id
+                    )
+                    userEntry.markPendingSend(
+                        in: modelContext
+                    )
+                    scheduleOutboxWake(
+                        at: Date().addingTimeInterval(
+                            min(retryAfter ?? 1, 300)
+                        ),
+                        threadID: thread.id
+                    )
+                    return .rateLimitedParked
                 }
                 switch RunSubmitRetry.classify(submitError) {
                 case .notSentOffline:
@@ -11342,8 +11559,16 @@ private struct ComposerBarLayout: Layout {
                 case .transient:
                     if attempt
                         <= RunSubmitRetry.maxTransientRetries {
+                        // 间隔走 RetryBackoff 同源退避＋
+                        // 全抖动（P1-1）：旧固定 1.2s 无抖
+                        // 动，多条同拍重撞
                         try? await Task.sleep(
-                            nanoseconds: 1_200_000_000
+                            for: .seconds(RetryBackoff.delay(
+                                afterFailure: attempt,
+                                jitterUnit: Double.random(
+                                    in: 0...1
+                                )
+                            ))
                         )
                         if Task.isCancelled {
                             markLedgerStopRequested(
@@ -11358,20 +11583,63 @@ private struct ComposerBarLayout: Layout {
                     // 回（不定性为错误、不双跑）
                     clearPendingDeliveryMark(entry: userEntry)
                     return .accepted
+                case .unknown:
+                    // 判不出成因（P1-1）：只许再试 1
+                    // 次，耗尽同走结果未知交对账——旧
+                    // 口径非 HermesError 一律判瞬态全额
+                    // 重试，把未知错误当网络抖动
+                    unknownAttempts += 1
+                    if unknownAttempts
+                        <= RunSubmitRetry.maxUnknownRetries {
+                        try? await Task.sleep(
+                            for: .seconds(RetryBackoff.delay(
+                                afterFailure: unknownAttempts,
+                                jitterUnit: Double.random(
+                                    in: 0...1
+                                )
+                            ))
+                        )
+                        if Task.isCancelled {
+                            markLedgerStopRequested(
+                                userEntryID: userEntry.id
+                            )
+                            return .stopped
+                        }
+                        continue
+                    }
+                    clearPendingDeliveryMark(entry: userEntry)
+                    return .accepted
                 case .rejected:
                     appState.runLedger.remove(
                         userEntryID: userEntry.id
                     )
-                    markTurnFailed(entry: userEntry)
                     let hermesError =
                         (submitError as? HermesError)
                         ?? .unreachable(
                             submitError.localizedDescription
                         )
                     if hermesError.isSessionNotFound {
-                        presentError(.sessionExpired)
+                        // 会话已在服务端消失（§223）：按
+                        // 凭据面收口呈现，成因记 auth
+                        markTurnFailed(
+                            entry: userEntry,
+                            failureKind: .authRejected
+                        )
+                        presentSendFailure(kind: .authRejected)
                     } else {
-                        presentError(hermesError)
+                        // 成因落账＋分类呈现（语义 3/5）：
+                        // 旧口径落 .failed 时成因只剩一句
+                        // 兜底文案，政策无从分档
+                        let kind = SendFailureKind.classify(
+                            submit: hermesError
+                        )
+                        markTurnFailed(
+                            entry: userEntry, failureKind: kind
+                        )
+                        presentSendFailure(
+                            kind: kind,
+                            detail: hermesError.diagnosticDetail
+                        )
                     }
                     return .rejected
                 }
@@ -11468,7 +11736,7 @@ private struct ComposerBarLayout: Layout {
             // 周期已确立＝服务器早已确认收到——恢
             // 复同点补记送达，不许条目在本进程里继
             // 续挂未确认态
-            markAcceptedEntryDelivered(
+            markAcceptedEntryAccepted(
                 thread: thread,
                 userEntryID: entry.userEntryID
             )
@@ -11570,11 +11838,17 @@ private struct ComposerBarLayout: Layout {
         )
         isDrivingRun = false
         await RunLiveActivityCenter.shared.end()
-        // §414（修复包一·路一）：对账落定收尾后排发
-        // 件箱——滞留账本期落位的待发条目在旧轮结
-        // 清后按落盘序真发（账本未清/对账未落定时
-        // drain 自守卫不发）
-        drainOutboxIfNeeded()
+        // 发送失败机制包（语义 4）：对账收尾的全
+        // 量 drain 删除（触发源收敛），只留定向踢
+        // 泵一脚——泵已退出时排进来的条目要等本轮
+        // 落定才成车道头条，没有这一脚只能等无关
+        // 的外部事件。这一脚不可能自激成环：落定
+        // 失败的头条在新记账口径下被车道堵住等手
+        // 点（准入看成因＋退避带钟），踢泵只让车道
+        // 重新判定一次、不会把失败条重投出去（死
+        // 循环的必要条件是清账重置、已在语义 1/2
+        // 切断；钉测 ChatFailKeepPinTests 钉此面）
+        kickSubmitPump(thread: thread)
     }
 
     /// §451（App-4）落定锚解析：条目已钉 server-
@@ -11661,10 +11935,6 @@ private struct ComposerBarLayout: Layout {
             unsentEditTargetID = nil
             unsentEditFilesRepresented = false
         }
-        if failedResendEntryID == entryID {
-            failedResendEntryID = nil
-            errorMessage = nil
-        }
         failedFilePayloads[entryID] = nil
         pendingResendAttachments[entryID] = nil
         try? stagedSendStore.remove(entryID: entryID)
@@ -11692,9 +11962,15 @@ private struct ComposerBarLayout: Layout {
         kickConsumer()
     }
 
-    /// 记账卫生（原 drain 趟首两件）：清条目已不存
-    /// 在的残账；已落定条目的旧重试账同清（投递成
-    /// 功后次数账使命结束，下次失败从零起算）
+    /// 记账卫生（原 drain 趟首两件）：只清条目已不
+    /// 存在的残账。
+    /// 发送失败机制包（语义 1）：旧第二件「已落定
+    /// 条目的旧重试账同清」（clearDeliveredOutbox-
+    /// Records）整体退役——它按 !isOutboxEntry 在
+    /// 受理后立刻把在飞条目的账扫掉，是 B1 清账错
+    /// 位与死循环的一环；清账点全集只剩三处：落
+    /// 定成功（applySettledTurn 按条）、用户撤
+    /// 回、编辑重投
     private func outboxHousekeeping(in thread: ChatThread) {
         let validIDs = Set(
             threads.flatMap {
@@ -11702,7 +11978,6 @@ private struct ComposerBarLayout: Layout {
             }
         )
         appState.outboxRetry.prune(validEntryIDs: validIDs)
-        clearDeliveredOutboxRecords(in: thread)
     }
 
     /// 提交段孤儿浮现（DESIGN §336）：状态 sending
@@ -11732,18 +12007,6 @@ private struct ComposerBarLayout: Layout {
             appState.outboxRetry.markManualOnly(
                 entryID: entry.id
             )
-        }
-    }
-
-    /// 已落定条目的重试记账清账：投递成功（自动或
-    /// 手点）后次数账使命结束，下次失败从零起算，
-    /// 不许旧账把新失败直接顶到次数上限
-    private func clearDeliveredOutboxRecords(
-        in thread: ChatThread
-    ) {
-        for entry in thread.entries
-        where entry.role == "user" && !isOutboxEntry(entry) {
-            appState.outboxRetry.clear(entryID: entry.id)
         }
     }
 
@@ -12098,13 +12361,15 @@ private struct ComposerBarLayout: Layout {
             streamingText = nil
             resetStreamPresentation()
             reasoningStartedAt = nil
-            presentError(.sessionExpired)
+            presentSendFailure(kind: .authRejected)
             // 基础止血包（P1）：连接态缺失同样是本轮
             // 失败——条目留痕挂标记，恢复连接后点标
             // 记重发（演示态不挂，种子条目不是用户真
             // 发送）
             if !demoMode {
-                markTurnFailed(entry: userEntry)
+                markTurnFailed(
+                    entry: userEntry, failureKind: .authRejected
+                )
             }
             // 失败改判 error（0.36.2，表 D 语义归位）
             Haptics.error()
@@ -12180,6 +12445,7 @@ private struct ComposerBarLayout: Layout {
         // 仍不明＝结果未知，进对账不定性为错误
         var submitError: HermesError?
         var attempts = 0
+        var gateWaits = 0
         while true {
             do {
                 let response = try await appState.client.submitRun(
@@ -12195,7 +12461,7 @@ private struct ComposerBarLayout: Layout {
                 }
                 runMachine.apply(.submitAccepted)
                 if !demoMode {
-                    markAcceptedEntryDelivered(
+                    markAcceptedEntryAccepted(
                         thread: thread,
                         userEntryID: userEntry.id.uuidString
                     )
@@ -12239,10 +12505,36 @@ private struct ComposerBarLayout: Layout {
                     finishRunPresentation(failed: false)
                     return
                 }
+                if case .rateLimited(let retryAfter) = error,
+                   gateWaits < 2 {
+                    // 限流等待门（语义 3，与提交泵同
+                    // 规）：按服务端等待值等、不落失
+                    // 败；等满两轮仍被限才落下方拒绝
+                    // 收口（成因 .rateLimited 钉死）
+                    gateWaits += 1
+                    try? await Task.sleep(
+                        for: .seconds(min(retryAfter ?? 1, 30))
+                    )
+                    if Task.isCancelled {
+                        ledgerEntry.stopRequested = true
+                        if !demoMode {
+                            appState.runLedger.upsert(ledgerEntry)
+                        }
+                        runMachine.apply(.stopRequested)
+                        finishRunPresentation(failed: false)
+                        return
+                    }
+                    continue
+                }
                 if error.isTransient, attempts < 2 {
                     attempts += 1
+                    // 间隔走 RetryBackoff 同源退避
+                    // （P1-1，与提交泵同口径）
                     try? await Task.sleep(
-                        for: .milliseconds(1200)
+                        for: .seconds(RetryBackoff.delay(
+                            afterFailure: attempts,
+                            jitterUnit: Double.random(in: 0...1)
+                        ))
                     )
                     continue
                 }
@@ -12275,9 +12567,19 @@ private struct ComposerBarLayout: Layout {
             // 与重发入口（旧口径只有横幅、再试只能重打）
             if !demoMode {
                 appState.runLedger.remove(threadID: thread.id)
-                markTurnFailed(entry: userEntry)
+                markTurnFailed(
+                    entry: userEntry,
+                    failureKind: SendFailureKind.classify(
+                        submit: submitError
+                    )
+                )
             }
-            presentError(submitError)
+            presentSendFailure(
+                kind: SendFailureKind.classify(
+                    submit: submitError
+                ),
+                detail: submitError.diagnosticDetail
+            )
             finishRunPresentation(failed: true)
             return
         }
@@ -12547,6 +12849,50 @@ private struct ComposerBarLayout: Layout {
     /// 记录缺失时 transcript 单独定性）。预算（10 分
     /// 钟）耗尽停在未知：账本保留、下次进本线程续对
     /// 账，不报错、不重发。
+    /// run 丢失的访问记账＋终局裁决（发送失败机制
+    /// 包·语义 6）：记一次「查无此 run」的访问——计
+    /// 数＋首查时刻回写账本（跨访问累计，旧口径每
+    /// 次访问从零磨 600s、账本永不终局）；累计达
+    /// 标（访问 ≥3 次或首查距今 ≥24h，双闸取或，RunLedger.
+    /// missingRunIsLost）→ 摘账本＋条目判失败可重
+    /// 发（成因 .runResultLost 落账钉死、不自动重
+    /// 发）＋终局呈现，返回 true；未达标返回 false
+    /// （账本保留、下次访问续查）。极少数同访双记
+    /// （观察窗与耗尽段同访各记一次）至多让次数闸
+    /// 提前一次访问触发——run 持续查不到本身已是
+    /// 强证据，口径可接受
+    private func recordMissingRunVisit(
+        thread: ChatThread, entry: inout RunLedgerEntry,
+        demoMode: Bool
+    ) -> Bool {
+        entry.missingReconcileCount += 1
+        if entry.firstMissingAt == nil {
+            entry.firstMissingAt = Date()
+        }
+        if !demoMode {
+            appState.runLedger.upsert(entry)
+        }
+        guard RunLedger.missingRunIsLost(
+            missingCount: entry.missingReconcileCount,
+            firstMissingAt: entry.firstMissingAt,
+            now: Date()
+        ) else { return false }
+        if !demoMode,
+           let uid = UUID(uuidString: entry.userEntryID) {
+            appState.runLedger.remove(userEntryID: uid)
+        }
+        if let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) {
+            markTurnFailed(
+                entry: userEntry, failureKind: .runResultLost
+            )
+        }
+        presentSendFailure(kind: .runResultLost)
+        Haptics.error()
+        return true
+    }
+
     private func reconcileRun(
         thread: ChatThread, entry: inout RunLedgerEntry,
         demoMode: Bool
@@ -12556,7 +12902,17 @@ private struct ComposerBarLayout: Layout {
         if runMachine.phase == .unknown {
             runMachine.apply(.foregrounded)
         }
-        let deadline = Date().addingTimeInterval(600)
+        var deadline = Date().addingTimeInterval(600)
+        // 对账分型（发送失败机制包·语义 7）：查询失
+        // 败＝无证据，不烧 600s 预算——每次无证据轮
+        // 询顺延期限，总顺延封顶 600s 防死服务端无
+        // 限续命
+        var deadlineExtensions: TimeInterval = 0
+        // 本次访问首次见真 missing（状态端点 404）
+        // 的时刻：持续 60s 仍无 transcript 证据才记
+        // 一次「丢失访问」（跨访问累计见 RunLedger-
+        // Entry.missingReconcileCount）
+        var missingPollsStartedAt: Date?
         // §153：重演取回用本会话当前执行选择（与首提同源）
         let replayChoice = appState.sessionModelChoice(
             serverSessionID: entry.sessionID, threadID: thread.id
@@ -12600,12 +12956,19 @@ private struct ComposerBarLayout: Layout {
                     }
                     runMachine.apply(.submitAccepted)
                     if !demoMode {
-                        markAcceptedEntryDelivered(
+                        markAcceptedEntryAccepted(
                             thread: thread,
                             userEntryID: entry.userEntryID
                         )
                     }
                 } catch {
+                    // 重演提交抛错同属无证据（传输/服务
+                    // 端问题）：顺延期限、不烧预算
+                    if deadlineExtensions < 600 {
+                        deadline = deadline
+                            .addingTimeInterval(3)
+                        deadlineExtensions += 3
+                    }
                     if Date() > deadline { break }
                     try? await Task.sleep(for: .seconds(3))
                     continue
@@ -12641,10 +13004,25 @@ private struct ComposerBarLayout: Layout {
                 try? await Task.sleep(for: .milliseconds(1500))
                 continue
             }
-            // 状态轮询
-            let status = try? await appState.client.runStatus(
-                config: config, apiKey: apiKey, runID: runID
-            )
+            // 状态轮询（对账分型，语义 7）：抛错＝查
+            // 询失败＝无证据——旧口径 try? 把抛错与
+            // 404 一并压成 nil 判 missing，网络抖动/
+            // 鉴权失败/5xx 全被记成「run 不见了」，
+            // 600s 磨完给假终局；现只有客户端明确
+            // 404（runStatus 返 nil）才是真 missing
+            let status: RunStatusResponse?
+            do {
+                status = try await appState.client.runStatus(
+                    config: config, apiKey: apiKey, runID: runID
+                )
+            } catch {
+                if deadlineExtensions < 600 {
+                    deadline = deadline.addingTimeInterval(3)
+                    deadlineExtensions += 3
+                }
+                try? await Task.sleep(for: .seconds(3))
+                continue
+            }
             switch status {
             case .some(let value) where value.status.isTerminal:
                 terminalStatusHint = value
@@ -12666,12 +13044,33 @@ private struct ComposerBarLayout: Layout {
                 // 状态词无法归类：无证据，继续轮询
                 try? await Task.sleep(for: .seconds(3))
             case .none:
-                // 状态记录查不到（过期/未持久化）：转
-                // transcript 单独定性
+                // 真 missing（状态端点 404）：转 trans-
+                // cript 单独定性；transcript 也无证据且
+                // missing 持续 60s → 本次访问记账＋裁
+                // 决（终局判失败，或留账下次续查）
+                if missingPollsStartedAt == nil {
+                    missingPollsStartedAt = Date()
+                }
                 runMachine.apply(.statusMissing)
                 if await settleRunFromTranscript(
                     thread: thread, entry: entry
                 ) {
+                    return
+                }
+                if let started = missingPollsStartedAt,
+                   Date().timeIntervalSince(started) > 60 {
+                    if recordMissingRunVisit(
+                        thread: thread, entry: &entry,
+                        demoMode: demoMode
+                    ) {
+                        finishRunPresentation(failed: true)
+                    } else {
+                        showNotice(
+                            "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
+                            tier: .extended
+                        )
+                        finishRunPresentation(failed: false)
+                    }
                     return
                 }
                 try? await Task.sleep(for: .seconds(3))
@@ -12712,6 +13111,24 @@ private struct ComposerBarLayout: Layout {
                     "这条还没发出去，网络恢复后会自动发送，也可以点按消息旁的时钟重发。",
                     tier: .extended
                 )
+                finishRunPresentation(failed: false)
+            } else if missingPollsStartedAt != nil {
+                // 本次访问见过真 missing、预算先磨完
+                // （未满 60s 观察窗）：同样记一次访问
+                // ＋裁决，不许带「还在生成」的假话退
+                // 场（语义 6）
+                if recordMissingRunVisit(
+                    thread: thread, entry: &entry,
+                    demoMode: demoMode
+                ) {
+                    finishRunPresentation(failed: true)
+                } else {
+                    showNotice(
+                        "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
+                        tier: .extended
+                    )
+                    finishRunPresentation(failed: false)
+                }
             } else {
                 // 体面出口：生成仍在服务端进行（或结
                 // 果待查），账本保留、下次进本线程自
@@ -12721,8 +13138,8 @@ private struct ComposerBarLayout: Layout {
                     "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。",
                     tier: .extended
                 )
+                finishRunPresentation(failed: false)
             }
-            finishRunPresentation(failed: false)
         }
     }
 
@@ -12945,9 +13362,14 @@ private struct ComposerBarLayout: Layout {
                     + " run=\(entry.runID ?? "-")"
             )
             if !appState.isDemo {
-                markRunFailure(entry: entry, in: thread)
+                markRunFailure(
+                    entry: entry, in: thread, failure: failure
+                )
             }
-            presentError(failure)
+            presentSendFailure(
+                kind: SendFailureKind.classify(run: failure),
+                detail: failure.diagnosticDetail
+            )
             runMachine.apply(.transcriptSettled)
             finishRunPresentation(failed: true)
             return
@@ -12984,9 +13406,9 @@ private struct ComposerBarLayout: Layout {
     /// 号；落定点的既有写点保留作兜底（幂等同
     /// 值）。已送达/无状态条目不动（remainsIn-
     /// Queue 守卫），失败态条目在重发受理时经此
-    /// 清失败标记（markSendState 的 delivered
-    /// 语义自带）
-    private func markAcceptedEntryDelivered(
+    /// 清失败标记（markSendState 的 accepted/
+    /// delivered 同组语义自带）
+    private func markAcceptedEntryAccepted(
         thread: ChatThread, userEntryID: String
     ) {
         guard let userEntry = thread.entries.first(
@@ -12994,7 +13416,14 @@ private struct ComposerBarLayout: Layout {
               ),
               userEntry.sendState?.remainsInQueue == true
         else { return }
-        userEntry.markSendState(.delivered, in: modelContext)
+        // 发送失败机制包（语义 1 双轴）：内部状态落
+        // .accepted 而非 .delivered——呈现与 §426 不
+        // 变（markSendState 的 accepted 组合同 deliv-
+        // ered：清失败标记＋送达投影，气泡全色、时钟
+        // 离席），但条目在 run 真终态前不脱离发件箱
+        // 语义：重试记账活到落定、发件箱判定不再把
+        // 在飞条目当已完成（B1 清账错位的根）
+        userEntry.markSendState(.accepted, in: modelContext)
     }
 
     /// 落定入账：整段替换本轮半截条目（工具卡＋带思
@@ -13048,9 +13477,14 @@ private struct ComposerBarLayout: Layout {
                         userEntryID: uid
                     )
                 }
-                markRunFailure(entry: entry, in: thread)
+                markRunFailure(
+                    entry: entry, in: thread, failure: failure
+                )
             }
-            presentError(failure)
+            presentSendFailure(
+                kind: SendFailureKind.classify(run: failure),
+                detail: failure.diagnosticDetail
+            )
             finishRunPresentation(failed: true)
             return
         }
@@ -13072,6 +13506,11 @@ private struct ComposerBarLayout: Layout {
                 userEntry.serverRowID = rowID
             }
             userEntry.markSendState(.delivered, in: modelContext)
+            // 发送失败机制包（语义 1 清账点①）：run
+            // 真终态落定成功——本条重试记账在此单点
+            // 清（按条目 id、不扫线程）；失败支不许
+            // 清（账留着钉死准入）
+            appState.outboxRetry.clear(entryID: userEntry.id)
         }
         let endDate = Date()
         for (index, card) in settled.toolCards.enumerated() {

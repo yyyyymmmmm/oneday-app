@@ -457,7 +457,7 @@ extension ChatSchemaV2 {
             switch state {
             case .failed:
                 sendFailed = true
-            case .delivered:
+            case .accepted, .delivered:
                 sendFailed = false
                 deliveryState = nil
             case .queued, .uploading, .linking, .sending:

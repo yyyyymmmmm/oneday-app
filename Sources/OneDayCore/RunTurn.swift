@@ -436,11 +436,22 @@ public struct RunLedgerEntry: Codable, Sendable, Equatable {
     public var userEntryID: String
     public var submittedAt: Date
     public var stopRequested: Bool
+    /// run 丢失对账累计（发送失败机制包·语义 7）：
+    /// status 真查不到（404）且 transcript 无迹的
+    /// 对账访问次数＋首次查不到的时刻，跨访问落盘
+    /// 累计。旧口径 600s 期限只在单次调用内——run
+    /// 被服务端丢失后每次访问重磨 600s、永无终局
+    /// （断环 B2），账本成活账。此二字段是终局裁
+    /// 决（RunLedger.missingRunIsLost）的唯一材料
+    public var missingReconcileCount: Int
+    public var firstMissingAt: Date?
 
     public init(
         threadID: String, sessionID: String, runID: String?,
         idempotencyKey: String, userEntryID: String,
-        submittedAt: Date, stopRequested: Bool = false
+        submittedAt: Date, stopRequested: Bool = false,
+        missingReconcileCount: Int = 0,
+        firstMissingAt: Date? = nil
     ) {
         self.threadID = threadID
         self.sessionID = sessionID
@@ -449,6 +460,71 @@ public struct RunLedgerEntry: Codable, Sendable, Equatable {
         self.userEntryID = userEntryID
         self.submittedAt = submittedAt
         self.stopRequested = stopRequested
+        self.missingReconcileCount = missingReconcileCount
+        self.firstMissingAt = firstMissingAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case threadID, sessionID, runID, idempotencyKey
+        case userEntryID, submittedAt, stopRequested
+        case missingReconcileCount, firstMissingAt
+    }
+
+    /// 存量落盘 JSON 无丢失累计二字段：缺键按零账
+    /// 解，不许整账解码失败连坐全部未落定轮
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(
+            keyedBy: CodingKeys.self
+        )
+        threadID = try container.decode(
+            String.self, forKey: .threadID
+        )
+        sessionID = try container.decode(
+            String.self, forKey: .sessionID
+        )
+        runID = try container.decodeIfPresent(
+            String.self, forKey: .runID
+        )
+        idempotencyKey = try container.decode(
+            String.self, forKey: .idempotencyKey
+        )
+        userEntryID = try container.decode(
+            String.self, forKey: .userEntryID
+        )
+        submittedAt = try container.decode(
+            Date.self, forKey: .submittedAt
+        )
+        stopRequested = try container.decodeIfPresent(
+            Bool.self, forKey: .stopRequested
+        ) ?? false
+        missingReconcileCount = try container
+            .decodeIfPresent(
+                Int.self, forKey: .missingReconcileCount
+            ) ?? 0
+        firstMissingAt = try container.decodeIfPresent(
+            Date.self, forKey: .firstMissingAt
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+        try container.encode(threadID, forKey: .threadID)
+        try container.encode(sessionID, forKey: .sessionID)
+        try container.encodeIfPresent(runID, forKey: .runID)
+        try container.encode(
+            idempotencyKey, forKey: .idempotencyKey
+        )
+        try container.encode(userEntryID, forKey: .userEntryID)
+        try container.encode(submittedAt, forKey: .submittedAt)
+        try container.encode(stopRequested, forKey: .stopRequested)
+        try container.encode(
+            missingReconcileCount, forKey: .missingReconcileCount
+        )
+        try container.encodeIfPresent(
+            firstMissingAt, forKey: .firstMissingAt
+        )
     }
 }
 
@@ -509,6 +585,30 @@ public enum RunLedger {
     ) -> [RunLedgerEntry] {
         entries.filter { $0.userEntryID != userEntryID }
     }
+
+    /// run 丢失终局裁决（发送失败机制包·语义 7）：
+    /// 查不到的对账访问累计达 3 次，或首次查不到
+    /// 距今满 24h——给「结果丢失」终局（条目落可
+    /// 重发失败面、账本摘除），不许活账本无限续磨。
+    /// 次数与时长双闸取或：勤访问的用户三次见分
+    /// 晓，久不打开的用户 24h 后一进线程即裁决
+    public static let lostRunMissingVisitLimit = 3
+    public static let lostRunMissingAgeLimit: TimeInterval =
+        24 * 3600
+
+    public static func missingRunIsLost(
+        missingCount: Int, firstMissingAt: Date?, now: Date
+    ) -> Bool {
+        if missingCount >= lostRunMissingVisitLimit {
+            return true
+        }
+        if let firstMissingAt,
+           now.timeIntervalSince(firstMissingAt)
+               >= lostRunMissingAgeLimit {
+            return true
+        }
+        return false
+    }
 }
 
 /// §451 提交错误分型（与 driveRun 提交段同口径单
@@ -516,16 +616,25 @@ public enum RunLedger {
 /// 分型——确定未发出（设备无网、请求没出设备）折
 /// 回待发巷；瞬断（transientNetwork）有界重试、同
 /// key 重演回原 run；其余（鉴权/状态码/解码）为明
-/// 确拒绝。非 HermesError 照 driveRun 口径归结果
-/// 未知（瞬态档：重试耗尽后账本留席交对账，不定
-/// 性为错误）。429（全局并发帽）/409（queue_full）
-/// 经客户端 unexpectedStatus 到达、归明确拒绝：
-/// 条目落 .failed 未受理失败，堵泵走发件箱重试轨
+/// 确拒绝。429（全局并发帽）经客户端 rateLimited
+/// 到达、走等待门（提交段内按 Retry-After 等待，
+/// 不落失败）；409（queue_full）归明确拒绝：条目
+/// 落 .failed 未受理失败，堵泵走发件箱重试轨
 /// （DESIGN §451）。
+///
+/// 发送失败机制包（横扫 P1-1 关账）：非 Hermes-
+/// Error 不再一律判瞬态——判不出成因的错误单列
+/// .unknown，只许在单次尝试内再试 1 次，耗尽走
+/// 结果未知（账本留席交对账，不定性为错误、不
+/// 直落失败）。本分型只是「单次尝试内的传输手
+/// 段」（语义 2）：不持独立预算、不增发件箱次
+/// 数账，条目一生的自动预算只在 OutboxAuto-
+/// RetryPolicy 一本账
 public enum RunSubmitRetry {
     public enum Classification: Sendable {
         case notSentOffline
         case transient
+        case unknown
         case rejected
     }
 
@@ -533,11 +642,15 @@ public enum RunSubmitRetry {
     /// 再试 2 次，恒同幂等键）
     public static let maxTransientRetries = 2
 
+    /// 未知成因重试上限：只试 1 次——判不出的错误
+    /// 不配拿瞬态的全额重试（P1-1）
+    public static let maxUnknownRetries = 1
+
     public static func classify(
         _ error: Error
     ) -> Classification {
         guard let hermesError = error as? HermesError
-        else { return .transient }
+        else { return .unknown }
         if case .notSentOffline = hermesError {
             return .notSentOffline
         }

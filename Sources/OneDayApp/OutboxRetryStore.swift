@@ -36,14 +36,37 @@ final class OutboxRetryStore {
         records[entryID.uuidString]
     }
 
-    /// 记一次自动重试已发起（次数＋1、时刻落账）：
-    /// 在真正调重发入口之前调用——进程在重发途中
-    /// 身亡，这次尝试也算数，退避不被重启清零
-    func noteAutoAttempt(entryID: UUID, at date: Date) {
+    /// 记一次自动重试（次数＋1、时刻落账）：发送
+    /// 失败机制包（语义 2）改记账点——在自动重投
+    /// 执行完毕后调用（无论成败），与成因同落；
+    /// 旧口径在执行前记账，配合「受理清账」让账
+    /// 在真终态前被扫掉，是死循环的账面一环。
+    /// 抖动也在本点一次抽定存账：退避到期点须
+    /// 全程同值，提交泵每秒重算不许重抽
+    func noteAutoAttempt(
+        entryID: UUID, at date: Date,
+        jitterUnit: Double = 0
+    ) {
         var record = records[entryID.uuidString]
             ?? OutboxRetryRecord()
         record.attempts += 1
         record.lastAttemptAt = date
+        record.lastBackoffJitterUnit = min(max(jitterUnit, 0), 1)
+        records[entryID.uuidString] = record
+        persist()
+    }
+
+    /// 失败成因落账（发送失败机制包·语义 3）：失
+    /// 败落点（markTurnFailed）同点写——次数不动，
+    /// 只记成因；政策准入、呈现投影、文案取词全
+    /// 读它，不许成因只活在某次调用的局部变量里
+    func setFailureKind(
+        entryID: UUID, kind: SendFailureKind
+    ) {
+        var record = records[entryID.uuidString]
+            ?? OutboxRetryRecord()
+        guard record.lastFailureKind != kind else { return }
+        record.lastFailureKind = kind
         records[entryID.uuidString] = record
         persist()
     }
