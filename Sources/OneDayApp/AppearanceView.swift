@@ -277,7 +277,7 @@ struct AppearanceView: View {
             // 用户泡（带字、主题色现读）
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
-                Text("帮我看下明早去车站的高铁票")
+                Text(L10n.string("帮我看下明早去车站的高铁票"))
                     .font(.body)
                     .foregroundStyle(Palette.userBubbleText)
                     .padding(
@@ -307,12 +307,12 @@ struct AppearanceView: View {
                         .fill(Palette.primary)
                         .frame(width: 3, height: 18)
                         .accessibilityHidden(true)
-                    Text("明早去车站的高铁票")
+                    Text(L10n.string("明早去车站的高铁票"))
                         .font(.subheadline)
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityHidden(true)
                 }
-                Text("订好了，9:05 发车，提前 40 分钟到站就行。")
+                Text(L10n.string("订好了，9:05 发车，提前 40 分钟到站就行。"))
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .accessibilityHidden(true)
