@@ -50,7 +50,7 @@ struct EnvVarEditorView: View {
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.top, OneDayMetrics.spacingM)
             }
-            .background(Palette.pageBG)
+            .background(Palette.settingsBG)
             .navigationTitle(existingKey == nil ? "新增环境变量" : "修改值")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

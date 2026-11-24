@@ -123,7 +123,7 @@ struct MemoryView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Text(activeName)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text("内置文件 \(AdminFormat.count(totalFiles)) 条")
@@ -216,7 +216,7 @@ struct MemoryView: View {
     private func fileRow(label: String, value: Double?) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(label)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value.map { AdminFormat.count($0) } ?? "—")
@@ -249,7 +249,7 @@ struct MemoryView: View {
         } label: {
             HStack {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -377,7 +377,7 @@ struct MemoryProviderConfigView: View {
                     GroupDivider()
                     HStack {
                         Text("当前提供方")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                         Text("使用中")

@@ -179,7 +179,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text("\(proposal.operation.label) · \(proposal.target.label)")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if let note = proposal.note {
@@ -201,7 +201,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(record.headline)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("上次打开时提交的，还在等审批。")
@@ -264,7 +264,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(MemoryEntryPresentation.displayTitle(of: entry))
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(2)
                 Text(AdminFormat.short(
@@ -561,7 +561,7 @@ struct MemoryEntryEditorView: View {
             if isEdit {
                 HStack {
                     Text(target.label)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Text("目标文件不能改")

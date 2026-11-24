@@ -32,7 +32,7 @@ struct SkillsView: View {
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text("技能商店")
-                                    .font(.body)
+                                    .font(.rowTitleL)
                                     .foregroundStyle(Palette.ink)
                                 Text("从技能库搜索并安装新技能")
                                     .font(.footnote)
@@ -131,7 +131,7 @@ struct SkillsView: View {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         HStack(spacing: OneDayMetrics.spacingXS) {
                             Text(skill.name)
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             if skill.locked == true {
                                 Image(systemName: "lock")
@@ -275,7 +275,7 @@ struct SkillDetailView: View {
                 }
                 HStack {
                     Text("启用")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Toggle("", isOn: $isEnabled)
@@ -291,7 +291,7 @@ struct SkillDetailView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("锁定")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Text("锁定后不能改内容、不能停用")
                             .font(.footnote)
@@ -342,13 +342,13 @@ struct SkillDetailView: View {
             Group {
                 if isEditing {
                     TextEditor(text: $draft)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(.metaMonospaced)
                         .frame(minHeight: 320)
                         .scrollContentBackground(.hidden)
                         .padding(OneDayMetrics.spacingS)
                 } else if let content {
                     Text(content)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(.metaMonospaced)
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

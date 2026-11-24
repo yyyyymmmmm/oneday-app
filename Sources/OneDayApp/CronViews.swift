@@ -25,7 +25,7 @@ struct CronJobsView: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Text(detail)
                     .font(.footnote)
@@ -208,7 +208,7 @@ struct CronJobsView: View {
                 StatusDot(color: job.enabled ? Palette.success : Palette.inkMuted)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(job.title)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(job.scheduleText)
@@ -428,7 +428,7 @@ struct CronJobDetailView: View {
                         .foregroundStyle(Palette.danger)
                         .accessibilityHidden(true)
                     Text(CronPresentation.errorSummary(error))
-                        .font(.subheadline)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.ink)
                 }
                 Button {
@@ -526,7 +526,7 @@ struct CronJobDetailView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(AdminFormat.short(run.startedDate))
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(runSubtitle(run))
                         .font(.footnote)
@@ -576,7 +576,7 @@ struct CronJobDetailView: View {
                 } label: {
                     HStack {
                         Text("删除任务")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.danger)
                         Spacer()
                     }
@@ -604,7 +604,7 @@ struct CronJobDetailView: View {
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }

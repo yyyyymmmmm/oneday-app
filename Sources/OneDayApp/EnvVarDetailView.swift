@@ -69,7 +69,7 @@ struct EnvVarDetailView: View {
                                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                                     .accessibilityHidden(true)
                                 Text("删除")
-                                    .font(.body)
+                                    .font(.rowTitleL)
                                     .foregroundStyle(Palette.danger)
                                 Spacer()
                             }
@@ -92,7 +92,7 @@ struct EnvVarDetailView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle(entry.key)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showEditor) {
@@ -118,7 +118,7 @@ struct EnvVarDetailView: View {
     private var valueRow: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text("当前值")
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             if let revealed {
@@ -149,7 +149,7 @@ struct EnvVarDetailView: View {
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }

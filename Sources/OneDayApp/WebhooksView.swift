@@ -65,7 +65,7 @@ struct WebhooksView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                     Text(oneTime.secret)
-                        .font(.footnote.monospaced())
+                        .font(.metaMonospaced)
                         .textSelection(.enabled)
                     Button("我已保存，关掉") { store.dismissOneTimeSecret() }
                 } header: {
@@ -77,6 +77,7 @@ struct WebhooksView: View {
             content
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("外部事件")
@@ -164,7 +165,7 @@ struct WebhooksView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                     Text(page.baseURL)
-                        .font(.footnote.monospaced())
+                        .font(.metaMonospaced)
                         .foregroundStyle(Palette.inkSecondary)
                         .textSelection(.enabled)
                 }
@@ -189,7 +190,7 @@ struct WebhooksView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text(route.name)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if !route.enabled {
                             Text("已停用")

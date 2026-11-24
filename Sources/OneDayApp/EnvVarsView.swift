@@ -70,7 +70,7 @@ struct EnvVarsView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle("服务器密钥")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

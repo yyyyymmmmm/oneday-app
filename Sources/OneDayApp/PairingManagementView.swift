@@ -141,7 +141,7 @@ struct PairingManagementView: View {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
                     Text("正在读取配对清单…")
-                        .font(.subheadline)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
@@ -150,7 +150,7 @@ struct PairingManagementView: View {
         case .notLoggedIn:
             Section {
                 Text("登录已过期。回到连接页重新登录后，再回来管理配对。")
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
                 retryRow
             }
@@ -159,7 +159,7 @@ struct PairingManagementView: View {
         case .failed(let message):
             Section {
                 Text(message)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
                 retryRow
             }
@@ -187,7 +187,7 @@ struct PairingManagementView: View {
         if response.pending.isEmpty && response.approved.isEmpty {
             Section {
                 Text("还没有消息平台接入；接入 Telegram／WhatsApp 等平台后，在这里批准新用户。")
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
             }
             .listRowBackground(Palette.surface)
@@ -225,7 +225,7 @@ struct PairingManagementView: View {
                     Button("清空全部待批申请", role: .destructive) {
                         showClearConfirm = true
                     }
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .disabled(store.isClearing)
                 }
                 .listRowBackground(Palette.surface)
@@ -245,7 +245,7 @@ struct PairingManagementView: View {
                 spacing: OneDayMetrics.spacingMicro
             ) {
                 Text(entry.userName.isEmpty ? entry.userID : entry.userName)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.ink)
                 Text(pendingMeta(entry))
                     .font(.caption)
@@ -284,7 +284,7 @@ struct PairingManagementView: View {
                 spacing: OneDayMetrics.spacingMicro
             ) {
                 Text(entry.userName.isEmpty ? entry.userID : entry.userName)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.ink)
                 Text(approvedMeta(entry))
                     .font(.caption)
@@ -387,6 +387,6 @@ struct PairingManagementView: View {
     }
 
     private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 }

@@ -65,7 +65,7 @@ struct ChatDiagnosticsView: View {
         List {
             Section {
                 Text(ChatLagProbe.summaryLine())
-                    .font(.footnote.monospaced())
+                    .font(.metaMonospaced)
                     .textSelection(.enabled)
             } header: {
                 Text("卡顿探针")
@@ -74,7 +74,7 @@ struct ChatDiagnosticsView: View {
 
             Section {
                 Text(ChatNativeRowMeasureDesk.backlogLine())
-                    .font(.footnote.monospaced())
+                    .font(.metaMonospaced)
                     .textSelection(.enabled)
             } header: {
                 Text("量测台")
@@ -83,7 +83,7 @@ struct ChatDiagnosticsView: View {
 
             Section {
                 Text(bubbleLine())
-                    .font(.footnote.monospaced())
+                    .font(.metaMonospaced)
                     .textSelection(.enabled)
             } header: {
                 Text("气泡解析（台账 188）")
@@ -104,7 +104,7 @@ struct ChatDiagnosticsView: View {
                         id: \.offset
                     ) { _, line in
                         Text(line)
-                            .font(.footnote.monospaced())
+                            .font(.metaMonospaced)
                             .textSelection(.enabled)
                     }
                 }
@@ -116,6 +116,7 @@ struct ChatDiagnosticsView: View {
             labSection
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("聊天诊断")

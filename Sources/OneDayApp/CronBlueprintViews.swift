@@ -147,7 +147,7 @@ struct CronBlueprintPickerView: View {
         HStack(spacing: OneDayMetrics.spacingS) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(blueprint.title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 if let scheduleHuman = blueprint.scheduleHuman, !scheduleHuman.isEmpty {
                     Text(scheduleHuman)

@@ -853,10 +853,7 @@ struct HealthCheckView: View {
     // MARK: - 口径件
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.sectionLabel)
-            .foregroundStyle(Palette.inkSecondary)
-            .textCase(nil)
+        SettingsSectionHeader(title)
     }
 
     private func verdictColor(_ verdict: HealthVerdict) -> Color {
@@ -879,6 +876,6 @@ struct HealthCheckView: View {
     }
 
     private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 }

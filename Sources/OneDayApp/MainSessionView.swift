@@ -109,10 +109,7 @@ struct MainSessionView: View {
                     .listRowBackground(Palette.surface)
                 }
             } header: {
-                Text("会话信息")
-                    .font(.sectionLabel)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .textCase(nil)
+                SettingsSectionHeader("会话信息")
             }
             .listRowInsets(settingsRowInsets)
 
@@ -204,10 +201,7 @@ struct MainSessionView: View {
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                     .listRowBackground(Palette.surface)
                 } header: {
-                    Text("认领记录")
-                        .font(.sectionLabel)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .textCase(nil)
+                    SettingsSectionHeader("认领记录")
                 }
                 .listRowInsets(settingsRowInsets)
             }
@@ -329,7 +323,7 @@ struct MainSessionView: View {
     }
 
     private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 
     /// epoch 秒 → 人话时刻（认领记录行用）

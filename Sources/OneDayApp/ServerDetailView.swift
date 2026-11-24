@@ -38,7 +38,7 @@ struct ServerDetailView: View {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         StatusDot(color: statusDotColor)
                         Text(statusRowText)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                         if !hasRetested, !retestFailed,
@@ -75,7 +75,7 @@ struct ServerDetailView: View {
                                     .foregroundStyle(Palette.success)
                                     .accessibilityHidden(true)
                                 Text(saveResult)
-                                    .font(.subheadline)
+                                    .font(.rowSubtitle)
                                     .foregroundStyle(Palette.ink)
                             }
                         }
@@ -99,7 +99,7 @@ struct ServerDetailView: View {
                     } label: {
                         HStack {
                             Text("重新测试连接")
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             if isRetesting {
@@ -124,7 +124,7 @@ struct ServerDetailView: View {
                                         .foregroundStyle(Palette.success)
                                         .accessibilityHidden(true)
                                     Text(retestResult)
-                                        .font(.subheadline)
+                                        .font(.rowSubtitle)
                                         .foregroundStyle(Palette.ink)
                                 }
                             }
@@ -223,7 +223,7 @@ struct ServerDetailView: View {
                             )
                             .foregroundStyle(Palette.danger)
                             Text("断开连接")
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.danger)
                             Spacer(minLength: OneDayMetrics.spacingS)
                         }
@@ -253,7 +253,7 @@ struct ServerDetailView: View {
         } message: {
             Text("将清除这台手机上保存的服务器凭据与登录会话。本地聊天记录保留。")
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle("当前服务器")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -289,7 +289,7 @@ struct ServerDetailView: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Text(summary)
                     .font(.footnote)

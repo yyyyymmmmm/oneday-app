@@ -79,7 +79,7 @@ struct AuxModelsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(slot.title())
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(slot.detail())
                         .font(.footnote)

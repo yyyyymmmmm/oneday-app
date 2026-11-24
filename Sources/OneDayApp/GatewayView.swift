@@ -61,7 +61,7 @@ struct GatewayView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle("网关状态")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
@@ -124,7 +124,7 @@ struct GatewayView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                     Text(stateWord(status))
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
@@ -169,7 +169,7 @@ struct GatewayView: View {
                             StatusDot(color: Palette.stateColor(platform.state))
                             // 卡 11：平台名/状态词走翻译层
                             Text(ServerLabels.platformName(name))
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             Text(ServerLabels.platformState(platform.state))
@@ -200,7 +200,7 @@ struct GatewayView: View {
                 NavigationLink(value: SettingsRoute.usage) {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Text("用量")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                         DisclosureChevron(
@@ -249,7 +249,7 @@ struct GatewayView: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(danger ? Palette.danger : Palette.ink)
                 Spacer()
                 if isActing {
@@ -336,7 +336,7 @@ struct GatewayView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             HStack {
                 Text(label)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(detail)

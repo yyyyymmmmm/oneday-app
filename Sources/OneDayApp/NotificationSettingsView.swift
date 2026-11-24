@@ -102,6 +102,6 @@ struct NotificationSettingsView: View {
     }
 
     private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 }

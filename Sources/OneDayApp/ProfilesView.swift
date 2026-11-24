@@ -58,7 +58,7 @@ struct ProfilesView: View {
                             .padding(.bottom, OneDayMetrics.spacingS)
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             Text(activeName)
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             Text("使用中")
@@ -206,7 +206,7 @@ struct ProfilesView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(profile.name)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if profile.isDefault == true {
                             Text("默认")
@@ -681,7 +681,7 @@ struct ImportProfileSheet: View {
                             spacing: OneDayMetrics.spacingMicro
                         ) {
                             Text(item.fileName)
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
                             Text(byteText(item.byteCount))
@@ -893,7 +893,7 @@ struct ProfileExportSheet: View {
                             .font(.body)
                             .foregroundStyle(Palette.ink)
                         Text(reference)
-                            .font(.system(.footnote, design: .monospaced))
+                            .font(.metaMonospaced)
                             .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
                         Text("需要恢复时，在「导入档案」里填这个路径即可导回。")
@@ -1036,14 +1036,14 @@ private struct PersonaEntryRow: View {
             } else if store.identityFailed {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Text("人设没读出来，检查连接后再试。")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Button("重试") {
                         Task { await store.loadIdentityIfNeeded() }
                     }
-                    .font(.body)
+                    .font(.rowTitleL)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
@@ -1052,7 +1052,7 @@ private struct PersonaEntryRow: View {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
                     Text("正在读取人设…")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
@@ -1065,7 +1065,7 @@ private struct PersonaEntryRow: View {
     private var rowLabel: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text("编辑人设")
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))

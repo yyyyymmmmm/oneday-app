@@ -762,9 +762,7 @@ struct DeviceStatusHeader: View {
             // 承接，授权区/通道状态区整组退役（用户
             // 00:03 定版：只剩一个开关）
         }
-        .listRowInsets(
-            EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
-        )
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     /// 系统权限行（0.36.5，用户 19:03 点名改开关
@@ -788,7 +786,7 @@ struct DeviceStatusHeader: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 permissionTitle
                 Text(permission.label)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
@@ -847,7 +845,7 @@ struct DeviceStatusHeader: View {
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.trailing)
         }
@@ -879,9 +877,7 @@ private func headerText(_ title: String) -> some View {
         .textCase(nil)
 }
 
-private let deviceRowInsets = EdgeInsets(
-    top: 0, leading: 20, bottom: 0, trailing: 20
-)
+private let deviceRowInsets = OneDayMetrics.settingsRowInsets
 
 /// 未授权/被拒时的降级说明（内容区替换，不留空白页）
 struct DevicePermissionGate: View {
@@ -1556,7 +1552,7 @@ struct ContactsDetailView: View {
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.inkSecondary)
                 .textSelection(.enabled)
         }
@@ -1619,7 +1615,7 @@ struct DevicePermissionsView: View {
                                 .foregroundStyle(Palette.ink)
                             Spacer(minLength: OneDayMetrics.spacingS)
                             Text(permissionCardPhaseLine(card.phase))
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                         .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -1637,7 +1633,7 @@ struct DevicePermissionsView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Text(controller.sessionOnline ? "在线" : "离线")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -2558,7 +2554,7 @@ struct TranslateDetailView: View {
                             .foregroundStyle(Palette.ink)
                         Spacer(minLength: OneDayMetrics.spacingS)
                         Text(row.status)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .frame(
@@ -2612,7 +2608,7 @@ struct OnDeviceDetailView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Text(OnDeviceModelEngine.availabilityLine())
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                         .multilineTextAlignment(.trailing)
                 }
@@ -2656,7 +2652,7 @@ struct BiometricDetailView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Text(BiometricEngine.biometryKindText())
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -2808,7 +2804,7 @@ struct MediaDetailView: View {
                             .foregroundStyle(Palette.ink)
                         Spacer(minLength: OneDayMetrics.spacingS)
                         Text(playbackLine ?? "读取中")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.inkSecondary)
                             .multilineTextAlignment(.trailing)
                     }
@@ -3117,7 +3113,7 @@ struct DeviceInfoDetailView: View {
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.trailing)
         }

@@ -88,7 +88,7 @@ struct LogsView: View {
             // 避让回系统安全区；留常规尾距
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle("日志")
         .navigationBarTitleDisplayMode(.inline)
         // 搜索挂导航栏抽屉常显（第 88 条）：位置自页
