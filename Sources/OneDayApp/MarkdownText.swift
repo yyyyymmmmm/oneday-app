@@ -29,6 +29,13 @@ struct MarkdownText: View {
     /// 不在产物内、产物未就绪）走 §168 既有拼装；
     /// 其他消费面不传＝全段既有拼装、行为不变
     let segmentProducts: [Int: NSAttributedString]?
+    /// §503：查找着色查询（对话内查找激活且本行在
+    /// 命中集内时由 ChatView 注入；其余消费面不传
+    /// ＝nil、行为逐字不变）——散文/引用/任务项经
+    /// SelectableInlineText 呈现串着色、代码块经本
+    /// 层属性串后处理；表格单元格走 inline 解析、
+    /// 字符序与原文不恒等，本包未覆盖（§503 登记）
+    let searchHighlightQuery: String?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.legibilityWeight) private var legibilityWeight
@@ -37,12 +44,14 @@ struct MarkdownText: View {
         _ content: String,
         onSelectionChange: ((Bool) -> Void)? = nil,
         segmentProducts: [Int: NSAttributedString]? = nil,
-        allowsDirectSelection: Bool = true
+        allowsDirectSelection: Bool = true,
+        searchHighlightQuery: String? = nil
     ) {
         self.content = content
         self.onSelectionChange = onSelectionChange
         self.segmentProducts = segmentProducts
         self.allowsDirectSelection = allowsDirectSelection
+        self.searchHighlightQuery = searchHighlightQuery
     }
 
     private var blocks: [MarkdownBlock] {
@@ -106,7 +115,8 @@ struct MarkdownText: View {
             foreground: Palette.bodyInk,
             onSelectionChange: onSelectionChange,
             allowsDirectSelection: allowsDirectSelection,
-            prebuiltAttributed: product
+            prebuiltAttributed: product,
+            searchHighlightQuery: searchHighlightQuery
         )
     }
 
@@ -204,8 +214,13 @@ struct MarkdownText: View {
                 CopyButton(text: code)
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(highlighted(code, language: language))
-                    .textSelection(.enabled)
+                Text(
+                    findHighlighted(
+                        highlighted(code, language: language),
+                        code: code
+                    )
+                )
+                .textSelection(.enabled)
             }
             // 右滑引用排除区（0.36.26 §95）：本区横
             // 滑归代码横滚，起始点落在此不触发本行
@@ -226,6 +241,44 @@ struct MarkdownText: View {
                 cornerRadius: OneDayMetrics.codeCorner
             )
         )
+    }
+
+    /// §503：代码块查找着色——词法拼装的属性串字
+    /// 符序与代码原文恒等（tokens 是原文的一个划
+    /// 分），按字符偏移把命中区间映射回属性串加底；
+    /// 无查询/无命中时原样返回
+    private func findHighlighted(
+        _ attributed: AttributedString, code: String
+    ) -> AttributedString {
+        guard let query = searchHighlightQuery,
+              ChatFind.normalizedQuery(query) != nil
+        else { return attributed }
+        let ranges = ChatFind.occurrenceRanges(
+            in: code, query: query
+        )
+        guard !ranges.isEmpty else { return attributed }
+        var result = attributed
+        for nsRange in ranges {
+            guard let stringRange = Range(nsRange, in: code)
+            else { continue }
+            let lower = result.index(
+                result.startIndex,
+                offsetByCharacters: code.distance(
+                    from: code.startIndex,
+                    to: stringRange.lowerBound
+                )
+            )
+            let upper = result.index(
+                result.startIndex,
+                offsetByCharacters: code.distance(
+                    from: code.startIndex,
+                    to: stringRange.upperBound
+                )
+            )
+            result[lower..<upper].backgroundColor =
+                Palette.findMatchFill
+        }
+        return result
     }
 
     /// 高亮拼装：等宽 footnote 为底，类色映射——关键
@@ -296,7 +349,8 @@ struct MarkdownText: View {
                 foreground: Palette.inkSecondaryOnFill,
                 onSelectionChange: onSelectionChange,
                 allowsDirectSelection: allowsDirectSelection,
-                prebuiltAttributed: product
+                prebuiltAttributed: product,
+                searchHighlightQuery: searchHighlightQuery
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -331,7 +385,8 @@ struct MarkdownText: View {
                         textStyle: .body,
                         foreground: Palette.bodyInk,
                         onSelectionChange: onSelectionChange,
-                        allowsDirectSelection: allowsDirectSelection
+                        allowsDirectSelection: allowsDirectSelection,
+                        searchHighlightQuery: searchHighlightQuery
                     )
                     .alignmentGuide(.firstTextBaseline) { _ in
                         InlineTextFonts.firstBaseline(

@@ -498,6 +498,15 @@ public enum Palette {
         light: 0xFDF0DF,
         dark: UIColor.systemOrange.withAlphaComponent(0.20)
     )
+    /// 查找命中词底（§503）：对话内查找激活时正文
+    /// 命中词的着色面——成熟会话内查找的通行黄标
+    /// （WhatsApp/TG 同族）；浅档实色 #FBE38A、暗
+    /// 档随 pastel 家族同构造走系统黄 α0.40（压暗
+    /// 泡面仍可辨）
+    public static let findMatchFill = appleColor(
+        light: 0xFBE38A,
+        dark: UIColor.systemYellow.withAlphaComponent(0.40)
+    )
     /// 代码面（OpenMuse 行内/块代码底 #E2E4E7，
     /// assistant-response.tsx:17-18；暗档 0.36.1 改走
     /// fill 阶梯二级 secondarySystemFill——压泡面/卡

@@ -650,10 +650,25 @@ struct ChatView: View {
     /// D9：对话内查找状态
     @State private var showFind = false
     @State private var findQuery = ""
-    @State private var findMatches: [UUID] = []
-    @State private var findScrollTrigger = UUID()
-    @State private var currentFindIndex = 0
-    /// D9 补全：查找命中高亮的条目 id（1-2 秒后自动淡出）
+    /// §503：命中集＋当前下标收进 Core ChatFind-
+    /// Session 状态机（重算/翻页的落点目标由它返
+    /// 回、视图层一处赋值）；旧 findMatches/find-
+    /// CurrentIndex 两散状态与只写不读的 findScroll-
+    /// Trigger 死触发器一并退役（审计定因：触发器
+    /// 全仓无消费者、算完命中列表纹丝不动）
+    @State private var findSession = ChatFindSession()
+    /// §503：查找栏自己的焦点句柄（打开即聚焦、
+    /// 键盘升起；不借 composer 的焦点基建）
+    @FocusState private var findFieldFocused: Bool
+    /// §503：查找补窗的在飞令牌与已猎取键（线程＋
+    /// 查询）——同键只猎一次、新猎取置新令牌旧者
+    /// 作废（与全局链 searchHuntToken 分开记账，
+    /// 两条链互不作废）
+    @State private var findHuntToken: UUID?
+    @State private var findHuntedKey: String?
+    /// D9 补全：查找命中高亮的条目 id（§503 起真
+    /// 赋值：落点时置位、2.5 秒后自动清，与全局落
+    /// 点链 anchorHighlightEntryID 同口径）
     @State private var findHighlightEntryID: UUID?
     /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
     /// 行底色以 Palette.primaryTint 点亮、2.5 秒后清
@@ -1928,17 +1943,18 @@ struct ChatView: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.search)
+                .focused($findFieldFocused)
                 .onSubmit {
                     performFind()
                 }
             
             if !findQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if findMatches.isEmpty {
+                if findSession.matches.isEmpty {
                     Text("无结果")
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 } else {
-                    Text("\(currentFindIndex + 1)/\(findMatches.count)")
+                    Text("\(findSession.currentIndex + 1)/\(findSession.matches.count)")
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                         .monospacedDigit()
@@ -1953,7 +1969,7 @@ struct ChatView: View {
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
             }
-            .disabled(findMatches.isEmpty)
+            .disabled(findSession.matches.isEmpty)
             .buttonStyle(.odPressable)
             
             Button {
@@ -1964,14 +1980,11 @@ struct ChatView: View {
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
             }
-            .disabled(findMatches.isEmpty)
+            .disabled(findSession.matches.isEmpty)
             .buttonStyle(.odPressable)
             
             Button("完成") {
-                showFind = false
-                findQuery = ""
-                findMatches = []
-                currentFindIndex = 0
+                closeFind()
             }
             .font(.body)
             .buttonStyle(.odPressable)
@@ -1979,6 +1992,28 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.vertical, OneDayMetrics.spacingS)
         .background(.ultraThinMaterial)
+        // §503（第 5 件·打开自动聚焦）：查找栏入场
+        // 即把焦点交给输入框、键盘随之升起——旧形
+        // 态裸 TextField 无焦点句柄，点放大镜后还要
+        // 再点一次输入框
+        .onAppear {
+            findFieldFocused = true
+        }
+        // §503（第 4 件·输入即搜）：停打 200ms 后以
+        // 当前查询重算命中（任务随 id 变自动取消、
+        // 只落最后一拍），计数随打随变；空查询即时
+        // 清集不等防抖（栏内呈现同步归零）
+        .task(id: findQuery) {
+            guard showFind else { return }
+            guard ChatFind.normalizedQuery(findQuery) != nil
+            else {
+                clearFindMatches()
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            recomputeFind()
+        }
     }
 
     /// 中枢目的地（§434）：zoom 与标准 push 二选一
@@ -3189,8 +3224,13 @@ struct ChatView: View {
         // makeView/行菜单（含 plainText 提取）只在
         // 戳变时重建。戳内高用最终喂入高（§335：
         // 预计算值变即戳变、行描述随之重建）
+        // §503：查找着色口同折入戳——命中行带查询
+        // 字面、非命中行恒 "-"，查询/命中集一变命
+        // 中行戳变重建（着色增减的唯一失效路）
+        let findHL = findHighlightQuery(for: entry.id)
         let stamp = "\(memoKey)|\(feedHeight)"
             + "|\(highlighted ? "1" : "0")|\(styleKey)"
+            + "|F:\(findHL ?? "-")"
         // §374 影子记账（开关开时）：本行验证基入
         // 追踪器账——快照取本趟已验证的 Products
         // （本行只验证一次的穿线纪律不变）、环境
@@ -3214,6 +3254,7 @@ struct ChatView: View {
             var revision = baseRevision
             revision.addFlag(highlighted)
             revision.addText(styleKey)
+            revision.addText(findHL.map { "find:\($0)" })
             return ChatNativeRow(
                 key: key,
                 entryID: entry.id,
@@ -4828,61 +4869,213 @@ struct ChatView: View {
     }
 
 
-    // MARK: - D9 对话内查找
+    // MARK: - D9 对话内查找（§503 全件接线）
 
-    /// D9：执行查找，遍历当前会话消息
+    /// 执行查找（键盘「搜索」键）：与输入即搜同一
+    /// 条重算路，只是免防抖即时落
     private func performFind() {
-        guard let thread = currentThread else {
-            findMatches = []
-            currentFindIndex = 0
+        recomputeFind()
+    }
+
+    /// 重算命中（§503 第 1/4/6/7 件）：判定全在
+    /// Core ChatFind——本地已物化集算命中（范围口
+    /// 径与 D9 旧实现逐字一致：普通消息正文、工具
+    /// 卡/trace/回响/审批跳过）、起点取离当前阅读
+    /// 位置（顶可见行）最近一条、落座后经 apply-
+    /// FindTarget 直调收敛落点＋点亮；本地落空且
+    /// 允许补窗时走 huntFindWindow 服务端补窗后
+    /// 重算（补窗回来关补窗旗防自猎循环）
+    private func recomputeFind(allowHunt: Bool = true) {
+        guard let thread = currentThread,
+              let query = ChatFind.normalizedQuery(findQuery)
+        else {
+            clearFindMatches()
             return
         }
-        
-        let query = findQuery.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            findMatches = []
-            currentFindIndex = 0
+        let stubs = thread.sortedEntries.map { entry in
+            ChatFind.EntryStub(
+                id: entry.id, content: entry.content,
+                isSearchable: entry.toolCard == nil
+                    && entry.traceKey == nil
+                    && entry.echoKey == nil
+                    && entry.approvalKey == nil
+            )
+        }
+        let found = ChatFind.matches(entries: stubs, query: query)
+        guard !found.isEmpty else {
+            clearFindMatches()
+            if allowHunt {
+                huntFindWindow(query: query, thread: thread)
+            }
             return
         }
-        
-        // 遍历消息，大小写不敏感匹配
-        findMatches = thread.sortedEntries.compactMap { entry in
-            // 只搜索普通消息，跳过工具卡、回响、审批等
-            guard entry.toolCard == nil,
-                  entry.traceKey == nil,
-                  entry.echoKey == nil,
-                  entry.approvalKey == nil else {
-                return nil
-            }
-            
-            if entry.content.lowercased().contains(query) {
-                return entry.id
-            }
-            return nil
+        let anchorPosition = topVisibleEntryID.flatMap { anchorID in
+            stubs.firstIndex { $0.id == anchorID }
         }
-        
-        // 重置索引到第一个匹配
-        currentFindIndex = 0
-        
-        // 触发滚动到第一个匹配
-        if !findMatches.isEmpty {
-            findScrollTrigger = UUID()
+        let startIndex = ChatFind.nearestMatchIndex(
+            matchPositions: found.map(\.position),
+            anchorPosition: anchorPosition
+        )
+        var session = findSession
+        let target = session.recompute(
+            matches: found.map(\.id), startIndex: startIndex
+        )
+        findSession = session
+        if let target {
+            applyFindTarget(target)
         }
     }
-    
-    /// D9：导航到下一个匹配
+
+    /// 清集：会话与点亮一并归零（查询清空/本地无
+    /// 命中/收栏共用）；已猎取键随之作废——同一查
+    /// 询下次再搜可重新补窗
+    private func clearFindMatches() {
+        var session = findSession
+        session.reset()
+        findSession = session
+        findHighlightEntryID = nil
+        findHuntedKey = nil
+    }
+
+    /// 落点＋点亮（§503 第 1/2 件）：与全局落点链
+    /// landSearchFocus 同口——收敛滚动经面分发器
+    /// surfaceFocusEntry（Core SearchFocusConver-
+    /// gence：多次重滚＋漂移容差＋用户拖动弃权）、
+    /// 点亮经 findHighlightEntryID 置位、2.5 秒后
+    /// 值比对自清（连翻时新目标不被旧任务误清）。
+    /// 与全局链的差别只在免 350ms 等待：查找命中
+    /// 恒在已物化行集内、不待条目进行集
+    private func applyFindTarget(_ targetID: UUID) {
+        findHighlightEntryID = targetID
+        surfaceFocusEntry(targetID)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            if findHighlightEntryID == targetID {
+                findHighlightEntryID = nil
+            }
+        }
+    }
+
+    /// 查找着色口（§503 第 3 件）：查找激活且本行
+    /// 在命中集内 → 喂正文着色查询（归一后的原字
+    /// 面）；其余 nil。行重建由 nativeEntryRow 把
+    /// 本值折入 stamp/revision 保证——查询变/命中
+    /// 集变即重建该行、着色随之增减
+    private func findHighlightQuery(for entryID: UUID) -> String? {
+        guard showFind,
+              findSession.matches.contains(entryID)
+        else { return nil }
+        return ChatFind.normalizedQuery(findQuery)
+    }
+
+    /// 下一条（环绕）：会话返回目标即落点＋点亮
     private func navigateToNextMatch() {
-        guard !findMatches.isEmpty else { return }
-        currentFindIndex = (currentFindIndex + 1) % findMatches.count
-        findScrollTrigger = UUID()
+        var session = findSession
+        guard let target = session.moveNext() else { return }
+        findSession = session
+        applyFindTarget(target)
     }
-    
-    /// D9：导航到上一个匹配
+
+    /// 上一条（环绕）：同上
     private func navigateToPreviousMatch() {
-        guard !findMatches.isEmpty else { return }
-        currentFindIndex = (currentFindIndex - 1 + findMatches.count) % findMatches.count
-        findScrollTrigger = UUID()
+        var session = findSession
+        guard let target = session.movePrevious() else { return }
+        findSession = session
+        applyFindTarget(target)
+    }
+
+    /// 收栏清账（「完成」）：查询/会话/点亮/补窗令
+    /// 牌一并清——在飞补窗据令牌作废、不落别人线程
+    private func closeFind() {
+        showFind = false
+        findQuery = ""
+        findHuntToken = nil
+        clearFindMatches()
+    }
+
+    /// 查找补窗（§503 第 7 件）：本地已物化集搜不
+    /// 到时，复用全局落点链的服务端补窗机制——
+    /// timeline 分页寻址（上限 10 页）＋around 逐
+    /// 轮取窗＋insertHuntedWindow 同口落盘，命中
+    /// 窗落盘后本地重算接管。判定谓词与本地查找
+    /// 同口（正文大小写不敏感包含），不借 Search-
+    /// TargetResolution 的摘要针（短词与大小写口
+    /// 径不同、借来会出「猎到窗却重算落空」）；同
+    /// 线程同查询只猎一次，任一步线程被切/查询已
+    /// 改/令牌作废即静默收官（栏内仍显无结果、不
+    /// 假装定位——与 150 落空口径一致）
+    private func huntFindWindow(
+        query: String, thread: ChatThread
+    ) {
+        guard let sessionID = thread.serverSessionID,
+              !sessionID.isEmpty
+        else { return }
+        let huntKey = "\(thread.id.uuidString)|\(query)"
+        guard findHuntedKey != huntKey else { return }
+        findHuntedKey = huntKey
+        let threadID = thread.id
+        let token = UUID()
+        findHuntToken = token
+        let folded = query.lowercased()
+        Task { @MainActor in
+            var entries: [SessionTimelineEntry] = []
+            var cursor: Int64?
+            for _ in 0..<10 {
+                let afterCursor = cursor
+                guard let page = try? await appState.performAdmin(
+                    { client, config in
+                        try await client.sessionTimeline(
+                            config: config, id: sessionID,
+                            afterRowID: afterCursor,
+                            limit: AroundWindowHunt.timelineLimit
+                        )
+                    }
+                ) else {
+                    // 首面就失败 → 无从寻址、收官；中途
+                    // 失败 → 已拉条目照常进探针
+                    if entries.isEmpty { return }
+                    break
+                }
+                entries.append(contentsOf: page.entries)
+                guard currentThreadID == threadID,
+                      findHuntToken == token,
+                      let next = page.nextCursor, next != cursor
+                else { break }
+                cursor = next
+            }
+            guard currentThreadID == threadID,
+                  findHuntToken == token,
+                  ChatFind.normalizedQuery(findQuery) == query
+            else { return }
+            let direct = entries.first { entry in
+                entry.text?.lowercased().contains(folded) == true
+            }?.rowID
+            let order = AroundWindowHunt.probeOrder(
+                promptRowIDs: entries.map(\.rowID),
+                directRowID: direct
+            )
+            for rowID in order {
+                guard currentThreadID == threadID,
+                      findHuntToken == token,
+                      ChatFind.normalizedQuery(findQuery) == query
+                else { return }
+                guard let page = try? await appState.performAdmin(
+                    { client, config in
+                        try await client.sessionMessagesAround(
+                            config: config, id: sessionID,
+                            rowID: rowID,
+                            limit: AroundWindowHunt.pageLimit
+                        )
+                    }
+                ) else { continue }
+                guard page.messages.contains(where: { message in
+                    message.content.lowercased().contains(folded)
+                }) else { continue }
+                insertHuntedWindow(page.messages, into: thread)
+                recomputeFind(allowHunt: false)
+                return
+            }
+        }
     }
 
 
@@ -5479,7 +5672,11 @@ struct ChatView: View {
                             // 同前景令牌）；未命中走
                             // §168 拼装回落
                             prebuiltAttributed:
-                                entrySegmentProducts(entry)?[0]
+                                entrySegmentProducts(entry)?[0],
+                            // §503：查找着色（命中行正
+                            // 文命中词加底；非命中行 nil）
+                            searchHighlightQuery:
+                                findHighlightQuery(for: entry.id)
                         )
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
@@ -5857,7 +6054,11 @@ struct ChatView: View {
                             // 接选字（同用户泡口径）
                             segmentProducts:
                                 entrySegmentProducts(entry),
-                            allowsDirectSelection: false
+                            allowsDirectSelection: false,
+                            // §503：查找着色（命中行正
+                            // 文命中词加底；非命中行 nil）
+                            searchHighlightQuery:
+                                findHighlightQuery(for: entry.id)
                         )
                     }
                 }

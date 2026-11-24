@@ -105,6 +105,14 @@ struct SelectableInlineText: View {
     /// builtAttributedString 同源同式（同 build、
     /// 同段落映射），承载/选区口径不因来源而异
     var prebuiltAttributed: NSAttributedString?
+    /// §503：查找着色查询（对话内查找激活且本行在
+    /// 命中集内时由 ChatView 注入；其余消费面不传
+    /// ＝nil、行为逐字不变）——呈现串的副本上给全
+    /// 部命中词加 findMatchFill 底。着色只动背景属
+    /// 性、不动布局度量，量测台走 build 直拼不受
+    /// 影响；着色副本不进拼装缓存（缓存单源不被
+    /// 查找态污染，查找开关不使缓存失效）
+    var searchHighlightQuery: String? = nil
 
     @Environment(\.self) private var environment
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -113,8 +121,7 @@ struct SelectableInlineText: View {
 
     var body: some View {
         SelectableTextRepresentable(
-            attributed: prebuiltAttributed
-                ?? builtAttributedString,
+            attributed: presentedAttributed,
             linkColor: UIColor(
                 cgColor: Palette.primary.resolve(in: environment).cgColor
             ),
@@ -122,6 +129,49 @@ struct SelectableInlineText: View {
             openURL: openURL,
             allowsDirectSelection: allowsDirectSelection
         )
+    }
+
+    /// §503：呈现串——拼装/产物串本体，查找着色在
+    /// 副本上施加（区间由 Core ChatFind 在呈现串本
+    /// 体上求，呈现所见即着色所及）
+    private var presentedAttributed: NSAttributedString {
+        let base = prebuiltAttributed ?? builtAttributedString
+        guard let query = searchHighlightQuery
+        else { return base }
+        return Self.applyingFindHighlight(
+            to: base, query: query,
+            color: UIColor(
+                cgColor: Palette.findMatchFill
+                    .resolve(in: environment).cgColor
+            )
+        )
+    }
+
+    /// §503：查找着色施加（放宽 internal 作装配钉
+    /// 接缝，与 build 同例）：命中区间在副本上加背
+    /// 景色后返回；无查询/无命中 → 原串原样返回
+    /// （同一实例，updateUIView 的 isEqual 短路不
+    /// 被无谓触发）；入参本体永不改写（拼装缓存
+    /// 实例可安全共享）
+    static func applyingFindHighlight(
+        to base: NSAttributedString, query: String,
+        color: UIColor
+    ) -> NSAttributedString {
+        guard ChatFind.normalizedQuery(query) != nil
+        else { return base }
+        let ranges = ChatFind.occurrenceRanges(
+            in: base.string, query: query
+        )
+        guard !ranges.isEmpty else { return base }
+        let copy = NSMutableAttributedString(
+            attributedString: base
+        )
+        for range in ranges {
+            copy.addAttribute(
+                .backgroundColor, value: color, range: range
+            )
+        }
+        return copy
     }
 
     // MARK: - 拼装
