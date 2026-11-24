@@ -14516,6 +14516,12 @@
             "state": "translated",
             "value": "傳送本地通知"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer une notification"
+          }
         }
       }
     },
@@ -27701,6 +27707,12 @@
             "state": "translated",
             "value": "總覽 · 總覽頁與通知角標的資料來源"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vue d’ensemble · Source des données de la page d’accueil et du badge de notification"
+          }
         }
       }
     },
@@ -30645,6 +30657,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "按確認發本地通知"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer une notification locale après confirmation"
           }
         }
       }
@@ -36143,6 +36161,12 @@
             "state": "translated",
             "value": "智慧代理可呼叫：按你在對話裡的確認給你發一條本地通知（立即或延時）。待發通知最多 64 條，滿了先報錯、不硬塞"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre agent peut envoyer une notification locale, immédiatement ou plus tard, après votre confirmation dans la conversation. Jusqu’à 64 notifications peuvent être en attente ; au-delà, l’application affiche une erreur au lieu d’en ajouter."
+          }
         }
       }
     },
@@ -37339,6 +37363,12 @@
             "state": "translated",
             "value": "暫無通知"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune notification pour le moment"
+          }
         }
       }
     },
@@ -38097,6 +38127,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有幾條通知沒能標為已讀，它們仍保持未讀狀態。下拉重新整理後再試一次。"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certaines notifications n’ont pas pu être marquées comme lues et restent non lues. Tirez vers le bas pour actualiser et réessayez."
           }
         }
       }
@@ -40171,6 +40207,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "本地通知 · 到點在鎖定畫面與通知中心提醒你"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications locales · Elles s’affichent sur l’écran verrouillé et dans le centre de notifications"
           }
         }
       }
@@ -43000,6 +43042,12 @@
             "state": "translated",
             "value": "正在取得最新通知…"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Récupération des dernières notifications…"
+          }
         }
       }
     },
@@ -44743,6 +44791,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有未讀通知"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune notification non lue"
           }
         }
       }
@@ -62126,6 +62180,12 @@
             "state": "translated",
             "value": "通知"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
         }
       }
     },
@@ -62148,6 +62208,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知只發到你這台手機，不經伺服器推送；系統通知權限關掉後就發不了。"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les notifications sont envoyées uniquement sur cet appareil, jamais par l’intermédiaire d’un serveur. Elles ne peuvent pas être envoyées si l’autorisation système est désactivée."
           }
         }
       }
@@ -62172,6 +62238,12 @@
             "state": "translated",
             "value": "通知已讀"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification lue"
+          }
         }
       }
     },
@@ -62195,6 +62267,12 @@
             "state": "translated",
             "value": "通知已讀回執格式無法識別"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format de confirmation de lecture de la notification non reconnu"
+          }
         }
       }
     },
@@ -62217,6 +62295,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知已讀返回 %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La confirmation de lecture de la notification a renvoyé %@"
           }
         }
       }
@@ -62242,6 +62326,12 @@
             "state": "translated",
             "value": "通知暫時無法取得"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications temporairement indisponibles"
+          }
         }
       }
     },
@@ -62266,6 +62356,12 @@
             "state": "translated",
             "value": "通知暫時讀不到。請檢查伺服器連線，或稍後再試。"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de charger les notifications pour le moment. Vérifiez la connexion au serveur ou réessayez plus tard."
+          }
         }
       }
     },
@@ -62289,6 +62385,12 @@
             "state": "translated",
             "value": "通知暫時讀不到，請稍後再試。"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de lire les notifications pour le moment. Réessayez plus tard."
+          }
         }
       }
     },
@@ -62311,6 +62413,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知設定"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages des notifications"
           }
         }
       }
@@ -62336,6 +62444,12 @@
             "state": "translated",
             "value": "通知詳情"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détails de la notification"
+          }
         }
       }
     },
@@ -62358,6 +62472,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知，%lld 條待處理"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications, %lld en attente"
           }
         }
       }
@@ -65583,6 +65703,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看全部通知"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voir toutes les notifications"
           }
         }
       }
