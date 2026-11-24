@@ -44,7 +44,8 @@ public enum FullscreenPopPolicy {
         guard scene.stackDepth > 1 else { return false }
         guard !scene.isTransitioning else { return false }
         guard !scene.startsInExemptRegion else { return false }
-        guard scene.translation.x > 0 else { return false }
-        return abs(scene.translation.x) > abs(scene.translation.y)
+        guard scene.translation.width > 0 else { return false }
+        return abs(scene.translation.width)
+            > abs(scene.translation.height)
     }
 }
