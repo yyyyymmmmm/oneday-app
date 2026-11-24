@@ -11245,8 +11245,16 @@ private struct ComposerBarLayout: Layout {
                     // 旧口径在此整线程扫清非发件箱条目
                     // 的账，是死循环的清账入口之一
                     kickConsumer()
+                case .offlineParked:
+                    if registeredJob != nil {
+                        presentSendFailure(kind: .offlineNotSent)
+                    }
+                    armOutboxWake(
+                        earliestBackoff, threadID: thread.id
+                    )
+                    return
                 case .rejected, .prepareFailed,
-                     .offlineParked, .rateLimitedParked,
+                     .rateLimitedParked,
                      .stopped:
                     armOutboxWake(
                         earliestBackoff, threadID: thread.id
@@ -11361,10 +11369,23 @@ private struct ComposerBarLayout: Layout {
                 let presentKind = (error as? HermesError).map {
                     SendFailureKind.classify(submit: $0)
                 } ?? .prepareFailed
+                if presentKind == .offlineNotSent {
+                    if !job.filePayloads.isEmpty {
+                        failedFilePayloads[userEntry.id] = job.filePayloads
+                        stagedSendStore.stageDetached(
+                            entryID: userEntry.id,
+                            payloads: job.filePayloads.map {
+                                StagedSendPayload(name: $0.name, data: $0.data)
+                            }
+                        )
+                    }
+                    userEntry.markPendingSend(in: modelContext)
+                    return .offlineParked
+                }
                 markTurnFailed(
                     entry: userEntry,
                     filePayloads: job.filePayloads,
-                    failureKind: .prepareFailed
+                    failureKind: presentKind == .prepareFailed ? .prepareFailed : presentKind
                 )
                 presentSendFailure(kind: presentKind)
                 Haptics.error()
@@ -11403,6 +11424,22 @@ private struct ComposerBarLayout: Layout {
             return .stopped
         } catch {
             if Task.isCancelled { return .stopped }
+            if let hermesError = error as? HermesError {
+                let kind = SendFailureKind.classify(submit: hermesError)
+                if kind == .offlineNotSent {
+                    userEntry.markPendingSend(in: modelContext)
+                    return .offlineParked
+                }
+                markTurnFailed(
+                    entry: userEntry, failureKind: kind
+                )
+                presentSendFailure(
+                    kind: kind,
+                    detail: hermesError.diagnosticDetail
+                )
+                Haptics.error()
+                return .prepareFailed
+            }
             markTurnFailed(
                 entry: userEntry, failureKind: .prepareFailed
             )
@@ -11413,8 +11450,7 @@ private struct ComposerBarLayout: Layout {
                 kind: .prepareFailed,
                 message: SendFailureCopy.joiningReason(
                     head: "会话链接失败，这条还没发出去：",
-                    reason: (error as? HermesError)?.userMessage
-                        ?? "服务端会话建立失败",
+                    reason: "服务端会话建立失败",
                     tail: "链接恢复后，点这条消息旁的感叹号重新发送。"
                 )
             )
@@ -12961,17 +12997,56 @@ private struct ComposerBarLayout: Layout {
                             userEntryID: entry.userEntryID
                         )
                     }
-                } catch {
-                    // 重演提交抛错同属无证据（传输/服务
-                    // 端问题）：顺延期限、不烧预算
-                    if deadlineExtensions < 600 {
-                        deadline = deadline
-                            .addingTimeInterval(3)
-                        deadlineExtensions += 3
+                } catch let replayError {
+                    if let hermesError = replayError as? HermesError,
+                       case .rateLimited(let retryAfter) = hermesError {
+                        try? await Task.sleep(
+                            for: .seconds(min(retryAfter ?? 1, 30))
+                        )
+                        continue
                     }
-                    if Date() > deadline { break }
-                    try? await Task.sleep(for: .seconds(3))
-                    continue
+                    switch RunSubmitRetry.classify(replayError) {
+                    case .notSentOffline:
+                        if !demoMode,
+                           let uid = UUID(uuidString: entry.userEntryID),
+                           let userEntry = thread.entries.first(where: { $0.id == uid }) {
+                            appState.runLedger.remove(userEntryID: uid)
+                            userEntry.markPendingSend(in: modelContext)
+                        }
+                        presentSendFailure(kind: .offlineNotSent)
+                        finishRunPresentation(failed: false)
+                        return
+                    case .rejected:
+                        let hermesError = (replayError as? HermesError)
+                            ?? .unreachable(replayError.localizedDescription)
+                        let kind: SendFailureKind = hermesError.isSessionNotFound
+                            ? .authRejected
+                            : SendFailureKind.classify(submit: hermesError)
+                        if !demoMode,
+                           let uid = UUID(uuidString: entry.userEntryID) {
+                            appState.runLedger.remove(userEntryID: uid)
+                            if let userEntry = thread.entries.first(where: { $0.id == uid }) {
+                                markTurnFailed(entry: userEntry, failureKind: kind)
+                            }
+                        }
+                        presentSendFailure(
+                            kind: kind,
+                            detail: hermesError.diagnosticDetail
+                        )
+                        finishRunPresentation(failed: true)
+                        return
+                    case .transient, .unknown:
+                        // 重演提交抛错同属无证据（传输/服务
+                        // 端问题）：顺延期限、不烧预算
+                        if deadlineExtensions < 600 {
+                            deadline = deadline
+                                .addingTimeInterval(3)
+                            deadlineExtensions += 3
+                        }
+                        if Date() > deadline { break }
+                        try? await Task.sleep(for: .seconds(3))
+                        continue
+                    }
                 }
             }
             guard let runID = entry.runID else { continue }
