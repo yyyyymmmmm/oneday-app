@@ -175,28 +175,47 @@ public enum LedgerFreshness: Equatable, Sendable {
 /// 台账专用钟面格式（HH:mm／HH:mm:ss，数字 POSIX
 /// 口径不随地区变体漂移；日历时区随入参）
 public enum LedgerClock {
+    private final class FormatterCache: @unchecked Sendable {
+        let lock = NSLock()
+        var formatters: [String: DateFormatter] = [:]
+    }
+    private static let cache = FormatterCache()
+
     public static func time(
         _ epoch: Double, calendar: Calendar = .current
     ) -> String {
-        formatter("HH:mm", calendar: calendar)
-            .string(from: Date(timeIntervalSince1970: epoch))
+        formattedString(
+            Date(timeIntervalSince1970: epoch),
+            format: "HH:mm",
+            calendar: calendar
+        )
     }
 
     public static func timeWithSeconds(
         _ epoch: Double, calendar: Calendar = .current
     ) -> String {
-        formatter("HH:mm:ss", calendar: calendar)
-            .string(from: Date(timeIntervalSince1970: epoch))
+        formattedString(
+            Date(timeIntervalSince1970: epoch),
+            format: "HH:mm:ss",
+            calendar: calendar
+        )
     }
 
-    private static func formatter(
-        _ format: String, calendar: Calendar
-    ) -> DateFormatter {
+    private static func formattedString(
+        _ date: Date, format: String, calendar: Calendar
+    ) -> String {
+        let key = "\(format)|\(calendar.timeZone.identifier)"
+        cache.lock.lock()
+        defer { cache.lock.unlock() }
+        if let existing = cache.formatters[key] {
+            return existing.string(from: date)
+        }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = format
-        return formatter
+        cache.formatters[key] = formatter
+        return formatter.string(from: date)
     }
 }
 
@@ -287,21 +306,23 @@ public enum LedgerBoard {
         calendar: Calendar = .current,
         locale: Locale = AppLocale.uiLocale
     ) -> [LedgerDayGroup] {
-        var groups: [LedgerDayGroup] = []
+        var titles: [String] = []
+        var buckets: [[LedgerItem]] = []
         for item in items {
             let date = Date(timeIntervalSince1970: item.startedAt)
             let title = FeedBoard.groupTitle(
                 for: date, now: now, calendar: calendar, locale: locale
             )
-            if let last = groups.last, last.title == title {
-                groups[groups.count - 1] = LedgerDayGroup(
-                    title: last.title, items: last.items + [item]
-                )
+            if let lastTitle = titles.last, lastTitle == title {
+                buckets[buckets.count - 1].append(item)
             } else {
-                groups.append(LedgerDayGroup(title: title, items: [item]))
+                titles.append(title)
+                buckets.append([item])
             }
         }
-        return groups
+        return zip(titles, buckets).map {
+            LedgerDayGroup(title: $0.0, items: $0.1)
+        }
     }
 
     /// 会话聚合（§477）：同一会话的多次运行在列表里

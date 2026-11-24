@@ -90,6 +90,7 @@ struct GoalsView: View {
     @State private var expandedCompleted = false
     @State private var editTarget: BridgeGoal?
     @State private var deleteTarget: BridgeGoal?
+    @State private var snapshotCache = GoalSnapshotCache()
 
     /// 身份簇点按进中枢（§498：ContentPageHeader 的
     /// onOpenHub 落点，与动态/点子同式——原 §485 小
@@ -259,7 +260,7 @@ struct GoalsView: View {
         if store.goals.isEmpty {
             categoryCreateFlow
         } else {
-            let groups = GoalBoard.grouped(store.goals)
+            let groups = snapshotCache.snapshot(goals: store.goals)
             ScrollView {
                 LazyVStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingL

@@ -175,10 +175,6 @@ struct HubAuditSection: View {
     @ViewBuilder
     private var recordsSection: some View {
         Section {
-            HubSectionHeader(title: "审核记录")
-                .listRowSeparator(.hidden)
-                .listRowInsets(rowInsets)
-                .listRowBackground(Color.clear)
             switch hubStore.grantsState {
             case .loading:
                 if mergedEntries.isEmpty {
@@ -203,6 +199,14 @@ struct HubAuditSection: View {
             } else if case .ready = hubStore.grantsState {
                 quietRow("暂无审核记录")
             }
+        } header: {
+            Text("审核记录")
+                .font(.system(
+                    size: OneDayMetrics.hubTitleSize,
+                    weight: .semibold
+                ))
+                .foregroundStyle(Palette.ink)
+                .textCase(nil)
         }
     }
 
