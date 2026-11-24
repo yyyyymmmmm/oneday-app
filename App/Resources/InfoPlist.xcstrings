@@ -20,6 +20,12 @@
             "state": "translated",
             "value": "OneDay needs to read your calendar. Events are viewed only on this phone. When agent calls are on, they're read live when asked. Only when you personally turn on Data Sync in the connector details will the titles and times of events from the past 30 days to the next 90 days be synced to your own server, so the agent can query the whole set."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de lire votre calendrier : les événements ne sont consultés que sur ce téléphone ; lorsque les appels de l'agent sont activés, ils sont lus en direct lorsqu'on les demande ; ce n'est que lorsque vous activez vous-même « Synchronisation des données » dans la page de détail du connecteur que les titres et horaires des événements des 30 derniers jours aux 90 prochains jours sont synchronisés sur votre propre serveur, pour que l'agent puisse les consulter en entier."
+          }
         }
       }
     },
@@ -41,6 +47,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay needs to read your reminders. To-dos are viewed only on this phone. When agent calls are on, they're read live when asked. Only when you personally turn on Data Sync in the connector details will unfinished reminders be synced to your own server, so the agent can query the whole set."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de lire vos rappels : les tâches ne sont consultées que sur ce téléphone ; lorsque les appels de l'agent sont activés, ils sont lus en direct lorsqu'on les demande ; ce n'est que lorsque vous activez vous-même « Synchronisation des données » dans la page de détail du connecteur que les rappels inachevés sont synchronisés sur votre propre serveur, pour que l'agent puisse les consulter en entier."
           }
         }
       }
@@ -64,6 +76,12 @@
             "state": "translated",
             "value": "OneDay needs to read your contacts. Searches run on the phone. When agent calls are on, lookups happen live when asked. Only when you personally turn on Data Sync in the connector details will names, phone numbers, and emails be synced to your own server (notes, addresses, birthdays, and avatars are not included), so the agent can query the whole set."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de lire vos contacts : la recherche s'effectue sur le téléphone ; lorsque les appels de l'agent sont activés, les recherches se font en direct lorsqu'on les demande ; ce n'est que lorsque vous activez vous-même « Synchronisation des données » dans la page de détail du connecteur que les noms, numéros de téléphone et e-mails sont synchronisés sur votre propre serveur (sans les notes, adresses, anniversaires ni photos), pour que l'agent puisse les consulter en entier."
+          }
         }
       }
     },
@@ -85,6 +103,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay needs to read your photo inventory. It only looks at each item's capture time, type, and size, to show counts on the phone. Only when you personally turn on Data Sync in the connector details will this inventory (without the photos themselves and without capture locations) be synced to your own server for the agent to query."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de lire l'inventaire de vos photos : il ne consulte que la date de prise, le type et la taille de chaque élément, pour afficher des nombres sur le téléphone ; ce n'est que lorsque vous activez vous-même « Synchronisation des données » dans la page de détail du connecteur que cet inventaire (sans les photos elles-mêmes ni les lieux de prise) est synchronisé sur votre propre serveur, pour que l'agent puisse le consulter."
           }
         }
       }
@@ -108,6 +132,12 @@
             "state": "translated",
             "value": "OneDay needs to read the phone pedometer's daily totals. It only looks at each day's steps, distance, and floors climbed. Only when you personally turn on Data Sync in the connector details will the daily totals be synced to your own server for the agent to query."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de lire les totaux quotidiens du podomètre du téléphone : il ne consulte que le nombre de pas, la distance et les étages montés chaque jour ; ce n'est que lorsque vous activez vous-même « Synchronisation des données » dans la page de détail du connecteur que les totaux quotidiens sont synchronisés sur votre propre serveur, pour que l'agent puisse les consulter."
+          }
         }
       }
     },
@@ -129,6 +159,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay needs to save images to your photo library. It only saves the one image you selected, when you tap Download in the image viewer. It never reads your photo library."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin d'enregistrer des images dans votre photothèque : il n'enregistre que l'image que vous avez sélectionnée, lorsque vous touchez « Télécharger » dans le visionneur d'images. Il ne lit jamais votre photothèque."
           }
         }
       }
@@ -152,6 +188,12 @@
             "state": "translated",
             "value": "OneDay needs the microphone to turn your speech into text in the input field. Recordings are processed only on this device and are never uploaded to a server."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin du microphone pour convertir votre voix en texte dans le champ de saisie ; les enregistrements sont traités uniquement sur cet appareil et ne sont jamais envoyés à un serveur."
+          }
         }
       }
     },
@@ -173,6 +215,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay uses speech recognition to turn your speech into text. Recognition happens entirely on your iPhone, and recordings never leave the phone."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay utilise la reconnaissance vocale pour transcrire vos paroles en texte ; la reconnaissance s'effectue entièrement sur votre iPhone, et les enregistrements ne quittent jamais votre téléphone."
           }
         }
       }
@@ -197,6 +245,12 @@
             "state": "translated",
             "value": "OneDay 需要設定鬧鐘與倒數計時：只有你在對話裡確認、或在鬧鐘詳情頁親手新增時才會設定；到點由系統響鈴，能穿透靜音與專注模式。"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay doit pouvoir créer des alarmes et des minuteurs : ils ne sont créés que lorsque vous les confirmez dans une conversation ou que vous les ajoutez vous-même sur la page de détail de l'alarme ; à l'heure prévue, le système les fait sonner, même en mode Silencieux et Concentration."
+          }
         }
       }
     },
@@ -219,6 +273,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay needs the camera: the viewfinder opens only when your agent asks you in chat to take a photo or scan a document, or when you tap the shutter yourself on the camera page. Captured images are saved only into OneDay's own folder, never into the system photo library."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin d'accéder à l'appareil photo : le viseur ne s'ouvre que lorsque votre agent vous demande, dans une conversation, de prendre une photo ou de numériser un document, ou lorsque vous touchez vous-même le déclencheur sur la page de l'appareil photo ; les images capturées sont enregistrées uniquement dans le dossier propre à OneDay, jamais dans la photothèque du système."
           }
         }
       }
@@ -243,6 +303,12 @@
             "state": "translated",
             "value": "OneDay uses Face ID to confirm it is you: checked in person only before important actions; the system only tells OneDay whether it passed, and your face data never leaves the system."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin de Face ID pour confirmer que c'est bien vous : la vérification se fait en personne uniquement avant les actions importantes ; le système indique seulement à OneDay si elle a réussi, et vos données faciales ne quittent jamais le système."
+          }
         }
       }
     },
@@ -266,6 +332,12 @@
             "state": "translated",
             "value": "OneDay needs your location while the app is open: it is read once, only when your agent asks where you are or looks up nearby places, and answered live — no background tracking, and no location history is kept."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin d'accéder à votre position lorsque l'app est ouverte : elle n'est lue qu'une seule fois, uniquement lorsque votre agent vous demande où vous êtes ou recherche des lieux à proximité, et la réponse est immédiate — aucun suivi en arrière-plan, et aucun historique de position n'est conservé."
+          }
         }
       }
     },
@@ -288,6 +360,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "OneDay needs your media library catalog: it is used only when your agent searches songs, creates a playlist, or controls playback in a conversation. Only song and playlist catalog details are returned — audio files never leave your phone."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay a besoin d'accéder au catalogue de votre bibliothèque multimédia : il n'est utilisé que lorsque votre agent recherche des morceaux, crée une playlist ou contrôle la lecture dans une conversation ; seules les informations de catalogue des morceaux et des playlists sont renvoyées, et les fichiers audio ne quittent jamais votre téléphone."
           }
         }
       }
