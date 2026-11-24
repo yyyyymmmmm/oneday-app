@@ -251,4 +251,134 @@ final class OutboxAutoRetryTests: XCTestCase {
         XCTAssertEqual(decoded.attempts, 2)
         XCTAssertNil(decoded.lastFailureKind)
     }
+
+    // MARK: 退避抖动（语义 4）
+
+    private func jitteredDecision(
+        attempts: Int,
+        elapsed: TimeInterval,
+        jitterUnit: Double?
+    ) -> OutboxAutoRetryPolicy.Decision {
+        OutboxAutoRetryPolicy.decision(
+            state: .failed,
+            record: OutboxRetryRecord(
+                attempts: attempts,
+                lastAttemptAt: now.addingTimeInterval(-elapsed),
+                lastBackoffJitterUnit: jitterUnit
+            ),
+            now: now
+        )
+    }
+
+    func testBackoffJitterAddsUpwardOnly() {
+        // 名义档是不动地板：抽签再低也不许压到 30s
+        // 以下（压短＝把等待还回去，正是死循环方向）
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 1, jitterUnit: 0
+            ), 30
+        )
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 1, jitterUnit: 1
+            ), 45
+        )
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 2, jitterUnit: 1
+            ), 90
+        )
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 3, jitterUnit: 1
+            ), 180
+        )
+        // 封顶档以 300s 为名义上限，抽满最迟 450s
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 5, jitterUnit: 1
+            ), 450
+        )
+        // 越界抽签夹到 0…1
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 1, jitterUnit: 7
+            ), 45
+        )
+        XCTAssertEqual(
+            OutboxAutoRetryPolicy.backoffSeconds(
+                afterAttempts: 1, jitterUnit: -7
+            ), 30
+        )
+    }
+
+    func testJitterWidensFailedBackoffWindow() {
+        // 抽满（1.0）后第 1 次退避是 30…45s 窗口
+        XCTAssertEqual(
+            jitteredDecision(
+                attempts: 1, elapsed: 30, jitterUnit: 1
+            ),
+            .backoff(until: now.addingTimeInterval(15))
+        )
+        XCTAssertEqual(
+            jitteredDecision(
+                attempts: 1, elapsed: 45, jitterUnit: 1
+            ),
+            .autoNow
+        )
+    }
+
+    func testDuePointStableAcrossPolling() {
+        // 提交泵约每秒一轮：同一条账反复判定，
+        // 到期点必须一次抽定、不许翻面（否则退避
+        // 等于失效，点回立即重投）
+        let record = OutboxRetryRecord(
+            attempts: 2,
+            lastAttemptAt: now.addingTimeInterval(-60),
+            lastBackoffJitterUnit: 1
+        )
+        let first = OutboxAutoRetryPolicy.decision(
+            state: .failed, record: record, now: now
+        )
+        XCTAssertEqual(first, .backoff(
+            until: now.addingTimeInterval(30)
+        ))
+        for _ in 0..<50 {
+            XCTAssertEqual(
+                OutboxAutoRetryPolicy.decision(
+                    state: .failed, record: record, now: now
+                ),
+                first
+            )
+        }
+    }
+
+    func testLegacyRecordWithoutJitterUsesNominal() {
+        // 存量账（无抖动字段）按 0 走名义窗口，
+        // 不因解码缺失被当成满抽签而拉长
+        XCTAssertEqual(
+            jitteredDecision(
+                attempts: 1, elapsed: 30, jitterUnit: nil
+            ),
+            .autoNow
+        )
+        XCTAssertEqual(
+            jitteredDecision(
+                attempts: 1, elapsed: 29, jitterUnit: nil
+            ),
+            .backoff(until: now.addingTimeInterval(1))
+        )
+    }
+
+    func testRecordCodableRoundTripKeepsJitter() throws {
+        let record = OutboxRetryRecord(
+            attempts: 1, lastAttemptAt: now,
+            lastBackoffJitterUnit: 0.42
+        )
+        let decoded = try JSONDecoder().decode(
+            OutboxRetryRecord.self,
+            from: try JSONEncoder().encode(record)
+        )
+        XCTAssertEqual(decoded.lastBackoffJitterUnit, 0.42)
+    }
 }

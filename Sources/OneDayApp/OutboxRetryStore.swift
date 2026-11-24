@@ -40,12 +40,18 @@ final class OutboxRetryStore {
     /// 失败机制包（语义 2）改记账点——在自动重投
     /// 执行完毕后调用（无论成败），与成因同落；
     /// 旧口径在执行前记账，配合「受理清账」让账
-    /// 在真终态前被扫掉，是死循环的账面一环
-    func noteAutoAttempt(entryID: UUID, at date: Date) {
+    /// 在真终态前被扫掉，是死循环的账面一环。
+    /// 抖动也在本点一次抽定存账：退避到期点须
+    /// 全程同值，提交泵每秒重算不许重抽
+    func noteAutoAttempt(
+        entryID: UUID, at date: Date,
+        jitterUnit: Double = 0
+    ) {
         var record = records[entryID.uuidString]
             ?? OutboxRetryRecord()
         record.attempts += 1
         record.lastAttemptAt = date
+        record.lastBackoffJitterUnit = min(max(jitterUnit, 0), 1)
         records[entryID.uuidString] = record
         persist()
     }

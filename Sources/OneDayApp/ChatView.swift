@@ -11226,8 +11226,12 @@ private struct ComposerBarLayout: Layout {
                 if registeredJob == nil, wasFailed {
                     switch outcome {
                     case .accepted, .rejected, .prepareFailed:
+                        // 抖动手本点一次抽定（语义 4）：
+                        // 退避到期点须全程同值；泵每秒一轮
+                        // 重算，若在判定处重抽会翻面
                         appState.outboxRetry.noteAutoAttempt(
-                            entryID: entryID, at: Date()
+                            entryID: entryID, at: Date(),
+                            jitterUnit: Double.random(in: 0...1)
                         )
                     case .offlineParked, .rateLimitedParked,
                          .stopped:

@@ -46,17 +46,27 @@ public struct OutboxRetryRecord: Codable, Equatable, Sendable {
     /// 量旧账无此字段（nil）：按无成因走次数/退避
     /// 老口径，新失败落点起一律有值
     public var lastFailureKind: SendFailureKind?
+    /// 本次退避的抖动抽签（0…1，记账点抽一次、
+    /// 随账存下）：退避到期点必须「一次抽签、全程
+    /// 同值」——提交泵约每秒一轮，若每轮重抽，
+    /// 到期点会随抽签翻面（这一轮判 .backoff、下一
+    /// 轮判 .autoNow），退避等于失效、点回立即
+    /// 重投。存量旧账无此字段（nil）：按 0 走名义
+    /// 30/60/120，不加宽
+    public var lastBackoffJitterUnit: Double?
 
     public init(
         attempts: Int = 0,
         lastAttemptAt: Date? = nil,
         manualOnly: Bool = false,
-        lastFailureKind: SendFailureKind? = nil
+        lastFailureKind: SendFailureKind? = nil,
+        lastBackoffJitterUnit: Double? = nil
     ) {
         self.attempts = attempts
         self.lastAttemptAt = lastAttemptAt
         self.manualOnly = manualOnly
         self.lastFailureKind = lastFailureKind
+        self.lastBackoffJitterUnit = lastBackoffJitterUnit
     }
 }
 
@@ -66,7 +76,8 @@ public enum OutboxAutoRetryPolicy {
     /// 面的手动入口恒在）
     public static let maxAutoAttempts = 3
     /// 退避基数：第 n 次自动重试失败后，下一次须等
-    /// base × 2^(n-1)（30s／60s／120s），封顶 300s
+    /// base × 2^(n-1)（30s／60s／120s），封顶 300s；
+    /// 实际等待另加抖动，见 backoffSeconds
     public static let baseBackoffSeconds: TimeInterval = 30
     public static let maxBackoffSeconds: TimeInterval = 300
 
@@ -117,7 +128,10 @@ public enum OutboxAutoRetryPolicy {
                 return .autoNow
             }
             let until = last.addingTimeInterval(
-                backoffSeconds(afterAttempts: attempts)
+                backoffSeconds(
+                    afterAttempts: attempts,
+                    jitterUnit: record?.lastBackoffJitterUnit ?? 0
+                )
             )
             return now >= until ? .autoNow : .backoff(until: until)
         case .failed:
@@ -141,7 +155,10 @@ public enum OutboxAutoRetryPolicy {
                 return .autoNow
             }
             let until = last.addingTimeInterval(
-                backoffSeconds(afterAttempts: attempts)
+                backoffSeconds(
+                    afterAttempts: attempts,
+                    jitterUnit: record?.lastBackoffJitterUnit ?? 0
+                )
             )
             return now >= until ? .autoNow : .backoff(until: until)
         case .sending, .accepted, .delivered:
@@ -152,11 +169,27 @@ public enum OutboxAutoRetryPolicy {
         }
     }
 
-    /// 第 n 次自动重试失败后的退避秒数（n 从 1 起）
-    public static func backoffSeconds(afterAttempts attempts: Int) -> TimeInterval {
+    /// 第 n 次自动重试失败后的退避秒数（n 从 1
+    /// 起）。抖动为「只加不减」的等值加宽：名义
+    /// 档 30/60/120/… 是下限、不会被抽签压到更短
+    /// （压短等于把 30s 的等待还回去，正是死循环
+    /// 要治的方向），加宽量 = 名义×0.5 × 抽签单
+    /// 位（0…1，与 RetryBackoff 同注入口径，单测
+    /// 传定值可钉死。抽签由调用方在记账点抽定并
+    /// 存账，见 lastBackoffJitterUnit）。加宽按比
+    /// 例随档位涨（30→最多到 45、120→到 180），
+    /// 不设固定带宽——固定带宽会把高档位抖成几乎
+    /// 不动。封顶档以 300s 为名义上限，抽满最迟
+    /// 450s，而全程只 3 次自动重试，总等待有限
+    public static func backoffSeconds(
+        afterAttempts attempts: Int,
+        jitterUnit: Double = 0
+    ) -> TimeInterval {
         guard attempts > 0 else { return 0 }
         let scaled = baseBackoffSeconds
             * pow(2.0, Double(attempts - 1))
-        return min(scaled, maxBackoffSeconds)
+        let nominal = min(scaled, maxBackoffSeconds)
+        let unit = min(max(jitterUnit, 0), 1)
+        return nominal * (1 + 0.5 * unit)
     }
 }
