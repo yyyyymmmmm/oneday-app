@@ -271,8 +271,6 @@ struct AddComputerView: View {
                         TextField("电脑名字（如：我的 Box）", text: $name)
                     } header: {
                         Text("名字")
-                    } footer: {
-                        Text("跟智能体提这台电脑时，就用这个名字。")
                     }
                     if let problem {
                         Section {

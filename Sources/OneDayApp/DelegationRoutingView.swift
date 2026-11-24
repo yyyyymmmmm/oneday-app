@@ -209,8 +209,6 @@ struct DelegationRoutingView: View {
                 .disabled(store.isWriting)
         } header: {
             Text("模型路线")
-        } footer: {
-            Text("给活儿分流：重活走强模型、杂活走便宜模型。智能体靠每条路线的说明来选路。")
         }
     }
 
@@ -244,8 +242,6 @@ struct DelegationRoutingView: View {
                 .disabled(store.isWriting)
         } header: {
             Text("档案路线")
-        } footer: {
-            Text("子智能体能以哪些档案的身份去跑（人设、记忆、技能都随档案走）。")
         }
     }
 }

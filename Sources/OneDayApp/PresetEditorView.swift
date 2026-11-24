@@ -56,8 +56,6 @@ struct PresetEditorView: View {
                     TextField("预设名字（如：省钱模式）", text: $name)
                 } header: {
                     Text("预设")
-                } footer: {
-                    Text("预设是「默认模型＋整套辅助分配」的一整套设置，启用后整套一起换；与多模型汇总（几个模型一起答一道题）不是一回事。")
                 }
 
                 Section {
@@ -70,8 +68,6 @@ struct PresetEditorView: View {
                     }
                 } header: {
                     Text("默认模型")
-                } footer: {
-                    Text("预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。")
                 }
 
                 slotSection(title: "常用", slots: AuxSlotCatalog.common)

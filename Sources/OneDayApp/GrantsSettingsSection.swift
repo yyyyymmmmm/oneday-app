@@ -170,8 +170,6 @@ struct CommandGrantsSection: View {
             content
         } header: {
             Text("命令授权")
-        } footer: {
-            Text("在聊天里批准命令时点「总是允许」，同类命令以后直接执行、不再逐条问，并在这里留下一条；撤销后恢复逐条审批。写入规则不在这里撤销——归上方「审批规则」管。")
         }
         .confirmationDialog(
             "撤销这条命令授权？",
@@ -236,7 +234,7 @@ struct CommandGrantsSection: View {
         if response.grants.isEmpty {
             Text(response.partial
                 ? "读到的这一类里暂时没有授权，另一类没读到，下拉刷新再看。"
-                : "暂无命令授权。在聊天里批准命令时点「总是允许」后，会在这里留下一条，可随时撤销。")
+                : "暂无命令授权。")
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)
         }

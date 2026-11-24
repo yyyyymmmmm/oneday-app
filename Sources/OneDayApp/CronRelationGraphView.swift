@@ -30,8 +30,7 @@ struct CronRelationGraphView: View {
             if jobs.isEmpty {
                 ODEmptyState(
                     "还没有定时任务",
-                    systemImage: "point.3.connected.trianglepath.dotted",
-                    description: "新建定时任务后，这里会画出任务与投递目标的关系。"
+                    systemImage: "point.3.connected.trianglepath.dotted"
                 )
                 .padding(.top, OneDayMetrics.spacingXXL)
             } else {

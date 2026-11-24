@@ -679,15 +679,9 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(iconName(for: entry))
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(L10n.string(entry.title))
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(L10n.string(entry.summary))
-                        .font(.rowSubtitle)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
+                Text(L10n.string(entry.title))
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
             }

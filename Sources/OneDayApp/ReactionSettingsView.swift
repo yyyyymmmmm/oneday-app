@@ -55,10 +55,6 @@ struct ReactionSettingsView: View {
                 }
             } header: {
                 SettingsSectionHeader(L10n.string("消息反应"))
-            } footer: {
-                Text(reactionFooter)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)
@@ -72,18 +68,5 @@ struct ReactionSettingsView: View {
         .background(Palette.settingsBG)
         .navigationTitle("互动")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    /// 区脚（§503 自外观页旧「回复呈现」区脚拆出
-    /// 反应半边、语义逐字保留）：AI 反应一句只在开
-    /// 关行在场时拼入——行不在场不提不存在的开关；
-    /// 关开关的语义写清（只关呈现、数据不删、重开
-    /// 全量回来）
-    private var reactionFooter: String {
-        var text = L10n.string("反应浮排管长按消息时的反应入口：开着先浮出表情排，关掉回到菜单里的「添加反应」。")
-        if aiSelfRowVisible {
-            text += L10n.string("AI 反应管助手贴在你消息上的表情：关了只是本机不显示，记录还在，重新打开会全量回来。")
-        }
-        return text
     }
 }

@@ -168,10 +168,6 @@ struct IdentityDetailView: View {
             }
         } header: {
             sectionHeader("活动")
-        } footer: {
-            Text("形象与名称只保存在本机，不回写服务器。配置档案决定人设，在「智能体」里管理。")
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)

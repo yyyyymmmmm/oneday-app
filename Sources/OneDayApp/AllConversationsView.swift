@@ -430,7 +430,7 @@ struct AllConversationsView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } else if mineRows.isEmpty {
                 ContentUnavailableView(
-                    "我的对话里还没有服务端会话。在 App 里开的旁聊连上服务端、或从频道收进来的对话会出现在这里。",
+                    "我的对话里还没有服务端会话。",
                     systemImage: "bubble.left.and.bubble.right"
                 )
             } else {

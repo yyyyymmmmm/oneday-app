@@ -521,9 +521,9 @@ public extension ButtonStyle where Self == PressableButtonStyle {
 public struct EmptyState: View {
     private let icon: String
     private let title: String
-    private let message: String
+    private let message: String?
 
-    public init(icon: String, title: String, message: String) {
+    public init(icon: String, title: String, message: String? = nil) {
         self.icon = icon
         self.title = title
         self.message = message
@@ -538,10 +538,12 @@ public struct EmptyState: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.center)
+            if let message {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
     }

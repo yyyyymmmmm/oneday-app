@@ -51,8 +51,7 @@ struct PlatformChannelView: View {
                 } else if channelRows.isEmpty {
                     ContentUnavailableView(
                         "这个频道里还没有对话",
-                        systemImage: "tray",
-                        description: Text("连上之后，在那边开始的对话会出现在这里，点开就能接着聊。")
+                        systemImage: "tray"
                     )
                     .listRowSeparator(.hidden)
                 } else {

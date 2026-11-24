@@ -31,8 +31,6 @@ struct PresetsView: View {
                     }
                     newPresetButton
                 }
-            } footer: {
-                Text("预设就是一整套设置：默认模型加全部辅助分配，一次切换。不是几个模型一起答一道题。")
             }
             if let errorMessage = store.errorMessage {
                 Section {

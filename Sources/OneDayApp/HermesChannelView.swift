@@ -93,8 +93,7 @@ struct HermesChannelView: View {
                 } else if channelRows.isEmpty {
                     ContentUnavailableView(
                         "还没有从其他地方来的对话",
-                        systemImage: "tray",
-                        description: Text("在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。")
+                        systemImage: "tray"
                     )
                     .listRowSeparator(.hidden)
                 } else {

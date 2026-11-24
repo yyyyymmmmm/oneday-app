@@ -454,28 +454,16 @@ struct ModelSettingsView: View {
             NavigationLink {
                 PresetsView(store: store)
             } label: {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("预设")
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                    Text("把默认模型和辅助分配存成一份，整套切换。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
+                Text("预设")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
             }
             NavigationLink {
                 MoaView(modelStore: store)
             } label: {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("多模型会商")
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                    Text("几个模型先各自答、一个汇总——重要问题用。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
+                Text("多模型会商")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
             }
         } header: {
             Text("辅助模型")
@@ -498,8 +486,6 @@ struct ModelSettingsView: View {
                 detailInfoRow("密钥", "在服务器上保管")
             } header: {
                 Text("默认服务商")
-            } footer: {
-                Text("服务器的主通道，新对话默认从这里开始。")
             }
             Section {
                 GovernedModelRows(

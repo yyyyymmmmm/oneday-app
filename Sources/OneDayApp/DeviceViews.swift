@@ -1626,8 +1626,6 @@ struct DevicePermissionsView: View {
                     }
                 } header: {
                     headerText("等你确认")
-                } footer: {
-                    Text("在任意对话里就能处理这些授权卡，处理完会自动接着办刚才的事。")
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(deviceRowInsets)
@@ -1651,11 +1649,6 @@ struct DevicePermissionsView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } header: {
                 headerText("通道状态")
-            } footer: {
-                // §244 P-6 本页定位句（原在已撤的名单段
-                // 段脚，台账 198 收敛 S1 随段撤除迁此保
-                // 留）：只做管理面、不兼任使用教程
-                Text("这里只管状态和开关：权限要改在系统设置里，副本和日志在各件详情页里。智能体要用哪件，都是在对话里当场问你。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -2101,7 +2094,7 @@ struct AlarmDetailView: View {
                     if items.isEmpty {
                         ContentUnavailableView {
                             Label(
-                                "现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。",
+                                "现在没有待响的闹钟。",
                                 systemImage: "alarm"
                             )
                         }
@@ -2203,7 +2196,7 @@ struct NotificationsDetailView: View {
                     if items.isEmpty {
                         ContentUnavailableView {
                             Label(
-                                "现在没有待发的通知。在对话里让智能体按你的确认发一条试试。",
+                                "现在没有待发的通知。",
                                 systemImage: "bell.fill"
                             )
                         }

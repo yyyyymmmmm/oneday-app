@@ -127,10 +127,6 @@ struct LearningMemorySection: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("它记住的事")
                 .padding(.bottom, OneDayMetrics.spacingXS)
-            Text("这是 Hermes 在服务器上自己积累的长期记忆和学会的技能——你看到的就是它在用的那一份，在这里改、删都直接对它生效。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.bottom, OneDayMetrics.spacingS)
 
             switch store.loadState {
             case .loading:
