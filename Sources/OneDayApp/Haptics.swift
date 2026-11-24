@@ -56,8 +56,16 @@ import UIKit
 /// .sensoryFeedback(.success) 施加（设计层组件够
 /// 不着本文件），语义同属本表。
 enum Haptics {
+    /// 触感总开关持久化键（默认开启，设置·偏好页单一总闸）
+    static let enabledStorageKey = "preferences.haptics.enabled"
+
+    static var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: enabledStorageKey) as? Bool ?? true
+    }
+
     /// 任务成功（通知型反馈）
     static func success() {
+        guard isEnabled else { return }
         #if canImport(UIKit)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         #endif
@@ -66,6 +74,7 @@ enum Haptics {
     /// 需注意未失败（通知型反馈）：只给本义——
     /// 结果未确认、需用户注意但动作本身没失败
     static func warning() {
+        guard isEnabled else { return }
         #if canImport(UIKit)
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         #endif
@@ -73,6 +82,7 @@ enum Haptics {
 
     /// 操作失败/报错（通知型反馈，0.36.2 新增归位）
     static func error() {
+        guard isEnabled else { return }
         #if canImport(UIKit)
         UINotificationFeedbackGenerator().notificationOccurred(.error)
         #endif
@@ -83,6 +93,7 @@ enum Haptics {
     /// .sensoryFeedback(.selection, trigger:) 声明式
     /// 落点，本函数留给命令式路径
     static func selection() {
+        guard isEnabled else { return }
         #if canImport(UIKit)
         UISelectionFeedbackGenerator().selectionChanged()
         #endif
@@ -93,6 +104,7 @@ enum Haptics {
     /// 滑引用过阈、发送动作、抽屉手势吸附（逐处见
     /// 文件头语义表）
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        guard isEnabled else { return }
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: style).impactOccurred()
         #endif

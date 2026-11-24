@@ -590,6 +590,22 @@ struct SettingsView: View {
                     catalogRow(row)
                 }
             }
+            Toggle(isOn: Binding(
+                get: { Haptics.isEnabled },
+                set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
+            )) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Image(systemName: "iphone.radiowaves.left.and.right")
+                        .font(.system(size: FrameworkIcon.rowGlyphSize, weight: .regular))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: OneDayMetrics.iconSlot)
+                        .accessibilityHidden(true)
+                    Text("触感反馈")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         } header: {
             sectionHeader("偏好")
         }

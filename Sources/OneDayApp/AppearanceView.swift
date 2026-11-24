@@ -110,6 +110,14 @@ struct AppearanceView: View {
     /// 签点按一次 +1、经声明式 impact .light 施加
     @State private var avatarMenuTapCount = 0
 
+    private enum AppearanceTab: String, CaseIterable, Identifiable {
+        case theme = "主题"
+        case background = "背景"
+        case details = "文字与样式"
+        var id: String { rawValue }
+    }
+    @State private var selectedTab: AppearanceTab = .theme
+
     private var bubbleStyle: ChatBubbleStyle {
         ChatBubbleStyle(rawValue: bubbleStyleRaw) ?? .standard
     }
@@ -180,19 +188,42 @@ struct AppearanceView: View {
     private var previewIsDark: Bool { previewScheme == .dark }
 
     var body: some View {
-        List {
-            previewSection
-            themeSection
-            backgroundSection
-            accentSection
-            textSizeSection
-            bubbleCornerSection
-            avatarSection
-            modeSection
+        VStack(spacing: 0) {
+            // 大厂标准（OpenBot / Telegram / WhatsApp）：
+            // 真实聊天预览卡钉顶固定，下面切换主题/背景/文字时同帧实时可见、永不滚出屏幕
+            VStack(spacing: OneDayMetrics.spacingSM) {
+                previewCard
+                Picker("外观分组", selection: $selectedTab) {
+                    ForEach(AppearanceTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.top, OneDayMetrics.spacingS)
+            .padding(.bottom, OneDayMetrics.spacingSM)
+            .background(Palette.settingsBG)
+            Divider()
+            List {
+                switch selectedTab {
+                case .theme:
+                    themeSection
+                    accentSection
+                    modeSection
+                case .background:
+                    backgroundSection
+                case .details:
+                    textSizeSection
+                    bubbleCornerSection
+                    avatarSection
+                }
+            }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
+            .background(Palette.settingsBG)
         }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
-        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("外观")
         .navigationBarTitleDisplayMode(.inline)
