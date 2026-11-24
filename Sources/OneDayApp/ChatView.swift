@@ -10404,6 +10404,12 @@ private struct ComposerBarLayout: Layout {
         // 至多一轮在飞」改由出口 drain 守卫把守，
         // 入口不再禁止
         guard !text.isEmpty || !pending.isEmpty else { return }
+        // 有待批审批卡时拦截发送并给轻量提示（对齐 Muse 审批框：
+        // 避免用户打「允许」走文本消息而非结构化授权落账）
+        if appState.sharedHubStore().hasPendingApprovals {
+            notice = L10n.string("审核聊天中的批准请求以继续")
+            return
+        }
         // D3（DESIGN §352）：编辑态在武装时发送分
         // 流——target 之后还有已落定轮次（rounds-
         // After>0）先弹破坏性确认：稿快照暂存、发

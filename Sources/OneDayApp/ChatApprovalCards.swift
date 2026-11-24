@@ -38,42 +38,60 @@ struct ChatApprovalZone: View {
                 recordIDs: records.map(\.id),
                 anchoredIDs: anchoredRecordIDs
             )
-            VStack(spacing: OneDayMetrics.spacingM) {
+            let unanchoredResolved = store.resolvedLines.filter {
+                !anchoredRecordIDs.contains($0.id)
+            }
+            VStack(spacing: OneDayMetrics.spacingS) {
+                if let toast = store.alwaysAllowToast {
+                    alwaysAllowToastRow(toast)
+                }
                 if let activeID = queue.activeRecordID,
                    let record = records.first(
                        where: { $0.id == activeID }
                    ) {
-                    ChatApprovalCard(
-                        store: store, record: record,
-                        ledger: ledger
-                    )
-                }
-                if queue.queuedCount > 0 {
-                    queuedRow(count: queue.queuedCount)
-                }
-                ForEach(store.resolvedLines) { line in
-                    if !anchoredRecordIDs.contains(line.id) {
-                        resolvedRow(line)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                        if queue.queuedCount > 0 {
+                            Text(L10n.format(
+                                "待审批 1 / %lld",
+                                Int64(queue.queuedCount + 1)
+                            ))
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(Palette.inkSecondary)
+                            .padding(.horizontal, OneDayMetrics.spacingXS)
+                        }
+                        ChatApprovalCard(
+                            store: store, record: record,
+                            ledger: ledger
+                        )
+                        .id(record.id)
+                        .transition(.opacity)
                     }
+                } else if !unanchoredResolved.isEmpty {
+                    resolvedSummaryRow(unanchoredResolved)
                 }
             }
         }
     }
 
-    /// 待批收纳计数行（D10 定版②）：与回执行同
-    /// 族形态（surface 底＋footnote），只报数、
-    /// 不出钮、不可点——点开若出带钮的卡即破
-    /// 「只活一张」（定版字面口径，不做展开预览）
-    private func queuedRow(count: Int) -> some View {
+    /// 「总是允许」一次点按后的轻量可撤销通知（5 秒自动消失）
+    private func alwaysAllowToastRow(
+        _ toast: AgentHubStore.AlwaysAllowToast
+    ) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: "tray.full")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-            Text(L10n.format("还有 %lld 件待批", Int64(count)))
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Palette.success)
+            Text("已允许并记住这一类")
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
             Spacer()
+            Button("撤销") {
+                Task { await store.undoAlwaysAllowToast() }
+            }
+            .buttonStyle(.plain)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Palette.primary)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
@@ -83,23 +101,33 @@ struct ChatApprovalZone: View {
         )
     }
 
-    /// 裁决结果行：卡收起后的原地痕迹——结论图标＋标
-    /// 题＋结果措辞；带走由下一轮新卡顶上（上限与去重
-    /// 在 store 侧守）
-    private func resolvedRow(_ line: ApprovalResolvedLine) -> some View {
+    /// 全部批完后的单行轻汇总（不再批一条堆一行、消除页面跳动）
+    private func resolvedSummaryRow(
+        _ lines: [ApprovalResolvedLine]
+    ) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: line.outcome.isPositive
-                ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(line.outcome.isPositive
-                    ? Palette.success : Palette.danger)
-            Text(line.summary)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-            Spacer()
-            Text(line.outcome.label)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
+            if lines.count == 1, let only = lines.first {
+                Image(systemName: only.outcome.isPositive
+                    ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundStyle(only.outcome.isPositive
+                        ? Palette.success : Palette.danger)
+                Text(only.summary)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer()
+                Text(only.outcome.label)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Palette.success)
+                Text(L10n.format("已处理 %lld 项审批", Int64(lines.count)))
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer()
+            }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
@@ -134,8 +162,6 @@ struct ChatApprovalCard: View {
     @State private var localDetailError: String?
     @State private var localDetailExpanded = false
     @State private var localDetailLoading = false
-    @State private var showRejectConfirm = false
-    @State private var showAlwaysConfirm = false
 
     private var detail: WriteGateDetail? {
         if let ledger {
@@ -231,30 +257,6 @@ struct ChatApprovalCard: View {
             Palette.surface,
             in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
         )
-        .confirmationDialog(
-            "驳回这条写入？",
-            isPresented: $showRejectConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("驳回", role: .destructive) {
-                Task { await store.decide(record, approve: false) }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("驳回后这条写入不会生效。")
-        }
-        .confirmationDialog(
-            "总是允许这一类？",
-            isPresented: $showAlwaysConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("总是允许") {
-                Task { await store.decideAlways(record) }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。")
-        }
     }
 
     /// 详情展开区：按需拉桥 detail，内容与枢纽 sheet
@@ -274,9 +276,12 @@ struct ChatApprovalCard: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
         } else if let detail {
-            ApprovalReviewContent(
-                detail: detail, record: record, embedded: true
-            )
+            ScrollView {
+                ApprovalReviewContent(
+                    detail: detail, record: record, embedded: true
+                )
+            }
+            .frame(maxHeight: 260)
             .padding(.top, OneDayMetrics.spacingS)
             collapseButtonRow
         } else if let detailError {
@@ -303,16 +308,16 @@ struct ChatApprovalCard: View {
         .padding(.top, OneDayMetrics.spacingS)
     }
 
-    /// 三档裁决出口（钮面在共用卡面组件内）：批准直
-    /// 接提交；总是允许/驳回先过本宿主既有确认弹窗
+    /// 三档裁决出口：全部一次点按直接提交（总是允许
+    /// 落定后出带「撤销」的轻量通知，不弹二次确认框）
     private func handleAction(_ action: ApprovalCardAction) {
         switch action {
         case .approve:
             Task { await store.decide(record, approve: true) }
         case .alwaysAllow:
-            showAlwaysConfirm = true
+            Task { await store.decideAlways(record) }
         case .reject:
-            showRejectConfirm = true
+            Task { await store.decide(record, approve: false) }
         }
     }
 
