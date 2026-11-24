@@ -1,4 +1,4 @@
-# OneDay — a native iOS client for your self-hosted Hermes AI agent
+# OneDay — an open-source Muse, running on your own Hermes
 
 ![iOS 26](https://img.shields.io/badge/iOS-26-black)
 ![Swift 6](https://img.shields.io/badge/Swift-6.0-orange)
@@ -6,10 +6,15 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
-**OneDay is a full-featured, native iOS client for Hermes — the self-hosted AI agent server.**
-Run your own agent on your own server, then chat with it, watch it work, approve its actions, browse its files and manage its models from your iPhone. No third-party cloud in the middle: the app talks directly to *your* server over its API.
+**OneDay is an open-source Muse: a personal AI agent that lives on your own server.**
 
-> **Status:** OneDay is under active development by its original author (a solo side project, so the pace is irregular). Development is briefly paused while a Mac is on its way for on-device testing, and resumes as soon as it arrives. The codebase is complete and builds; see the [help-wanted issues](https://github.com/yyyyymmmmm/oneday-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you'd like to pick something up, or open an issue to say hello if you want to co-maintain.
+Commercial personal AI assistants run your agent — and keep your data — on someone else's cloud. OneDay flips that around. The agent is **Hermes**, self-hosted on a server you control, and OneDay is its full-featured, fully native iOS client: chat with your agent, watch it work, approve its actions, browse its files and manage its models from your iPhone. No third-party cloud in the middle — the app talks directly to *your* server over its API.
+
+## Why "OneDay"?
+
+"One day…" is how every wish begins — *one day I'll start, one day I'll change, one day I'll get there.* OneDay pulls that day back to today: start today, and live every day well, one day at a time.
+
+> **Status:** OneDay is in active development, with new releases shipping regularly (current line: 0.51.x). It's open source under MIT and maintained by its original author; issues, PRs and co-maintainers are all welcome — see the [help-wanted issues](https://github.com/yyyyymmmmm/oneday-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you'd like to pick something up, or open an issue to say hello.
 
 ## Screenshots
 
@@ -19,10 +24,12 @@ Run your own agent on your own server, then chat with it, watch it work, approve
   <img src="docs/shots/04-overview.png" width="250" alt="Overview">
 </p>
 
+<sub>Screenshots are from an earlier release and are being re-shot for the current interface.</sub>
+
 ## Features
 
 - **Streaming chat** with block-level rendering, tool-call cards, image lightbox and file preview
-- **Approvals in the chat stream** — the agent asks, you tap to approve or deny, with a full audit ledger
+- **Approvals** — a dedicated approval card pinned above the input bar: the agent asks, you approve, deny or always-allow in one tap, with a full audit ledger
 - **Sessions & channels** — your conversations, plus sessions that arrive from the web/API side, all resumable
 - **Work ledger** — every background/scheduled task the agent runs, with live status
 - **Files** — browse, preview and manage the agent's working files
@@ -58,9 +65,15 @@ On first launch the app asks only for your Hermes server address and your login 
 
 ## 中文简介
 
-OneDay 是自托管 AI Agent 服务端 **Hermes** 的原生 iOS 客户端：把 Agent 跑在你自己的服务器上，再用 iPhone 跟它聊天、看它干活、在聊天里批它的审批、管它的文件和模型。流式对话、工具调用卡片、会话与频道、工作台账、文件预览、语音听写、设备连接器（日历/通讯录/健康摘要）一应俱全，按 iOS 26 原生设计语言打造。
+**OneDay 是开源版的 Muse：一个住在你自己服务器上的个人智能体。**
 
-项目仍由原作者持续开发（个人业余项目，节奏不定期），目前短暂暂停，等 Mac 到位后继续推进并做真机测试。也欢迎共同维护：欢迎从 [help wanted issue](https://github.com/yyyyymmmmm/oneday-app/issues) 里挑一个上手，或直接开 issue 报名共同维护。
+商业个人 AI 助手把你的智能体、连同你的数据，一起放在别人的云上。OneDay 反过来：智能体是自托管的 **Hermes**，跑在你自己的服务器上；OneDay 是它的全原生 iOS 客户端——跟它聊天、看它干活、批它的审批、管它的文件和模型，中间不经过任何第三方云，App 直连你自己的服务器。
+
+### 为什么叫 OneDay
+
+「One day」是每个人许愿时的话——总有一天我会怎样。OneDay 想把那一天拉回今天：从今天开始，陪你过好每一天。
+
+项目由原作者持续开发中，版本持续更新（当前 0.51.x 线），MIT 开源。欢迎从 [help wanted issue](https://github.com/yyyyymmmmm/oneday-app/issues) 里挑一个上手，或直接开 issue 报名共同维护。
 
 ## Contributing
 
