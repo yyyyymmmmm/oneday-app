@@ -95,4 +95,118 @@ final class SessionHistoryImportTests: XCTestCase {
             "未命名会话"
         )
     }
+
+    // MARK: - 收敛包：引用块拆解（P3-1）
+
+    /// 引用块随回流进来要在规范化里拆回槽位：正文只
+    /// 剩亲笔正文、引用进 quote，不再直显原文
+    func testNormalizedUserContentSplitsQuoteBlock() {
+        let wire = MessageQuote.outgoingContent(
+            userText: "就这条展开",
+            quote: MessageQuote(role: "assistant", content: "旧回复")
+        )
+        let normalized = SessionHistoryImport
+            .normalizedUserContent(wire)
+        XCTAssertEqual(normalized.text, "就这条展开")
+        XCTAssertEqual(
+            normalized.quote,
+            MessageQuote(role: "assistant", content: "旧回复")
+        )
+    }
+
+    func testNormalizedUserContentSplitsUserQuoteBlock() {
+        let wire = "[引用 我 的消息]\n我之前说的\n\n对，就是这个"
+        let normalized = SessionHistoryImport
+            .normalizedUserContent(wire)
+        XCTAssertEqual(normalized.text, "对，就是这个")
+        XCTAssertEqual(normalized.quote?.role, "user")
+        XCTAssertEqual(normalized.quote?.content, "我之前说的")
+    }
+
+    /// 纯引用块（正文为空的发送）拆得正文为空、引用在位
+    func testNormalizedUserContentQuoteOnlyBlock() {
+        let wire = MessageQuote.outgoingContent(
+            userText: "",
+            quote: MessageQuote(role: "user", content: "只有引用")
+        )
+        let normalized = SessionHistoryImport
+            .normalizedUserContent(wire)
+        XCTAssertEqual(normalized.text, "")
+        XCTAssertEqual(normalized.quote?.content, "只有引用")
+    }
+
+    /// 同族块头不误拆：动态引用块头不以「 的消息]」收尾
+    func testNormalizedUserContentLeavesFeedQuoteBlockAlone() {
+        let wire = "[引用动态：《某帖》]\n帖子正文\n\n我的看法"
+        let normalized = SessionHistoryImport
+            .normalizedUserContent(wire)
+        XCTAssertNil(normalized.quote)
+        XCTAssertEqual(normalized.text, wire)
+    }
+
+    /// 无引用正文原样、quote 恒 nil（旧口径不回退）
+    func testNormalizedUserContentPlainTextUnchanged() {
+        let normalized = SessionHistoryImport
+            .normalizedUserContent("普通消息")
+        XCTAssertEqual(normalized.text, "普通消息")
+        XCTAssertNil(normalized.quote)
+    }
+
+    /// richItems：带引用 user 消息落项时正文拆净、
+    /// quote 在位；纯引用项不被空正文门吞掉
+    func testRichItemsCarriesQuoteSlot() {
+        let items = SessionHistoryImport.richItems(from: [
+            SessionMessage(
+                id: 11, role: "assistant", content: "被引用的回答",
+                timestamp: 1762000100, displayKind: nil
+            ),
+            SessionMessage(
+                id: 12, role: "user",
+                content: "[引用 Hermes 的消息]\n被引用的回答\n\n展开讲讲",
+                timestamp: 1762000101, displayKind: nil
+            ),
+            SessionMessage(
+                id: 13, role: "user",
+                content: "[引用 我 的消息]\n只有引用",
+                timestamp: 1762000102, displayKind: nil
+            ),
+        ])
+        XCTAssertEqual(items.count, 3)
+        let quoted = items.first { $0.serverRowID == 12 }
+        XCTAssertEqual(quoted?.content, "展开讲讲")
+        XCTAssertEqual(quoted?.quote?.role, "assistant")
+        XCTAssertEqual(quoted?.quote?.content, "被引用的回答")
+        let quoteOnly = items.first { $0.serverRowID == 13 }
+        XCTAssertEqual(quoteOnly?.content, "")
+        XCTAssertEqual(quoteOnly?.quote?.content, "只有引用")
+    }
+
+    /// 校验集切分：被引长文含空行、正文也含空行时，
+    /// 据同批已知消息定切点，不靠末界回落猜
+    func testParsePrefersKnownQuoteTextSplit() {
+        let longAnswer = "第一段\n\n第二段"
+        let wire = "[引用 Hermes 的消息]\n\(longAnswer)\n\n正文一段\n\n正文二段"
+        let parsed = MessageQuote.parse(
+            wireContent: wire, knownQuoteTexts: [longAnswer]
+        )
+        XCTAssertEqual(parsed?.quote.content, longAnswer)
+        XCTAssertEqual(parsed?.body, "正文一段\n\n正文二段")
+    }
+
+    /// parse 与 outgoingContent 互逆（无歧义样本）；
+    /// 普通正文与同族块头不命中
+    func testParseInvertsOutgoingContent() {
+        let quote = MessageQuote(role: "assistant", content: "原回答")
+        let wire = MessageQuote.outgoingContent(
+            userText: "追问", quote: quote
+        )
+        let parsed = MessageQuote.parse(wireContent: wire)
+        XCTAssertEqual(parsed?.quote, quote)
+        XCTAssertEqual(parsed?.body, "追问")
+        XCTAssertNil(MessageQuote.parse(wireContent: "普通正文"))
+        XCTAssertNil(
+            MessageQuote.parse(wireContent: "[引用动态：《x》]\n正文")
+        )
+    }
+
 }

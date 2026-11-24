@@ -153,4 +153,77 @@ final class SessionHistorySyncTests: XCTestCase {
             "已载入 12 条"
         )
     }
+
+    // MARK: - 收敛包：指纹单源（P4-1）
+
+    /// 同一条带引用消息：拉回项（线格式经 richItems
+    /// 拆解）与本地条目零件（干净正文＋引用槽位）经
+    /// 同一组装点必须同指纹——旧口径两边各喂原文恒
+    /// 不等、回补必再插一行
+    func testFingerprintMatchesAcrossWireAndLocalParts() {
+        let items = SessionHistoryImport.richItems(from: [
+            SessionMessage(
+                id: 21, role: "user",
+                content: "[引用 Hermes 的消息]\n旧回复\n\n就这条展开",
+                timestamp: 1762000200, displayKind: nil
+            ),
+        ])
+        XCTAssertEqual(items.count, 1)
+        let itemPrint = SessionHistorySync.fingerprint(of: items[0])
+        let localPrint = SessionHistorySync.fingerprint(
+            role: "user",
+            date: Date(timeIntervalSince1970: 1762000200),
+            content: "就这条展开",
+            quote: MessageQuote(role: "assistant", content: "旧回复"),
+            attachmentPaths: [], toolCardID: nil
+        )
+        XCTAssertEqual(itemPrint, localPrint)
+    }
+
+    /// 引用参与同一性：同正文、引用有无/不同 → 指纹
+    /// 不同，不许只比正文把两条不同的消息判成一条
+    func testFingerprintDistinguishesQuote() {
+        let date = Date(timeIntervalSince1970: 1000)
+        let plain = SessionHistorySync.fingerprint(
+            role: "user", date: date, content: "正文",
+            quote: nil, attachmentPaths: [], toolCardID: nil
+        )
+        let quoted = SessionHistorySync.fingerprint(
+            role: "user", date: date, content: "正文",
+            quote: MessageQuote(role: "user", content: "被引"),
+            attachmentPaths: [], toolCardID: nil
+        )
+        let otherQuoted = SessionHistorySync.fingerprint(
+            role: "user", date: date, content: "正文",
+            quote: MessageQuote(role: "user", content: "另一条"),
+            attachmentPaths: [], toolCardID: nil
+        )
+        XCTAssertNotEqual(plain, quoted)
+        XCTAssertNotEqual(quoted, otherQuoted)
+    }
+
+    /// unseenItems 判同回归钉：本地已有带引用条目
+    /// （其指纹以本地零件组装、在 existing 里）时，
+    /// 线格式拉回项判已在、不再入选
+    func testUnseenItemsTreatsQuotedWireItemAsSeen() {
+        let localPrint = SessionHistorySync.fingerprint(
+            role: "user",
+            date: Date(timeIntervalSince1970: 1762000300),
+            content: "展开讲讲",
+            quote: MessageQuote(role: "assistant", content: "原回答"),
+            attachmentPaths: [], toolCardID: nil
+        )
+        let items = SessionHistoryImport.richItems(from: [
+            SessionMessage(
+                id: 31, role: "user",
+                content: "[引用 Hermes 的消息]\n原回答\n\n展开讲讲",
+                timestamp: 1762000300, displayKind: nil
+            ),
+        ])
+        let unseen = SessionHistorySync.unseenItems(
+            items, existing: [localPrint]
+        )
+        XCTAssertTrue(unseen.isEmpty)
+    }
+
 }

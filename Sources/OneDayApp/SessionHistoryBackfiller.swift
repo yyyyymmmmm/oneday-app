@@ -45,6 +45,13 @@ enum SessionHistoryInserter {
             // 与真源镜像随条目出生即在位，呈现构建时
             // 同步已知、无异步补钉翻转）
             chatEntry.serverRowID = item.serverRowID
+            // 收敛包（P3-1）：引用槽位随落盘回填——
+            // 正文已是拆净的干净正文，引用走槽位呈
+            // 现，不再把线格式原文直写 content
+            if let quote = item.quote {
+                chatEntry.quoteRole = quote.role
+                chatEntry.quoteContent = quote.content
+            }
             chatEntry.applyReactions(item.reactions)
             context.insert(chatEntry)
         }
@@ -82,18 +89,89 @@ enum SessionHistoryInserter {
         }
     }
 
-    /// 本地条目 → 回补指纹（与拉回项同口径组装，
-    /// 见 Core SessionHistorySync）
+    /// 本地条目 → 回补指纹（组装单点在 Core
+    /// SessionHistorySync.fingerprint(role:…)，本
+    /// 处只喂零件：干净正文＋引用槽位＋附件路径
+    /// 集——与拉回项同口径，见 P4-1）
     static func fingerprint(
         of entry: ChatEntry
     ) -> HistoryFingerprint {
-        HistoryFingerprint(
+        SessionHistorySync.fingerprint(
             role: entry.role, date: entry.createdAt,
-            content: entry.content,
+            content: entry.content, quote: entry.quote,
             attachmentPaths: entry.remoteImagePaths
                 + entry.remoteFilePaths,
             toolCardID: entry.toolCard?.id
         )
+    }
+
+    /// 存量收敛（收敛包，2026-11-24）：修复前落盘的
+    /// 线格式原文行在下一次回补时就地治，不等新数据
+    /// 触发。两步：
+    /// ①原地规范化：user 行、无引用槽位、正文能拆出
+    /// 引用块的（修复前回补落的原文行），就地拆回
+    /// （干净正文＋引用槽位）；单行无孪生也治——换
+    /// 机导入的孤行靠这步回正呈现；
+    /// ②同指纹合并：指纹全等的条目只留一条。留存
+    /// 序：有引用槽位者胜（结构在位）→ serverRowID
+    /// 在位者胜（服务端锚）→ createdAt 早者胜。被
+    /// 并条目的 serverRowID 转移给留存者（留存者已
+    /// 有则不动）；反应镜像只在留存者为空时接（两
+    /// 行同为一服务端行的镜像，下轮对账恒以服务端
+    /// 真源覆写自愈，不在此拼凑）；被并条目删除。
+    /// 同一性定义与去重同源：指纹即 unseenItems 的
+    /// 判同口径——系统本就把同指纹两行视作同一行，
+    /// 合并只是把既成定义落到存量数据上，不新造判
+    /// 断。返回删除条数（观测/钉测用）
+    @discardableResult
+    static func convergeStockDuplicates(
+        entries: [ChatEntry], context: ModelContext
+    ) -> Int {
+        // ① 原地规范化（校验集＝本线程各行正文：被
+        // 引消息多半同线程在场）
+        let knownQuoteTexts = Set(entries.map(\.content))
+        for entry in entries
+        where entry.role == "user" && entry.quote == nil {
+            guard let parsed = MessageQuote.parse(
+                wireContent: entry.content,
+                knownQuoteTexts: knownQuoteTexts
+            ) else { continue }
+            entry.content = parsed.body
+            entry.quoteRole = parsed.quote.role
+            entry.quoteContent = parsed.quote.content
+        }
+        // ② 同指纹合并＋删除被并条目
+        var groups: [HistoryFingerprint: [ChatEntry]] = [:]
+        for entry in entries {
+            groups[fingerprint(of: entry), default: []]
+                .append(entry)
+        }
+        var removed = 0
+        for group in groups.values where group.count > 1 {
+            let ranked = group.sorted { lhs, rhs in
+                if (lhs.quote != nil) != (rhs.quote != nil) {
+                    return lhs.quote != nil
+                }
+                if (lhs.serverRowID != nil)
+                    != (rhs.serverRowID != nil) {
+                    return lhs.serverRowID != nil
+                }
+                return lhs.createdAt < rhs.createdAt
+            }
+            let keeper = ranked[0]
+            for duplicate in ranked.dropFirst() {
+                if keeper.serverRowID == nil {
+                    keeper.serverRowID = duplicate.serverRowID
+                }
+                if keeper.reactions.isEmpty,
+                   !duplicate.reactions.isEmpty {
+                    keeper.applyReactions(duplicate.reactions)
+                }
+                context.delete(duplicate)
+                removed += 1
+            }
+        }
+        return removed
     }
 }
 
@@ -206,6 +284,13 @@ final class SessionHistoryBackfiller {
             )
             SessionHistoryInserter.insert(
                 items: unseen, into: thread, context: context
+            )
+            // 收敛包：存量原文行/重复行每页落盘后顺
+            // 手收敛（原地规范化＋同指纹合并）——修
+            // 复前落的账不许等新数据触发才治；下方
+            // 计数在收敛后取、据实
+            SessionHistoryInserter.convergeStockDuplicates(
+                entries: thread.entries, context: context
             )
             processed += page.count
             // 进度分子＝本地现有条目数（用户屏幕上实
