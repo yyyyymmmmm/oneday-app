@@ -490,11 +490,25 @@ final class TopBarGuideHostController: UIViewController {
         // 场现算，不再经布局拍缓存）
         (view as? TopBarPassthroughView)?.barView =
             barHost.view
-        // §213：顶缘效果注册到顶簇宿主视图本体——效
-        // 果由系统插在容器之后、按内容滚过与否自适
-        // 应；本视图层级内不再垫任何常驻材质片
+        // §213 + 大厂顶部朦胧位置校准：edgeInteraction 挂到顶簇
+        // 顶部 44pt 锚定子视图（仅覆盖状态栏＋圆钮带，不再下探到身份
+        // 胶囊底部 169pt），保持 view.subviews 仍只含 barHost.view 一层
+        let edgeAnchor = UIView()
+        edgeAnchor.backgroundColor = .clear
+        edgeAnchor.isUserInteractionEnabled = false
+        edgeAnchor.translatesAutoresizingMaskIntoConstraints = false
+        barHost.view.addSubview(edgeAnchor)
+        NSLayoutConstraint.activate([
+            edgeAnchor.leadingAnchor.constraint(
+                equalTo: barHost.view.leadingAnchor),
+            edgeAnchor.trailingAnchor.constraint(
+                equalTo: barHost.view.trailingAnchor),
+            edgeAnchor.topAnchor.constraint(
+                equalTo: barHost.view.topAnchor),
+            edgeAnchor.heightAnchor.constraint(equalToConstant: 44),
+        ])
         edgeInteraction.edge = .top
-        barHost.view.addInteraction(edgeInteraction)
+        edgeAnchor.addInteraction(edgeInteraction)
         refreshEdgeBinding()
         // 顶簇钉位：顶边恒钉自有 topGuide（单约束、
         // 常量由 syncTopConstant 按窗口实测重算）、

@@ -684,7 +684,7 @@ struct DeliverablesView: View {
                     ? "doc.text.magnifyingglass" : "magnifyingglass",
                 message: query.isEmpty
                     ? (category == .all && sourceFilter.isEmpty
-                        ? "智能体产出的文件和你发送的文件会出现在这里。"
+                        ? "在聊天中智能体发给你的和你发送的文件会出现在这里。"
                         : "换个筛选试试。")
                     : "换个关键词试试。"
             )

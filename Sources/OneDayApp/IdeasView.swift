@@ -64,8 +64,7 @@ struct IdeasView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ideasTopHeader
+            ZStack(alignment: .top) {
                 Group {
                     switch store.loadState {
                     case .loading:
@@ -98,6 +97,7 @@ struct IdeasView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ideasTopHeader
             }
             .background {
                 Palette.pageBG
@@ -275,6 +275,7 @@ struct IdeasView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(.top, 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -299,6 +300,8 @@ struct IdeasView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
+            .contentMargins(.top, 112, for: .scrollContent)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)
                 if !store.adoptedIdeas.isEmpty {

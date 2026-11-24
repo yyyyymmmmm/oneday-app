@@ -133,8 +133,7 @@ struct FeedView: View {
             isSearching: isSearching
         )
         return NavigationStack(path: $path) {
-            VStack(spacing: 0) {
-                feedTopHeader
+            ZStack(alignment: .top) {
                 Group {
                     switch store.loadState {
                     case .loading:
@@ -167,6 +166,7 @@ struct FeedView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                feedTopHeader
             }
             .background {
                 Palette.pageBG
@@ -445,7 +445,8 @@ struct FeedView: View {
             .scrollContentBackground(.hidden)
             .background(Color.clear)
             .listSectionSpacing(OneDayMetrics.spacingM)
-            .contentMargins(.top, topMargin, for: .scrollContent)
+            .contentMargins(.top, topMargin + 112, for: .scrollContent)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top
             } action: { _, newValue in
@@ -475,6 +476,7 @@ struct FeedView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(.top, 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -505,11 +507,9 @@ struct FeedView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            // 分区间距（§126 令牌口径保留）：现行只
-            // 余搜索空态段与帖流段两段，段距仍走令牌
-            // spacingM，不回系统默认
             .listSectionSpacing(OneDayMetrics.spacingM)
-            .contentMargins(.top, topMargin, for: .scrollContent)
+            .contentMargins(.top, topMargin + 112, for: .scrollContent)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             // §498：滚动偏移只驱动字段槽切换（归一
             // 化偏移＝offset＋顶 inset，静止恒 0）
             .onScrollGeometryChange(for: CGFloat.self) { geometry in

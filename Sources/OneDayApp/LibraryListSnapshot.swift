@@ -60,6 +60,9 @@ struct LibraryListSnapshot {
                 || item.entry.name.localizedCaseInsensitiveContains(trimmed)
         }
         func matchesSource(_ item: Deliverable) -> Bool {
+            if LibrarySourceFilter.isExcludedBackgroundOutput(item) {
+                return false
+            }
             if source.isEmpty { return true }
             if source == LibrarySourceFilter.agent.rawValue {
                 return LibrarySourceFilter.classify(deliverable: item) == .agent
@@ -219,18 +222,34 @@ final class LibrarySnapshotCache {
     }
 }
 
-/// 资源库来源三档筛选（精简内部目录来源，统一归类）
+/// 资源库来源三档筛选（大厂口径：只收录聊天页里智能体主动发给用户的与用户发送的，排除定时任务/快报/简报等后台产物）
 enum LibrarySourceFilter: String, CaseIterable, Equatable, Hashable {
     case all = ""
-    case agent = "智能体产出"
+    case agent = "智能体发送"
     case user = "用户发送"
 
     var label: String {
         switch self {
         case .all: return "全部来源"
-        case .agent: return "智能体产出"
+        case .agent: return "智能体发送"
         case .user: return "用户发送"
         }
+    }
+
+    /// 排除定时任务、快报、简报、动态、监测与内部缓存等非聊天主动发送产物
+    static func isExcludedBackgroundOutput(_ deliverable: Deliverable) -> Bool {
+        let s = deliverable.source.lowercased()
+        let p = deliverable.entry.path.lowercased()
+        let excludedKeywords = [
+            "cron", "定时", "快报", "简报", "brief", "digest",
+            "feed", "动态", "monitor", "监测", "scratch"
+        ]
+        for kw in excludedKeywords {
+            if s.contains(kw) || p.contains("/\(kw)") || p.contains("\(kw)/") {
+                return true
+            }
+        }
+        return false
     }
 
     static func classify(deliverable: Deliverable) -> LibrarySourceFilter {
