@@ -110,6 +110,11 @@ struct AgentHubView: View {
     var onApprovalChanged: (() -> Void)? = nil
     /// 选择模型入口注入（§434）：宿主给齐才出入口
     var modelEntry: HubModelEntry? = nil
+    /// 卡片呈现关闭接缝（§502）：宿主（HubCard-
+    /// Host）给齐时，✕ 与下钻关页走宿主飞出动画；
+    /// 未给时回退系统 dismiss（其余四面 push 入口
+    /// 与标准呈现照旧）
+    var onCardClose: (() -> Void)? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -561,7 +566,7 @@ struct AgentHubView: View {
                 // 页头圆钮（L1，用户定案③：照样板形态、
                 // 用系统玻璃原生件拼装）
                 Button {
-                    dismiss()
+                    closeHub()
                 } label: {
                     Image(systemName: "xmark")
                         .frame(width: 36, height: 36)
@@ -777,6 +782,17 @@ struct AgentHubView: View {
         )
     }
 
+    /// 关页单点（§502）：卡片宿主在场走飞出动画关
+    /// 闭、不在场走系统 dismiss——全页两处关页点
+    /// （✕／台账下钻）共用，不许各点自判
+    private func closeHub() {
+        if let onCardClose {
+            onCardClose()
+        } else {
+            dismiss()
+        }
+    }
+
     // MARK: - 段内容
 
     @ViewBuilder
@@ -792,7 +808,7 @@ struct AgentHubView: View {
             // Section），原定时段整段退役
             HubLedgerSection(hubStore: store, onOpenSession: { sessionID in
                 appState.router.pendingChatSessionID = sessionID
-                dismiss()
+                closeHub()
             })
         case .audit:
             // 审核段（§434 转正）：授权账本＋审批记
@@ -815,18 +831,4 @@ struct AgentHubView: View {
 }
 
 
-/// 枢纽全页呈现口径（§434，覆盖 §217 的 sheet 卡
-/// 片式）：呈现改导航 push＋系统 zoom 转场（源＝
-/// 聊天页居中大头像，裁决走 Core ZoomTransition-
-/// Policy），本修饰符只管全页 chrome——外层栈导
-/// 航栏与壳底栏在枢纽页藏起（枢纽自有 ✕ 行与页
-/// 头，不与系统返回钮/底栏并置）；关闭＝✕ 或系
-/// 统交互式 pop，zoom 自动反向缩回。§217 的
-/// hubSheetPresentation（.large detent＋拖拽指示
-/// 器）随呈现方式整段退役。
-extension View {
-    func hubFullPageChrome() -> some View {
-        toolbar(.hidden, for: .navigationBar)
-            .toolbar(.hidden, for: .tabBar)
-    }
-}
+/// （§502 沿革：hubFullPageChrome 随 push 呈现退役——卡片呈现走 fullScreenCover、覆盖层自带全屏 chrome，藏栏修饰不再需要。）

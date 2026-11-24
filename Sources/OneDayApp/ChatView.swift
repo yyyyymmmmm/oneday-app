@@ -69,12 +69,10 @@ struct ChatView: View {
     /// sheet（AgentHubView .activity 四段，自带导航栈；
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
     @State private var showHub = false
-    /// 中枢 zoom 转场命名空间（§434）：源＝顶簇居
-    /// 中大头像（headerIdentityHero 挂 matched-
-    /// TransitionSource），目标＝中枢页（呈现点挂
-    /// navigationTransition）
-    @Namespace private var hubZoomNamespace
-    private static let hubZoomSourceID = "hubHero"
+    /// （§502 退役：中枢 zoom 转场命名空间与源 ID
+    /// ——呈现改交互式卡片转场后无共享元素源，见
+    /// hubCover；ZoomTransitionPolicy 本体留给图
+    /// 片查看器等其余消费面）
     // （§449 退役：顶栏模型选择面开关 showModel-
     // Picker 与隐藏服务商待确认 pendingHideGroup
     // 随顶栏模型胶囊整件删除——模型入口唯一收中
@@ -1067,17 +1065,22 @@ struct ChatView: View {
         // Cover 的硬切感就此退场。枢纽内自带 sheet（分
         // 享/模型/档案编辑）是嵌套呈现、照常工作；左
         // 缘右滑与 ✕ 关闭口径不变
-        // §434（2026-11-24，用户亲点）：呈现改导航
-        // push＋系统 zoom 转场——§217 的 sheet 卡片
-        // 式（hubSheetPresentation）就此退役；宿主
-        // NavigationStack 在 ContentView 聊天格（本
-        // 页在栈内注册目的地）。结构归位包「枢纽不
-        // 读当前会话」的口径由本节按用户新令覆盖：
-        // 中枢「选择模型」入口注入本会话模型账
-        // （§153 同组件同数据源），枢纽本体仍不自
-        // 拉模型账、只消费注入包
-        .navigationDestination(isPresented: $showHub) {
-            hubDestination
+        // §502（2026-11-24，用户亲点中枢右滑关
+        // 页）：呈现改 fullScreenCover＋交互式卡片
+        // 转场（HubCardHost）——§434 的 push＋zoom
+        // 就此退役：zoom 是共享元素转场、凑不出整
+        // 页卡片形态，且 push 藏底栏正是 §472 回落
+        // 迟滞的病灶结构，覆盖层下底栏留在底层随
+        // 转场同步进出、迟滞结构性消失（§472 验收
+        // 口径并入 §502）。本修饰与旧 navigation-
+        // Destination 在 body 链同位替换，chat-
+        // Scaffold 本体零改动、修饰层净数不变。
+        // 「枢纽不读当前会话」口径不变：中枢「选
+        // 择模型」入口注入本会话模型账（§153 同组
+        // 件同数据源），枢纽本体仍不自拉模型账、
+        // 只消费注入包
+        .fullScreenCover(isPresented: $showHub) {
+            hubCover
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
@@ -1140,7 +1143,7 @@ struct ChatView: View {
         .onChange(of: appState.router.hubOpenRequested) { _, requested in
             if requested {
                 appState.router.hubOpenRequested = false
-                showHub = true
+                presentHub()
             }
         }
         // 0.4.1：「选择」纯文本 sheet（长按菜单发起，
@@ -1503,6 +1506,8 @@ struct ChatView: View {
                 // 根只在键盘升起时断言 .hidden，其余
                 // 不表态、由栈顶页自决——键盘坞行为
                 // 不变（升起仍藏、落下默认可见）
+                // （§502 后中枢改覆盖层呈现、不再入
+                // 栈，本对撞面消失；上注留作定因沿革）
                 .toolbar(
                     kbSnapshot.isKeyboardUp ? .hidden : .automatic,
                     for: .tabBar
@@ -2016,15 +2021,33 @@ struct ChatView: View {
         }
     }
 
-    /// 中枢目的地（§434）：zoom 与标准 push 二选一
-    /// 由 ZoomTransitionPolicy 裁决（§247.2 单源：
-    /// Reduce Motion→标准；源＝顶簇居中大头像、
-    /// 常驻不滚走故恒可用）。审批终态回调与模型
-    /// 入口注入在此一处收口（三处 showHub 置位点
-    /// 共用同一目的地）
+    /// 中枢呈现内容（§502）：卡片／标准二选一由
+    /// HubCardPolicy 裁决（§502 单源：Reduce
+    /// Motion→标准 cover、无手势变形；否则 Hub-
+    /// CardHost 交互式卡片转场）。审批终态回调与
+    /// 模型入口注入在此一处收口（各 showHub 置位
+    /// 点共用同一呈现）
     @ViewBuilder
-    private var hubDestination: some View {
-        let hub = AgentHubView(
+    private var hubCover: some View {
+        if HubCardPolicy.decide(
+            reduceMotion: reduceMotion
+        ) == .card {
+            HubCardHost(
+                onDismissed: { dismissHubWithoutAnimation() }
+            ) { requestClose in
+                hubView(onCardClose: requestClose)
+            }
+        } else {
+            hubView(onCardClose: nil)
+        }
+    }
+
+    /// 中枢本体构造（§502）：卡片宿主给关页接缝、
+    /// 标准呈现不给（✕ 回退系统 dismiss）
+    private func hubView(
+        onCardClose: (() -> Void)?
+    ) -> some View {
+        AgentHubView(
             onApprovalChanged: {
                 Task { await overviewStore?.refresh(appState: appState) }
             },
@@ -2037,21 +2060,38 @@ struct ChatView: View {
                 onSelect: { choice in
                     selectCurrentChoice(choice)
                 }
-            )
+            ),
+            onCardClose: onCardClose
         )
-        .hubFullPageChrome()
-        if ZoomTransitionPolicy.decide(
-            reduceMotion: reduceMotion,
-            sourceAvailable: true
-        ) == .zoom {
-            hub.navigationTransition(
-                .zoom(
-                    sourceID: Self.hubZoomSourceID,
-                    in: hubZoomNamespace
-                )
-            )
+    }
+
+    /// 开中枢（§502）：卡片口径下呈现动画由 Hub-
+    /// CardHost 入场弹簧自理，置位走无动画事务，
+    /// 防系统 cover 转场与入场弹簧双写；标准口径
+    /// 走系统 cover 转场。各置位点统一走本点，不
+    /// 许直写 showHub = true
+    private func presentHub() {
+        if HubCardPolicy.decide(
+            reduceMotion: reduceMotion
+        ) == .card {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                showHub = true
+            }
         } else {
-            hub
+            showHub = true
+        }
+    }
+
+    /// 关中枢落账（§502）：飞出动画已在 HubCard-
+    /// Host 内走完，此处以无动画事务落 showHub，
+    /// 防系统 cover 退场转场二次抢镜
+    private func dismissHubWithoutAnimation() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            showHub = false
         }
     }
 
@@ -2242,10 +2282,7 @@ struct ChatView: View {
                 statusWord: overviewStatusWord,
                 statusColor: overviewStatusColor,
                 avatarPointSize: OneDayMetrics.avatarChatHero,
-                onOpenHub: { showHub = true }
-            )
-            .matchedTransitionSource(
-                id: Self.hubZoomSourceID, in: hubZoomNamespace
+                onOpenHub: { presentHub() }
             )
             .padding(.bottom, 36)
 
@@ -2262,7 +2299,7 @@ struct ChatView: View {
                 // 词——第二行留空（用户亲令删「在线」、
                 // 小字只许工作状态）
                 statusWord: appState.liveActivityPhrase,
-                onOpenHub: { showHub = true },
+                onOpenHub: { presentHub() },
                 onFindInConversation: { showFind = true }
             )
         }
@@ -7383,7 +7420,7 @@ struct ChatView: View {
         // ✕ 不随动
         ZStack(alignment: .topTrailing) {
             Button {
-                showHub = true
+                presentHub()
             } label: {
                 HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "bell.badge")

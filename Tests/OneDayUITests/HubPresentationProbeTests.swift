@@ -1,9 +1,12 @@
 import XCTest
 
 /// §449 探针（改前/改后同法同判据，基线与落码后各跑一轮对账）：
-/// ①第 5 条：中枢 push 后底栏在场与否——判据＝底栏元素帧
-/// （不存在／高为 0／顶边已出窗口底三者居一为「已隐藏」），
-/// 另附截图留痕（与真机截图量测同款证据）；
+/// ①第 5 条：中枢开页时底栏在场与否——判据＝底栏元素帧
+/// （不存在／高为 0／顶边已出窗口底三者居一为「已隐藏」）；
+/// §502 改钉（归因见 DESIGN §502）：呈现由 push＋藏栏改
+/// fullScreenCover 覆盖层后，底层底栏的 AX 帧恒在场、帧
+/// 判据失效——判据增列「不可命中」（被覆盖层遮挡）为等
+/// 价隐藏信号，帧三式保留兼容旧形态。另附截图留痕；
 /// ②第 4 条旁证：点头像→中枢锚格分段（工作/身份）＋模型
 /// 入口全数可命中的耗时，首开与重开各量一次。
 /// 本探针在基线（rel-05106）上预期：第 5 条判 FAIL（底栏
@@ -60,6 +63,7 @@ final class HubPresentationProbeTests: XCTestCase {
         let tabHidden = !hubTabExists
             || (hubTabExists && hubTab.frame.height == 0)
             || (hubTabExists && hubTab.frame.minY >= win.height - 1)
+            || (hubTabExists && !hubTab.isHittable)
         lines.append("TABBAR_HIDDEN=\(tabHidden)")
 
         // 关枢纽回聊天
@@ -88,7 +92,7 @@ final class HubPresentationProbeTests: XCTestCase {
         emit(lines)
         XCTAssertTrue(
             tabHidden,
-            "中枢 push 后底栏仍在场（第 5 条）："
+            "中枢开页底栏仍在场可命中（第 5 条）："
                 + "frame=\(hubTabExists ? fmt(hubTab.frame) : "n/a")")
         XCTAssertTrue(
             tabAfter.exists,

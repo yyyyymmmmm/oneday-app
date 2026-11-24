@@ -18,12 +18,12 @@ import XCTest
 ///   落点全部落工作段（AgentHubView.segment
 ///   (for:) 纯映射）；
 /// ③分段条量测钉（§222 值不变）；
-/// ④呈现探针：中枢经 NavigationStack push 呈现
-///   ——本 rig 内机制面硬断言＝开关全程非模态
-///   （presentedViewController 恒 nil）；栈内物
-///   化在无场景裸窗口无信号（三轮诊断在案），
-///   push 落位/全页/底栏隐藏归真 App UITests
-///   与真机录屏并排比（本仓 rig≠真机的一贯口径）。
+/// ④呈现探针：中枢经 fullScreenCover 卡片呈现
+///   （§502）——本 rig 内机制面硬断言＝开启后
+///   presentedViewController 物化且样式为
+///   .fullScreen（非 sheet 卡）；全页帧/底栏覆
+///   盖归真 App UITests（HubCardPresentati-
+///   onUITests）与真机（rig≠真机一贯口径）。
 final class HubSegmentsConsolidationTests: XCTestCase {
 
     // MARK: - ① 注册表锚格
@@ -106,41 +106,30 @@ final class HubSegmentsConsolidationTests: XCTestCase {
         )
     }
 
-    // MARK: - ④ push 全页呈现探针
+    // MARK: - ④ 全页呈现探针（§502 改钉）
 
-    /// 呈现装配台：与 ChatView 同一目的地构造
-    /// （navigationDestination＋hubFullPageChrome
-    /// ＋zoom 转场，源为一枚占位源视图）
-    private struct HubPushHarness: View {
+    /// 呈现装配台：与 ChatView 同一呈现构造
+    /// （fullScreenCover＋HubCardHost 卡片宿主，
+    /// §502；旧 push＋zoom＋hubFullPageChrome 装
+    /// 配随 §434 呈现退役，改钉归因见 DESIGN §502）
+    private struct HubCardHarness: View {
         @ObservedObject var box: HubPresentationProbeBox
-        @Namespace private var zoomNamespace
 
         var body: some View {
-            NavigationStack {
-                Color.clear
-                    .overlay {
-                        Color.gray
-                            .frame(width: 67, height: 67)
-                            .matchedTransitionSource(
-                                id: "hubHero", in: zoomNamespace
-                            )
-                    }
-                    .navigationDestination(isPresented: $box.presented) {
+            Color.clear
+                .fullScreenCover(isPresented: $box.presented) {
+                    HubCardHost(
+                        onDismissed: { box.presented = false }
+                    ) { _ in
                         AgentHubView()
-                            .hubFullPageChrome()
-                            .navigationTransition(
-                                .zoom(
-                                    sourceID: "hubHero",
-                                    in: zoomNamespace
-                                )
-                            )
                     }
-            }
+                }
         }
     }
 
+
     @MainActor
-    func testHubPushPresentationIsFullPageNotSheet() throws {
+    func testHubCardPresentationIsFullScreenNotSheet() throws {
         let appState = AppState()
         let schema = Schema([ChatThread.self, ChatEntry.self])
         let container = try ModelContainer(
@@ -151,7 +140,7 @@ final class HubSegmentsConsolidationTests: XCTestCase {
         )
         let box = HubPresentationProbeBox()
         let host = UIHostingController(
-            rootView: HubPushHarness(box: box)
+            rootView: HubCardHarness(box: box)
                 .environment(appState)
                 .modelContainer(container)
         )
@@ -164,35 +153,53 @@ final class HubSegmentsConsolidationTests: XCTestCase {
         spin(seconds: 0.6)
 
         // 本 rig 的信号边界（§434 探针三轮诊断实
-        // 测）：无场景裸 UIWindow 里 SwiftUI 内容不
-        // 物化（hosting view 零子视图、hosting 控
-        // 制器零 children）——NavigationStack 的内
-        // 部控制器在此无信号，栈深/帧级断言不成立；
-        // 但 sheet 呈现在本 rig 会物化出 presented-
-        // ViewController（§217 旧探针实证），故「开
-        // 关全程 presentedViewController 恒 nil」
-        // 是本 rig 内可判别的机制断言（中枢已非模
-        // 态 sheet）。push 落位/全页/底栏隐藏的真
-        // 验在真 App UITests（TopBarSingleAction-
-        // TapTests）与真机
+        // 测沿用）：无场景裸 UIWindow 里 SwiftUI 内
+        // 容不物化，帧级断言不成立；但模态呈现在本
+        // rig 会物化出 presentedViewController
+        // （§217 旧探针实证）。§502 口径：中枢是
+        // fullScreenCover 全屏覆盖（非 sheet 卡）——
+        // 可判别断言＝开启后 presentedViewControl-
+        // ler 物化且 modalPresentationStyle 为
+        // .fullScreen（sheet 卡为 .pageSheet 等、
+        // 不许命中）；关闭后 presented 归 nil
         box.presented = true
+        var sawFullScreenCover = false
         let presentDeadline = Date().addingTimeInterval(8)
         while Date() < presentDeadline {
-            XCTAssertNil(
-                host.presentedViewController,
-                "中枢不许再以模态 sheet 呈现（开）"
-            )
+            if let presented = host.presentedViewController {
+                // SwiftUI fullScreenCover 的呈现样式
+                // 实测为 .overFullScreen（rawValue 5，
+                // 底层留场正合 §502 背板透出所需）或
+                // .fullScreen——同属全屏覆盖族；sheet
+                // 卡为 .pageSheet/.formSheet，不许命中
+                XCTAssertTrue(
+                    presented.modalPresentationStyle == .fullScreen
+                        || presented.modalPresentationStyle
+                            == .overFullScreen,
+                    "中枢须是全屏覆盖、不许是 sheet 卡形态"
+                        + "（实测 rawValue "
+                        + "\(presented.modalPresentationStyle.rawValue)）"
+                )
+                sawFullScreenCover = true
+                break
+            }
             spin(seconds: 0.016)
         }
+        XCTAssertTrue(
+            sawFullScreenCover,
+            "fullScreenCover 未在本 rig 物化出呈现控制器"
+        )
         box.presented = false
         let dismissDeadline = Date().addingTimeInterval(8)
+        var dismissed = false
         while Date() < dismissDeadline {
-            XCTAssertNil(
-                host.presentedViewController,
-                "中枢不许再以模态 sheet 呈现（关）"
-            )
+            if host.presentedViewController == nil {
+                dismissed = true
+                break
+            }
             spin(seconds: 0.016)
         }
+        XCTAssertTrue(dismissed, "关闭后呈现控制器未退场")
     }
 
     private func spin(seconds: TimeInterval) {
