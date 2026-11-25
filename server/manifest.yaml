@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.8.0   # 台账新增结构化 title_human 与 cron 列表 is_system 投影＋头像目录补齐 8 个灵动 preset（Bug1，2026-11-26 组包 deploy/2.8.0-with-avatar-fix）
+version: 2.9.0   # 批准卡待批存储修复：options_pending 改 (session_id, run_key, card_id) 多卡并存＋裁决落账与摘卡同锁原子化（Bug2 服务端半边，2026-11-26 组包）＋verify.sh identity_gateway 期望哈希过期行同步
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -71,7 +71,7 @@ components:
       container: hermes
       container_path: /opt/hermes/tools/react_to_message_tool.py
       mount_mode: ro
-      sha256: 3fd1d4c6e30467e1e4d87447bf54e164a23b733a78f500100eef21368683bdd3
+      sha256: 703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
       upstream_baseline_sha256: 8b4a14deeb0c8635bb2ae46ba116803cef836e2cc1488c2069e29882b3e27598   # 2026-11-24 入包时从未挂载补丁的镜像内同路径文件回读核验（容器内回读与包内基底三方一致）；应用时落盘为部署目录 patches/react_to_message_tool.py.orig
       diff_lines_vs_upstream: 159
       provides: [agent-self-reactions]
@@ -303,7 +303,7 @@ components:
       container: hermes
       container_path: /opt/hermes/agent/oneday_prompt.py
       mount_mode: ro
-      sha256: cb187294e8c65f492b556821d55e04d9a6e55dcc700556acd685b431f78de0ae
+      sha256: 7b72d19c9806b1ee0750c41516aa2e4abe61950f4d0680ba23076c44b5053fcb
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-system-prompt-text, identity-render]
       summary: 第一层提示词模块（1.12.0 新增，§442）：包自有新模块——§442 全稿正文（产品级系统提示：身份/价值观/工作纪律/记忆/环境/工具/子智能体/旁聊/红线四条＋法律硬线一行）作为包内代码常量随包走，不落 data 目录、任何用户可见面无入口（用户 2026-11-24 改判）；render_oneday_prompt() 在装配时读 <HERMES_HOME>/identity.json（身份真源，install 3d 只补缺铺模板）填充 {{agent_name}}/{{company_name}}/{{product_name}} 三占位，缺文件/坏 JSON/任一空值回 None（装配回落上游、永不阻塞）。包内自测 oneday_prompt_selftest.py 7 项全过。1.16.0 新增产品配置节「Reactions in {{product_name}}」（紧随通用 Reactions 节之后、即该节末句所指的 product configuration 本体），整套照 Muse 反应规矩（用户 2026-11-24 裁定 Muse 标准优先）：唯一测试「朋友会不会顺手点一下」；场合清单（玩笑😂/暖意道谢❤️/小胜利与分享兴奋🎉/计划认同👍/具体事物对口俏皮呼应/脆弱消息只用关怀向绝不用庆祝向）；六盘作常用推荐并给各自语义（👍收到/同意 ❤️暖意/关怀/大消息 🤔好奇/在想 😂好笑 🎉值得庆祝 👀在看/留意）、非硬限（更合贴的盘外表情亦可）；克制是硬规矩（多数消息不贴、贴滥即无意义，只在消息本身邀请且真合贴时贴，没合适的就不贴）；干活轮回执用法（接长活开工先贴 👍、短活/一句话答完的不必、回执占本轮唯一名额）；不许为贴反应改动或填充回复正文。治 1.15.0 探针（明令式消息）过而真实闲聊轮模型零调用的引导缺口。 修订（2026-11-24）：Receipts 段豁免收紧为「无工具、纯文本即答」方免，凡调用任何工具先贴 👍 回执（原「短活/一句话答完的不必」口径作废）。修订五（2026-11-24）：本节收尾段加正文禁字面回执——反应只以工具调用形态存在，正文句首/独立成段/任何位置不许打回执型表情（实据：行 5739 派活轮正文句首 👍 字面），正文正常语义使用不在此列。
