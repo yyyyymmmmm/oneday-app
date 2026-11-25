@@ -144,4 +144,89 @@ final class HubCronTests: XCTestCase {
         XCTAssertEqual(groups.map(\.kind), [.daily, .otherRecurring])
         XCTAssertEqual(groups[0].items.map(\.id), ["d2", "d1", "d0"])
     }
+
+    // MARK: - 系统任务过滤（C2 补全）
+
+    /// 服务端 is_system 字段优先：true 时隐藏
+    func testSystemTaskByServerField() throws {
+        let jobs = try [
+            job("""
+            {"id": "u1", "name": "用户任务", "enabled": true, "schedule": "0 9 * * *",
+             "is_system": false}
+            """),
+            job("""
+            {"id": "s1", "name": "OneDay 系统轮询", "enabled": true, "schedule": "*/5 * * * *",
+             "is_system": true}
+            """),
+        ]
+        let groups = CronHubClassifier.grouped(jobs)
+        // 只有用户任务可见
+        XCTAssertEqual(groups.flatMap(\.items).map(\.id), ["u1"])
+    }
+
+    /// 启发式兜底：服务端字段缺失时按名字模式判定
+    func testSystemTaskByNamePattern() throws {
+        let jobs = try [
+            job("""
+            {"id": "u1", "name": "用户每日任务", "enabled": true, "schedule": "0 9 * * *"}
+            """),
+            job("""
+            {"id": "s1", "name": "OneDay 系统轮询第 3 轮", "enabled": true,
+             "schedule": "*/10 * * * *"}
+            """),
+            job("""
+            {"id": "s2", "name": "OneDay 记忆日结", "enabled": true,
+             "schedule": "0 2 * * *"}
+            """),
+            job("""
+            {"id": "s3", "name": "OneDay 目标提炼", "enabled": true,
+             "schedule": "0 3 * * *"}
+            """),
+        ]
+        let groups = CronHubClassifier.grouped(jobs)
+        // 只有用户任务可见，系统任务被过滤
+        XCTAssertEqual(groups.flatMap(\.items).map(\.id), ["u1"])
+    }
+
+    // MARK: - Cron 表达式翻译器（C2 补全）
+
+    /// 高频 cron：每小时固定分钟
+    func testCronTranslatorHourly() {
+        XCTAssertEqual(CronTranslator.translate("5 * * * *"), "每小时第 5 分")
+        XCTAssertEqual(CronTranslator.translate("0 * * * *"), "每小时整点")
+    }
+
+    /// 每周 cron：单个星期
+    func testCronTranslatorWeekly() {
+        XCTAssertEqual(CronTranslator.translate("30 10 * * 0"), "每周日 10:30")
+        XCTAssertEqual(CronTranslator.translate("0 9 * * 1"), "每周一 09:00")
+    }
+
+    /// 每周多个星期：列表形态
+    func testCronTranslatorMultipleWeekdays() {
+        XCTAssertEqual(CronTranslator.translate("0 10 * * 1,3,5"), "每周一、三、五 10:00")
+    }
+
+    /// OR 语义：日期和星期同时受限，翻译成并集人话
+    func testCronTranslatorOrSemantics() {
+        // 每月 1 日或每周一 09:00
+        XCTAssertEqual(CronTranslator.translate("0 9 1 * 1"), "每月 1 日 或 每周一 09:00")
+        // 每月 15 日或每周五 14:00
+        XCTAssertEqual(CronTranslator.translate("0 14 15 * 5"), "每月 15 日 或 每周五 14:00")
+    }
+
+    /// 别名展开
+    func testCronTranslatorAliases() {
+        XCTAssertEqual(CronTranslator.translate("@hourly"), "每小时整点")
+        XCTAssertEqual(CronTranslator.translate("@daily"), "每日 00:00")
+        XCTAssertEqual(CronTranslator.translate("@weekly"), "每周日 00:00")
+    }
+
+    /// 译不出的形态返回 nil（调用方兜底「自定义周期」）
+    func testCronTranslatorFallback() {
+        // 复杂表达式译不出
+        XCTAssertNil(CronTranslator.translate("*/5 9-17 * * 1-5"))
+        // 步进 + 范围组合
+        XCTAssertNil(CronTranslator.translate("0-30/5 * * * *"))
+    }
 }
