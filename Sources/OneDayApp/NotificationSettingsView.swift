@@ -29,6 +29,13 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "bell.badge.fill",
+                tint: .red,
+                title: "通知与实时活动",
+                subtitle: "按事件重要程度分层提醒，避免无关噪音打扰。"
+            )
+
             Section {
                 categoryToggle(
                     category: .approval, isOn: $approvalEnabled
@@ -51,15 +58,18 @@ struct NotificationSettingsView: View {
 
             Section {
                 Toggle(isOn: $liveActivityEnabled) {
-                    Text("实时活动")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        IconTile(symbol: "platter.filled.top.iphone", color: .blue, size: OneDayMetrics.iconSlot)
+                        Text("实时活动")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    }
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
             } header: {
                 sectionHeader("进行中任务")
             } footer: {
-                Text("开启后，一轮生成进行时会在锁屏和灵动岛显示会话名与进度阶段（准备中／生成中），结束自动收起；只显示名称和阶段，不显示回复内容。关掉后不再发起新的实时活动。")
+                Text("生成进行时在锁屏与灵动岛展示会话名和进度阶段（不暴露回复内容），完成后自动收起。")
                     .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
             }

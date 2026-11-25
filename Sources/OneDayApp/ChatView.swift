@@ -2014,60 +2014,101 @@ struct ChatView: View {
     /// D9：对话内查找栏（对标 iOS Messages）
     private var findBar: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            TextField("查找", text: $findQuery)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .submitLabel(.search)
-                .focused($findFieldFocused)
-                .onSubmit {
-                    performFind()
-                }
-            
-            if !findQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if findSession.matches.isEmpty {
-                    Text("无结果")
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                } else {
-                    Text("\(findSession.currentIndex + 1)/\(findSession.matches.count)")
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .monospacedDigit()
-                }
-            }
-            
-            Button {
-                navigateToPreviousMatch()
-            } label: {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .medium))
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+
+                TextField("在对话中搜索", text: $findQuery)
+                    .font(.callout)
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 32, height: 32)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.search)
+                    .focused($findFieldFocused)
+                    .onSubmit {
+                        performFind()
+                    }
+
+                if !findQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(
+                        findSession.matches.isEmpty
+                            ? "无结果"
+                            : "\(findSession.currentIndex + 1)/\(findSession.matches.count)"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .monospacedDigit()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Palette.fieldFill, in: Capsule())
+                }
+
+                if !findQuery.isEmpty {
+                    Button {
+                        findQuery = ""
+                        clearFindMatches()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Palette.inkMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("清除搜索词")
+                }
             }
-            .disabled(findSession.matches.isEmpty)
-            .buttonStyle(.odPressable)
-            
-            Button {
-                navigateToNextMatch()
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .medium))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: 32, height: 32)
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .glassEffect(.regular, in: Capsule())
+
+            HStack(spacing: 4) {
+                Button {
+                    navigateToPreviousMatch()
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(
+                            findSession.matches.isEmpty ? Palette.inkMuted : Palette.ink
+                        )
+                        .frame(width: 34, height: 34)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .disabled(findSession.matches.isEmpty)
+                .buttonStyle(.odPressable)
+                .accessibilityLabel("上一条命中")
+
+                Button {
+                    navigateToNextMatch()
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(
+                            findSession.matches.isEmpty ? Palette.inkMuted : Palette.ink
+                        )
+                        .frame(width: 34, height: 34)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .disabled(findSession.matches.isEmpty)
+                .buttonStyle(.odPressable)
+                .accessibilityLabel("下一条命中")
+
+                Button {
+                    closeFind()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: 34, height: 34)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.odPressable)
+                .accessibilityLabel("关闭搜索")
             }
-            .disabled(findSession.matches.isEmpty)
-            .buttonStyle(.odPressable)
-            
-            Button("完成") {
-                closeFind()
-            }
-            .font(.body)
-            .buttonStyle(.odPressable)
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .background(.ultraThinMaterial)
+        .padding(.vertical, OneDayMetrics.spacingXS)
+        .transition(.move(edge: .top).combined(with: .opacity))
         // §503（第 5 件·打开自动聚焦）：查找栏入场
         // 即把焦点交给输入框、键盘随之升起——旧形
         // 态裸 TextField 无焦点句柄，点放大镜后还要
@@ -2604,52 +2645,46 @@ struct ChatView: View {
     /// 停/继续只住本条，长按菜单的朗读项保持朗读/
     /// 停止朗读二义，不加第三义
     private var speechPlaybackBar: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 1)
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: MessageActionSymbols.speak)
-                    .font(.system(size: FrameworkIcon.actionGlyphSize))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
-                Text(
-                    SpeechPlayer.shared.machine
-                        .playbackBarText ?? ""
-                )
-                .font(.subheadline)
-                .foregroundStyle(Palette.inkSecondary)
-                Spacer()
-                // 主钮（D1）：暂停/继续随态切换——播
-                // 放中显暂停、已暂停显继续；请求中不
-                // 显主钮（见函数头注）
-                switch SpeechPlayer.shared.machine.state {
-                case .playing:
-                    speechBarButton(
-                        symbol: MessageActionSymbols.speakPause,
-                        title: "暂停", label: "暂停朗读",
-                        style: Palette.ink
-                    ) { SpeechPlayer.shared.pause() }
-                case .paused:
-                    speechBarButton(
-                        symbol: MessageActionSymbols.speakResume,
-                        title: "继续", label: "继续朗读",
-                        style: Palette.ink
-                    ) { SpeechPlayer.shared.resume() }
-                case .requesting, .idle, .failed:
-                    EmptyView()
-                }
-                // 次钮：停止（放弃本次朗读）
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: MessageActionSymbols.speak)
+                .font(.system(size: FrameworkIcon.actionGlyphSize, weight: .medium))
+                .foregroundStyle(Palette.primary)
+                .accessibilityHidden(true)
+            Text(
+                SpeechPlayer.shared.machine
+                    .playbackBarText ?? ""
+            )
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Palette.ink)
+            .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            switch SpeechPlayer.shared.machine.state {
+            case .playing:
                 speechBarButton(
-                    symbol: MessageActionSymbols.speakStop,
-                    title: "停止", label: "停止朗读",
-                    style: Palette.inkSecondary
-                ) { SpeechPlayer.shared.stop() }
+                    symbol: MessageActionSymbols.speakPause,
+                    title: "暂停", label: "暂停朗读",
+                    style: Palette.ink
+                ) { SpeechPlayer.shared.pause() }
+            case .paused:
+                speechBarButton(
+                    symbol: MessageActionSymbols.speakResume,
+                    title: "继续", label: "继续朗读",
+                    style: Palette.ink
+                ) { SpeechPlayer.shared.resume() }
+            case .requesting, .idle, .failed:
+                EmptyView()
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.vertical, OneDayMetrics.spacingXS)
+            speechBarButton(
+                symbol: MessageActionSymbols.speakStop,
+                title: "停止", label: "停止朗读",
+                style: Palette.inkSecondary
+            ) { SpeechPlayer.shared.stop() }
         }
-        .background(Palette.pageBG)
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(height: 40)
+        .glassEffect(.regular, in: Capsule())
+        .padding(.horizontal, OneDayMetrics.pageGutter)
+        .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     /// 播放条按钮画法（D1：主钮/停止钮同族单源）：
@@ -11340,6 +11375,15 @@ private struct ComposerBarLayout: Layout {
                 let hasLedger = ledgerIDs.contains(
                     entry.id.uuidString
                 )
+                // 运行面失败（生成失败/超时/模型报错等）说明该条早已
+                // 提交并被服务端受理过，不属于“未受理提交失败”，不许堵
+                // 后续新消息的提交车道
+                if entry.sendState == .failed,
+                   !hasLedger,
+                   submitJobs[entry.id] == nil,
+                   record?.lastFailureKind?.isRunFace == true {
+                    continue
+                }
                 let failed = entry.sendState == .failed
                     && !hasLedger
                 // 准备段条目在退避中（P1-2 记账后）：与
@@ -13234,7 +13278,11 @@ private struct ComposerBarLayout: Layout {
             switch status {
             case .some(let value) where value.status.isTerminal:
                 terminalStatusHint = value
-                runMachine.apply(.statusTerminal(value.status))
+                let effectiveStatus: RunStatus =
+                    (value.status == .failed && (runMachine.stopRequested || entry.stopRequested))
+                    ? .cancelled
+                    : value.status
+                runMachine.apply(.statusTerminal(effectiveStatus))
             case .some(let value) where value.status.isActive:
                 runMachine.apply(.statusRunning)
                 // 仍在生成：重挂 events 续看（缓冲还在
@@ -13428,11 +13476,10 @@ private struct ComposerBarLayout: Layout {
         // 性质喂给状态机：失败段＝failed；停止意图在
         // 场＝cancelled；其余＝completed
         if runMachine.terminalKind == nil {
-            if settled.failed {
-                runMachine.apply(.statusTerminal(.failed))
-            } else if runMachine.stopRequested
-                        || entry.stopRequested {
+            if runMachine.stopRequested || entry.stopRequested {
                 runMachine.apply(.statusTerminal(.cancelled))
+            } else if settled.failed {
+                runMachine.apply(.statusTerminal(.failed))
             } else {
                 runMachine.apply(.statusTerminal(.completed))
             }
@@ -13547,7 +13594,8 @@ private struct ComposerBarLayout: Layout {
     private func settleRunFromStatusOutput(
         thread: ChatThread, entry: RunLedgerEntry
     ) {
-        if runMachine.terminalKind == .failed {
+        let userStopped = runMachine.stopRequested || entry.stopRequested
+        if runMachine.terminalKind == .failed && !userStopped {
             deleteTurnPartialEntries(
                 thread: thread, entry: entry
             )
@@ -13664,7 +13712,8 @@ private struct ComposerBarLayout: Layout {
         runMachine.apply(.transcriptSettled)
         let phase = runMachine.phase
         deleteTurnPartialEntries(thread: thread, entry: entry)
-        if settled.failed {
+        let userStopped = runMachine.stopRequested || entry.stopRequested
+        if settled.failed && !userStopped {
             // 基础止血包（P5/P2）：同状态合成落定——
             // 原文（终态回执＋段失败文本）只作分型输
             // 入，界面只呈现人话档；用户条目挂失败标

@@ -36,20 +36,41 @@ struct ReactionSettingsView: View {
 
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "face.smiling.fill",
+                tint: .pink,
+                title: "消息互动",
+                subtitle: "控制长按消息的快捷表情浮排与智能体回应角标。"
+            )
+
             Section {
                 Toggle(isOn: $floatingBarEnabled) {
-                    Text(L10n.string("反应浮排"))
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        IconTile(symbol: "hand.thumbsup.fill", color: .pink, size: OneDayMetrics.iconSlot)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.string("反应浮排"))
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Text("长按消息时在气泡上方弹出快捷表情条")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                // §432：AI 反应行——服务端未广告
-                // self_reactions 能力位时整行不出
                 if aiSelfRowVisible {
                     Toggle(isOn: $aiSelfReactionsEnabled) {
-                        Text(L10n.string("AI 反应"))
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            IconTile(symbol: "sparkles", color: .purple, size: OneDayMetrics.iconSlot)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.string("AI 反应"))
+                                    .font(.rowTitleL)
+                                    .foregroundStyle(Palette.ink)
+                                Text("在气泡角落显示智能体对消息的情绪回应")
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
+                        }
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }

@@ -2,18 +2,7 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 连接自检面（H13，台账 33，DESIGN §357）：设置·连
-/// 接（服务器段）的驻留诊断面——客户端只读探活的逐
-/// 项实测结论（连接／服务状态／服务器能力／扩展能
-/// 力四组），每行状态点＋文字结论＋实测值/人话原
-/// 因，结论只来自真回读（拉不到显未探/异常，不假
-/// 绿）。与体检（H1）分工写死：自检＝客户端探活
-/// （秒级、全只读 GET）；体检＝服务端深检（跑
-/// action、分钟级）——页脚互链一行。
-///
-/// 入参 target 非 nil 时按给定连接探（连接引导失败
-/// 面深链用：候选地址＋已填密钥）；nil 时读 AppState
-/// 当前连接，未连接显诚实空态
+/// 连接自检面：客户端秒级只读探活（统一 iOS 26 Hero 摘要卡，不再嵌套二级子页）
 struct ConnectionSelfCheckView: View {
     struct Target: Equatable {
         let config: ServerConfig
@@ -51,39 +40,38 @@ struct ConnectionSelfCheckView: View {
 
     private func checkList(target: Target) -> some View {
         List {
-            if target == nil {
-                Section("当前连接") {
+            SettingsHeroCard(
+                symbol: "antenna.radiowaves.left.and.right",
+                tint: .green,
+                title: "连接自检",
+                subtitle: store.report.map {
+                    "上次自检 \($0.checkedAt.formatted(date: .abbreviated, time: .shortened))"
+                } ?? "客户端秒级只读探活：逐项验证网络连通、网关服务与接口能力。",
+                statusText: store.isRunning ? "自检中…" : (store.report?.overallWord ?? "待检测"),
+                statusTone: store.isRunning ? .neutral : ((store.report?.warnCount ?? 0) > 0 ? .warning : (store.report != nil ? .healthy : .neutral))
+            )
+
+            if self.target == nil {
+                Section {
                     liveConnectionRow
+                } header: {
+                    SettingsSectionHeader("当前连接")
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
 
             if let report = store.report {
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            Text(report.overallWord)
-                                .font(.headline)
-                                .foregroundStyle(
-                                    report.warnCount > 0
-                                        ? Palette.warningText
-                                        : Palette.successText
-                                )
-                            Text("上次自检 \(report.checkedAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                        }
-                        Spacer()
-                        if store.isRunning {
-                            ProgressView()
-                        }
-                    }
-                }
                 ForEach(report.groups) { group in
-                    Section(group.title) {
+                    Section {
                         ForEach(group.rows) { row in
                             rowView(row)
                         }
+                    } header: {
+                        SettingsSectionHeader(group.title)
                     }
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
                 }
             } else {
                 Section {
@@ -93,18 +81,15 @@ struct ConnectionSelfCheckView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                 }
+                .listRowBackground(Palette.surface)
             }
 
             Section {
-                NavigationLink {
-                    HealthCheckView()
-                } label: {
-                    Label("深度问题？运行体检", systemImage: "stethoscope")
-                }
-                Text("自检是客户端的秒级探活；体检在服务器上跑深度自检与安全审计，要几分钟。")
+                Text("连接自检为客户端秒级只读探活；如需服务端深度审计与备份存档，请返回上一页进入「体检与存档」。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
+            .listRowBackground(Color.clear)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -128,12 +113,6 @@ struct ConnectionSelfCheckView: View {
         }
     }
 
-    /// 当前连接实时行（总表 156，DESIGN §394）：读
-    /// AppState 上的连接状态快照（OverviewBridgeStore
-    /// 探活链喂入）——阶段＋第几次尝试＋人话原因，与自
-    /// 检报告分工：报告是按需全量实测、本行是常驻探活
-    /// 的现况。深链探候选连接（target 非 nil）时整节
-    /// 不显，免与候选结论混淆
     private var liveConnectionRow: some View {
         let status = appState.connectionStatus
         return HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
@@ -154,6 +133,7 @@ struct ConnectionSelfCheckView: View {
                 }
             }
         }
+        .padding(.vertical, OneDayMetrics.spacingXS)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             [status.phaseWord, status.detailText]
@@ -177,9 +157,6 @@ struct ConnectionSelfCheckView: View {
         )
     }
 
-    /// 自检行：状态点（小圆点、语义色）＋标题＋实测
-    /// 值（右置、AX 大字号下随行换行不截断）；结论一
-    /// 词与原因在副行——不只靠颜色传达（准入四问④）
     private func rowView(_ row: SelfCheckRow) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Circle()
@@ -206,6 +183,7 @@ struct ConnectionSelfCheckView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.vertical, OneDayMetrics.spacingXS)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText(for: row))
     }

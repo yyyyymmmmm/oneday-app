@@ -1,3 +1,4 @@
+import NukeUI
 import OneDayCore
 import OneDayDesign
 import SwiftUI
@@ -6,35 +7,13 @@ import UIKit
 /// Markdown 渲染（0.36.25 渲染补全）：块级解析在 Core
 /// MarkdownParser（可测层），本视图只按结构呈现——段
 /// 落／标题 1–6 级／代码块（语言标＋轻量高亮）／引用
-/// 块／列表（嵌套＋任务清单）／表格（横滑）／分割线。
-/// 行内走系统 AttributedString 解析（粗斜体、行内代
-/// 码、链接），删除线由 Core MarkdownInline 分段补齐
-/// （系统行内解析不消费 ~~，审计 §1.2 实证）。流式半
-/// 截的降级口径在 Core 解析层（未闭合围栏续渲、半截
-/// 表格不成表、未闭合行内标记字面呈现），本视图对任
-/// 意中间态文本渲染结果确定、不跳版。
+/// 块／列表（嵌套＋任务清单）／表格（横滑）／分割线／
+/// 内联图片（base64 data URL、https URL、服务端路径）。
 struct MarkdownText: View {
     let content: String
-    /// §149：选区活动回报（聊天页据此在选字期间关
-    /// 本行右滑引用）；其他消费面不传＝不回报
     let onSelectionChange: ((Bool) -> Void)?
-    /// §471：聊天列表呈现传 false——正文禁长按直
-    /// 接选字、仲裁归消息菜单；其余消费面（动态
-    /// 等）不传＝true，行为逐字不变
     let allowsDirectSelection: Bool
-    /// 台账 190 留账②（§335）：排版产物段串（呈现
-    /// 段下标→属性串）——条目行由 ChatView 按产物
-    /// 键查得后注入：散文/引用段下标命中即直贴产
-    /// 物串（与量测同源同串），未命中段（结构段本
-    /// 不在产物内、产物未就绪）走 §168 既有拼装；
-    /// 其他消费面不传＝全段既有拼装、行为不变
     let segmentProducts: [Int: NSAttributedString]?
-    /// §503：查找着色查询（对话内查找激活且本行在
-    /// 命中集内时由 ChatView 注入；其余消费面不传
-    /// ＝nil、行为逐字不变）——散文/引用/任务项经
-    /// SelectableInlineText 呈现串着色、代码块经本
-    /// 层属性串后处理；表格单元格走 inline 解析、
-    /// 字符序与原文不恒等，本包未覆盖（§503 登记）
     let searchHighlightQuery: String?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -54,8 +33,12 @@ struct MarkdownText: View {
         self.searchHighlightQuery = searchHighlightQuery
     }
 
+    private var extractedMedia: (cleanedText: String, images: [MarkdownInlineImage]) {
+        Self.extractInlineImages(from: content)
+    }
+
     private var blocks: [MarkdownBlock] {
-        MarkdownParser.parse(content)
+        MarkdownParser.parse(extractedMedia.cleanedText)
     }
 
     /// §168：呈现段（Core 装配）——连续散文合并成
@@ -65,18 +48,24 @@ struct MarkdownText: View {
     }
 
     var body: some View {
+        let media = extractedMedia
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+            if !media.images.isEmpty {
+                ForEach(media.images) { img in
+                    MarkdownInlineImageView(image: img)
+                }
+            }
             ForEach(Array(segments.enumerated()), id: \.offset) { offset, segment in
                 switch segment {
                 case .prose(let paragraphs):
                     proseView(
                         paragraphs,
-                        product: segmentProducts?[offset]
+                        product: media.images.isEmpty ? segmentProducts?[offset] : nil
                     )
                 case .quote(let lines):
                     blockquoteView(
                         lines,
-                        product: segmentProducts?[offset]
+                        product: media.images.isEmpty ? segmentProducts?[offset] : nil
                     )
                 case .code(let code, let language):
                     codeView(code, language: language)
@@ -93,6 +82,38 @@ struct MarkdownText: View {
                 }
             }
         }
+    }
+
+    private static let inlineImageRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"!\[([^\]]*)\]\(([^)\s]+)\)"#,
+        options: []
+    )
+
+    private static func extractInlineImages(
+        from raw: String
+    ) -> (cleanedText: String, images: [MarkdownInlineImage]) {
+        guard raw.contains("!["), let regex = inlineImageRegex else {
+            return (raw, [])
+        }
+        let ns = raw as NSString
+        let matches = regex.matches(
+            in: raw,
+            range: NSRange(location: 0, length: ns.length)
+        )
+        guard !matches.isEmpty else { return (raw, []) }
+        var images: [MarkdownInlineImage] = []
+        var cleaned = raw
+        for (idx, match) in matches.enumerated().reversed() {
+            let alt = ns.substring(with: match.range(at: 1))
+            let src = ns.substring(with: match.range(at: 2))
+            if let item = MarkdownInlineImage.make(id: "\(idx)-\(src.hashValue)", alt: alt, source: src) {
+                images.insert(item, at: 0)
+                if let range = Range(match.range, in: cleaned) {
+                    cleaned.removeSubrange(range)
+                }
+            }
+        }
+        return (cleaned.trimmingCharacters(in: .whitespacesAndNewlines), images)
     }
 
     // MARK: - 段落与标题
@@ -689,3 +710,89 @@ struct MarkdownText: View {
         return result
     }
 }
+
+private struct MarkdownInlineImage: Identifiable {
+    enum Source {
+        case base64(Data)
+        case remoteURL(URL)
+        case serverPath(String)
+    }
+
+    let id: String
+    let alt: String
+    let source: Source
+
+    static func make(id: String, alt: String, source: String) -> MarkdownInlineImage? {
+        if source.hasPrefix("data:image/"),
+           let comma = source.firstIndex(of: ",") {
+            let b64 = String(source[source.index(after: comma)...])
+            if let data = Data(base64Encoded: b64, options: .ignoreUnknownCharacters) {
+                return MarkdownInlineImage(id: id, alt: alt, source: .base64(data))
+            }
+            return nil
+        }
+        if source.hasPrefix("https://") || source.hasPrefix("http://"),
+           let url = URL(string: source) {
+            return MarkdownInlineImage(id: id, alt: alt, source: .remoteURL(url))
+        }
+        if source.hasPrefix("/"), FileRefDetector.isInDownloadRoot(source) {
+            return MarkdownInlineImage(id: id, alt: alt, source: .serverPath(source))
+        }
+        return nil
+    }
+}
+
+private struct MarkdownInlineImageView: View {
+    let image: MarkdownInlineImage
+
+    var body: some View {
+        switch image.source {
+        case .base64(let data):
+            if let uiImage = UIImage(data: data) {
+                let cardSize = ChatImageSizing.cardSize(for: uiImage.size)
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: cardSize.width, height: cardSize.height)
+                    .background(
+                        Palette.bubbleFill,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard))
+            }
+        case .remoteURL(let url):
+            LazyImage(url: url) { state in
+                if let loaded = state.image {
+                    loaded
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 260, maxHeight: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard))
+                } else if state.error != nil {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
+                        Image(systemName: "photo")
+                        Text(image.alt.isEmpty ? "图片加载失败" : image.alt)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondaryOnFill)
+                    .padding(OneDayMetrics.spacingM)
+                    .background(
+                        Palette.bubbleFill,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                    )
+                } else {
+                    RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                        .fill(Palette.bubbleFill)
+                        .frame(
+                            width: ChatImageSizing.placeholderCardSize.width,
+                            height: ChatImageSizing.placeholderCardSize.height
+                        )
+                        .overlay { ProgressView() }
+                }
+            }
+        case .serverPath(let path):
+            ServerRemoteImage(path: path)
+        }
+    }
+}
+
