@@ -545,6 +545,17 @@ struct ContentView: View {
     /// 变。符号名（pair.normal）自此只供抽屉名单等栏
     /// 外消费者，底栏呈现与符号身份脱钩。
     private func tabLabel(_ pair: TabSymbolPair) -> some View {
+#if ONEDAY_TABBAR_DIAG
+        tabLabelBody(pair)
+            .background {
+                TabBarDiagEnvProbe(tabID: pair.id)
+            }
+#else
+        tabLabelBody(pair)
+#endif
+    }
+
+    private func tabLabelBody(_ pair: TabSymbolPair) -> some View {
         Label {
             Text(pair.title)
         } icon: {
