@@ -258,6 +258,107 @@ struct VaultTests {
         #expect(jsonString.contains("secret123"))
         #expect(jsonString.contains("token456"))
     }
+
+    // MARK: - 每次必问归属匹配测试
+
+    @Test("归属匹配 - service 相等且 domain 在绑定内 → 命中")
+    func testAlwaysAskMatchingServiceAndDomain() {
+        let entries = [
+            VaultEntryMeta(
+                id: "cred_1",
+                name: "GitHub",
+                service: "github",
+                domains: ["github.com", "api.github.com"],
+                username: "user1",
+                fieldNames: ["username", "password"],
+                updatedAt: 1700000000.0,
+                version: 1,
+                hasSecret: true
+            )
+        ]
+
+        let result = findMatchingEntry(entries: entries, service: "github", domain: "github.com")
+        #expect(result != nil)
+        #expect(result?.id == "cred_1")
+    }
+
+    @Test("归属匹配 - service 相等且 domain 在绑定内（大小写不敏感）→ 命中")
+    func testAlwaysAskMatchingCaseInsensitive() {
+        let entries = [
+            VaultEntryMeta(
+                id: "cred_1",
+                name: "GitHub",
+                service: "GitHub",
+                domains: ["GitHub.com", "api.github.com"],
+                username: "user1",
+                fieldNames: ["username", "password"],
+                updatedAt: 1700000000.0,
+                version: 1,
+                hasSecret: true
+            )
+        ]
+
+        let result = findMatchingEntry(entries: entries, service: "github", domain: "github.com")
+        #expect(result != nil)
+        #expect(result?.id == "cred_1")
+    }
+
+    @Test("归属匹配 - service 相等但 domain 不在绑定内 → 不命中")
+    func testAlwaysAskServiceMatchButDomainMismatch() {
+        let entries = [
+            VaultEntryMeta(
+                id: "cred_1",
+                name: "GitHub",
+                service: "github",
+                domains: ["github.com", "api.github.com"],
+                username: "user1",
+                fieldNames: ["username", "password"],
+                updatedAt: 1700000000.0,
+                version: 1,
+                hasSecret: true
+            )
+        ]
+
+        let result = findMatchingEntry(entries: entries, service: "github", domain: "gitlab.com")
+        #expect(result == nil)
+    }
+
+    @Test("归属匹配 - domain 相等但 service 不同 → 不命中")
+    func testAlwaysAskDomainMatchButServiceMismatch() {
+        let entries = [
+            VaultEntryMeta(
+                id: "cred_1",
+                name: "GitHub",
+                service: "github",
+                domains: ["github.com"],
+                username: "user1",
+                fieldNames: ["username", "password"],
+                updatedAt: 1700000000.0,
+                version: 1,
+                hasSecret: true
+            )
+        ]
+
+        let result = findMatchingEntry(entries: entries, service: "gitlab", domain: "github.com")
+        #expect(result == nil)
+    }
+
+    @Test("归属匹配 - 空条目列表 → 不命中")
+    func testAlwaysAskEmptyEntries() {
+        let entries: [VaultEntryMeta] = []
+
+        let result = findMatchingEntry(entries: entries, service: "github", domain: "github.com")
+        #expect(result == nil)
+    }
+}
+
+// MARK: - 辅助函数
+
+private func findMatchingEntry(entries: [VaultEntryMeta], service: String, domain: String) -> VaultEntryMeta? {
+    entries.first { entry in
+        entry.service.lowercased() == service.lowercased() &&
+        entry.domains.contains { $0.lowercased() == domain.lowercased() }
+    }
 }
 
 // MARK: - 辅助函数

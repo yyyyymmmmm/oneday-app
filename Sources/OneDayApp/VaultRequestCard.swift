@@ -231,10 +231,27 @@ struct VaultRequestCard: View {
     private func checkAlwaysAsk() {
         Task {
             do {
-                let entries = try await store.getEntry(appState: appState, id: "")
-                return
+                let entries = store.entries
+                if entries.isEmpty {
+                    await store.refresh(appState: appState)
+                }
+
+                if let matchedEntry = findMatchingEntry(
+                    entries: store.entries,
+                    service: service,
+                    domain: domain
+                ) {
+                    isAlwaysAsk = VaultAlwaysAskPreferences.shared.isAlwaysAsk(entryId: matchedEntry.id)
+                }
             } catch {
             }
+        }
+    }
+
+    private func findMatchingEntry(entries: [VaultEntryMeta], service: String, domain: String) -> VaultEntryMeta? {
+        entries.first { entry in
+            entry.service.lowercased() == service.lowercased() &&
+            entry.domains.contains { $0.lowercased() == domain.lowercased() }
         }
     }
 
@@ -249,7 +266,7 @@ struct VaultRequestCard: View {
             let response = try await store.fulfillRequest(
                 appState: appState,
                 requestId: requestId,
-                decision: "approve",
+                decision: "fulfill",
                 values: fieldValues,
                 username: nil
             )
