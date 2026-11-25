@@ -269,7 +269,8 @@ struct FailingHermesClient: HermesClientProtocol {
     }
 
     func sessionMessagesPage(
-        config: ServerConfig, id: String, limit: Int, offset: Int
+        config: ServerConfig, id: String, limit: Int, offset: Int,
+        afterRowID: Int?
     ) async throws -> [SessionMessage] {
         throw HermesError.unreachable("离线桩")
     }

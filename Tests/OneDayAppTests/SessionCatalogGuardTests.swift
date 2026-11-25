@@ -740,7 +740,8 @@ struct ScriptedSessionsClient: HermesClientProtocol {
     }
 
     func sessionMessagesPage(
-        config: ServerConfig, id: String, limit: Int, offset: Int
+        config: ServerConfig, id: String, limit: Int, offset: Int,
+        afterRowID: Int?
     ) async throws -> [SessionMessage] {
         messageFetchRecorder?.recordPage()
         let key = "\(id)|\(offset)"
