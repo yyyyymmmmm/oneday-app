@@ -98,6 +98,7 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
     public let modifiedAt: Date?
     public let mimeType: String?
     public let anchor: FileLineAnchor?
+    public let deliveryID: String?
 
     public init(
         name: String,
@@ -105,7 +106,8 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
         size: Int64? = nil,
         modifiedAt: Date? = nil,
         mimeType: String? = nil,
-        anchor: FileLineAnchor? = nil
+        anchor: FileLineAnchor? = nil,
+        deliveryID: String? = nil
     ) {
         self.name = name
         self.path = path
@@ -113,6 +115,7 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
         self.modifiedAt = modifiedAt
         self.mimeType = mimeType
         self.anchor = anchor
+        self.deliveryID = deliveryID
     }
 
     public init(entry: WorkspaceFileEntry, anchor: FileLineAnchor? = nil) {
@@ -124,7 +127,8 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
                 Date(timeIntervalSince1970: $0)
             },
             mimeType: entry.mimeType,
-            anchor: anchor
+            anchor: anchor,
+            deliveryID: entry.deliveryID
         )
     }
 
@@ -162,7 +166,8 @@ public struct FileOpenTarget: Equatable, Sendable, Identifiable {
             isDirectory: false,
             size: size,
             mtime: modifiedAt?.timeIntervalSince1970,
-            mimeType: mimeType
+            mimeType: mimeType,
+            deliveryID: deliveryID
         )
     }
 }

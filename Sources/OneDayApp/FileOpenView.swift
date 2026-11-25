@@ -653,9 +653,16 @@ struct FileOpenContent: View {
                     phase = .failed(.unsupportedType)
                 }
             } catch let error as HermesError {
-                phase = Task.isCancelled
-                    ? .ready
-                    : .failed(FileOpenFailure.classify(error: error))
+                if Task.isCancelled {
+                    phase = .ready
+                } else {
+                    let failure = FileOpenFailure.classify(error: error)
+                    if failure == .notFound {
+                        appState.sharedLibraryListStore().removeMissingPath(target.path)
+                        appState.fileLibraryRevision += 1
+                    }
+                    phase = .failed(failure)
+                }
             } catch {
                 phase = Task.isCancelled ? .ready : .failed(.other)
             }
@@ -706,9 +713,16 @@ struct FileOpenContent: View {
                 )
                 phase = .ready
             } catch let error as HermesError {
-                phase = Task.isCancelled
-                    ? .ready
-                    : .failed(FileOpenFailure.classify(error: error))
+                if Task.isCancelled {
+                    phase = .ready
+                } else {
+                    let failure = FileOpenFailure.classify(error: error)
+                    if failure == .notFound {
+                        appState.sharedLibraryListStore().removeMissingPath(target.path)
+                        appState.fileLibraryRevision += 1
+                    }
+                    phase = .failed(failure)
+                }
             } catch {
                 phase = Task.isCancelled ? .ready : .failed(.other)
             }
@@ -962,6 +976,14 @@ struct FileOpenContent: View {
     /// 路，见 FileMetadataStore）
     private func fetchBytes() async throws -> Data {
         if let downloadedData { return downloadedData }
+        if let deliveryID = target.deliveryID,
+           let config = appState.config,
+           let data = try? await OneDayBridgeClient().deliveryContent(
+               config: config, id: deliveryID
+           ) {
+            downloadedData = data
+            return data
+        }
         let data = try await appState.performAdmin {
             client, config in
             try await client.fileData(
