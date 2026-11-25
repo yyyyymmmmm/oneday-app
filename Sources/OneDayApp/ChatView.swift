@@ -770,6 +770,7 @@ struct ChatView: View {
     /// 图片和助手文件牌依赖服务端目录回读结果。
     /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
     @State private var fileMetadataStore = FileMetadataStore.shared
+    @State private var deliveryStore = DeliveryStore.shared
     @State private var unreadAnchorEntryID: UUID?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
@@ -3053,6 +3054,7 @@ struct ChatView: View {
     /// 体逐值入账），不再复用 gen3 的版本与估算
     private func nativeRows() -> [ChatNativeRow] {
         _ = fileMetadataStore.existenceByPath.count
+        _ = deliveryStore.metaResults.count
         // 卡顿探针（2026-11-20）：每趟喂入耗时＋行
         // 构建/复用数——只记账、无行为影响
         let probeToken = ChatLagProbe.beginFeedPass()
@@ -3343,6 +3345,23 @@ struct ChatView: View {
             case nil: code = "-"
             }
             baseRevision.addText("\(path):\(code)")
+        }
+        if entry.role != "user", entry.traceKey == nil, entry.echoKey == nil {
+            let deliveryIDs = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            ).delivery.deliveryIDs
+            for deliveryID in deliveryIDs {
+                switch deliveryStore.metaResult(for: deliveryID) {
+                case .loaded(let meta):
+                    baseRevision.addText("dlv:\(deliveryID):\(meta.status.rawValue):\(meta.kind):\(meta.path)")
+                case .notFound:
+                    baseRevision.addText("dlv:\(deliveryID):nf")
+                case nil:
+                    baseRevision.addText("dlv:\(deliveryID):-")
+                }
+            }
         }
         // §331：行高先查整行备忘（命中＝确定高）；
         // 未命中投量测台后台预排版、当趟用上次高/

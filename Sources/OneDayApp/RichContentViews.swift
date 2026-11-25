@@ -1459,25 +1459,20 @@ struct AssistantMediaImage: View {
     let onOpen: () -> Void
 
     var body: some View {
-        Group {
-            if FileMetadataStore.shared.existence(for: path)
-                != .missing {
-                Button {
-                    onOpen()
-                } label: {
-                    ServerRemoteImage(path: path)
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    A11yText.imageLabel(
-                        fileName: (path as NSString)
-                            .lastPathComponent
-                    )
-                )
-                .accessibilityHint(L10n.string("查看大图"))
-            }
+        Button {
+            onOpen()
+        } label: {
+            ServerRemoteImage(path: path)
         }
+        .buttonStyle(.odPressable)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            A11yText.imageLabel(
+                fileName: (path as NSString)
+                    .lastPathComponent
+            )
+        )
+        .accessibilityHint(L10n.string("查看大图"))
         .task(id: path) {
             await FileMetadataStore.shared.verifyExistence(
                 path: path, appState: appState
