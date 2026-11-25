@@ -140,6 +140,7 @@ struct ChatView: View {
     /// sheet（AgentHubView .activity 四段，自带导航栈；
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
     @State private var showHub = false
+    @State private var showPendingApprovalSheet = false
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -1173,6 +1174,11 @@ struct ChatView: View {
         .sheet(isPresented: $showHub) {
             hubView(onCardClose: nil)
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showPendingApprovalSheet) {
+            PendingApprovalSheetView(store: appState.sharedHubStore())
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
@@ -2503,17 +2509,23 @@ struct ChatView: View {
                 ? AnyView(speechPlaybackBar) : nil,
             approvalZoneVisible: ChatApprovalZone.hasVisibleContent(
                 store: appState.sharedHubStore(),
-                anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs
+                anchoredRecordIDs: currentThreadAnchoredIDs,
+                currentServerSessionID: currentThread?.serverSessionID
             ),
             approvalZoneView: ChatApprovalZone.hasVisibleContent(
                 store: appState.sharedHubStore(),
-                anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs
+                anchoredRecordIDs: currentThreadAnchoredIDs,
+                currentServerSessionID: currentThread?.serverSessionID
             )
                 ? AnyView(
                     ChatApprovalZone(
                         store: appState.sharedHubStore(),
-                        anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs,
-                        ledger: rowStateLedger
+                        anchoredRecordIDs: currentThreadAnchoredIDs,
+                        currentServerSessionID: currentThread?.serverSessionID,
+                        ledger: rowStateLedger,
+                        onOpenOtherThreadSheet: {
+                            showPendingApprovalSheet = true
+                        }
                     )
                 )
                 : nil,
@@ -4722,6 +4734,24 @@ struct ChatView: View {
             || ClarifyPromptParser.parse(from: card) != nil
     }
 
+    private var currentThreadAnchoredIDs: Set<String> {
+        guard let entries = currentThread?.entries else { return [] }
+        return ApprovalAnchor.anchoredRecordIDs(
+            keys: entries.compactMap { $0.approvalKey }
+        )
+    }
+
+    private func isHiddenReadOnlyTraceEntry(_ entry: ChatEntry) -> Bool {
+        guard let snapshot = entry.traceEcho, !snapshot.isFailed else {
+            return false
+        }
+        let headline = snapshot.headline
+        let outcome = snapshot.outcome
+        return headline.contains("查看了目标列表")
+            || outcome.contains("资源库")
+            || headline.contains("检查了资源库")
+    }
+
     private func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
@@ -4735,6 +4765,9 @@ struct ChatView: View {
         }
         for entry in entries where entry.toolCard == nil || isInlineInteractiveToolCard(entry) {
             if entry.traceKey != nil {
+                if isHiddenReadOnlyTraceEntry(entry) {
+                    continue
+                }
                 traceBuffer.append(entry)
             } else {
                 flushTraces()

@@ -18,31 +18,55 @@ import SwiftUI
 /// 失败态不在聊天里闹，用户在枢纽看得到真实状态。
 struct ChatApprovalZone: View {
     let store: AgentHubStore
-    /// 已落锚记录的排除集（§165，规格 §4.3 单源）：这
-    /// 些记录由其锚定行承载（含已决行形态），本区不
-    /// 再重复出卡/出行；默认空集＝现行行为（预制合并
-    /// 前的调用点零影响）
+    /// 当前对话已落锚记录的排除集（§165，规格 §4.3 单源）：只排除
+    /// 当前对话流里已经锚定展示的记录，防止他会话锚定把待批吞掉
     var anchoredRecordIDs: Set<String> = []
+    /// 当前对话的服务端会话 ID：用于区分「当前对话内联卡片」
+    /// 与「其他对话的紧凑审核提示条」
+    var currentServerSessionID: String? = nil
     /// §329 行状态账本：透传给就地卡（详情四态上
     /// 提、合成器可见）；不传＝卡内 @State 原行为
     var ledger: ChatRowStateLedger? = nil
+    /// 点击他会话「审核」提示条按钮时打开底部半屏审核卡
+    var onOpenOtherThreadSheet: (() -> Void)? = nil
+
+    private static func splitPending(
+        records: [WriteGateRecord],
+        anchoredIDs: Set<String>,
+        currentServerSessionID: String?
+    ) -> (current: [WriteGateRecord], other: [WriteGateRecord]) {
+        var current: [WriteGateRecord] = []
+        var other: [WriteGateRecord] = []
+        for record in records {
+            if let anchorSession = record.anchor?.sessionId,
+               let currentServerSessionID,
+               !currentServerSessionID.isEmpty,
+               anchorSession != currentServerSessionID {
+                other.append(record)
+            } else if !anchoredIDs.contains(record.id) {
+                current.append(record)
+            }
+        }
+        return (current, other)
+    }
 
     /// 审批区当前是否有可见内容（供底栏按需挂载，避免空态白占间距）
     @MainActor
     static func hasVisibleContent(
         store: AgentHubStore,
-        anchoredRecordIDs: Set<String>
+        anchoredRecordIDs: Set<String>,
+        currentServerSessionID: String? = nil
     ) -> Bool {
         guard case .ready(let records) = store.approvalState else {
             return false
         }
         if store.alwaysAllowToast != nil { return true }
-        let queue = ApprovalZoneQueue.derive(
-            recordIDs: records.map(\.id),
-            anchoredIDs: anchoredRecordIDs
+        let split = splitPending(
+            records: records,
+            anchoredIDs: anchoredRecordIDs,
+            currentServerSessionID: currentServerSessionID
         )
-        if let activeID = queue.activeRecordID,
-           records.contains(where: { $0.id == activeID }) {
+        if !split.current.isEmpty || !split.other.isEmpty {
             return true
         }
         return store.resolvedLines.contains {
@@ -52,14 +76,14 @@ struct ChatApprovalZone: View {
 
     var body: some View {
         if case .ready(let records) = store.approvalState {
-            // D10 定版②（一次只活一张）：未锚待批
-            // 只出桥序第一条活卡，其余收成计数行；
-            // 派生走 Core ApprovalZoneQueue 单源，
-            // 与行高合成/facet 摘要同口径。锚定行
-            // 不入此口径（§165 自承载、主线裁定豁免）
+            let split = Self.splitPending(
+                records: records,
+                anchoredIDs: anchoredRecordIDs,
+                currentServerSessionID: currentServerSessionID
+            )
             let queue = ApprovalZoneQueue.derive(
-                recordIDs: records.map(\.id),
-                anchoredIDs: anchoredRecordIDs
+                recordIDs: split.current.map(\.id),
+                anchoredIDs: []
             )
             let unanchoredResolved = store.resolvedLines.filter {
                 !anchoredRecordIDs.contains($0.id)
@@ -69,7 +93,7 @@ struct ChatApprovalZone: View {
                     alwaysAllowToastRow(toast)
                 }
                 if let activeID = queue.activeRecordID,
-                   let record = records.first(
+                   let record = split.current.first(
                        where: { $0.id == activeID }
                    ) {
                     let progressText: String? = queue.queuedCount > 0
@@ -84,11 +108,39 @@ struct ChatApprovalZone: View {
                         queueProgress: progressText,
                         ledger: ledger
                     )
+                } else if !split.other.isEmpty {
+                    otherThreadPromptBar(count: split.other.count)
                 } else if !unanchoredResolved.isEmpty {
                     resolvedSummaryRow(unanchoredResolved)
                 }
             }
         }
+    }
+
+    private func otherThreadPromptBar(count: Int) -> some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Text(
+                count == 1
+                    ? "一项任务需要审核"
+                    : "\(count) 项任务需要审核"
+            )
+            .font(.subheadline)
+            .foregroundStyle(Palette.inkSecondary)
+            .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Button("审核") {
+                onOpenOtherThreadSheet?()
+            }
+            .buttonStyle(.plain)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Palette.primary)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(height: 44)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+        )
     }
 
     /// 「总是允许」一次点按后的轻量可撤销通知（5 秒自动消失）
@@ -360,6 +412,53 @@ struct ChatApprovalCard: View {
                 setDetailError("改动没读出来，可能是网络或服务暂时没响应")
             }
             setDetailLoading(false)
+        }
+    }
+}
+
+/// 他会话待审核底部半屏弹窗（对标图三：点「审核」后弹出完整审核卡，不切走当前对话）
+struct PendingApprovalSheetView: View {
+    let store: AgentHubStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: OneDayMetrics.spacingM) {
+                    if case .ready(let records) = store.approvalState,
+                       !records.isEmpty {
+                        ForEach(records) { record in
+                            ChatApprovalCard(
+                                store: store,
+                                record: record
+                            )
+                        }
+                    } else {
+                        ContentUnavailableView(
+                            "暂无待审核任务",
+                            systemImage: "checkmark.seal",
+                            description: Text("所有请求均已处理完毕。")
+                        )
+                        .padding(.top, OneDayMetrics.spacingXL)
+                    }
+                }
+                .padding(OneDayMetrics.pageGutter)
+            }
+            .background(Palette.settingsBG)
+            .navigationTitle("待审核任务")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .onChange(of: store.hasPendingApprovals) { _, hasPending in
+            if !hasPending {
+                dismiss()
+            }
         }
     }
 }
