@@ -4088,6 +4088,7 @@ final class ChatRootViewController: UIViewController,
     func scrollViewWillBeginDragging(
         _ scrollView: UIScrollView
     ) {
+        removeActiveReactionBarHost()
         // 用户接管：落点意图即消（H6 的意图边界）
         userInteracting = true
         // §335：浏览态置真（与 userInteracting 同
@@ -4445,13 +4446,26 @@ final class ChatRootViewController: UIViewController,
 
     private func installBlankTapDismiss() {
         let delegate = ChatNativeBlankTapDelegate {
-            [weak self] in
-            self?.callbacks?.onBlankTap()
+            [weak self] tappedView in
+            guard let self else { return }
+            if let tv = tappedView as? SelectableUITextView {
+                SelectableUITextView.clearAllSelections(in: collectionView, except: tv)
+                if tv.selectedRange.length > 0 {
+                    tv.selectedRange = NSRange(location: 0, length: 0)
+                }
+                if tv.isFirstResponder {
+                    tv.resignFirstResponder()
+                }
+                return
+            }
+            SelectableUITextView.clearAllSelections(in: collectionView)
+            removeActiveReactionBarHost()
+            callbacks?.onBlankTap()
         }
         let tap = UITapGestureRecognizer(
             target: delegate,
             action: #selector(
-                ChatNativeBlankTapDelegate.handleTap
+                ChatNativeBlankTapDelegate.handleTap(_:)
             )
         )
         tap.name = "OneDayBlankTapDismissNative"
@@ -4546,6 +4560,8 @@ final class ChatRootViewController: UIViewController,
         return UITargetedPreview(view: cell.contentView, parameters: params)
     }
 
+    private static let reactionBarWindowTag = 948271
+
     func collectionView(
         _ collectionView: UICollectionView,
         willDisplayContextMenu configuration: UIContextMenuConfiguration,
@@ -4555,6 +4571,7 @@ final class ChatRootViewController: UIViewController,
               let indexPath = activeContextMenuIndexPath,
               let window = view.window else { return }
         removeActiveReactionBarHost()
+        Self.removeTaggedReactionBars(in: window)
         let barView = ReactionFloatingBarView(
             ownEmoji: data.ownEmoji,
             onPick: { [weak self] emoji in
@@ -4572,6 +4589,7 @@ final class ChatRootViewController: UIViewController,
         let host = UIHostingController(rootView: AnyView(barView))
         host.safeAreaRegions = []
         host.view.backgroundColor = .clear
+        host.view.tag = Self.reactionBarWindowTag
         let barW = ReactionFloatingBarView.barWidth
         let barH = ReactionFloatingBarView.barHeight
         let cellRect: CGRect
@@ -4614,7 +4632,13 @@ final class ChatRootViewController: UIViewController,
         let host = activeReactionBarHost
         activeContextMenuData = nil
         activeContextMenuIndexPath = nil
-        guard let host else { return }
+        guard let host else {
+            if let window = view.window {
+                Self.removeTaggedReactionBars(in: window)
+            }
+            return
+        }
+        host.view.isUserInteractionEnabled = false
         if let animator {
             animator.addAnimations {
                 host.view.alpha = 0
@@ -4624,11 +4648,7 @@ final class ChatRootViewController: UIViewController,
                 guard let host else { return }
                 self?.removeReactionBarHost(host)
             }
-            // UIKit normally completes the context-menu animator. Keep a
-            // bounded cleanup in case the interaction is interrupted by a
-            // presentation or another window transition.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                [weak self, weak host] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self, weak host] in
                 guard let host else { return }
                 self?.removeReactionBarHost(host)
             }
@@ -4648,8 +4668,12 @@ final class ChatRootViewController: UIViewController,
     }
 
     private func removeActiveReactionBarHost() {
-        guard let host = activeReactionBarHost else { return }
-        removeReactionBarHost(host)
+        if let host = activeReactionBarHost {
+            removeReactionBarHost(host)
+        }
+        if let window = view.window {
+            Self.removeTaggedReactionBars(in: window)
+        }
     }
 
     private func removeReactionBarHost(
@@ -4658,6 +4682,12 @@ final class ChatRootViewController: UIViewController,
         host.view.removeFromSuperview()
         if activeReactionBarHost === host {
             activeReactionBarHost = nil
+        }
+    }
+
+    private static func removeTaggedReactionBars(in window: UIWindow) {
+        for sub in window.subviews where sub.tag == reactionBarWindowTag {
+            sub.removeFromSuperview()
         }
     }
 
@@ -4866,14 +4896,16 @@ enum ChatListAnchorStore {
 final class ChatNativeBlankTapDelegate: NSObject,
     UIGestureRecognizerDelegate
 {
-    private let onTap: () -> Void
+    private let onTap: (UIView?) -> Void
 
-    init(onTap: @escaping () -> Void) {
+    init(onTap: @escaping (UIView?) -> Void) {
         self.onTap = onTap
     }
 
-    @objc func handleTap() {
-        onTap()
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        let location = gesture.location(in: gesture.view)
+        let hit = gesture.view?.hitTest(location, with: nil)
+        onTap(hit)
     }
 
     func gestureRecognizer(
@@ -4882,7 +4914,9 @@ final class ChatNativeBlankTapDelegate: NSObject,
     ) -> Bool {
         var view: UIView? = touch.view
         while let current = view {
-            if current is UITextView { return false }
+            if let tv = current as? UITextView {
+                return tv.selectedRange.length == 0
+            }
             view = current.superview
         }
         return true

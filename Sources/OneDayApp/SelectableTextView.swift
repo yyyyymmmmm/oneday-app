@@ -555,6 +555,21 @@ final class SelectableUITextView: UITextView {
     /// 允许双击选词、拖柄扩选与编辑菜单。
     var suppressesDirectSelection = false
 
+    /// 清除指定视图子树内所有文本选区并收起编辑菜单（点空白或点其他消息时自动取消选中）
+    static func clearAllSelections(in root: UIView, except activeView: UIView? = nil) {
+        for sub in root.subviews {
+            if let tv = sub as? SelectableUITextView, tv !== activeView {
+                if tv.selectedRange.length > 0 {
+                    tv.selectedRange = NSRange(location: 0, length: 0)
+                }
+                if tv.isFirstResponder {
+                    tv.resignFirstResponder()
+                }
+            }
+            clearAllSelections(in: sub, except: activeView)
+        }
+    }
+
     override func gestureRecognizerShouldBegin(
         _ gestureRecognizer: UIGestureRecognizer
     ) -> Bool {
