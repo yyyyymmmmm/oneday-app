@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|24116e037a55713d25138dc193a4b8df5e0def18df6296f4245a0732808f0849"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|0c30a919ed9ae6e397974ff146ca2bc39526343ec64a9d63e08da7ebd040568c"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3"
 )
@@ -102,7 +102,8 @@ MODULES=(
   "skill_manager_tool.py|patches/skill_manager_tool.py|/opt/hermes/tools/skill_manager_tool.py|693b9a716fafad83b14c33ed971256b5f918e2eaccd70cc9c6d23297c9f29693"
   "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|0bde3bc5225ca56f672ae4ccc35a6405786f153e59b57db0687590ff77277922"
   "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b"
-  "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f"
+  "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566"
+  "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6"
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
   "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440"
   "oneday_seg_cron.py|patches/oneday_seg_cron.py|/opt/hermes/gateway/platforms/oneday_seg_cron.py|1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7"
@@ -438,6 +439,9 @@ specs = [
     ("oneday_ledger_lib.py",
      "      - ./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro",
      "./patches/overview_gateway.py:/opt/hermes/gateway/platforms/overview_gateway.py:ro"),
+    ("cron_projection.py",
+     "      - ./patches/cron_projection.py:/opt/hermes/gateway/platforms/cron_projection.py:ro",
+     "./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro"),
     ("oneday_seg_automation.py",
      "      - ./patches/oneday_seg_automation.py:/opt/hermes/gateway/platforms/oneday_seg_automation.py:ro",
      "./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro"),

@@ -4970,7 +4970,9 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             return err
         try:
             include_disabled = request.query.get("include_disabled", "").lower() in {"true", "1"}
-            return web.json_response({"jobs": _cron_list(include_disabled=include_disabled)})
+            from gateway.platforms.cron_projection import project_jobs
+            jobs = _cron_list(include_disabled=include_disabled)
+            return web.json_response({"jobs": project_jobs(jobs)})
         except Exception as e:
             return self._cron_error_response(e)
 

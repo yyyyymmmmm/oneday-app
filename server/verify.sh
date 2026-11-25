@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=24116e037a55713d25138dc193a4b8df5e0def18df6296f4245a0732808f0849
+  [api_server.py]=0c30a919ed9ae6e397974ff146ca2bc39526343ec64a9d63e08da7ebd040568c
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -52,7 +52,8 @@ declare -A WANT_SHA_EXTRA=(
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
   [oneday_gateway.py]=0bde3bc5225ca56f672ae4ccc35a6405786f153e59b57db0687590ff77277922
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
-  [oneday_ledger_lib.py]=32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f
+  [oneday_ledger_lib.py]=5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566
+  [cron_projection.py]=0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
@@ -108,6 +109,7 @@ declare -A CPATH=(
   [oneday_gateway.py]=/opt/hermes/gateway/platforms/oneday_gateway.py
   [overview_gateway.py]=/opt/hermes/gateway/platforms/overview_gateway.py
   [oneday_ledger_lib.py]=/opt/hermes/gateway/platforms/oneday_ledger_lib.py
+  [cron_projection.py]=/opt/hermes/gateway/platforms/cron_projection.py
   [oneday_seg_automation.py]=/opt/hermes/gateway/platforms/oneday_seg_automation.py
   [oneday_seg_briefings.py]=/opt/hermes/gateway/platforms/oneday_seg_briefings.py
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
@@ -139,7 +141,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py oneday_ledger_lib.py cron_projection.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -766,3 +768,16 @@ if docker exec hermes grep -q 'idem = f"ideas-sum-{int(_now())}"' /opt/hermes/ga
 GENM=$(docker exec hermes env 2>/dev/null | grep '^ONEDAY_GEN_MODEL=' | cut -d= -f2)
 if [ "$GENM" = "deepseek-v4-pro" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=deepseek-v4-pro（DeepSeek 官方通道，包 2.5.1）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL=$GENM（期望 deepseek-v4-pro；laogou8 通道余额枯竭，见 genkey-fix-20261125.md）"; fi
 unk "settings-admin-write-deep" "设置写型验收（一次性测试键 register→set→delete→revoke 全程对账＋白名单外写入被拒）默认不跑; 应用步人工执行并记入 batch3plus-rollout-20261125.md"
+
+# ---- 30. 台账 title_human + cron is_system projection (package 2.8.0) ----
+CRON_SYSTEM_FIELDS=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" \
+  "$BASE/api/jobs?include_disabled=true" | python3 -c 'import json,sys
+try:
+ d=json.load(sys.stdin); jobs=d.get("jobs")
+ print("ok" if isinstance(jobs,list) and jobs and all(isinstance(j,dict) and isinstance(j.get("is_system"),bool) for j in jobs) and any(j["is_system"] for j in jobs) else "bad")
+except Exception: print("bad")' 2>/dev/null || echo bad)
+if [ "$CRON_SYSTEM_FIELDS" = "ok" ]; then
+  ok "cron-system-projection" "GET /api/jobs 项均带布尔 is_system 且至少一项系统任务"
+else
+  bad "cron-system-projection" "列表缺字段/无系统任务（需确认部署包与线上任务名）"
+fi

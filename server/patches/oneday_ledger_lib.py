@@ -157,6 +157,39 @@ def resolve_title(*, server_title=None, server_title_grade=None,
     return f"未命名任务 · {when.strftime('%H:%M')}", "fallback"
 
 
+_HUMAN_ACTIONS = {
+    "patch": "修改了", "edit": "修改了", "edit_file": "修改了",
+    "write_file": "写入了", "create": "新建了", "add": "新增了",
+    "replace": "替换了", "remove": "删除了", "delete": "删除了",
+}
+
+
+def derive_title_human(fields: dict) -> str:
+    """Derive an approval headline from the write-gate's structured facts.
+
+    Do not cap target_name: resolve_title's excerpt cap is for user prose,
+    and must not destroy the object used by this independent title.
+    """
+    if not isinstance(fields, dict):
+        return ""
+    actions = fields.get("op_kinds")
+    if not isinstance(actions, list) or not actions:
+        actions = [fields.get("op")]
+    actions = [str(a).strip() for a in actions if a]
+    verbs = {_HUMAN_ACTIONS[a] for a in actions if a in _HUMAN_ACTIONS}
+    verb = next(iter(verbs)) if len(verbs) == 1 else "更新了"
+
+    target = fields.get("target_name")
+    if isinstance(target, str) and target.strip():
+        obj = target.strip()
+    elif fields.get("mem_target") in ("memory", "user"):
+        obj = "长期记忆" if fields["mem_target"] == "memory" \
+            else "用户档案"
+    else:
+        return ""
+    return f"{verb} {obj}"
+
+
 # --- activity summary (hermes-deploy 1.23.0) -------------------------
 #
 # The hub task row's second line: the last thing the run actually
@@ -440,6 +473,8 @@ class LedgerStore:
                     "history": list(item.get("history") or []),
                     "evidenceLagging": False,
                 }
+                if item.get("title_human"):
+                    fresh["title_human"] = str(item["title_human"])
                 for opt in ("sessionId", "runId", "correctedBy"):
                     if item.get(opt) is not None:
                         fresh[opt] = item[opt]
@@ -455,6 +490,9 @@ class LedgerStore:
             # no title rank -- if a producer re-reports a field,
             # its newest value is the fact.
             fields = {}
+            if item.get("title_human") and \
+                    existing.get("title_human") != item["title_human"]:
+                fields["title_human"] = str(item["title_human"])
             for key in ("sessionId", "runId", "link"):
                 if item.get(key) is not None \
                         and existing.get(key) != item[key]:
@@ -1110,6 +1148,7 @@ class Collector:
                 self.store.create_or_merge({
                     "id": iid, "kind": "approval",
                     "source": "bridge", "title": title,
+                    "title_human": derive_title_human(line),
                     "titleSource": tsrc,
                     "status": "blocked_approval",
                     "startedAt": created,
