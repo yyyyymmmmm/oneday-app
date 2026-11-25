@@ -6278,7 +6278,7 @@ struct ChatView: View {
                             )
                         },
                         onOpenFile: { meta in
-                            openChatFile(meta.path)
+                            openDeliveryFile(meta)
                         }
                     )
                     .modifier(messageMenu(for: entry))
@@ -6695,6 +6695,41 @@ struct ChatView: View {
     /// 载→直达 QL 或分享单」。§121 的 QL 资格门与五
     /// 分文案机制不变、落点升级进中间页（见 DESIGN
     /// §125 修订声明）
+    private func openDeliveryFile(_ meta: BridgeDelivery) {
+        if meta.kind == "image" || FileRefDetector.isImagePath(meta.path) {
+            openImageViewer(
+                ChatImageViewerItem(source: .remotePath(meta.path))
+            )
+            return
+        }
+        let target = FileOpenTarget(path: meta.path, anchor: nil)
+        if FileOpenRoute.resolve(target: target) == .locked {
+            chatFallbackTarget = target
+            return
+        }
+        if let localURL = ChatFileStore.shared.localURL(for: meta.path) {
+            presentChatFileRoute(target, localURL: localURL)
+            return
+        }
+        Task {
+            if let data = await DeliveryStore.shared.content(
+                id: meta.id, client: OneDayBridgeClient(), appState: appState
+            ) {
+                let cacheURL = ChatFileStore.cacheURL(for: meta.path)
+                do {
+                    try FileManager.default.createDirectory(
+                        at: cacheURL.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try data.write(to: cacheURL, options: .atomic)
+                    presentChatFileRoute(target, localURL: cacheURL)
+                    return
+                } catch {}
+            }
+            openChatFile(meta.path)
+        }
+    }
+
     private func openChatFile(
         _ path: String, anchor: FileLineAnchor? = nil
     ) {
@@ -13818,6 +13853,9 @@ private struct ComposerBarLayout: Layout {
                 Double(index) * 0.001
             )
             modelContext.insert(cardEntry)
+        }
+        if !settled.attachments.isEmpty {
+            DeliveryStore.shared.ingest(settled.attachments)
         }
         // H2-a：本轮落定的助手条目（自动朗读的取材
         // 口，与下方 finished 分支的触感同点消费）

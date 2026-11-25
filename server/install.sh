@@ -27,7 +27,7 @@ DRY_RUN="${DRY_RUN:-0}"
 PATCHES=(
   "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|b657003a9c75ccd594384e5d328f50d35bb066c1403d59ff180cbebf592911ec"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
-  "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3"
+  "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
 # 新增模块（部署目录可缺失）: 同上格式
 # 注: api_server_runs.py（1.5.0）是上游文件的全文件补丁，但部署目录初始无此文件，

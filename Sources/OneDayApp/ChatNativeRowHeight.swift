@@ -3028,17 +3028,11 @@ struct ChatNativeRowHeightComposer {
         // AssistantMediaImage 未确证时整行不显
         // 示，占位期该槽为空白填充、确证存在图在
         // 原位填入
-        for path in mediaSplit.imagePaths {
-            slots.append(
-                facetFileExistence(path) == .missing
-                    ? 0 : ChatImageSizing.cardHeight
-            )
+        for _ in mediaSplit.imagePaths {
+            slots.append(ChatImageSizing.cardHeight)
         }
-        for ref in inlineImages {
-            slots.append(
-                facetFileExistence(ref.path) == .missing
-                    ? 0 : ChatImageSizing.cardHeight
-            )
+        for _ in inlineImages {
+            slots.append(ChatImageSizing.cardHeight)
         }
         for deliveryID in deliverySplit.deliveryIDs {
             slots.append(
