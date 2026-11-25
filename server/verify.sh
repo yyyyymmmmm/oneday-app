@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f
+  [api_server.py]=690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -36,7 +36,7 @@ declare -A WANT_SHA_EXTRA=(
   [front_gateway.py]=857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=ebd3e8c05934ea72abc0d424dd0275b07e038b011c254cd3801aae058b7dac79
+  [write_gate_gateway.py]=4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
   [oneday_prompt.py]=7b72d19c9806b1ee0750c41516aa2e4abe61950f4d0680ba23076c44b5053fcb

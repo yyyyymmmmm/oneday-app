@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -90,7 +90,7 @@ MODULES=(
   "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
-  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|ebd3e8c05934ea72abc0d424dd0275b07e038b011c254cd3801aae058b7dac79"
+  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2"
   "oneday_memory.py|patches/oneday_memory.py|/opt/hermes/gateway/platforms/oneday_memory.py|43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44"
   "system_prompt.py|patches/system_prompt.py|/opt/hermes/agent/system_prompt.py|7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f"
   "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|3f73efaef6aafd08f7f7a3fccc750e757257cc5c61405a1e7e29769301b537ef"

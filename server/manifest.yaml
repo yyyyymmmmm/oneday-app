@@ -16,7 +16,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server.py
       mount_mode: ro
-      sha256: 0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f
+      sha256: 690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb
       upstream_baseline_sha256: 73175d668c0c683209ad047191921fe899e84b8a429470081a718ae7d163d3f6   # 部署目录 patches/api_server.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 1576
       provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes]
@@ -204,7 +204,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/write_gate_gateway.py
       mount_mode: ro
-      sha256: ebd3e8c05934ea72abc0d424dd0275b07e038b011c254cd3801aae058b7dac79
+      sha256: 4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [write-gate-gateway-module, write-gate-routes, memories-routes]
       summary: 写闸网关模块（1.10.0 新增，断桥批二 bridge-retirement-spec-20261124 §3）：companion write_gate_bridge.py 业务逻辑拆壳入关，12 个公共函数对应桥的 12 条路由（status/pending 列表与详情/approve+reject/decisions/rules 增删查/memories 列表详情与 propose），状态路径原地 write-gate/ 三文件（rules.json/decisions.jsonl/anchors.json）不变，fail-closed 语义不变（上游模块不可用时 supported=False 写操作 409），清扫线程 5 秒间隔与桥同；api_server.py 挂 12 条 /v1 正口＋12 条保形口 /api/write-gate（迁移期路径保形 §5.2，App 清理后摘除）并在 connect() 调 start()。本模块即 App 侧写审批的裁决面（裁决经 handle_pending_subcommand 落 Hermes 本体暂存机器）；模块不可用时端点回 503、App 侧裁决暂不可用，Hermes 本体审批链（run 内等待、其他面作答）不受影响。全 handler 经 api_server @_require_auth 验 API_SERVER_KEY（凭据单源），桥独立钥 WRITE_GATE_BRIDGE_KEY 随批二应用退役。

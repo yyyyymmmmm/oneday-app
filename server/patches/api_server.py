@@ -85,6 +85,7 @@ _CAPABILITY_ENDPOINTS = (
     ("write_gate_approve", ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/approve")),
     ("write_gate_reject", ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/reject")),
     ("write_gate_decisions", ("GET", "/v1/write-gate/decisions")),
+    ("write_gate_activity", ("GET", "/v1/write-gate/activity")),
     ("write_gate_rules_list", ("GET", "/v1/write-gate/rules")),
     ("write_gate_rules_create", ("POST", "/v1/write-gate/rules")),
     ("write_gate_rules_delete", ("DELETE", "/v1/write-gate/rules/{rule_id}")),
@@ -1894,6 +1895,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/approve", self._handle_write_gate_approve),
             ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/reject", self._handle_write_gate_reject),
             ("GET", "/v1/write-gate/decisions", self._handle_write_gate_decisions),
+            ("GET", "/v1/write-gate/activity", self._handle_write_gate_activity),
             ("GET", "/v1/write-gate/rules", self._handle_write_gate_rules_list),
             ("POST", "/v1/write-gate/rules", self._handle_write_gate_rules_create),
             ("DELETE", "/v1/write-gate/rules/{rule_id}", self._handle_write_gate_rules_delete),
@@ -1986,6 +1988,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("POST", "/api/write-gate/pending/{subsystem}/{pending_id}/approve", self._handle_write_gate_approve),
             ("POST", "/api/write-gate/pending/{subsystem}/{pending_id}/reject", self._handle_write_gate_reject),
             ("GET", "/api/write-gate/decisions", self._handle_write_gate_decisions),
+            ("GET", "/api/write-gate/activity", self._handle_write_gate_activity),
             ("GET", "/api/write-gate/rules", self._handle_write_gate_rules_list),
             ("POST", "/api/write-gate/rules", self._handle_write_gate_rules_create),
             ("DELETE", "/api/write-gate/rules/{rule_id}", self._handle_write_gate_rules_delete),
@@ -3297,6 +3300,21 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         _wg.start()
         limit = request.query.get("limit")
         status, payload = await asyncio.to_thread(_wg.list_decisions, limit)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_write_gate_activity(self, request: web.Request) -> web.Response:
+        """GET /v1/write-gate/activity (+ /api/write-gate/activity shape mirror)."""
+        try:
+            from gateway.platforms import write_gate_gateway as _wg
+        except Exception:
+            return _error_response(
+                "write gate gateway module unavailable", 503,
+                code="write_gate_gateway_unavailable")
+        _wg.start()
+        limit = request.query.get("limit")
+        grouped = request.query.get("grouped")
+        status, payload = await asyncio.to_thread(_wg.list_activity, limit, grouped)
         return web.json_response(payload, status=status)
 
     @_require_auth
