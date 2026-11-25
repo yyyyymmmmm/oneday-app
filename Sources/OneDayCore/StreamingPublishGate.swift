@@ -37,28 +37,23 @@ import Foundation
 /// 时刻由调用方注入（TimeInterval 单调值即可），
 /// 本门不读时钟——节流判定纯函数化、可钉测
 public struct StreamingPublishGate: Equatable {
-    /// 字符触发阈值 N
-    public static let charThreshold = 80
-    /// 时间触发阈值 M（秒）
-    public static let intervalThreshold: TimeInterval = 0.09
-    /// 渲染下限间隔（秒）：任何两拍之间至少隔
-    /// 此值——≤20Hz 提交批（定因报告件 3 客户
-    /// 端层）
-    public static let minInterval: TimeInterval = 0.05
-    /// 单拍步进上限（字符）：突发积压的追赶速
-    /// 率封顶
-    public static let maxStep = 120
+    /// 词级尾窗节流口径（全面对标 OpenBot stream-reveal-pool）：
+    /// - 时间节拍 32ms（STREAM_WORD_INTERVAL_MS），每拍推进词级步长
+    /// - 积压超过 10 词（或 ~60 字符）自动 skip 追平，长回复绝不拖尾
+    /// - 首拍直发，首字延迟 ≤1 拍；非追加形态自动重置
+    public static let charThreshold = 60
+    public static let intervalThreshold: TimeInterval = 0.032
+    public static let minInterval: TimeInterval = 0.032
+    public static let maxStep = 24
+    private static let backlogSkipThreshold = 64
 
     /// 当前已发布快照（呈现侧唯一读口）
     public private(set) var publishedText = ""
     /// 已发布拍数（入场计划的批次判读输入）
     public private(set) var publishCount = 0
-    /// 最新累积全文（装配器 mergedFullText 的
-    /// 镜像，只进不出——落定兜底仍读装配器本
-    /// 体，本门不作第二真源）
+    /// 最新累积全文
     private var targetText = ""
-    /// 上一拍发布时刻（注入时刻系）；nil＝本轮
-    /// 尚未发布（首拍直发判据）
+    /// 上一拍发布时刻（注入时刻系）
     private var lastPublishAt: TimeInterval?
 
     public init() {}
@@ -68,21 +63,16 @@ public struct StreamingPublishGate: Equatable {
         publishedText != targetText
     }
 
-    /// 本轮是否已发布过任何快照（首批判读：入
-    /// 场计划 isFirstBatchOfGeneration 的取数口）
+    /// 本轮是否已发布过任何快照
     public var hasPublished: Bool { publishCount > 0 }
 
-    /// 喂入最新累积全文并按拍裁定：返回应即刻
-    /// 上屏的新快照（未到拍/无变化返回 nil，调
-    /// 用方保持现快照不动）
+    /// 喂入最新累积全文并按词级节拍裁定
     @discardableResult
     public mutating func offer(
         _ fullText: String, now: TimeInterval
     ) -> String? {
         if fullText != targetText {
             targetText = fullText
-            // 非追加形态（已发布不是新全文的前
-            // 缀）：整门重置、本拍按首拍重发
             if !fullText.hasPrefix(publishedText) {
                 publishedText = ""
                 lastPublishAt = nil
@@ -92,8 +82,7 @@ public struct StreamingPublishGate: Equatable {
         return publishIfDue(now: now)
     }
 
-    /// 心跳（无新数据时排空积压）：调用方以
-    /// ≤minInterval 的周期驱动，返回值同 offer
+    /// 心跳排空积压
     @discardableResult
     public mutating func tick(
         now: TimeInterval
@@ -101,9 +90,7 @@ public struct StreamingPublishGate: Equatable {
         publishIfDue(now: now)
     }
 
-    /// 强制发布全部已累积（段封存边界可调、终
-    /// 态/收尾必调）：返回全量快照（与已发布相
-    /// 同返回 nil）
+    /// 终态/边界全量发布
     @discardableResult
     public mutating func flush() -> String? {
         guard publishedText != targetText else {
@@ -114,12 +101,12 @@ public struct StreamingPublishGate: Equatable {
         return publishedText
     }
 
-    /// 新一轮流开始时整门归零
+    /// 新一轮流开始时归零
     public mutating func reset() {
         self = StreamingPublishGate()
     }
 
-    // MARK: - 节流裁定
+    // MARK: - OpenBot 词级尾窗推进
 
     private mutating func publishIfDue(
         now: TimeInterval
@@ -127,24 +114,52 @@ public struct StreamingPublishGate: Equatable {
         let backlog = targetText.count - publishedText.count
         guard backlog > 0 else { return nil }
         guard let last = lastPublishAt else {
-            // 首拍直发：全量（首个增量块的常态尺
-            // 寸远小于步进上限；回放补发的整段直
-            // 显是验收口径的明示例外）
             return commit(targetText, now: now)
         }
         let elapsed = now - last
-        let dueByChars = backlog >= Self.charThreshold
-            && elapsed >= Self.minInterval
-        let dueByTime = elapsed >= Self.intervalThreshold
-        guard dueByChars || dueByTime else { return nil }
-        let step = min(backlog, Self.maxStep)
-        let end = targetText.index(
-            targetText.startIndex,
-            offsetBy: publishedText.count + step
+        guard elapsed >= Self.intervalThreshold else { return nil }
+
+        // OpenBot 积压保护（waiting.size > 10 → auto skip）：
+        // 大段突发时直接跳到尾窗附近，不拖尾卡顿
+        if backlog >= Self.backlogSkipThreshold {
+            let keepTail = 16
+            let targetCount = max(publishedText.count + Self.maxStep, targetText.count - keepTail)
+            let end = targetText.index(
+                targetText.startIndex,
+                offsetBy: min(targetCount, targetText.count)
+            )
+            return commit(String(targetText[..<end]), now: now)
+        }
+
+        // 词级推进：英文尽量落词边界，中文按 2–4 字节奏丝滑吐出
+        let startIdx = targetText.index(
+            targetText.startIndex, offsetBy: publishedText.count
         )
-        return commit(
-            String(targetText[..<end]), now: now
-        )
+        let nextIdx = nextWordBoundary(from: startIdx, in: targetText)
+        return commit(String(targetText[..<nextIdx]), now: now)
+    }
+
+    private func nextWordBoundary(
+        from start: String.Index, in text: String
+    ) -> String.Index {
+        var idx = start
+        var stepped = 0
+        let limit = min(Self.maxStep, text.distance(from: start, to: text.endIndex))
+        while idx < text.endIndex && stepped < limit {
+            let ch = text[idx]
+            idx = text.index(after: idx)
+            stepped += 1
+            if ch.isWhitespace || ch.isNewline {
+                break
+            }
+            // CJK 字符按 3 字一拍，兼顾流畅与词组感
+            if let scalar = ch.unicodeScalars.first,
+               scalar.value >= 0x4E00 && scalar.value <= 0x9FFF,
+               stepped >= 3 {
+                break
+            }
+        }
+        return idx
     }
 
     private mutating func commit(

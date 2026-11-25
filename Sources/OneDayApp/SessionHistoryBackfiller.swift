@@ -355,4 +355,212 @@ final class SessionHistoryBackfiller {
         try? context.save()
         return .partial
     }
+
+    /// 轻量增量尾对账（消息可靠性三件套：服务端唯一真源＋按行号原位覆写＋待核验自愈）：
+    /// 1) 尾增量拉取：若无待核验/未钉桩的本地助手条目，传 `afterRowID`（待服务端接入 `after_row_id` 后零开销）；
+    ///    若存在待核验或未钉桩条目，则拉最近一页最新消息，确保能覆写半截兜底条目；
+    /// 2) 按行号覆写＋未钉桩原位自愈：
+    ///    - 已钉桩条目（同 `serverRowID`）：若正文短于服务端或处于待核验集，原位覆盖为服务端全文并清标；
+    ///    - 未钉桩条目（`serverRowID == nil`，如兜底落定的半截流式文本）：按待核验标记／前缀匹配／时间窗口
+    ///      原位钉桩并覆写为服务端全文，杜绝「指纹不同导致半截＋全文双份并存」；
+    /// 3) 补插漏收轮次：剩余未命中 `serverRowID` 与指纹的服务端消息（如智能体主动发起的旁聊/服务端写入）
+    ///    按序补插进聊天流。幂等无副作用，不弹窗不打断阅读。
+    @discardableResult
+    func syncTail(
+        thread: ChatThread, context: ModelContext, limit: Int = 20
+    ) async -> Int {
+        guard let sessionID = thread.serverSessionID,
+              !sessionID.isEmpty,
+              !SideChatLink.isMergeBucket(sessionID),
+              appState.config != nil
+        else { return 0 }
+
+        let unverifiedStore = UnverifiedEntryStore.shared
+        let hasPendingRepair = thread.entries.contains { entry in
+            entry.role == "assistant"
+                && entry.toolCard == nil
+                && !entry.isSystemAnchored
+                && (unverifiedStore.contains(entry.id) || entry.serverRowID == nil)
+        }
+        let maxKnownRowID: Int? = hasPendingRepair
+            ? nil
+            : thread.entries.compactMap(\.serverRowID).max()
+
+        let page: [SessionMessage]
+        do {
+            page = try await appState.performAdmin { client, config in
+                try await client.sessionMessagesPage(
+                    config: config, id: sessionID,
+                    limit: limit, offset: 0,
+                    afterRowID: maxKnownRowID
+                )
+            }
+        } catch {
+            if let hermesError = error as? HermesError,
+               hermesError.isPaginationRejected,
+               let full = try? await appState.performAdmin({ client, config in
+                   try await client.sessionMessages(
+                       config: config, id: sessionID
+                   )
+               }) {
+                page = Array(full.suffix(limit))
+            } else {
+                return 0
+            }
+        }
+        guard !page.isEmpty else { return 0 }
+        let ordered = SessionHistoryPagePlanner.chronological(page)
+        let seedCandidate = OptionsCardLogic.seedCandidate(in: ordered)
+        let items = SessionHistoryImport.richItems(from: ordered)
+
+        // 1) 对账既有条目：完全同指纹者补钉 serverRowID、同步反应
+        SessionHistoryInserter.reconcileReactions(
+            items: items, entries: thread.entries
+        )
+
+        var healedCount = 0
+        var entriesByRowID: [Int: ChatEntry] = [:]
+        for entry in thread.entries {
+            if let rowID = entry.serverRowID {
+                entriesByRowID[rowID] = entry
+            }
+        }
+
+        // 2) 已钉桩条目按 serverRowID 原位覆写（修复截断或待核验条目）
+        for item in items {
+            guard let rowID = item.serverRowID,
+                  let existing = entriesByRowID[rowID]
+            else { continue }
+            let isUnverified = unverifiedStore.contains(existing.id)
+            if item.role == existing.role,
+               (item.content.count > existing.content.count
+                || (isUnverified && item.content != existing.content)) {
+                existing.content = item.content
+                if !item.imagePaths.isEmpty && existing.remoteImagePaths.isEmpty {
+                    existing.remoteImagePaths = item.imagePaths
+                }
+                if !item.fileRefs.isEmpty && existing.remoteFilePaths.isEmpty {
+                    existing.remoteFilePaths = item.fileRefs
+                }
+                existing.applyReactions(item.reactions)
+                healedCount += 1
+            }
+            if isUnverified {
+                unverifiedStore.clear(existing.id)
+            }
+        }
+
+        // 3) 未钉桩条目原位钉桩＋覆写（专治兜底落定半截正文与服务端全文指纹不同导致的重复消息）
+        var unpinnedAssistants = thread.sortedEntries.filter { entry in
+            entry.role == "assistant"
+                && entry.serverRowID == nil
+                && entry.toolCard == nil
+                && !entry.isSystemAnchored
+                && !entry.content.isEmpty
+        }
+        if !unpinnedAssistants.isEmpty {
+            for item in items where item.role == "assistant" {
+                guard let rowID = item.serverRowID,
+                      entriesByRowID[rowID] == nil
+                else { continue }
+                let trimmedItem = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedItem.isEmpty else { continue }
+                let matchIndex = unpinnedAssistants.firstIndex { candidate in
+                    let trimmedLocal = candidate.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedLocal.isEmpty else { return false }
+                    if trimmedItem.hasPrefix(trimmedLocal) || trimmedLocal.hasPrefix(trimmedItem) {
+                        return true
+                    }
+                    if unverifiedStore.contains(candidate.id),
+                       let itemDate = item.date,
+                       abs(candidate.createdAt.timeIntervalSince(itemDate)) <= 180 {
+                        return true
+                    }
+                    return false
+                }
+                if let idx = matchIndex {
+                    let candidate = unpinnedAssistants.remove(at: idx)
+                    candidate.serverRowID = rowID
+                    if item.content != candidate.content {
+                        candidate.content = item.content
+                    }
+                    if !item.imagePaths.isEmpty && candidate.remoteImagePaths.isEmpty {
+                        candidate.remoteImagePaths = item.imagePaths
+                    }
+                    if !item.fileRefs.isEmpty && candidate.remoteFilePaths.isEmpty {
+                        candidate.remoteFilePaths = item.fileRefs
+                    }
+                    candidate.applyReactions(item.reactions)
+                    unverifiedStore.clear(candidate.id)
+                    entriesByRowID[rowID] = candidate
+                    healedCount += 1
+                }
+            }
+        }
+
+        // 4) 过滤掉已存在的 serverRowID 与指纹，补插服务端完整但手机端漏收的消息
+        let knownRowIDs = Set(entriesByRowID.keys)
+        let existingPrints = Set(thread.entries.map {
+            SessionHistoryInserter.fingerprint(of: $0)
+        })
+        let rowFiltered = items.filter { item in
+            guard let rowID = item.serverRowID else { return true }
+            return !knownRowIDs.contains(rowID)
+        }
+        let unseen = SessionHistorySync.unseenItems(
+            rowFiltered, existing: existingPrints
+        )
+        let inserted = SessionHistoryInserter.insert(
+            items: unseen, into: thread, context: context
+        )
+        if inserted > 0 || healedCount > 0 {
+            SessionHistoryInserter.convergeStockDuplicates(
+                entries: thread.entries, context: context
+            )
+            thread.historyLoadedCount = thread.entries.count
+            thread.updatedAt = Date()
+            try? context.save()
+        }
+        finalizeOptionsSeed(thread: thread, candidate: seedCandidate)
+        return inserted + healedCount
+    }
+}
+
+/// 兜底落定条目的持久化「待核验」账本（UserDefaults 存储 UUID 集合，零 SwiftData 迁移风险）：
+/// 当某轮生成走兜底路径（未能从服务端 transcript 拉到全文、先拿本地流式拼接文本落定）时标记；
+/// 下一次尾对账成功后原位覆写为服务端完整真源并清除标记。
+@MainActor
+final class UnverifiedEntryStore {
+    static let shared = UnverifiedEntryStore()
+    private static let storageKey = "oneday.chat.unverifiedEntryIDs"
+    private var ids: Set<String>
+
+    private init() {
+        let saved = UserDefaults.standard.stringArray(forKey: Self.storageKey) ?? []
+        self.ids = Set(saved)
+    }
+
+    func mark(_ id: UUID) {
+        if ids.insert(id.uuidString).inserted {
+            persist()
+        }
+    }
+
+    func clear(_ id: UUID) {
+        if ids.remove(id.uuidString) != nil {
+            persist()
+        }
+    }
+
+    func contains(_ id: UUID) -> Bool {
+        ids.contains(id.uuidString)
+    }
+
+    private func persist() {
+        // 保持有界，避免长期膨胀
+        if ids.count > 200 {
+            ids = Set(ids.prefix(200))
+        }
+        UserDefaults.standard.set(Array(ids), forKey: Self.storageKey)
+    }
 }

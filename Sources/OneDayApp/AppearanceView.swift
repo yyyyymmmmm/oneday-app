@@ -2,9 +2,7 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 外观模式三档（0.4.0）：跟随系统／浅色／深色。AppStorage
-/// 键 appearanceMode 为单一事实源——本页 Picker 写、根层
-/// RootView 读后施加 .preferredColorScheme。
+/// 外观模式三档：跟随系统／浅色／深色。
 enum AppearanceMode: String, CaseIterable, Identifiable {
     case system
     case light
@@ -30,10 +28,6 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 }
 
 extension ChatTextSizeTier {
-    /// §503 映射单源（App 层）：固定档→DynamicType-
-    /// Size；跟随系统＝nil（消费方回落环境值）。
-    /// DynamicTypeSize.large 即系统默认正文档、故
-    /// 「标准」档落 .large。聊天页与本页预览同读
     var fixedDynamicTypeSize: DynamicTypeSize? {
         switch self {
         case .system: return nil
@@ -45,105 +39,46 @@ extension ChatTextSizeTier {
     }
 }
 
-/// 外观页（0.26.0 重做；§503 按 TG 骨架再重构，
-/// 2026-11-24 用户三层框架＋18:36 终裁）：骨架自
-/// 上而下——①实时预览（**单数据源**：预览直接渲
-/// 染与真实聊天同一组 Palette/主题读口——真背景
-/// 面打底、用户泡带字、AI 全宽卡带字＋引用块；改
-/// 任一设置，预览与真实聊天同刻同变；旧预览的空
-/// 形状＋写死 pageBG 底已整卡废弃）②聊天主题
-/// （整包主题卡片列、带名——一款主题同辖 AI 卡/
-/// 用户泡/背景/强调，见 Core ChatTheme §503 整包
-/// 化；旧纯色圆无名形态与默认款头像图混格退役）
-/// ③聊天背景（Menu 行：跟随主题＋纯色盘＋图案
-/// 三款，相册图列二期缺件见 §503）④强调色（TG
-/// 预设 11 色点列＋「跟随主题」复位，覆盖键辖）
-/// ⑤文字大小（五档，聊天面字阶覆盖层）⑥气泡圆
-/// 角（原「气泡样式」假名行归位——实只辖圆角）
-/// ⑦虚拟形象大小（沿旧）⑧模式（沿旧）。
-/// §503 退役：「回复呈现」整节删除（流式/打字渐
-/// 显定死常开、仍服从 Reduce Motion；反应浮排＋
-/// AI 反应两开关迁「互动」页 ReactionSettings-
-/// View）；语言整节迁「语言」页 LanguageSettings-
-/// View。全页规格沿 0.24.0 定版（List insetGrouped
-/// ＋settingsBG、行题 rowTitleL、分区头 Settings-
-/// SectionHeader、行高 settingsRowHeight）。持久
-/// 化键见 Core AppearanceStorageKeys（既有键不改
-/// 名不迁移、老用户已选值原样保留）。
+/// 外观页（大厂原生标准版）：
+/// 顶部钉住单数据源实时聊天预览，下方精简为两大聚焦分组：
+/// - 主题与色彩：模式、整包聊天主题、强调色盘
+/// - 背景与文字：精选聊天背景（可视化色块）与文字大小
+/// 已移除冗余的「虚拟形象大小」与「气泡圆角」微调项。
 struct AppearanceView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @AppStorage(AppearanceStorageKeys.appearanceMode)
     private var appearanceModeRaw = AppearanceMode.system.rawValue
     @AppStorage(AppearanceStorageKeys.chatTheme)
     private var chatThemeID = ChatThemes.defaultID
-    // 气泡浓淡（台账 184）已随 188 定版整套退役：
-    // 用户泡单档定死，本页不再有浓淡写口
-    @AppStorage(AppearanceStorageKeys.avatarSize)
-    private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
-    /// 气泡圆角（台账 179，§503 改行名）：键 chat-
-    /// BubbleStyle（Core 单源），本页写、Palette 圆
-    /// 角读口现读；缺省定版 standard
-    @AppStorage(AppearanceStorageKeys.chatBubbleStyle)
-    private var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
-    /// 聊天背景（台账 179，§503 扩容）：键 chat-
-    /// Background，本页写、Palette.chatBackground
-    /// 现读；缺省定版 standard（与 chatSurface 同值）
     @AppStorage(AppearanceStorageKeys.chatBackground)
-    private var chatBackgroundRaw =
-        ChatBackgroundStyle.standard.rawValue
-    /// 聊天文字大小（§503）：键 chatTextSize，本页
-    /// 写、聊天页生效字阶读口读；缺省跟随系统
+    private var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
     @AppStorage(AppearanceStorageKeys.chatTextSize)
     private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
-    /// 强调色覆盖（§503）：键 chatAccentOverride 存
-    /// hex 整数；「跟随主题」以 -1 哨兵落盘（App-
-    /// Storage 无删键口）——Core 读口 Appearance-
-    /// Preferences.accentOverride 按范围过滤、-1
-    /// 与删键等效回 nil，Palette 覆盖判定只认读口
     @AppStorage(AppearanceStorageKeys.chatAccentOverride)
     private var accentOverrideRaw = -1
 
-    /// §431 触感落点计数（形象大小 Menu 点开）：标
-    /// 签点按一次 +1、经声明式 impact .light 施加
-    @State private var avatarMenuTapCount = 0
-
     private enum AppearanceTab: String, CaseIterable, Identifiable {
-        case theme = "主题"
-        case background = "背景"
-        case details = "文字与样式"
+        case theme = "主题与色彩"
+        case surface = "背景与文字"
         var id: String { rawValue }
     }
     @State private var selectedTab: AppearanceTab = .theme
 
-    private var bubbleStyle: ChatBubbleStyle {
-        ChatBubbleStyle(rawValue: bubbleStyleRaw) ?? .standard
-    }
+    /// 精选背景项（去除肉眼难辨的多余近灰，保留清晰有辨识度的 6 档）
+    private static let curatedBackgrounds: [ChatBackgroundStyle] = [
+        .theme, .standard, .mist, .dots, .grid, .diagonal,
+    ]
 
     private var backgroundStyle: ChatBackgroundStyle {
-        ChatBackgroundStyle(rawValue: chatBackgroundRaw)
-            ?? .standard
+        ChatBackgroundStyle(rawValue: chatBackgroundRaw) ?? .standard
     }
 
     private var textSizeTier: ChatTextSizeTier {
         ChatTextSizeTier(rawValue: chatTextSizeRaw) ?? .system
-    }
-
-    private var bubbleStyleBinding: Binding<ChatBubbleStyle> {
-        Binding(
-            get: { bubbleStyle },
-            set: { bubbleStyleRaw = $0.rawValue }
-        )
-    }
-
-    private var backgroundStyleBinding:
-        Binding<ChatBackgroundStyle> {
-        Binding(
-            get: { backgroundStyle },
-            set: { chatBackgroundRaw = $0.rawValue }
-        )
     }
 
     private var textSizeBinding: Binding<ChatTextSizeTier> {
@@ -161,13 +96,6 @@ struct AppearanceView: View {
         ChatThemes.theme(forID: chatThemeID)
     }
 
-    private var tier: AvatarSizeTier {
-        AvatarSizeTier(rawValue: avatarSizeRaw) ?? .medium
-    }
-
-    /// 当前强调覆盖（nil＝跟随主题）：与 Core 读
-    /// 口同口径——键值 <0 或 >0xFFFFFF 均视未设
-    /// （本页哨兵 -1 即在此过滤）
     private var accentOverrideHex: UInt32? {
         guard accentOverrideRaw >= 0,
               accentOverrideRaw <= 0xFFFFFF
@@ -175,8 +103,10 @@ struct AppearanceView: View {
         return UInt32(accentOverrideRaw)
     }
 
-    /// 预览演示明暗：模式显式选浅/暗按所选演示、跟
-    /// 随系统按当前系统——只喂预览框的局部呈现
+    private var effectiveAccentHex: UInt32 {
+        accentOverrideHex ?? (previewIsDark ? theme.accentDark : theme.accentLight)
+    }
+
     private var previewScheme: ColorScheme {
         switch mode {
         case .light: return .light
@@ -187,12 +117,15 @@ struct AppearanceView: View {
 
     private var previewIsDark: Bool { previewScheme == .dark }
 
+    private var previewRenderKey: String {
+        "\(chatThemeID)|\(accentOverrideRaw)|\(chatBackgroundRaw)|\(chatTextSizeRaw)|\(appearanceModeRaw)|\(previewIsDark)"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // 大厂标准（OpenBot / Telegram / WhatsApp）：
-            // 真实聊天预览卡钉顶固定，下面切换主题/背景/文字时同帧实时可见、永不滚出屏幕
             VStack(spacing: OneDayMetrics.spacingSM) {
                 previewCard
+                    .id(previewRenderKey)
                 Picker("外观分组", selection: $selectedTab) {
                     ForEach(AppearanceTab.allCases) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -208,15 +141,12 @@ struct AppearanceView: View {
             List {
                 switch selectedTab {
                 case .theme:
+                    modeSection
                     themeSection
                     accentSection
-                    modeSection
-                case .background:
+                case .surface:
                     backgroundSection
-                case .details:
                     textSizeSection
-                    bubbleCornerSection
-                    avatarSection
                 }
             }
             .listStyle(.insetGrouped)
@@ -229,82 +159,45 @@ struct AppearanceView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: - 分区头（走设计层共用件 SettingsSect-
-    // ionHeader，本页只留转发壳保既有调用点不动）
+    // MARK: - 实时预览（单数据源，紧凑大厂顶栏 + 真气泡/引用块）
 
-    private func appearanceHeader(_ title: String) -> some View {
-        SettingsSectionHeader(title)
-    }
-
-    // MARK: - ① 实时预览（§503 单数据源重做）
-
-    /// 迷你聊天框（§503）：与真实聊天同一组读口现
-    /// 渲——背景＝ChatBackgroundSurface（底色＋图
-    /// 案、与聊天页背景层同一消费面）、用户泡＝
-    /// Palette.userBubbleFill/userBubbleText 带真
-    /// 字、AI 卡＝Palette.bubbleFill 全宽卡（内含
-    /// 引用块：强调竖线＋次级字），头像＋名签读档
-    /// 案、字阶读文字大小档。任一设置改动在此与真
-    /// 实聊天同刻同变（预览无副本、无第二数据源）
     private var previewCard: some View {
-        let accent = hexColor(
-            previewIsDark ? theme.accentDark : theme.accentLight
-        )
+        let accent = hexColor(effectiveAccentHex)
         return VStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(spacing: -5) {
-                // 预览头像与名读档案（用户真实所见）
+            HStack(spacing: OneDayMetrics.spacingS) {
                 appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
-                    .frame(
-                        width: tier.capsulePointSize,
-                        height: tier.capsulePointSize
-                    )
+                    .frame(width: 28, height: 28)
                     .clipShape(Circle())
-                    .accessibilityHidden(true)
                 Text(appState.agentDisplayName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, OneDayMetrics.rowInnerGap)
-                    .padding(.vertical, OneDayMetrics.spacingMicro)
-                    .background(Palette.surface, in: Capsule())
-                    .overlay {
-                        Capsule().stroke(Palette.hairline, lineWidth: 0.5)
-                    }
-                    .accessibilityHidden(true)
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
-            // 用户泡（带字、主题色现读）
+            .accessibilityHidden(true)
+
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
                 Text(L10n.string("帮我看下明早去车站的高铁票"))
                     .font(.body)
                     .foregroundStyle(Palette.userBubbleText)
-                    .padding(
-                        .horizontal, OneDayMetrics.bubblePaddingH
-                    )
-                    .padding(
-                        .vertical, OneDayMetrics.bubblePaddingV
-                    )
+                    .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+                    .padding(.vertical, OneDayMetrics.bubblePaddingV)
                     .background {
                         RoundedRectangle(
-                            cornerRadius: OneDayMetrics.bubbleCorner
+                            cornerRadius: OneDayMetrics.bubbleCorner,
+                            style: .continuous
                         )
                         .fill(Palette.userBubbleFill)
                     }
                     .accessibilityHidden(true)
             }
-            // AI 全宽卡（带字＋引用块、卡面现读）
-            VStack(
-                alignment: .leading,
-                spacing: OneDayMetrics.spacingS
-            ) {
-                HStack(
-                    alignment: .top,
-                    spacing: OneDayMetrics.spacingS
-                ) {
+
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Palette.primary)
+                        .fill(accent)
                         .frame(width: 3, height: 18)
                         .accessibilityHidden(true)
                     Text(L10n.string("明早去车站的高铁票"))
@@ -322,8 +215,8 @@ struct AppearanceView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(
-                    cornerRadius:
-                        OneDayMetrics.assistantBubbleCorner
+                    cornerRadius: OneDayMetrics.assistantBubbleCorner,
+                    style: .continuous
                 )
                 .fill(Palette.bubbleFill)
             }
@@ -339,19 +232,41 @@ struct AppearanceView: View {
             textSizeTier.fixedDynamicTypeSize ?? systemTypeSize
         )
         .clipShape(
-            RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusPreview,
+                style: .continuous
+            )
         )
         .overlay {
             RoundedRectangle(
-                cornerRadius: OneDayMetrics.containerCorner
+                cornerRadius: OneDayMetrics.radiusPreview,
+                style: .continuous
             )
-            .strokeBorder(accent.opacity(0.5), lineWidth: 1.5)
+            .strokeBorder(accent.opacity(0.45), lineWidth: 1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("外观预览")
     }
 
-    // MARK: - ② 聊天主题（§503 卡片列）
+    // MARK: - 外观模式
+
+    private var modeSection: some View {
+        Section {
+            Picker("外观模式", selection: $appearanceModeRaw) {
+                ForEach(AppearanceMode.allCases) { item in
+                    Text(item.displayName).tag(item.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+        } header: {
+            SettingsSectionHeader("外观模式")
+        }
+        .sensoryFeedback(.selection, trigger: appearanceModeRaw)
+    }
+
+    // MARK: - 聊天主题
 
     private var themeSection: some View {
         Section {
@@ -368,25 +283,19 @@ struct AppearanceView: View {
                 EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 0)
             )
         } header: {
-            appearanceHeader("聊天主题")
+            SettingsSectionHeader("聊天主题")
         }
         .listRowBackground(Palette.surface)
         .sensoryFeedback(.selection, trigger: chatThemeID)
     }
 
-    /// 主题卡片一格（§503）：缩略场景（该款背景打
-    /// 底＋用户泡小条＋AI 卡小条、三值皆该款整包在
-    /// 预览明暗下的实值）＋款名；选中＝强调描边环。
-    /// 旧形态（纯色圆无名、默认款头像图混格）退役
-    /// ——卡片自带名字与整包预告，与 TG 主题列同构
     private func themeCard(_ item: ChatTheme) -> some View {
         let selected = item.id == theme.id
         let dark = previewIsDark
         return Button {
+            Haptics.selection()
             withAnimation(
-                MotionTokens.resolved(
-                    MotionTokens.swap, reduceMotion: reduceMotion
-                )
+                MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion)
             ) {
                 chatThemeID = item.id
             }
@@ -399,16 +308,12 @@ struct AppearanceView: View {
                         HStack {
                             Spacer()
                             Capsule()
-                                .fill(
-                                    hexColor(item.bubbleFill(dark: dark))
-                                )
+                                .fill(hexColor(item.bubbleFill(dark: dark)))
                                 .frame(width: 26, height: 9)
                         }
                         HStack {
                             RoundedRectangle(cornerRadius: 3)
-                                .fill(
-                                    hexColor(item.aiCardFill(dark: dark))
-                                )
+                                .fill(hexColor(item.aiCardFill(dark: dark)))
                                 .frame(width: 40, height: 9)
                             Spacer()
                         }
@@ -432,15 +337,10 @@ struct AppearanceView: View {
                 }
                 Text(item.displayName)
                     .font(.caption)
-                    .foregroundStyle(
-                        selected ? Palette.primary : Palette.ink
-                    )
+                    .foregroundStyle(selected ? Palette.primary : Palette.ink)
             }
             .padding(OneDayMetrics.spacingS)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(cornerRadius: 12)
-            )
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(
@@ -450,76 +350,12 @@ struct AppearanceView: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel(
-            item.displayName + (selected ? "，已选" : "")
-        )
+        .buttonStyle(.plain)
+        .accessibilityLabel(item.displayName + (selected ? "，已选" : ""))
     }
 
-    // MARK: - Menu 行共用件（背景/文字/圆角三行同式）
+    // MARK: - 强调色
 
-    /// Menu 行标签（与形象大小行同式）：题＋当前值
-    /// ＋上下 chevron；点开走原生 Menu（内嵌 Picker）
-    private func menuRowLabel(
-        title: String, value: String
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Color.clear
-                .frame(width: OneDayMetrics.iconSlot)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-            Spacer()
-            Text(value)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.inkSecondary)
-            DisclosureChevron(
-                .upDown,
-                font: .system(
-                    size: FrameworkIcon.smallGlyphSize,
-                    weight: .semibold
-                )
-            )
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        .contentShape(Rectangle())
-    }
-
-    // MARK: - ③ 聊天背景
-
-    private var backgroundSection: some View {
-        Section {
-            Menu {
-                Picker("聊天背景", selection: backgroundStyleBinding) {
-                    ForEach(
-                        ChatBackgroundStyle.allCases, id: \.self
-                    ) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-            } label: {
-                menuRowLabel(
-                    title: "聊天背景",
-                    value: backgroundStyle.displayName
-                )
-            }
-        } header: {
-            appearanceHeader("聊天背景")
-        } footer: {
-            Text("「跟随主题」随所选主题整包的背景；图案只改底面质感，不影响阅读。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-        .sensoryFeedback(.selection, trigger: chatBackgroundRaw)
-    }
-
-    // MARK: - ④ 强调色（§503，TG 预设盘）
-
-    /// 预设色名（与 ChatAccentPresets.values 同序，
-    /// 只供无障碍标签与区脚说明、不参与解析）
     private static let accentPresetNames = [
         "蓝", "青", "绿", "粉", "橙", "紫", "红", "黄", "灰", "黑", "白",
     ]
@@ -529,17 +365,15 @@ struct AppearanceView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     accentDot(
-                        hex: previewIsDark
-                            ? theme.accentDark : theme.accentLight,
+                        hex: previewIsDark ? theme.accentDark : theme.accentLight,
                         name: "跟随主题",
                         selected: accentOverrideHex == nil
                     ) {
                         accentOverrideRaw = -1
                     }
                     ForEach(
-                        Array(
-                            ChatAccentPresets.values.enumerated()
-                        ), id: \.offset
+                        Array(ChatAccentPresets.values.enumerated()),
+                        id: \.offset
                     ) { index, hex in
                         accentDot(
                             hex: hex,
@@ -557,9 +391,9 @@ struct AppearanceView: View {
                 EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 0)
             )
         } header: {
-            appearanceHeader("强调色")
+            SettingsSectionHeader("主题强调色")
         } footer: {
-            Text("用于链接、引用标记与选中状态；第一颗是跟随当前主题的强调色。")
+            Text("统一作用于主按钮、用户气泡、链接、选中态与输入光标；第一颗为当前主题默认色。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
         }
@@ -567,8 +401,6 @@ struct AppearanceView: View {
         .sensoryFeedback(.selection, trigger: accentOverrideRaw)
     }
 
-    /// 强调色点一颗：30pt 实色圆；选中＝同色描边
-    /// 环＋对勾（勾色按该色明暗取黑/白、保证可辨）
     private func accentDot(
         hex: UInt32, name: String, selected: Bool,
         action: @escaping () -> Void
@@ -577,10 +409,9 @@ struct AppearanceView: View {
             + 0.587 * Double((hex >> 8) & 0xFF)
             + 0.114 * Double(hex & 0xFF)) / 255.0
         return Button {
+            Haptics.selection()
             withAnimation(
-                MotionTokens.resolved(
-                    MotionTokens.swap, reduceMotion: reduceMotion
-                )
+                MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion)
             ) {
                 action()
             }
@@ -598,179 +429,117 @@ struct AppearanceView: View {
                     if selected {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(
-                                luminance > 0.6
-                                    ? Color.black : Color.white
-                            )
+                            .foregroundStyle(luminance > 0.6 ? Color.black : Color.white)
                     }
                 }
                 .frame(width: 34, height: 34)
                 .contentShape(Circle())
         }
-        .buttonStyle(.odPressable)
+        .buttonStyle(.plain)
         .accessibilityLabel(name + (selected ? "，已选" : ""))
     }
 
-    // MARK: - ⑤ 文字大小（§503）
+    // MARK: - 聊天背景（可视化色块，一眼看清差异）
 
-    private var textSizeSection: some View {
+    private var backgroundSection: some View {
         Section {
-            Menu {
-                Picker("文字大小", selection: textSizeBinding) {
-                    ForEach(
-                        ChatTextSizeTier.allCases, id: \.self
-                    ) { tier in
-                        Text(tier.displayName).tag(tier)
-                    }
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                spacing: 10
+            ) {
+                ForEach(Self.curatedBackgrounds, id: \.self) { style in
+                    backgroundSwatch(style)
                 }
-            } label: {
-                menuRowLabel(
-                    title: "文字大小",
-                    value: textSizeTier.displayName
-                )
             }
+            .padding(.vertical, OneDayMetrics.spacingXS)
         } header: {
-            appearanceHeader("文字大小")
+            SettingsSectionHeader("聊天背景")
         } footer: {
-            Text("只影响聊天页的文字大小；「跟随系统」与系统「显示与文字大小」一致。")
+            Text("「跟随主题」自动匹配当前主题底色；纹理项会在纯净底面上叠加细腻质感。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        .sensoryFeedback(.selection, trigger: chatBackgroundRaw)
+    }
+
+    private func backgroundSwatch(_ style: ChatBackgroundStyle) -> some View {
+        let selected = backgroundStyle == style
+        let dark = previewIsDark
+        let bgColor: Color = {
+            switch style {
+            case .theme: return hexColor(theme.chatBackground(dark: dark))
+            case .standard, .dots, .grid, .diagonal:
+                return dark ? Color(UIColor.systemBackground) : hexColor(0xFCFCFC)
+            case .mist: return hexColor(dark ? 0x111113 : 0xF0F0F2)
+            case .slate: return hexColor(dark ? 0x1A1A1E : 0xE6E6EA)
+            case .wechatGray: return hexColor(dark ? 0x111113 : 0xEDEDED)
+            case .gptGray: return hexColor(dark ? 0x1A1A1E : 0xF4F4F4)
+            }
+        }()
+        let iconName: String? = {
+            switch style {
+            case .dots: return "circle.grid.3x3"
+            case .grid: return "grid"
+            case .diagonal: return "line.diagonal"
+            default: return nil
+            }
+        }()
+        return Button {
+            Haptics.selection()
+            chatBackgroundRaw = style.rawValue
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(bgColor)
+                        .frame(height: 44)
+                    if let iconName {
+                        Image(systemName: iconName)
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundStyle(Palette.inkSecondary.opacity(0.65))
+                    }
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(
+                            selected ? Palette.primary : Palette.hairline,
+                            lineWidth: selected ? 2 : 1
+                        )
+                }
+                Text(style.displayName)
+                    .font(.caption)
+                    .foregroundStyle(selected ? Palette.primary : Palette.ink)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 文字大小
+
+    private var textSizeSection: some View {
+        Section {
+            Picker("文字大小", selection: textSizeBinding) {
+                ForEach(ChatTextSizeTier.allCases, id: \.self) { tier in
+                    Text(tier.displayName).tag(tier)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } header: {
+            SettingsSectionHeader("聊天文字大小")
+        } footer: {
+            Text("仅调整聊天消息文字大小；选择「跟随系统」与系统字体设置同步。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
         .sensoryFeedback(.selection, trigger: chatTextSizeRaw)
-    }
-
-    // MARK: - ⑥ 气泡圆角（§503 归位，原「气泡样式」）
-
-    private var bubbleCornerSection: some View {
-        Section {
-            Menu {
-                Picker("气泡圆角", selection: bubbleStyleBinding) {
-                    ForEach(
-                        ChatBubbleStyle.allCases, id: \.self
-                    ) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-            } label: {
-                menuRowLabel(
-                    title: "气泡圆角",
-                    value: bubbleStyle.displayName
-                )
-            }
-        } header: {
-            appearanceHeader("气泡圆角")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-        .sensoryFeedback(.selection, trigger: bubbleStyleRaw)
-    }
-
-    // MARK: - ⑦ 虚拟形象大小（沿旧）
-
-    private var avatarTierBinding: Binding<AvatarSizeTier> {
-        Binding(
-            get: { tier },
-            set: { avatarSizeRaw = $0.rawValue }
-        )
-    }
-
-    private var avatarSection: some View {
-        Section {
-            Menu {
-                Picker("虚拟形象大小", selection: avatarTierBinding) {
-                    ForEach(AvatarSizeTier.allCases) { sizeTier in
-                        Text(sizeTier.displayName).tag(sizeTier)
-                    }
-                }
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    // 形象大小选择器标签头像读档案
-                    appState.agentAvatarImage
-                        .resizable()
-                        .scaledToFill()
-                        .frame(
-                            width: OneDayMetrics.iconSlot,
-                            height: OneDayMetrics.iconSlot
-                        )
-                        .clipShape(Circle())
-                        .accessibilityHidden(true)
-                    Text("虚拟形象大小")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Spacer()
-                    Text(tier.displayName)
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.inkSecondary)
-                    DisclosureChevron(.upDown, font: .system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-                .simultaneousGesture(
-                    TapGesture().onEnded { avatarMenuTapCount += 1 }
-                )
-            }
-        } header: {
-            appearanceHeader("虚拟形象大小")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-        .sensoryFeedback(.selection, trigger: avatarSizeRaw)
-        .sensoryFeedback(.impact(weight: .light), trigger: avatarMenuTapCount)
-    }
-
-    // MARK: - ⑧ 模式（沿旧）
-
-    private var modeSection: some View {
-        Section {
-            ForEach(AppearanceMode.allCases) { item in
-                Button {
-                    withAnimation(
-                        MotionTokens.resolved(
-                            MotionTokens.swap,
-                            reduceMotion: reduceMotion
-                        )
-                    ) {
-                        appearanceModeRaw = item.rawValue
-                    }
-                } label: {
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        Color.clear
-                            .frame(width: OneDayMetrics.iconSlot)
-                            .accessibilityHidden(true)
-                        Text(item.displayName)
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                        if item == mode {
-                            Image(systemName: "checkmark")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(Palette.primary)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel(
-                    item.displayName + (item == mode ? "，已选" : "")
-                )
-            }
-        } header: {
-            appearanceHeader("模式")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-        .sensoryFeedback(.selection, trigger: appearanceModeRaw)
     }
 
     // MARK: - 工具
 
-    /// 主题十六进制值 → SwiftUI 色（预览/卡片/色点
-    /// 需按预览明暗显式取档，不能走 Palette 的
-    /// traits 解析）
     private func hexColor(_ hex: UInt32) -> Color {
         Color(
             red: Double((hex >> 16) & 0xFF) / 255.0,

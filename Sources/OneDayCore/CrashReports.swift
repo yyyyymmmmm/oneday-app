@@ -301,3 +301,98 @@ public final class CrashReportStore: @unchecked Sendable {
         try? data.write(to: fileURL, options: [.atomic])
     }
 }
+
+// MARK: - 服务端崩溃上报与回读模型（hermes-deploy 1.7.0+，/v1/diagnostics/crash-reports）
+
+public struct CrashReportsUploadReceipt: Decodable, Equatable, Sendable {
+    public let accepted: Int
+    public let rejected: Int
+
+    public init(accepted: Int = 0, rejected: Int = 0) {
+        self.accepted = accepted
+        self.rejected = rejected
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case accepted, rejected
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.accepted = (try? c.decode(Int.self, forKey: .accepted)) ?? 0
+        self.rejected = (try? c.decode(Int.self, forKey: .rejected)) ?? 0
+    }
+}
+
+public struct ServerCrashReportItem: Decodable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let capturedAt: String?
+    public let receivedAt: String?
+    public let kind: String
+    public let exceptionType: String?
+    public let exceptionSignal: String?
+    public let terminationNamespace: String?
+    public let terminationCode: String?
+    public let appVersion: String?
+    public let osVersion: String?
+    public let faultingTopSymbols: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, capturedAt, receivedAt, kind, exceptionType, exceptionSignal
+        case terminationNamespace, terminationCode, appVersion, osVersion
+        case faultingTopSymbols
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.capturedAt = try? c.decode(String.self, forKey: .capturedAt)
+        self.receivedAt = try? c.decode(String.self, forKey: .receivedAt)
+        self.id = (try? c.decode(String.self, forKey: .id))
+            ?? self.receivedAt ?? self.capturedAt ?? UUID().uuidString
+        self.kind = (try? c.decode(String.self, forKey: .kind)) ?? "other"
+        self.exceptionType = try? c.decode(String.self, forKey: .exceptionType)
+        self.exceptionSignal = try? c.decode(String.self, forKey: .exceptionSignal)
+        self.terminationNamespace = try? c.decode(String.self, forKey: .terminationNamespace)
+        self.terminationCode = try? c.decode(String.self, forKey: .terminationCode)
+        self.appVersion = try? c.decode(String.self, forKey: .appVersion)
+        self.osVersion = try? c.decode(String.self, forKey: .osVersion)
+        self.faultingTopSymbols = (try? c.decode([String].self, forKey: .faultingTopSymbols)) ?? []
+    }
+
+    public var kindTitle: String {
+        CrashReportKind(rawValue: kind)?.title ?? kind
+    }
+
+    public var displayText: String {
+        var lines: [String] = []
+        let timeLabel = capturedAt ?? receivedAt ?? "未知时间"
+        lines.append("\(timeLabel) · \(kindTitle)")
+        var exc: [String] = []
+        if let exceptionType { exc.append("异常 \(exceptionType)") }
+        if let exceptionSignal { exc.append("信号 \(exceptionSignal)") }
+        if !exc.isEmpty { lines.append(exc.joined(separator: " · ")) }
+        var term: [String] = []
+        if let terminationNamespace { term.append("终止 \(terminationNamespace)") }
+        if let terminationCode { term.append("码 \(terminationCode)") }
+        if !term.isEmpty { lines.append(term.joined(separator: " · ")) }
+        var ver: [String] = []
+        if let appVersion { ver.append("App \(appVersion)") }
+        if let osVersion { ver.append("系统 \(osVersion)") }
+        if !ver.isEmpty { lines.append(ver.joined(separator: " · ")) }
+        if !faultingTopSymbols.isEmpty {
+            lines.append("故障线程顶部符号：")
+            for (idx, sym) in faultingTopSymbols.enumerated() {
+                lines.append("  \(idx)  \(sym)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+}
+
+public struct ServerCrashReportsListResponse: Decodable, Equatable, Sendable {
+    public let data: [ServerCrashReportItem]
+
+    public init(data: [ServerCrashReportItem] = []) {
+        self.data = data
+    }
+}

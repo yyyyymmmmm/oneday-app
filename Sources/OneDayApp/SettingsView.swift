@@ -102,22 +102,10 @@ struct SettingsView: View {
                     searchSection
                 } else {
                     identitySection
-                    agentSection
-                    serverAndWorkspaceSection
-                    preferencesSection
-                    supportSection
+                    generalPreferencesSection
+                    modelAndConnectionSection
+                    advancedAndSupportSection
                     versionFooter
-                }
-                // notice 提示行（§164 续存；§493 改异常
-                // 才显，见 notice 计算属性）
-                if let notice {
-                    Section {
-                        Text(notice)
-                            // 0.22.0 小字清查：13→15 下限
-                            .font(.rowSubtitle)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    .listRowBackground(Palette.surface)
                 }
             }
             .listStyle(.insetGrouped)
@@ -390,147 +378,180 @@ struct SettingsView: View {
         ServerLabels.gatewayStateWord(for: status)
     }
 
-    // MARK: - 智能体组（prototype-2）
+    // MARK: - 通用与偏好（大厂精简标准：高频偏好一屏直达）
 
-    /// 智能体组（结构归位 2026-11-20）：智能体配置枢
-    /// 纽页撤销，原页内三行（配置档案/记忆/技能）提回
-    /// 本组与模型与服务商／定时任务并列直达
-    private var agentSection: some View {
+    private var generalPreferencesSection: some View {
         Section {
-            ForEach(
-                SettingsCatalog.effectiveBrowseRows(
-                    in: .agent, registry: settingsRegistry
+            navRow(icon: "sun.max", color: .indigo, title: L10n.string("外观"), route: .appearance)
+            navRow(icon: "globe", color: .blue, title: L10n.string("语言"), route: .language)
+            if let voiceAvailabilityWord {
+                statusNavRow(
+                    icon: "speaker.wave.2",
+                    color: .orange,
+                    title: L10n.string("语音"),
+                    status: voiceAvailabilityWord,
+                    route: .voice
                 )
-            ) { row in
-                catalogRow(row)
+            } else {
+                navRow(icon: "speaker.wave.2", color: .orange, title: L10n.string("语音"), route: .voice)
             }
+            navRow(icon: "bell", color: .red, title: L10n.string("通知"), route: .notifications)
+            navRow(icon: "face.smiling", color: .pink, title: L10n.string("互动"), route: .interaction)
+            Toggle(isOn: Binding(
+                get: { Haptics.isEnabled },
+                set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
+            )) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    IconTile(
+                        symbol: "iphone.radiowaves.left.and.right",
+                        color: .green,
+                        size: OneDayMetrics.iconSlot
+                    )
+                    Text("触感反馈")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .settingsSeparatorToIconEdge()
         } header: {
-            sectionHeader("智能体")
+            sectionHeader("通用与偏好")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    // MARK: - 服务与工作区组（prototype-2 新组）
+    // MARK: - 模型、用量与连接（核心账号与设备入口）
 
-    /// 服务与工作区组（台账 198 收敛 S7 分段渲染）：
-    /// 目录 segment 四段各成一个 Section（段题＝服务
-    /// 器/会话/工作区/维护，四题连读即组名全义，组题
-    /// 不再单独占行）——段与段内序全由 Core 目录机
-    /// 器口径出（SettingsCatalog.browseSegments），本
-    /// 页只管行构建（browseRow）与段末动作（断开连接
-    /// 收维护段末，确认框与执行口径不变）
-    /// §493 收敛后浏览段只剩服务器段（工作区/维护段
-    /// 条目全退役或收进页内）；§496：断开连接迁出本
-    /// 段——住当前服务器页页末（连接动作归连接详情
-    /// 页），本段自此只剩目录行
-    private var serverAndWorkspaceSection: some View {
-        ForEach(
-            SettingsCatalog.effectiveBrowseSegments(
-                in: .serverAndWorkspace, registry: settingsRegistry
-            ),
-            id: \.segment
-        ) { group in
-            Section {
-                ForEach(group.rows) { row in
-                    browseRow(row)
-                }
-            } header: {
-                sectionHeader(group.segment.title)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(OneDayMetrics.settingsRowInsets)
-        }
-    }
-
-    /// 有效行分发（§437）：目的地行走既有目录行构建
-    /// （行为不变）、注册表值行走五型通用渲染
-    @ViewBuilder
-    private func catalogRow(_ row: SettingsRowModel) -> some View {
-        switch row {
-        case .destination(let entry):
-            catalogNavRow(entry)
-        case .value(let record):
-            SettingsRegistryRowView(record: record)
-        }
-    }
-
-    /// 有效行分发（服务与工作区分段版，§437）：目的
-    /// 地行走 browseRow(for:) 特型分流、值行同上
-    @ViewBuilder
-    private func browseRow(_ row: SettingsRowModel) -> some View {
-        switch row {
-        case .destination(let entry):
-            browseRow(for: entry)
-        case .value(let record):
-            SettingsRegistryRowView(record: record)
-        }
-    }
-
-    /// 服务与工作区行构建（四段共用一处）：特型行与
-    /// 普通目录行在此分流，各段只管排列——网关行副
-    /// 题＝状态词（状态即行内容）、体检行副题＝上次
-    /// 结论（没跑过不占副题位、降普通行）、状态行副
-    /// 题＝「汇总」（S14：汇总页性质明示，与枢纽工
-    /// 作台账、服务端会话名单分清；§470 后状态条目
-    /// 已降仅搜索可达，本特型浏览态不可达、保留备查）
-    @ViewBuilder
-    private func browseRow(for entry: SettingsCatalogEntry) -> some View {
-        switch entry.destination {
-        case .gateway:
-            statusNavRow(
-                icon: iconName(for: entry),
-                title: L10n.string(entry.title),
-                status: gatewayStateWord,
-                route: .gateway
-            )
-        case .healthCheck:
-            if let lastHealthWord {
-                statusNavRow(
-                    icon: iconName(for: entry),
-                    title: L10n.string(entry.title),
-                    status: lastHealthWord,
-                    route: .healthCheck
-                )
-            } else {
-                catalogNavRow(entry)
-            }
-        case .connectionSelfCheck:
-            if let lastSelfCheckWord {
-                statusNavRow(
-                    icon: iconName(for: entry),
-                    title: L10n.string(entry.title),
-                    status: lastSelfCheckWord,
-                    route: .connectionSelfCheck
-                )
-            } else {
-                catalogNavRow(entry)
-            }
-        case .pairingManagement:
+    private var modelAndConnectionSection: some View {
+        Section {
+            navRow(icon: "cpu", color: Palette.primary, title: L10n.string("模型与服务商"), route: .models)
+            navRow(icon: "chart.bar", color: .teal, title: L10n.string("用量统计"), route: .usage)
+            navRow(icon: "server.rack", color: .blue, title: L10n.string("当前服务器"), route: .serverDetail)
+            navRow(icon: "qrcode", color: .cyan, title: L10n.string("添加设备"), route: .addDevice)
             if pendingPairingCount > 0 {
                 statusNavRow(
-                    icon: iconName(for: entry),
-                    title: L10n.string(entry.title),
+                    icon: "person.badge.key",
+                    color: .purple,
+                    title: L10n.string("设备配对"),
                     status: "\(pendingPairingCount) 条待批准",
                     route: .pairingManagement
                 )
-            } else {
-                catalogNavRow(entry)
             }
-        default:
-            catalogNavRow(entry)
+        } header: {
+            sectionHeader("模型与连接")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    /// 体检留痕（原服务器管理页同源同读法）：「体检
-    /// 与存档」行副题的上次一词结论
-    @State private var healthSummaryStore = HealthSummaryStore.shared
+    // MARK: - 高级与支持（运维诊断全部收进二级页，主列表零噪音）
 
-    /// 平台用户配对留痕（DESIGN §359）：「平台用户
-    /// 配对」行副题的待批数——只读本页回读后的缓存
-    /// （PairingSummaryStore），不为副行单开轮询；
-    /// 未知/为 0 不占副题位、降普通行
+    private var advancedAndSupportSection: some View {
+        Section {
+            NavigationLink {
+                advancedDiagnosticsView
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    rowIcon("wrench.and.screwdriver", color: .gray)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        Text("高级与诊断")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text("网关 · 环境变量 · 日志 · 自检")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .settingsSeparatorToIconEdge()
+            navRow(icon: "questionmark.circle", color: .blue, title: L10n.string("帮助与反馈"), route: .help)
+            navRow(icon: "info.circle", color: .secondary, title: L10n.string("关于 OneDay"), route: .about)
+        } header: {
+            sectionHeader("高级与支持")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    /// 二级收口页：运维、服务器诊断与极客项全部收纳于此，保持主设置清爽
+    private var advancedDiagnosticsView: some View {
+        List {
+            Section {
+                statusNavRow(
+                    icon: "network",
+                    color: .blue,
+                    title: L10n.string("网关状态"),
+                    status: gatewayStateWord,
+                    route: .gateway
+                )
+                navRow(icon: "key", color: .orange, title: L10n.string("环境变量"), route: .envVars)
+                navRow(icon: "link", color: .teal, title: L10n.string("主会话"), route: .mainSession)
+                navRow(icon: "person.badge.key", color: .purple, title: L10n.string("平台用户配对"), route: .pairingManagement)
+            } header: {
+                sectionHeader("服务端与运维")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            Section {
+                if let lastSelfCheckWord {
+                    statusNavRow(
+                        icon: "antenna.radiowaves.left.and.right",
+                        color: .green,
+                        title: L10n.string("连接自检"),
+                        status: lastSelfCheckWord,
+                        route: .connectionSelfCheck
+                    )
+                } else {
+                    navRow(icon: "antenna.radiowaves.left.and.right", color: .green, title: L10n.string("连接自检"), route: .connectionSelfCheck)
+                }
+                if let lastHealthWord {
+                    statusNavRow(
+                        icon: "stethoscope",
+                        color: .mint,
+                        title: L10n.string("体检与存档"),
+                        status: lastHealthWord,
+                        route: .healthCheck
+                    )
+                } else {
+                    navRow(icon: "stethoscope", color: .mint, title: L10n.string("体检与存档"), route: .healthCheck)
+                }
+                navRow(icon: "doc.text", color: .gray, title: L10n.string("系统日志"), route: .logs)
+                navRow(icon: "doc.text.magnifyingglass", color: .indigo, title: L10n.string("聊天诊断"), route: .chatDiagnostics)
+                navRow(icon: "exclamationmark.triangle", color: .red, title: L10n.string("崩溃报告"), route: .crashReports)
+            } header: {
+                sectionHeader("诊断与日志")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            if let notice {
+                Section {
+                    Text(notice)
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                } header: {
+                    sectionHeader("伴生服务状态")
+                }
+                .listRowBackground(Palette.surface)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .navigationTitle("高级与诊断")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @State private var healthSummaryStore = HealthSummaryStore.shared
     @State private var pairingSummaryStore = PairingSummaryStore.shared
+    @State private var selfCheckSummaryStore = SelfCheckSummaryStore.shared
 
     private var pendingPairingCount: Int {
         pairingSummaryStore.pendingCount(
@@ -544,100 +565,15 @@ struct SettingsView: View {
             .overall.word
     }
 
-    /// 自检留痕（DESIGN §357，与体检同式共读）：
-    /// 「连接自检」行副题的上次一词结论
-    @State private var selfCheckSummaryStore = SelfCheckSummaryStore.shared
-
     private var lastSelfCheckWord: String? {
         selfCheckSummaryStore
             .summary(for: appState.config?.baseString)?
             .word
     }
 
-    /// 朗读可用性一词（原服务器管理页同源同读法）：
-    /// 未知为 nil、不占副题位；与语音面/聊天页共读
-    /// SpeechPlayer 同一份判定
     private var voiceAvailabilityWord: String? {
         let availability = SpeechPlayer.shared.availability
         return availability == .unknown ? nil : availability.word
-    }
-
-    // MARK: - 偏好组（prototype-2 新组；§493 改名，D7：
-    // 审批规则迁出后组内只剩偏好与本机权限，组题收为「偏好」）
-
-    /// 偏好与权限组（prototype-2；台账 198 收敛 S13
-    /// 起含语音行）：外观／语音／连接器／设备与权限／
-    /// 批准规则。语音行副题＝朗读可用性一词（未知不
-    /// 占副题位、降普通导航行——随行迁组保留，原服务
-    /// 器组同行同口径）
-    private var preferencesSection: some View {
-        Section {
-            ForEach(
-                SettingsCatalog.effectiveBrowseRows(
-                    in: .preferences, registry: settingsRegistry
-                )
-            ) { row in
-                if let entry = row.destinationEntry,
-                   entry.destination == .voice,
-                   let voiceAvailabilityWord {
-                    statusNavRow(
-                        icon: iconName(for: entry),
-                        title: L10n.string(entry.title),
-                        status: voiceAvailabilityWord,
-                        route: .voice
-                    )
-                } else {
-                    catalogRow(row)
-                }
-            }
-            Toggle(isOn: Binding(
-                get: { Haptics.isEnabled },
-                set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
-            )) {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    IconTile(
-                        symbol: "iphone.radiowaves.left.and.right",
-                        color: Palette.primary,
-                        size: OneDayMetrics.iconSlot
-                    )
-                    Text("触感反馈")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                }
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        } header: {
-            sectionHeader("偏好")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-    }
-
-    // （实验组已于结构归位 2026-11-20 沉底：三面内部
-    // 实验旗（§257/§247/§291）不再占设置根层位，整组
-    // 迁入「关于 OneDay」页末节「内部实验」——开关本
-    // 体与 @AppStorage 键、文案口径随迁不改，见
-    // SettingsSupportViews.AboutView.labSection）
-
-    // MARK: - 支持组（§164）
-
-    /// 支持组：帮助与反馈／关于 OneDay（原关于组的版
-    /// 本对齐两行与外链、原页脚隐私说明全迁关于页，
-    /// 见 §164.2 对账）
-    private var supportSection: some View {
-        Section {
-            ForEach(
-                SettingsCatalog.effectiveBrowseRows(
-                    in: .support, registry: settingsRegistry
-                )
-            ) { row in
-                catalogRow(row)
-            }
-        } header: {
-            sectionHeader("支持")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     // MARK: - 搜索（§164）
@@ -887,12 +823,13 @@ struct SettingsView: View {
     /// 撤的行走下方 statusNavRow 降为题下副行
     private func navRow(
         icon: String,
+        color: Color = Palette.primary,
         title: String,
         route: SettingsRoute
     ) -> some View {
         NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                rowIcon(icon)
+                rowIcon(icon, color: color)
                 Text(title)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
@@ -904,19 +841,16 @@ struct SettingsView: View {
         .settingsSeparatorToIconEdge()
     }
 
-    /// 状态导航行（0.22.0）：题＋题下状态副行——只给
-    /// 「状态本身就是这一行的内容」的行用（网关状态
-    /// 的运行中/异常）：0.7.0 定案「桥连不上要一眼看
-    /// 到」靠本形态保留，不回行尾小字
     private func statusNavRow(
         icon: String,
+        color: Color = Palette.primary,
         title: String,
         status: String,
         route: SettingsRoute
     ) -> some View {
         NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                rowIcon(icon)
+                rowIcon(icon, color: color)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(title)
                         .font(.rowTitleL)

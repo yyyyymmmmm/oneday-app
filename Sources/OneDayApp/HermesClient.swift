@@ -101,6 +101,35 @@ protocol HermesClientProtocol: Sendable {
     func stopRun(
         config: ServerConfig, apiKey: String, runID: String
     ) async throws
+    /// POST /v1/runs/{id}/steer：向运行中的轮次注入纠偏指令
+    func steerRun(
+        config: ServerConfig, apiKey: String, runID: String, input: String
+    ) async throws -> RunSteerReceipt
+    /// POST /api/sessions/{id}/fork：在服务端无损克隆分支会话
+    func forkServerSession(
+        config: ServerConfig, apiKey: String, id: String, title: String?
+    ) async throws -> ServerSession
+    /// POST /v1/diagnostics/crash-reports：批量上报本地崩溃诊断
+    func uploadCrashReports(
+        config: ServerConfig, apiKey: String, reports: [CrashReportRecord]
+    ) async throws -> CrashReportsUploadReceipt
+    /// GET /v1/diagnostics/crash-reports：回读服务端已上报崩溃列表
+    func listServerCrashReports(
+        config: ServerConfig, apiKey: String, limit: Int
+    ) async throws -> [ServerCrashReportItem]
+    /// GET /v1/memory/layers：获取四层记忆清单
+    func memoryLayers(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryLayerSummary]
+    /// GET /v1/memory/search：跨层混合/语义检索记忆
+    func searchLayeredMemory(
+        config: ServerConfig, apiKey: String, query: String,
+        limit: Int, mode: String
+    ) async throws -> [MemorySearchHit]
+    /// GET /v1/memory/insights：获取 ExpeL 洞察台账
+    func memoryInsights(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryInsightItem]
     /// 清除某服务器的全部会话 cookie（断开连接时调用）
     func clearCookies(config: ServerConfig)
 
@@ -249,7 +278,8 @@ protocol HermesClientProtocol: Sendable {
     /// 页内时序返回，调用方按消息 id 升序重排落
     /// 盘，先最新首屏、再向前补全
     func sessionMessagesPage(
-        config: ServerConfig, id: String, limit: Int, offset: Int
+        config: ServerConfig, id: String, limit: Int, offset: Int,
+        afterRowID: Int?
     ) async throws -> [SessionMessage]
     /// GET /api/sessions/search?q=&limit=（P10；生产实样
     /// {"results":[…]}，2026-11-09 只读联调验过）
@@ -864,6 +894,59 @@ extension HermesClientProtocol {
             ),
             onProgress: onProgress
         )
+    }
+
+    /// 兼容旧调用方（未传 afterRowID 时默认为 nil）
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage] {
+        try await sessionMessagesPage(
+            config: config, id: id, limit: limit, offset: offset,
+            afterRowID: nil
+        )
+    }
+
+    func steerRun(
+        config: ServerConfig, apiKey: String, runID: String, input: String
+    ) async throws -> RunSteerReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("纠偏接口"), status: 501)
+    }
+
+    func forkServerSession(
+        config: ServerConfig, apiKey: String, id: String, title: String?
+    ) async throws -> ServerSession {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("会话分支接口"), status: 501)
+    }
+
+    func uploadCrashReports(
+        config: ServerConfig, apiKey: String, reports: [CrashReportRecord]
+    ) async throws -> CrashReportsUploadReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("崩溃上报接口"), status: 501)
+    }
+
+    func listServerCrashReports(
+        config: ServerConfig, apiKey: String, limit: Int
+    ) async throws -> [ServerCrashReportItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("崩溃上报列表"), status: 501)
+    }
+
+    func memoryLayers(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryLayerSummary] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("记忆分层接口"), status: 501)
+    }
+
+    func searchLayeredMemory(
+        config: ServerConfig, apiKey: String, query: String,
+        limit: Int, mode: String
+    ) async throws -> [MemorySearchHit] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("记忆语义检索"), status: 501)
+    }
+
+    func memoryInsights(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryInsightItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("记忆洞察接口"), status: 501)
     }
 
     /// §452 默认实现（测试替身用）：无增量进度，
@@ -1581,6 +1664,129 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
+    func steerRun(
+        config: ServerConfig, apiKey: String, runID: String, input: String
+    ) async throws -> RunSteerReceipt {
+        try await sendJSONDecoding(
+            config: config,
+            path: "/v1/runs/\(runID)/steer",
+            method: "POST",
+            endpoint: L10n.string("纠偏接口"),
+            body: ["input": .string(input)],
+            bearer: apiKey
+        )
+    }
+
+    func forkServerSession(
+        config: ServerConfig, apiKey: String, id: String, title: String?
+    ) async throws -> ServerSession {
+        var body: [String: JSONValue] = [:]
+        if let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !trimmed.isEmpty {
+            body["title"] = .string(trimmed)
+        }
+        let created: CreatedSession = try await sendJSONDecoding(
+            config: config,
+            path: "/api/sessions/\(id)/fork",
+            method: "POST",
+            endpoint: L10n.string("会话分支接口"),
+            body: body,
+            bearer: apiKey
+        )
+        return created.session
+    }
+
+    func uploadCrashReports(
+        config: ServerConfig, apiKey: String, reports: [CrashReportRecord]
+    ) async throws -> CrashReportsUploadReceipt {
+        struct UploadBody: Encodable {
+            let reports: [CrashReportRecord]
+        }
+        var request = URLRequest(
+            url: config.endpoint("/v1/diagnostics/crash-reports")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let isoEncoder = JSONEncoder()
+        isoEncoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try isoEncoder.encode(UploadBody(reports: reports))
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("崩溃上报接口"), status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(CrashReportsUploadReceipt.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: L10n.string("崩溃上报接口"))
+        }
+    }
+
+    func listServerCrashReports(
+        config: ServerConfig, apiKey: String, limit: Int
+    ) async throws -> [ServerCrashReportItem] {
+        let response: ServerCrashReportsListResponse = try await getJSON(
+            config: config,
+            path: "/v1/diagnostics/crash-reports",
+            endpoint: L10n.string("崩溃上报列表"),
+            query: [URLQueryItem(name: "limit", value: String(limit))],
+            bearer: apiKey
+        )
+        return response.data
+    }
+
+    func memoryLayers(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryLayerSummary] {
+        let response: MemoryLayersResponse = try await bearerGetJSON(
+            config: config,
+            apiKey: apiKey,
+            path: "/v1/memory/layers",
+            endpoint: L10n.string("记忆分层接口")
+        )
+        return response.layers
+    }
+
+    func searchLayeredMemory(
+        config: ServerConfig, apiKey: String, query: String,
+        limit: Int, mode: String
+    ) async throws -> [MemorySearchHit] {
+        let response: MemorySearchResponse = try await getJSON(
+            config: config,
+            path: "/v1/memory/search",
+            endpoint: L10n.string("记忆语义检索"),
+            query: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "mode", value: mode),
+            ],
+            bearer: apiKey
+        )
+        return response.hits
+    }
+
+    func memoryInsights(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MemoryInsightItem] {
+        let response: MemoryInsightsResponse = try await bearerGetJSON(
+            config: config,
+            apiKey: apiKey,
+            path: "/v1/memory/insights",
+            endpoint: L10n.string("记忆洞察接口")
+        )
+        return response.insights
+    }
+
     // MARK: - Cookie
 
     func clearCookies(config: ServerConfig) {
@@ -1991,18 +2197,25 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     }
 
     func sessionMessagesPage(
-        config: ServerConfig, id: String, limit: Int, offset: Int
+        config: ServerConfig, id: String, limit: Int, offset: Int,
+        afterRowID: Int? = nil
     ) async throws -> [SessionMessage] {
+        var query = [
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
+            // §331：规范值 latest（服务端只认
+            // oldest/latest，desc 会吃 400）
+            URLQueryItem(name: "order", value: "latest"),
+        ]
+        if let afterRowID {
+            query.append(
+                URLQueryItem(name: "after_row_id", value: String(afterRowID))
+            )
+        }
         let response: SessionMessagesResponse = try await getJSON(
             config: config, path: "/api/sessions/\(id)/messages",
             endpoint: L10n.string("服务端会话消息"),
-            query: [
-                URLQueryItem(name: "limit", value: String(limit)),
-                URLQueryItem(name: "offset", value: String(offset)),
-                // §331：规范值 latest（服务端只认
-                // oldest/latest，desc 会吃 400）
-                URLQueryItem(name: "order", value: "latest"),
-            ]
+            query: query
         )
         return response.messages
     }

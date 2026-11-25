@@ -80,17 +80,16 @@ struct StreamingLiveText: View {
         }
     }
 
-    /// 新一批到达的入场落点：batchFade 且代次
-    /// 未演过 → 尾块整块单次轻渐显（0.45→1、
-    /// 0.18s easeOut）；instant 恒直显。已演代
-    /// 次不重演（视图重挂载时同代次不许再闪）
+    /// 新一批到达的入场落点（对标 OpenBot streaming-tail-text）：
+    /// 150ms cubic-bezier(0.23, 1, 0.32, 1) 柔和透明度淡入，
+    /// 遵守 Reduce Motion（instant 恒直显）
     private func notePublishGeneration() {
         guard publishGeneration > fadedGeneration
         else { return }
         fadedGeneration = publishGeneration
         guard entrancePlan == .batchFade else { return }
-        tailOpacity = 0.45
-        withAnimation(.easeOut(duration: 0.18)) {
+        tailOpacity = 0.62
+        withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.15)) {
             tailOpacity = 1
         }
     }

@@ -457,44 +457,20 @@ public enum Palette {
     /// 强调实填：与 primary 同源同值（0.26.0 前即同
     /// 值双名，本版直接别名化，语义不变）
     public static var primaryFill: Color { primary }
-    /// 主钮饱和蓝（2026-11-24 用户亲裁新增）：饱和
-    /// 蓝底＋白字，对位 Muse 点子 sheet 样张（采样
-    /// 自用户 2026-11-24 04:06 附件图一「开始吧」钮
-    /// 面，钮面像素中位 #0064D4）；初落仅点子详情
-    /// sheet「开始吧」一钮（推翻第 85 条 BC-1 在该
-    /// 钮的 primaryPale＋onPrimary 口径），同日主线
-    /// 裁决扩为全 App 主按钮统一面：点子「打开对
-    /// 话」、目标介绍卡「开始吧」、审批卡「批准」、
-    /// 通用主钮组件 PrimaryButtonStyle 全部消费本
-    /// 令牌。ChatView 输入栏圆形钮等非主钮形态与
-    /// primaryPale 其余消费面（面色/浅底）不动。
-    /// 暗档同值（该蓝压暗面白字对比仍足）
-    public static let primarySaturated = appleColor(
-        light: 0x0064D4,
-        dark: UIColor(
-            red: 0x00 / 255.0, green: 0x64 / 255.0,
-            blue: 0xD4 / 255.0, alpha: 1
-        )
-    )
-    /// 主填充蓝（OpenMuse blue #C8E7FF，ui.tsx:24——它
-    /// 的主按钮面色：浅蓝填充＋深墨字，与用户泡同源；
-    /// 暗色取 blueDark #1473C8 作深档）
-    /// 0.26.0 起主题化＝主题气泡行（同源关系的字面
-    /// 落实：与 userBubbleFill 恒同值）
+    /// 主钮饱和强调色：跟随当前主题与用户自定义强调色
+    /// （审批「批准」、点子「开始吧」、目标主钮等全局主按钮统一跟随主题色）
+    public static var primarySaturated: Color {
+        primary
+    }
+    /// 主填充蓝（与 userBubbleFill 同源）
     public static var primaryPale: Color {
-        // 台账 184/188/197：「与 userBubbleFill 恒
-        // 同值」的既有不变量由别名构造保全——主按
-        // 钮面与用户泡恒同值，不许两路各解析一份漂
-        // 移；197 定版后该值即各款定死处理（浅
-        // bubbleLight 浅填/暗 bubbleDark），无切档
-        // 漂移面
         userBubbleFill
     }
-    /// 强调弱面（OpenMuse sky #EDF7FD，ui.tsx:26——图
-    /// 标盒/附件牌/聚焦钮面；取代旧 accentColor 12% 透
-    /// 明度近似值；暗色派生 #16242E）
-    /// 0.26.0 起主题化＝主题弱面行（默认值逐字同旧）
+    /// 强调弱面：有自定义强调色覆盖时取其 14% 浅底，否则读主题弱面行
     public static var primaryTint: Color {
+        if let override = AppearancePreferences.accentOverride() {
+            return themedColor(light: override, dark: override).opacity(0.14)
+        }
         let theme = currentChatTheme
         return themedColor(
             light: theme.tintLight, dark: theme.tintDark
@@ -1008,7 +984,7 @@ public struct ChatBackgroundSurface: View {
     /// 色对比的保守侧——以浅档 4% 为准、暗档同值；
     /// 暗底上主墨（白）4% 的对比 ≈1.10、同在 ≤1.15
     /// 线内，两档一值不分叉）
-    private static let patternOpacity: Double = 0.04
+    private static let patternOpacity: Double = 0.07
 
     private func draw(
         _ kind: ChatBackgroundPattern,

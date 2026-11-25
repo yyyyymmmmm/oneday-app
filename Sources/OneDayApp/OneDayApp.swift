@@ -399,6 +399,7 @@ struct RootView: View {
         .preferredColorScheme(
             AppearanceMode(rawValue: appearanceModeRaw)?.colorScheme
         )
+        .tint(Palette.primary)
         .background(Palette.pageBG)
         // 设备会话（0.34.0）：连接成立且在前台→激活；
         // 退后台/断开→停会话。桥侧另有 45 秒无心跳自
@@ -429,6 +430,7 @@ struct RootView: View {
                     // 服务器改名回前台即反映＋覆盖对账
                     await appState.refreshIdentityName()
                     await appState.pushRegistration.synchronize(appState: appState)
+                    _ = await CrashDiagnosticsCollector.shared.uploadPendingIfNeeded(appState: appState)
                 }
             } else if newPhase == .background {
                 appState.deviceSession.deactivate()
@@ -455,6 +457,7 @@ struct RootView: View {
                     // 身份名刷新（身份反映修复）：同拍
                     await appState.refreshIdentityName()
                     await appState.pushRegistration.synchronize(appState: appState)
+                    _ = await CrashDiagnosticsCollector.shared.uploadPendingIfNeeded(appState: appState)
                 }
             } else {
                 appState.deviceSession.deactivate()
@@ -482,6 +485,7 @@ struct RootView: View {
             // 身份名刷新（身份反映修复）：冷启同拍
             await appState.refreshIdentityName()
             await appState.pushRegistration.synchronize(appState: appState)
+            _ = await CrashDiagnosticsCollector.shared.uploadPendingIfNeeded(appState: appState)
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)

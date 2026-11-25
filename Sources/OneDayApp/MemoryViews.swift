@@ -32,6 +32,7 @@ struct MemoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                LayeredMemorySection()
                 MemoryEntriesSection(store: memoriesStore)
                 LearningMemorySection(store: learningStore)
                 if let status {

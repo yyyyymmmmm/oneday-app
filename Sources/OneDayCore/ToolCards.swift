@@ -187,7 +187,7 @@ public enum ToolCardClassifier {
         if short.contains("memory") { return .memory }
         if short.contains("skill") { return .skill }
         if short.contains("file") { return .file }
-        if short.contains("kanban") || short.contains("task") {
+        if short.contains("kanban") || short.contains("task") || short == "todo" {
             return .task
         }
         return .other
@@ -273,6 +273,8 @@ public enum ToolCardClassifier {
         case "read_file": return L10n.string("读取文件", locale: locale)
         case "write_file": return L10n.string("写入文件", locale: locale)
         case "kanban_complete": return L10n.string("完成任务", locale: locale)
+        case "todo": return L10n.string("任务清单", locale: locale)
+        case "clarify": return L10n.string("确认细节", locale: locale)
         case "memory":
             switch ToolArguments.string(
                 ToolArguments.firstOperation(dict), "action"

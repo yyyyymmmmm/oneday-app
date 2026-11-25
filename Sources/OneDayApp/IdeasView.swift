@@ -64,39 +64,39 @@ struct IdeasView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                Group {
-                    switch store.loadState {
-                    case .loading:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .notConnected(let message):
-                        ContentUnavailableView {
-                            Label("还没连上你的服务", systemImage: "link.badge.plus")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重新检查") {
-                                Task { await store.load(appState: appState) }
-                            }
-                            .buttonStyle(.bordered)
+            Group {
+                switch store.loadState {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .notConnected(let message):
+                    ContentUnavailableView {
+                        Label("还没连上你的服务", systemImage: "link.badge.plus")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重新检查") {
+                            Task { await store.load(appState: appState) }
                         }
-                    case .failed(let message):
-                        ContentUnavailableView {
-                            Label("点子没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重试") {
-                                Task { await store.load(appState: appState) }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    case .ready:
-                        readyContent
+                        .buttonStyle(.bordered)
                     }
+                case .failed(let message):
+                    ContentUnavailableView {
+                        Label("点子没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重试") {
+                            Task { await store.load(appState: appState) }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                case .ready:
+                    readyContent
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaBar(edge: .top, spacing: 0) {
                 ideasTopHeader
             }
             .background {
@@ -275,7 +275,6 @@ struct IdeasView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.top, 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -300,7 +299,6 @@ struct IdeasView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            .contentMargins(.top, 112, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)

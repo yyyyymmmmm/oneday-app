@@ -8,6 +8,9 @@ import SwiftUI
 struct UsageDetailView: View {
     @Environment(AppState.self) private var appState
 
+    @AppStorage("usage.monthlyBudgetUSD") private var monthlyBudgetUSD: Double = 0
+    @State private var showBudgetEditor = false
+    @State private var budgetDraft = ""
     @State private var days: Int = 7
     @State private var usage: UsageAnalytics?
     @State private var loadedDays: Int = 7
@@ -30,6 +33,7 @@ struct UsageDetailView: View {
 
                 if let usage {
                     kpiSummaryGrid(usage)
+                    budgetAlertCard(usage)
                     dailyTrendChart(usage)
                 }
                 if let models, !models.models.isEmpty {
@@ -53,11 +57,24 @@ struct UsageDetailView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .background(Palette.settingsBG)
         .navigationTitle("用量")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
+        .alert("设置月度预算（美元）", isPresented: $showBudgetEditor) {
+            TextField("例如 50（填 0 关闭预警）", text: $budgetDraft)
+                .keyboardType(.decimalPad)
+            Button("保存") {
+                let trimmed = budgetDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let val = Double(trimmed), val >= 0 {
+                    monthlyBudgetUSD = val
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("当所选周期估算费用达到预算 80% 时显示预警提示。")
+        }
     }
 
     // MARK: - 核心 KPI 汇总卡
@@ -101,6 +118,54 @@ struct UsageDetailView: View {
             }
             .padding(.vertical, OneDayMetrics.spacingSM)
         }
+        .odGroup()
+    }
+
+    private func budgetAlertCard(_ usage: UsageAnalytics) -> some View {
+        let spent = usage.totals.totalEstimatedCost ?? 0
+        let budget = monthlyBudgetUSD
+        let ratio = budget > 0 ? spent / budget : 0
+        let isOver = budget > 0 && ratio >= 1.0
+        let isWarn = budget > 0 && ratio >= 0.8 && !isOver
+        let tintColor: Color = isOver ? Palette.danger : (isWarn ? Palette.warning : Palette.primary)
+
+        return VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack {
+                Label("月度费用预算", systemImage: isOver ? "exclamationmark.triangle.fill" : "gauge.with.dots.needle.33percent")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(isOver ? Palette.danger : Palette.ink)
+                Spacer()
+                Button(budget > 0 ? "调整" : "设置预算") {
+                    budgetDraft = budget > 0 ? String(format: "%.0f", budget) : ""
+                    showBudgetEditor = true
+                }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Palette.primary)
+            }
+
+            if budget > 0 {
+                ProgressView(value: min(max(ratio, 0), 1))
+                    .tint(tintColor)
+                HStack {
+                    Text("已用 \(AdminFormat.cost(spent)) / \(AdminFormat.cost(budget))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(Palette.inkSecondary)
+                    Spacer()
+                    Text(
+                        isOver
+                            ? "已超出预算"
+                            : (isWarn ? "接近上限（\(Int(ratio * 100))%）" : "\(Int(ratio * 100))%")
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(isOver || isWarn ? tintColor : Palette.inkSecondary)
+                }
+            } else {
+                Text("未设置预算上限。设置后将自动跟踪当前周期费用并在达到 80% 时提醒。")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        }
+        .padding(OneDayMetrics.spacingM)
         .odGroup()
     }
 
