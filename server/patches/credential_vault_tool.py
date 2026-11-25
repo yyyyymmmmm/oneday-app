@@ -69,6 +69,7 @@ def _request(args):
             (args or {}).get("service", ""), (args or {}).get("domain", ""),
             (args or {}).get("reason", ""), (args or {}).get("fields"),
             get_session_env("HERMES_SESSION_KEY", ""), _scope())
+        result["marker"] = f"[[vreq:{result['request_id']}]]"
         return json.dumps(result, ensure_ascii=False)
     except Exception:
         return tool_error("Credential request could not be created.")

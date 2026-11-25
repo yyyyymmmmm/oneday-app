@@ -93,7 +93,7 @@ MODULES=(
   "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2"
   "oneday_memory.py|patches/oneday_memory.py|/opt/hermes/gateway/platforms/oneday_memory.py|43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44"
   "system_prompt.py|patches/system_prompt.py|/opt/hermes/agent/system_prompt.py|7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f"
-  "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|3f73efaef6aafd08f7f7a3fccc750e757257cc5c61405a1e7e29769301b537ef"
+  "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227"
   "settings_registry.py|patches/settings_registry.py|/opt/hermes/gateway/platforms/settings_registry.py|0478458bdd5b9a2873471cbbcbb1e3efba7568fe3d01b6bda169c99b1cff78e5"
   "settings_admin.py|patches/settings_admin.py|/opt/hermes/gateway/platforms/settings_admin.py|3057cbc2b1771d42dfd084e6ac9c5152e82be2f22c764b798d463fdf1d33f1cb"
   "settings_admin_tool.py|patches/settings_admin_tool.py|/opt/hermes/tools/settings_admin_tool.py|7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815"
@@ -125,12 +125,12 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|4c83545cbab057aa1c473c503f0a296f7c7918b9d53b96e51e4959fd0a3563b1"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|a3cbe293dfee90a6c2dec561ce9a65a217b8070337b97dfcf16038174a103d62"
-  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|61f95b0485c86cf0327a9f9fe529b0456882c2bb73492f11cf438792f2eb0531"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|6ccb618172ec84d24dde9e5ff4ec5218a0de54fc4e3dbcbebf5145e8d1e3b310"
+  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|299c40bec5aca0a1cfe5253ace3f4ef79d819bbfff3e74eaa75026de6d7ddd13"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 

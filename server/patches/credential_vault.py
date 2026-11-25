@@ -195,6 +195,30 @@ def create_request(service: str, domain: str, reason: str, fields: Any, session_
     return {"request_id": request_id, "status": "pending", "expires_at": int(now + REQUEST_TTL)}
 
 
+def list_requests(session_id: str, scope: str = "default", status: str | None = "pending") -> list[dict[str, Any]]:
+    now = time.time()
+    with _lock:
+        rows = []
+        for request_id, req in _requests.items():
+            if req["session_id"] != session_id or req.get("scope") != scope:
+                continue
+            if req["status"] == "pending" and req["expires_at"] <= now:
+                req["status"] = "expired"
+            if status not in (None, "") and req["status"] != status:
+                continue
+            rows.append((req["created_at"], {
+                "request_id": request_id,
+                "service": req["service"],
+                "domain": req["domain"],
+                "reason": req["reason"],
+                "fields": list(req["fields"]),
+                "status": req["status"],
+                "expires_at": int(req["expires_at"]),
+            }))
+        rows.sort(key=lambda item: item[0], reverse=True)
+        return [row for _, row in rows]
+
+
 def fulfill_request(request_id: str, body: Any, api_key: str, session_id: str, scope: str = "default") -> tuple[int, dict[str, Any]]:
     with _lock:
         req = _requests.get(request_id)

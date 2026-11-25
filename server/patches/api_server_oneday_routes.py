@@ -29,6 +29,7 @@ ONEDAY_CAPABILITY_ENDPOINTS = (
     ("vault_create", ("POST", "/v1/vault/entries", "credential_vault")),
     ("vault_replace", ("PUT", "/v1/vault/entries/{entry_id}", "credential_vault")),
     ("vault_revoke", ("DELETE", "/v1/vault/entries/{entry_id}", "credential_vault")),
+    ("vault_requests", ("GET", "/v1/vault/requests", "credential_vault")),
     ("vault_request_status", ("GET", "/v1/vault/requests/{request_id}", "credential_vault")),
     ("vault_fulfill", ("POST", "/v1/vault/requests/{request_id}/fulfill", "credential_vault")),
 )
@@ -67,6 +68,7 @@ def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
         ("POST", "/v1/vault/entries", adapter._handle_vault_create),
         ("PUT", "/v1/vault/entries/{entry_id}", adapter._handle_vault_replace),
         ("DELETE", "/v1/vault/entries/{entry_id}", adapter._handle_vault_delete),
+        ("GET", "/v1/vault/requests", adapter._handle_vault_requests_list),
         ("GET", "/v1/vault/requests/{request_id}", adapter._handle_vault_request_status),
         ("POST", "/v1/vault/requests/{request_id}/fulfill", adapter._handle_vault_fulfill),
     ]
@@ -170,6 +172,19 @@ class OneDayAuthPushRoutesMixin:
         try:
             payload = self._vault_module().request_status(request.match_info.get("request_id", ""), self._vault_session(request), self._vault_scope())
             return web.json_response(payload if payload else {"status": "not_found"}, status=200 if payload else 404)
+        except Exception:
+            return _err("Credential request unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_requests_list(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        if not self._vault_session(request):
+            return web.json_response({"status": "not_found"}, status=404)
+        try:
+            status = request.query.get("status", "pending")
+            data = self._vault_module().list_requests(self._vault_session(request), self._vault_scope(), status)
+            return web.json_response({"object": "list", "data": data})
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")
 

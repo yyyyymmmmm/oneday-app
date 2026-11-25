@@ -39,7 +39,7 @@ declare -A WANT_SHA_EXTRA=(
   [write_gate_gateway.py]=4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
-  [oneday_prompt.py]=7b72d19c9806b1ee0750c41516aa2e4abe61950f4d0680ba23076c44b5053fcb
+  [oneday_prompt.py]=bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227
   [settings_registry.py]=0478458bdd5b9a2873471cbbcbb1e3efba7568fe3d01b6bda169c99b1cff78e5
   [settings_admin.py]=3057cbc2b1771d42dfd084e6ac9c5152e82be2f22c764b798d463fdf1d33f1cb
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
@@ -49,12 +49,12 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
   [cron_projection.py]=4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
-  [api_server_oneday_routes.py]=4c83545cbab057aa1c473c503f0a296f7c7918b9d53b96e51e4959fd0a3563b1
+  [api_server_oneday_routes.py]=3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
-  [credential_vault.py]=a3cbe293dfee90a6c2dec561ce9a65a217b8070337b97dfcf16038174a103d62
-  [credential_vault_tool.py]=61f95b0485c86cf0327a9f9fe529b0456882c2bb73492f11cf438792f2eb0531
+  [credential_vault.py]=6ccb618172ec84d24dde9e5ff4ec5218a0de54fc4e3dbcbebf5145e8d1e3b310
+  [credential_vault_tool.py]=299c40bec5aca0a1cfe5253ace3f4ef79d819bbfff3e74eaa75026de6d7ddd13
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
@@ -770,9 +770,11 @@ GENM=$(docker exec hermes env 2>/dev/null | grep '^ONEDAY_GEN_MODEL=' | cut -d= 
 if [ "$GENM" = "deepseek-v4-pro" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=deepseek-v4-pro（DeepSeek 官方通道，包 2.5.1）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL=$GENM（期望 deepseek-v4-pro；laogou8 通道余额枯竭，见 genkey-fix-20261125.md）"; fi
 unk "settings-admin-write-deep" "设置写型验收（一次性测试键 register→set→delete→revoke 全程对账＋白名单外写入被拒）默认不跑; 应用步人工执行并记入 batch3plus-rollout-20261125.md"
 
-# ---- 30. Credential Vault (2.8.0): read-only route/capability probes ----
+# ---- 30. Credential Vault (2.7.0): read-only route/capability probes ----
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/entries" || true)
 if [ "$code" = "401" ]; then ok "vault-route-auth" "无钥 GET /v1/vault/entries → 401"; else bad "vault-route-auth" "应答 $code（期望 401）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/requests" || true)
+if [ "$code" = "401" ]; then ok "vault-requests-route-auth" "无钥 GET /v1/vault/requests → 401"; else bad "vault-requests-route-auth" "应答 $code（期望 401）"; fi
 CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
 case "$CAPS" in *'"credential_vault": true'*) ok "vault-capability-flag" "features.credential_vault=true" ;; *) bad "vault-capability-flag" "capabilities 未见 credential_vault 位" ;; esac
 unk "vault-behavior" "python3 credential_vault_selftest.py 在包内运行；真实 TLS/客户端安全卡联调、日志与备份审查仅部署验收时执行"

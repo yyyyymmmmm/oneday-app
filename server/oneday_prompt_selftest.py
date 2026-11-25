@@ -44,6 +44,9 @@ def main():
     check("render: safety chapter present",
           out is not None and "Safety — The Red Lines" in out
           and "sexual content involving minors" in out)
+    check("render: credential request marker instruction present",
+          out is not None and "[[vreq:vreq_...]]" in out
+          and "never put credential values in chat" in out)
     (tmp / "identity.json").write_text(json.dumps(
         {"agent_name": "", "company_name": "示例科技", "product_name": "OneDay"}),
         encoding="utf-8")
