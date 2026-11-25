@@ -13278,7 +13278,7 @@ private struct ComposerBarLayout: Layout {
             switch status {
             case .some(let value) where value.status.isTerminal:
                 terminalStatusHint = value
-                let effectiveStatus: RunStatus =
+                let effectiveStatus: RunStatusKind =
                     (value.status == .failed && (runMachine.stopRequested || entry.stopRequested))
                     ? .cancelled
                     : value.status
