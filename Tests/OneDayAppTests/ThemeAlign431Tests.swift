@@ -71,8 +71,10 @@ final class ThemeAlign431Tests: XCTestCase {
     /// 共用件落点数与 §431 落码清单一致（45 起、随版本增至 47；§476 组版改钉：§470 网关页新增「用量」行用共用件 +1，46→47，归因亲验；§493 改钉：StatusView 整页退役 −3，47→44，归因亲验；§503 改钉：外观页 Menu 行共用件 menuRowLabel 新增一落点 +1，44→45，归因亲验）
     func testAccessoryChevronsUnifiedIntoComponent() throws {
         let all = try allSourceText()
+        // 2026-11-25 三轮合并改钉（归因亲验）：1954e437 的
+        // GoalDetailView 改版在「进展对话」行直写一处 chevron.right，1→2
         XCTAssertEqual(
-            count(of: "Image(systemName: \"chevron.right\")", in: all), 1)
+            count(of: "Image(systemName: \"chevron.right\")", in: all), 2)
         XCTAssertEqual(
             count(of: "Image(systemName: \"chevron.up.chevron.down\")", in: all), 0)
         // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
@@ -80,7 +82,10 @@ final class ThemeAlign431Tests: XCTestCase {
         // CronBlueprintViews −1、EnvVarsView −1，45→39
         // 2026-11-25 二轮合并改钉（归因亲验）：e66acd1d 设置
         // 大改版再收两处——GatewayView −1、ServerDetailView −1，39→37
-        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 37)
+        // 2026-11-25 三轮合并改钉（归因亲验）：1954e437 P1 页
+        // 原生 List/Form 化再收六处——GoalDetailView −3、
+        // SkillsViews −2、SkillHubViews −1，37→31
+        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 31)
     }
 
     /// 外观页触点逐点在位（§503 后：主题/模式/形象
