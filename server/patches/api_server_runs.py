@@ -973,8 +973,35 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
             except Exception:
                 return "no_row"
 
-        entry = pending.pop(session_id)
+        entries = pending.list_pending(session_id)
+        entry = next((item for item in entries
+                      if (item.get("run_key") or "") == run_id
+                      or (item.get("run_key") or "").endswith(":" + run_id)), None)
         if entry is None:
+            # Session-scoped handler keys do not always contain the bare
+            # run id. Preserve the established freshness bind, but only
+            # by choosing the newest candidate: turns in one session are
+            # lease-serialized, so that entry belongs to this run.
+            created_at = None
+            statuses = getattr(self, "_run_statuses", None)
+            if isinstance(statuses, dict):
+                created_at = (statuses.get(run_id) or {}).get("created_at")
+            candidates = [item for item in entries
+                          if created_at and item.get("at")
+                          and float(item["at"]) >= float(created_at) - 1.0]
+            if candidates:
+                entry = max(candidates, key=lambda item: float(item["at"]))
+        if entry is None:
+            # Any entries that predate this run are leftovers from an
+            # interrupted turn; remove only those identified stale cards.
+            created_at = None
+            statuses = getattr(self, "_run_statuses", None)
+            if isinstance(statuses, dict):
+                created_at = (statuses.get(run_id) or {}).get("created_at")
+            if created_at:
+                for stale in entries:
+                    if stale.get("at") and float(stale["at"]) < float(created_at) - 1.0:
+                        pending.drop(session_id, stale.get("card_id", ""))
             return
         # Run binding (hermes-deploy 2.3.1 rev1): the tool handler
         # registers run_key = HERMES_SESSION_KEY
@@ -988,6 +1015,7 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
         # belongs to this run; an entry predating the run is a dead
         # run's leftover and is dropped).
         run_key = entry.get("run_key") or ""
+        card_id = entry.get("card_id") or ""
         bound = run_key == run_id or run_key.endswith(":" + run_id)
         if not bound:
             created_at = None
@@ -1003,14 +1031,26 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
                 "[api_server] options card dropped: pending run_key mismatch "
                 "session=%s run=%s pending_run=%s",
                 session_id, run_id, entry.get("run_key"))
+            pending.drop(session_id, entry.get("card_id", ""))
             return
         options = pending.validate_options(entry.get("options"))
         if options is None:
             logger.warning(
                 "[api_server] options card dropped: pending payload failed "
                 "validation session=%s run=%s", session_id, run_id)
+            pending.drop(session_id, entry.get("card_id", ""))
             return
-        outcome = _try_once()
+        run_key = entry.get("run_key") or ""
+
+        def _settle_once(current: dict[str, Any]) -> str:
+            """Attach while holding the pending-list lock."""
+            return _try_once()
+
+        # The store removes the entry only after a successful metadata
+        # write, under the same lock used by pending-list readers.
+        outcome = pending.settle(session_id, card_id, _settle_once)[1]
+        if outcome is False:
+            return
         if outcome == "attached":
             return
         if outcome == "rejected":
@@ -1023,7 +1063,7 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
             deadline = time.monotonic() + 5.0
             while time.monotonic() < deadline:
                 time.sleep(0.25)
-                outcome = _try_once()
+                outcome = pending.settle(session_id, card_id, _settle_once)[1]
                 if outcome == "attached":
                     return
                 if outcome == "rejected":
@@ -1031,6 +1071,7 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
             logger.warning(
                 "[api_server] options card NOT attached: no assistant text "
                 "row landed session=%s run=%s", session_id, run_id)
+            pending.drop(session_id, card_id)
 
         threading.Thread(
             target=_retry_until_delivery_row,

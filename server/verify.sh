@@ -27,7 +27,7 @@ declare -A WANT_SHA=(
 declare -A WANT_SHA_EXTRA=(
   [approval_projection.py]=fbebf958392225c46eb34dcc62a673949b0d68fc314537144f25902e56e2c7ff
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
-  [api_server_runs.py]=bc5a5b36025eb4932b820bfddb3bd70140f2a6546d330cfd696813693ab4d9e3
+  [api_server_runs.py]=79edb80b9a07f6d339609de1bad4b14d59104bd98817121a99bfd19dc7399d8a
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
@@ -73,7 +73,7 @@ declare -A WANT_SHA_EXTRA=(
   [NotoSansSC-subset.ttf]=695c95a196eae0764aa5d4325aebaff38e5f22dfa9050e0e3930181b3a5ded6e
   [web_routers_profiles.py]=fda69d721249115ac7e8e41d699e15b8757838adb5ff18b2aa367de3e302c775
   [web_routers_ops.py]=ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481
-  [options_pending.py]=1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784
+  [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done

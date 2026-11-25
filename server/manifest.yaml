@@ -27,7 +27,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server_runs.py
       mount_mode: ro
-      sha256: bc5a5b36025eb4932b820bfddb3bd70140f2a6546d330cfd696813693ab4d9e3
+      sha256: 79edb80b9a07f6d339609de1bad4b14d59104bd98817121a99bfd19dc7399d8a
       upstream_baseline_sha256: 6f29c01f5d44d1456041df819080d6e0ed8dc9f3f0215afce094e9ab610c295f   # 应用时从未挂载补丁的镜像内同路径文件回读核验后落盘为部署目录 patches/api_server_runs.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 868
       provides: [runs-client-message-id, runs-terminal-list, self-reactions-attach, run-activity-registry, options-attach]
@@ -160,10 +160,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/options_pending.py
       mount_mode: ro
-      sha256: 1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784
+      sha256: 546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [options-pending-store, options-validate, options-attach-rmw]
-      summary: 选择框待挂存储＋校验单源＋落库原语（2.2.0 新增，总表 203／§441，2026-11-25；预制原号 1.12.0 占位、随合并终定 2.2.0）：进程内字典＋锁（每会话至多一条、后写覆盖），承载 present_options 登记的待挂选项 {options, run_key, at}；validate_options 为工具写侧与 attach 侧共读的校验单源（项数 2–6、label ≤60 字、send_text ≤500 字、剥控制字符、send_text 缺省补 label、按 send_text 去重、去重后 <2 判无效）；attach_options 按 SessionDB.set_message_reaction 同款原语对目标行 display_metadata 做单事务 RMW、只写 options 键（{v:1, options, at}），其余键逐字保留（容器内真 SessionDB 实测：reactions＋投递标记保全、跨会话行拒绝）。刻意不落盘，理由同 self_reaction_pending。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
+      summary: 选择框待挂存储＋校验单源＋落库原语（2.2.0 新增，总表 203／§441，2026-11-25；预制原号 1.12.0 占位、随合并终定 2.2.0）：进程内字典＋锁，以 (session_id, run_key, card_id) 唯一寻址，同会话及同 run_key 多卡并存；list_pending 快照回读，pop 按 run_key 精确且仅消费唯一匹配项；settle 按 card_id 在同一锁临界区执行落库回调，成功或确定拒绝后摘除，暂时无行则保留重试。validate_options 为工具写侧与 attach 侧共读的校验单源（项数 2–6、label ≤60 字、send_text ≤500 字、剥控制字符、send_text 缺省补 label、按 send_text 去重、去重后 <2 判无效）；attach_options 按 SessionDB.set_message_reaction 同款原语对目标行 display_metadata 做单事务 RMW、只写 options 键（{v:1, options, at}），其余键逐字保留。刻意不落盘，理由同 self_reaction_pending。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
     - name: present_options_tool.py
       kind: module
       source: patches/present_options_tool.py

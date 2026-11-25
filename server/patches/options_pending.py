@@ -25,6 +25,7 @@ pick a direction after doing work is this feature's primary use case.
 
 import threading
 import time
+import uuid
 from typing import Any, Optional
 
 # Payload shape limits (options-card spec §1.2, DESIGN §441). The card
@@ -36,7 +37,7 @@ MAX_LABEL_CHARS = 60
 MAX_SEND_TEXT_CHARS = 500
 
 _lock = threading.Lock()
-_pending: dict[str, dict[str, Any]] = {}
+_pending: dict[tuple[str, str, str], dict[str, Any]] = {}
 
 
 def _clean_text(value: Any, limit: int) -> str:
@@ -79,16 +80,20 @@ def validate_options(raw: Any) -> Optional[list[dict[str, str]]]:
 
 
 def put(session_id: str, run_key: str, options: list[dict[str, str]]) -> bool:
-    """Register (or replace) the pending option card for *session_id*.
+    """Register one pending option card, keyed by session and run.
 
     *options* must already be normalized by :func:`validate_options`.
-    Repeated calls in one turn overwrite: at most one card per turn
-    survives by construction.
+    Each registration gets its own card id, so cards in one session (and
+    even repeated calls carrying the same session-scoped run key) coexist.
     """
     if not session_id or not options:
         return False
     with _lock:
-        _pending[session_id] = {
+        card_id = uuid.uuid4().hex
+        key = (session_id, run_key or "", card_id)
+        _pending[key] = {
+            "card_id": card_id,
+            "session_id": session_id,
             "options": options,
             "run_key": run_key or "",
             "at": time.time(),
@@ -96,20 +101,74 @@ def put(session_id: str, run_key: str, options: list[dict[str, str]]) -> bool:
     return True
 
 
-def pop(session_id: str) -> Optional[dict[str, Any]]:
-    """Remove and return the pending entry for *session_id*, if any."""
+def pop(session_id: str, run_key: str = "") -> Optional[dict[str, Any]]:
+    """Remove one pending entry, optionally matching its exact run key.
+
+    The no-run form is retained for compatibility and only consumes an
+    unambiguous session entry. A supplied run_key must match exactly.
+    """
     if not session_id:
         return None
     with _lock:
-        return _pending.pop(session_id, None)
+        if run_key:
+            matches = [key for key in _pending
+                       if key[0] == session_id and key[1] == run_key]
+            if len(matches) != 1:
+                return None
+            return _pending.pop(matches[0], None)
+        matches = [key for key in _pending if key[0] == session_id]
+        if len(matches) != 1:
+            return None
+        return _pending.pop(matches[0], None)
+
+
+def list_pending(session_id: str) -> list[dict[str, Any]]:
+    """Return a snapshot of all unresolved entries for one session."""
+    if not session_id:
+        return []
+    with _lock:
+        return [dict(entry) for (sid, _, _), entry in _pending.items()
+                if sid == session_id]
 
 
 def discard(session_id: str) -> None:
-    """Drop any pending entry for *session_id* without attaching it."""
+    """Drop all pending entries for *session_id* without attaching them."""
     if not session_id:
         return
     with _lock:
-        _pending.pop(session_id, None)
+        for key in [key for key in _pending if key[0] == session_id]:
+            _pending.pop(key, None)
+
+
+def drop(session_id: str, card_id: str) -> Optional[dict[str, Any]]:
+    """Remove one identified card after a definitive attach rejection."""
+    if not session_id or not card_id:
+        return None
+    with _lock:
+        key = next((key for key in _pending
+                    if key[0] == session_id and key[2] == card_id), None)
+        return _pending.pop(key, None) if key is not None else None
+
+
+def settle(session_id: str, card_id: str, settle_fn: Any) -> tuple[Optional[dict[str, Any]], Any]:
+    """Run the durable decision while holding the pending-list lock.
+
+    The entry remains visible if ``settle_fn`` raises, returns False, or
+    reports ``no_row``. Attached or definitively rejected cards are removed
+    before readers can observe the updated list.
+    """
+    if not session_id or not card_id:
+        return None, False
+    with _lock:
+        key = next((key for key in _pending
+                    if key[0] == session_id and key[2] == card_id), None)
+        if key is None:
+            return None, False
+        entry = _pending[key]
+        result = settle_fn(dict(entry))
+        if result in ("attached", "rejected") or result is True:
+            _pending.pop(key, None)
+        return dict(entry), result
 
 
 def attach_options(db: Any, session_id: str, row_id: int,
