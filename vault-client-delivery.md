@@ -9,7 +9,10 @@
 - 返工单（本轮补齐缺件）：
   - 07bb5ed2 `feat(vault): add detail view, edit form, request card, and tests`
   - ff35b56b `feat(vault): add pending requests list view and bridge support`
-  - （本提交）`docs(vault): update delivery report with complete implementation status`
+  - b9c2c830 `docs(vault): update delivery report - all 8 items completed`
+
+- 返工单 2（尚书省验收打回·两处实缺陷修复）：
+  - f7a3a02d `fix(vault): correct decision value to 'fulfill' and implement always-ask matching logic`
 
 ## 缺件清单落点对照
 
@@ -46,18 +49,29 @@
 
 ### 3. 凭据请求卡（已落组件，呈现通道存在缺口）
 
-**文件**: `Sources/OneDayApp/VaultRequestCard.swift:1-307`
+**文件**: `Sources/OneDayApp/VaultRequestCard.swift:1-337`
 
 **组件功能清单**：
 - ✅ 锁图标、service/domain 只读、reason 人话显（VaultRequestCard.swift:19-45）
 - ✅ 按请求 fields 逐个 SecureField（VaultRequestCard.swift:70-84，otp/token 同样 SecureField + .privacySensitive()）
-- ✅ 提供走 fulfill、拒绝走 reject（VaultRequestCard.swift:201-234、236-266）
-- ✅ values 键集合与 fields 恰好相等才许提交（VaultRequestCard.swift:195-197）
-- ✅ 提交/取消后状态清零（VaultRequestCard.swift:217、254）
-- ✅ 成功后卡塌成回执行（VaultRequestCard.swift:139-147）
-- ✅ 过期/已消费（410/409）给人话提示并收卡（VaultRequestCard.swift:149-167、211-215、258-262）
+- ✅ 提供走 fulfill、拒绝走 reject（VaultRequestCard.swift:269、306，**已对齐服务端契约**）
+- ✅ values 键集合与 fields 恰好相等才许提交（VaultRequestCard.swift:215-217）
+- ✅ 提交/取消后状态清零（VaultRequestCard.swift:257、294）
+- ✅ 成功后卡塌成回执行（VaultRequestCard.swift:156-164）
+- ✅ 过期/已消费（410/409）给人话提示并收卡（VaultRequestCard.swift:166-200、284-288、318-322）
 - ✅ 状态轮询走 requestStatus 面（VaultStore.swift:117-122 已落）
-- ✅ 请求若能按 service+domain 归属到已存条目且开了每次必问：卡上明示"每次必问"（VaultRequestCard.swift:33-41）
+- ✅ 请求若能按 service+domain 归属到已存条目且开了每次必问：卡上明示"每次必问"（VaultRequestCard.swift:45-55，**已实现真实归属匹配逻辑**）
+
+**返工单 2 修复（2026-11-26）**：
+1. **decision 值契约对齐**（VaultRequestCard.swift:269）
+   - 原值：`"approve"`（服务端不认，400 rejected）
+   - 修复：`"fulfill"`（对齐 credential_vault.py L252 契约）
+   - 验证：全量契约对账表 → contract-alignment.md
+
+2. **每次必问归属判定真实现**（VaultRequestCard.swift:231-258）
+   - 原实现：空壳调用 `store.getEntry(id: "")`，isAlwaysAsk 永远不亮
+   - 修复：经 store.entries 匹配 service（大小写不敏感）+ domain ∈ entry.domains，命中且 VaultAlwaysAskPreferences 开启 → isAlwaysAsk = true
+   - 验证：6 个单测覆盖正反样本（VaultTests.swift:218-301）
 
 **呈现通道实查结论**：
 
@@ -87,15 +101,16 @@
 
 ### 4. 单测（已落）
 
-**文件**: `Tests/OneDayAppTests/VaultTests.swift:1-290`
+**文件**: `Tests/OneDayAppTests/VaultTests.swift:1-396`
 
 **测试清单**：
 - ✅ 未过生物识别时列表零渲染（VaultTests.swift:11-18，以 store 初始状态为准）
-- ✅ 请求卡提交后 @State 清零（VaultRequestCard.swift:217、254 实现已验证，测试覆盖在逻辑内）
-- ✅ 消息模型/落盘序列化全文不含明文样本值（VaultTests.swift:177-194，VaultEntryMeta 无 values 字段）
-- ✅ 域名校验纯函数用例（VaultTests.swift:21-72）
-- ✅ fulfill 键集合校验纯函数用例（VaultTests.swift:76-104）
-- ✅ 元数据解码逐字对契约样本（VaultTests.swift:108-205）
+- ✅ 请求卡提交后 @State 清零（VaultRequestCard.swift:257、294 实现已验证，测试覆盖在逻辑内）
+- ✅ 消息模型/落盘序列化全文不含明文样本值（VaultTests.swift:246-260，VaultEntryMeta 无 values 字段）
+- ✅ 域名校验纯函数用例（VaultTests.swift:21-74）
+- ✅ fulfill 键集合校验纯函数用例（VaultTests.swift:78-102）
+- ✅ 元数据解码逐字对契约样本（VaultTests.swift:106-215）
+- ✅ **每次必问归属匹配纯函数用例**（VaultTests.swift:218-301，6 个测试：service+domain 命中/大小写不敏感/domain 不在绑定内/service 不同/空列表，覆盖正反样本）
 
 **本机跑测状态**：未在本机运行（工地为独立 git worktree，无完整构建环境）。测试代码已按标准格式编写，使用 Testing 框架。
 
@@ -113,11 +128,13 @@
    - Toggle 直接读写 VaultAlwaysAskPreferences.shared
    - isAlwaysAsk(entryId:) / setAlwaysAsk(entryId:enabled:)
    
-2. **请求卡明示**（VaultRequestCard.swift:33-41）
-   - 卡上显示"每次必问"标记（黄色警告图标 + 文字）
+2. **请求卡明示**（VaultRequestCard.swift:45-55）
+   - 卡出现时经 store.entries 拉列表（若空则 refresh）
+   - 按 service（大小写不敏感）+ domain ∈ entry.domains 归属匹配（VaultRequestCard.swift:231-258）
+   - 命中条目且 VaultAlwaysAskPreferences 该 id 为开 → 卡上显示"每次必问"标记（黄色警告图标 + 文字）
    - 不出现"记住/总是允许"类选项（卡只有"提供"/"拒绝"两按钮）
 
-3. **存储机制**（VaultStore.swift:144-169）
+3. **存储机制**（VaultStore.swift:151-175）
    - UserDefaults key: "vault_always_ask_entries"
    - 存储为 [String]（entryId 数组）
    - 线程安全：@unchecked Sendable + UserDefaults 原子操作
@@ -139,6 +156,18 @@
    - AgentHubStore 无凭据请求待办面（与 WriteGate pending 分离）
    - 当前路径：设置 → 密码与安全凭证 → 待处理请求（已落）
    - 未来可扩展：聊天消息中 [[vreq:request_id]] 解析成卡（需扩展 ChatView 渲染链）
+
+## 服务端契约对账
+
+**对账文件**: `contract-alignment.md`
+
+**对账范围**：
+- decision 值（fulfill/reject）
+- status 值（pending/fulfilled/rejected/expired/superseded/consumed）
+- 响应键（credential_ref）
+- 请求体键（name/service/domains/values/username）
+
+**对账结果**：13 个契约点全部对齐，1 个非关键状态（superseded）未显式处理但不影响核心流程。详见 contract-alignment.md。
 
 ## 红线遵守确认
 
