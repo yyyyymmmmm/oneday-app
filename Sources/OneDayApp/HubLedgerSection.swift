@@ -389,7 +389,7 @@ struct HubLedgerSection: View {
         return HStack(spacing: OneDayMetrics.spacingSM) {
             iconBox(item)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(item.title)
+                Text(item.titleHuman ?? item.title)
                     .font(.system(
                         size: OneDayMetrics.hubTitleSize,
                         weight: .semibold
