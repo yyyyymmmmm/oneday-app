@@ -3300,6 +3300,38 @@ struct ChatView: View {
             baseRevision.addText(source.url)
             baseRevision.addText(source.title)
         }
+        // 文件/图片存在性回读结果折入 baseRevision，确保
+        // 即使回读前后行高恰好不变，UICollectionView 也会
+        // 同步 reconfigure 该 cell 刷新图片或文件牌呈现。
+        var existencePaths = Set(entry.remoteImagePaths)
+        for rawPath in entry.remoteFilePaths {
+            existencePaths.insert(
+                FileLineAnchor.split(pathWithAnchor: rawPath).path
+            )
+        }
+        if entry.role != "user", entry.traceKey == nil, entry.echoKey == nil {
+            let scans = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            )
+            existencePaths.formUnion(scans.media.imagePaths)
+            existencePaths.formUnion(scans.inlineCandidates.map(\.path))
+            existencePaths.formUnion(scans.standalonePaths)
+            if let wholePathRef = FileRefDetector.wholeMessagePath(in: scans.media.text) {
+                existencePaths.insert(wholePathRef.path)
+            }
+        }
+        for path in existencePaths.sorted() {
+            let code: String
+            switch fileMetadataStore.existence(for: path) {
+            case .exists: code = "e"
+            case .missing: code = "m"
+            case .unverified: code = "u"
+            case nil: code = "-"
+            }
+            baseRevision.addText("\(path):\(code)")
+        }
         // §331：行高先查整行备忘（命中＝确定高）；
         // 未命中投量测台后台预排版、当趟用上次高/
         // 兜底高，回填后经发布代次以确定高重喂
