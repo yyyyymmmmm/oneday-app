@@ -20,17 +20,20 @@ public enum VersionCompatibilityGate {
     public struct Handshake: Equatable, Sendable {
         public let appVersion: String
         public let minAppVersion: String?
+        public let recommendedAppVersion: String?
         public let gatewayVersion: String?
         public let hermesVersion: String?
 
         public init(
             appVersion: String,
             minAppVersion: String? = nil,
+            recommendedAppVersion: String? = nil,
             gatewayVersion: String? = nil,
             hermesVersion: String? = nil
         ) {
             self.appVersion = appVersion
             self.minAppVersion = minAppVersion
+            self.recommendedAppVersion = recommendedAppVersion
             self.gatewayVersion = gatewayVersion
             self.hermesVersion = hermesVersion
         }
@@ -50,14 +53,20 @@ public enum VersionCompatibilityGate {
         return .orderedSame
     }
 
-    /// 评估当前 App 与服务端最低兼容线是否匹配
+    /// 评估当前 App 与服务端最低/推荐兼容线是否匹配（三态门禁：正常 / 软提示 / 强阻断）
     public static func evaluate(_ handshake: Handshake) -> VersionCompatibilityStatus {
-        guard let minApp = handshake.minAppVersion, !minApp.isEmpty else {
-            return .compatible
-        }
-        if compare(handshake.appVersion, minApp) == .orderedAscending {
+        if let minApp = handshake.minAppVersion,
+           !minApp.isEmpty,
+           compare(handshake.appVersion, minApp) == .orderedAscending {
             return .incompatible(
                 message: "当前客户端版本（\(handshake.appVersion)）过低，服务器要求至少升级到 \(minApp) 后才能正常使用。"
+            )
+        }
+        if let recommended = handshake.recommendedAppVersion,
+           !recommended.isEmpty,
+           compare(handshake.appVersion, recommended) == .orderedAscending {
+            return .upgradeRecommended(
+                message: "发现推荐更新（\(recommended)），当前版本（\(handshake.appVersion)）仍可继续使用，建议尽快升级。"
             )
         }
         return .compatible

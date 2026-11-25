@@ -72,6 +72,9 @@ _CAPABILITY_ENDPOINTS = (
     ("run_stop", ("POST", "/v1/runs/{run_id}/stop")),
     ("crash_reports", ("POST", "/v1/diagnostics/crash-reports")),
     ("crash_reports_list", ("GET", "/v1/diagnostics/crash-reports")),
+    ("push_tokens", ("POST", "/v1/push/tokens", "push_tokens")),
+    ("push_tokens_list", ("GET", "/v1/push/tokens", "push_tokens")),
+    ("push_tokens_delete", ("DELETE", "/v1/push/tokens/{device_token}", "push_tokens")),
     ("settings_registry", ("GET", "/v1/settings/registry", "settings_registry")),
     ("settings_write", ("POST", "/v1/settings/entries")),
     ("settings_events", ("GET", "/v1/settings/events")),
@@ -1864,6 +1867,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/v1/grants/revoke", self._handle_revoke_grant),
             ("POST", "/v1/diagnostics/crash-reports", self._handle_post_crash_reports),
             ("GET", "/v1/diagnostics/crash-reports", self._handle_list_crash_reports),
+            ("POST", "/v1/push/tokens", self._handle_post_push_tokens),
+            ("GET", "/v1/push/tokens", self._handle_list_push_tokens),
+            ("DELETE", "/v1/push/tokens/{device_token}", self._handle_delete_push_token),
             ("GET", "/v1/settings/registry", self._handle_settings_registry),
             ("POST", "/v1/settings/entries", self._handle_settings_write),
             ("GET", "/v1/settings/events", self._handle_settings_events),
@@ -3008,6 +3014,57 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         return web.json_response({"object": "list", "data": data})
 
     @_require_auth
+    async def _handle_post_push_tokens(self, request: web.Request) -> web.Response:
+        """POST /v1/push/tokens -- upsert one APNs device push token (batch 4b)."""
+        try:
+            from gateway.platforms import push_tokens as _pt
+        except Exception:
+            return _error_response(
+                "push tokens module unavailable", 503,
+                code="push_tokens_unavailable")
+        try:
+            body = await request.json()
+        except Exception:
+            return _error_response(
+                "Invalid JSON in push token registration", 400,
+                code="invalid_json")
+        status, payload = await asyncio.to_thread(_pt.register_token, body)
+        if status != 200:
+            return _error_response(
+                payload.get("error", "push token registration failed"), status,
+                code=payload.get("code", "invalid_request"))
+        return web.json_response(payload, status=200)
+
+    @_require_auth
+    async def _handle_list_push_tokens(self, request: web.Request) -> web.Response:
+        """GET /v1/push/tokens -- list registered APNs device tokens (masked)."""
+        try:
+            from gateway.platforms import push_tokens as _pt
+        except Exception:
+            return _error_response(
+                "push tokens module unavailable", 503,
+                code="push_tokens_unavailable")
+        data = await asyncio.to_thread(_pt.list_tokens)
+        return web.json_response({"object": "list", "data": data})
+
+    @_require_auth
+    async def _handle_delete_push_token(self, request: web.Request) -> web.Response:
+        """DELETE /v1/push/tokens/{device_token} -- unregister one device token."""
+        try:
+            from gateway.platforms import push_tokens as _pt
+        except Exception:
+            return _error_response(
+                "push tokens module unavailable", 503,
+                code="push_tokens_unavailable")
+        token = request.match_info.get("device_token", "")
+        status, payload = await asyncio.to_thread(_pt.delete_token, token)
+        if status != 200:
+            return _error_response(
+                payload.get("error", "push token delete failed"), status,
+                code=payload.get("code", "invalid_request"))
+        return web.json_response(payload, status=200)
+
+    @_require_auth
     async def _handle_settings_registry(self, request: web.Request) -> web.Response:
         """GET /v1/settings/registry -- the settings registry,
         read-only (DESIGN section 435, hermes-deploy 1.13.0).
@@ -3645,6 +3702,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             # deployment gate display.options_card (default off)
             # separately controls whether cards are actually produced.
             "options_card": True,
+            "push_tokens": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}

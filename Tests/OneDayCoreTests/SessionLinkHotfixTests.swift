@@ -314,4 +314,63 @@ final class SessionLinkHotfixTests: XCTestCase {
             .mismatch
         )
     }
+
+    // MARK: - #15 会话创建双门一致性回归自测（网关 POST /api/sessions vs Dashboard import）
+
+    func testDualDoorSessionCreationParity() {
+        let id = "oneday-side-parity-1"
+        let model = "deepseek-v4-pro"
+
+        let gatewayBody = SideChatLink.linkedCreateSessionBody(id: id, model: model)
+        let importBody = SideChatLink.importSessionBody(
+            id: id,
+            title: nil,
+            model: model,
+            messages: [SeedEntry(role: "user", content: "测试双门一致")],
+            lockUpdatedAt: 1_700_000_000
+        )
+
+        XCTAssertEqual(gatewayBody["id"], importBody["id"])
+        XCTAssertEqual(gatewayBody["model"], importBody["model"])
+        XCTAssertNil(gatewayBody["title"])
+        XCTAssertNil(importBody["title"])
+        XCTAssertEqual(gatewayBody["require_model_lock"], .bool(true))
+        if case .object(let cfg) = importBody["model_config"],
+           case .object(let lock) = cfg["browser_model_lock"] {
+            XCTAssertEqual(lock["confirmed"], .bool(true))
+            XCTAssertEqual(lock["model"], .string(model))
+        } else {
+            XCTFail("import 门缺失 browser_model_lock")
+        }
+    }
+
+    // MARK: - #3/#23 三态版本兼容门禁单测
+
+    func testVersionCompatibilityGateThreeStates() {
+        let blocked = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.50.120",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertTrue(blocked.isBlocked)
+
+        let soft = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.50.126",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertFalse(soft.isBlocked)
+        if case .upgradeRecommended(let msg) = soft {
+            XCTAssertTrue(msg.contains("0.51.0"))
+        } else {
+            XCTFail("期望返回 upgradeRecommended，实际：\(soft)")
+        }
+
+        let ok = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.51.0",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertEqual(ok, .compatible)
+    }
 }
