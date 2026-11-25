@@ -92,10 +92,22 @@ struct AssistantDeliveryItem: View {
                 )
             }
         }
-        .task(id: id) {
+        .task(id: Self.metaTaskID(
+            for: id,
+            failureCount: DeliveryStore.shared.metaFailureCount(for: id)
+        )) {
             await DeliveryStore.shared.loadMeta(
                 id: id, client: client, appState: appState
             )
+        }
+    }
+
+    /// .task 触发键（可测纯函数）：失败计数变化触发重跑，实现自动重试
+    static func metaTaskID(for id: String, failureCount: Int) -> String {
+        if failureCount > 0 {
+            return "\(id)-\(failureCount)"
+        } else {
+            return id
         }
     }
 

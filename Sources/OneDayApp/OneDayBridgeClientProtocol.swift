@@ -89,6 +89,12 @@ protocol OneDayBridgeClientProtocol: Sendable {
         config: ServerConfig, taskID: String,
         request body: BridgeTaskGoalWrite
     ) async throws -> BridgeTaskGoalAssignment
+
+    // MARK: - 交付
+
+    func delivery(
+        config: ServerConfig, id: String
+    ) async throws -> BridgeDelivery
 }
 
 extension OneDayBridgeClient: OneDayBridgeClientProtocol {}
