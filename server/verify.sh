@@ -47,7 +47,8 @@ declare -A WANT_SHA_EXTRA=(
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
   [oneday_gateway.py]=0bde3bc5225ca56f672ae4ccc35a6405786f153e59b57db0687590ff77277922
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
-  [oneday_ledger_lib.py]=32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f
+  [oneday_ledger_lib.py]=01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
+  [cron_projection.py]=4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
@@ -98,6 +99,7 @@ declare -A CPATH=(
   [oneday_gateway.py]=/opt/hermes/gateway/platforms/oneday_gateway.py
   [overview_gateway.py]=/opt/hermes/gateway/platforms/overview_gateway.py
   [oneday_ledger_lib.py]=/opt/hermes/gateway/platforms/oneday_ledger_lib.py
+  [cron_projection.py]=/opt/hermes/gateway/platforms/cron_projection.py
   [oneday_seg_automation.py]=/opt/hermes/gateway/platforms/oneday_seg_automation.py
   [oneday_seg_briefings.py]=/opt/hermes/gateway/platforms/oneday_seg_briefings.py
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
@@ -129,7 +131,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done

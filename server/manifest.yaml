@@ -336,10 +336,21 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_ledger_lib.py
       mount_mode: ro
-      sha256: 32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f
+      sha256: 01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [ledger-pdf-render, ledger-summary-settle]
       summary: 台账 PDF 渲染库（1.19.0 新增，断桥批三）：自 companion modules/oneday_ledger_lib.py 逐字平移（与桥内 ledger.py 同源双生），供 oneday_gateway 台账导出渲染；随附字体在 platforms/assets/NotoSansSC-subset.ttf。
+    - name: cron_projection.py
+      kind: module
+      source: patches/cron_projection.py
+      host_path: patches/cron_projection.py
+      container: hermes
+      container_path: /opt/hermes/gateway/platforms/cron_projection.py
+      mount_mode: ro
+      sha256: 4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
+      upstream_baseline_sha256: null
+      provides: [cron-system-job-projection]
+      summary: Cron job 列表 is_system 纯投影模块。
     - name: oneday_seg_automation.py
       kind: module
       source: patches/oneday_seg_automation.py

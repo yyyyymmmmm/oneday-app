@@ -8,10 +8,12 @@
   2. 写闸 _structured_fields: memory batch 提取 op_count/op_kinds/
      content_preview/mem_target; memory 单条 add/patch/remove 不回归;
      skills batch 不回归。
+  3. 决策台账 title_human 派生与事件回放；cron 全量列表 is_system 投影。
 
 跑法: python3 hub_fields_selftest.py (退出码 0 = 全过)
 """
 import importlib.util
+import json
 import sys
 import tempfile
 import time
@@ -108,6 +110,35 @@ check("replay keeps derived",
       store2.get("run:run_t3").get("summary")
       == "读取 /opt/data/SOUL.md")
 
+# Structured decision facts create a separate human title. The legacy title
+# remains the same truncated excerpt, while the object name stays complete.
+long_name = "OneDay 的聊天页文件" + "-" * 48
+decision_path = tmp / "decisions.jsonl"
+decision_path.write_text(json.dumps({
+    "id": "decision-human-title", "decision": "approved",
+    "summary": "batch(1 ops: patch) on " + long_name,
+    "op": "patch", "op_kinds": ["patch"],
+    "target_name": long_name, "created_at": now - 1,
+    "decided_at": now,
+}, ensure_ascii=False) + "\n", encoding="utf-8")
+decision_store = led.LedgerStore(tmp / "decision-ledger.jsonl")
+collector = led.Collector(decision_store, decisions_path=decision_path,
+                          now_fn=lambda: now)
+collector.cycle()
+decision = decision_store.get("appr:decision-human-title")
+check("approval title_human keeps long object",
+      decision.get("title_human") == "修改了 " + long_name,
+      repr(decision.get("title_human")))
+check("title_human reaches list projection",
+      led.item_view(decision).get("title_human") == "修改了 " + long_name)
+check("legacy approval title still excerpt",
+      decision.get("title").endswith("…")
+      and len(decision.get("title")) == 31, repr(decision.get("title")))
+decision_replay = led.LedgerStore(tmp / "decision-ledger.jsonl")
+check("title_human survives ledger replay",
+      decision_replay.get("appr:decision-human-title").get("title_human")
+      == "修改了 " + long_name)
+
 print("== write-gate structured fields ==")
 wg = load("write_gate_gateway", "patches/write_gate_gateway.py")
 sf = wg._structured_fields
@@ -153,6 +184,35 @@ out = sf("skills", sk)
 check("skills batch unchanged",
       out.get("op_count") == 2
       and out.get("op_kinds") == ["patch", "create"], repr(out))
+
+print("== cron system projection ==")
+cron_proj = load("cron_projection", "patches/cron_projection.py")
+cron_names = [
+    "OneDay 系统轮·动态调研 A 版",
+    "OneDay 系统轮·动态调研 B 版",
+    "OneDay 系统轮·动态小时评估",
+    "OneDay 系统轮·点子到期清理",
+    "OneDay 记忆日结",
+    "OneDay 记忆周体检",
+    "OneDay 目标日结提炼",
+]
+cron_source = ([{"name": n, "schedule": "0 8 * * *"}
+                for n in cron_names]
+               + [{"name": "OneDay 记忆类·月末压缩"},
+                  {"name": "OneDay 目标提炼类·阶段总结"}]
+               + [{"name": "用户的每日日程", "schedule": "0 9 * * *"}])
+projected = cron_proj.project_jobs(cron_source)
+check("known OneDay system name patterns",
+      all(item["is_system"] for item in projected[:7]))
+check("memory/goal family modes cover unlisted jobs",
+      all(item["is_system"] for item in projected[7:9]))
+check("unknown user cron remains non-system",
+      projected[9]["is_system"] is False)
+check("cron projection preserves source object",
+      all("is_system" not in item for item in cron_source))
+check("cron script source identifies system job",
+      cron_proj.is_system_job({"name": "后台任务",
+                               "script": "/opt/data/scripts/oneday-round-ideas.py"}))
 
 print()
 if FAILS:

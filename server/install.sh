@@ -102,7 +102,7 @@ MODULES=(
   "skill_manager_tool.py|patches/skill_manager_tool.py|/opt/hermes/tools/skill_manager_tool.py|693b9a716fafad83b14c33ed971256b5f918e2eaccd70cc9c6d23297c9f29693"
   "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|82755461e014e89bf1ebd8d96cb68501d77edb747185d3cc3b04db4f1b17434b"
   "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b"
-  "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f"
+  "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3"
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
   "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440"
   "oneday_seg_cron.py|patches/oneday_seg_cron.py|/opt/hermes/gateway/platforms/oneday_seg_cron.py|1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7"
@@ -124,6 +124,7 @@ MODULES=(
   "web_routers_ops.py|patches/web_routers_ops.py|/opt/hermes/hermes_cli/web_routers/ops.py|ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481"
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
+  "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
@@ -254,6 +255,7 @@ grep -q "web_routers_profiles.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NE
 grep -q "web_routers_ops.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "options_pending.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "present_options_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "cron_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -428,6 +430,9 @@ specs = [
     ("oneday_ledger_lib.py",
      "      - ./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro",
      "./patches/overview_gateway.py:/opt/hermes/gateway/platforms/overview_gateway.py:ro"),
+    ("cron_projection.py",
+     "      - ./patches/cron_projection.py:/opt/hermes/gateway/platforms/cron_projection.py:ro",
+     "./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro"),
     ("oneday_seg_automation.py",
      "      - ./patches/oneday_seg_automation.py:/opt/hermes/gateway/platforms/oneday_seg_automation.py:ro",
      "./patches/oneday_ledger_lib.py:/opt/hermes/gateway/platforms/oneday_ledger_lib.py:ro"),
