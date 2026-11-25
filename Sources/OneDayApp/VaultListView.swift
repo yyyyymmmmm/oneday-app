@@ -24,8 +24,15 @@ struct VaultListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                NavigationLink(destination: VaultEditView(entryId: nil, initialEntry: nil)) {
-                    Image(systemName: "plus")
+                Menu {
+                    NavigationLink(destination: VaultEditView(entryId: nil, initialEntry: nil)) {
+                        Label("新建凭据", systemImage: "plus")
+                    }
+                    NavigationLink(destination: VaultRequestsView()) {
+                        Label("待处理请求", systemImage: "bell")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
                 .disabled(!isUnlocked)
             }

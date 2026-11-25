@@ -109,6 +109,17 @@ final class VaultBridgeClient: @unchecked Sendable {
 
     // MARK: - Request Handling
 
+    func listRequests(config: ServerConfig) async throws -> [VaultRequestMeta] {
+        let response: VaultRequestListResponse = try await base.get(
+            config: config,
+            path: "/requests",
+            endpoint: L10n.string("凭据请求")
+        ) { http, data in
+            try checkStatus(http, data: data, endpoint: L10n.string("凭据请求"), collection: true)
+        }
+        return response.data
+    }
+
     func getRequestStatus(config: ServerConfig, requestId: String) async throws -> VaultRequestStatus {
         try await base.get(
             config: config,

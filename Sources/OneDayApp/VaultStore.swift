@@ -114,6 +114,13 @@ final class VaultStore {
         await refresh(appState: appState)
     }
 
+    func listRequests(appState: AppState) async throws -> [VaultRequestMeta] {
+        guard let config = appState.config else {
+            throw VaultBridgeError.failed(L10n.string("未连接服务器"))
+        }
+        return try await client.listRequests(config: config)
+    }
+
     func getRequestStatus(appState: AppState, requestId: String) async throws -> VaultRequestStatus {
         guard let config = appState.config else {
             throw VaultBridgeError.failed(L10n.string("未连接服务器"))

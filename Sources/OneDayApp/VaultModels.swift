@@ -104,3 +104,36 @@ struct VaultRequestFulfillResponse: Decodable, Sendable {
         case credentialRef = "credential_ref"
     }
 }
+
+// MARK: - Vault Request List Models
+
+struct VaultRequestMeta: Decodable, Sendable, Identifiable {
+    let requestId: String
+    let service: String
+    let domain: String
+    let reason: String
+    let fields: [String]
+    let status: String
+    let expiresAt: Double
+
+    var id: String { requestId }
+
+    enum CodingKeys: String, CodingKey {
+        case requestId = "request_id"
+        case service
+        case domain
+        case reason
+        case fields
+        case status
+        case expiresAt = "expires_at"
+    }
+
+    var expiresAtDate: Date {
+        Date(timeIntervalSince1970: expiresAt)
+    }
+}
+
+struct VaultRequestListResponse: Decodable, Sendable {
+    let object: String
+    let data: [VaultRequestMeta]
+}
