@@ -114,3 +114,107 @@ public struct ProductHealthMetrics: Codable, Equatable, Sendable {
         return String(format: "%.1f%%", rate * 100)
     }
 }
+
+// MARK: - 短时票据与会话管理模型（#1 短时票据）
+
+/// POST /v1/auth/token 与 /v1/auth/refresh 回执（与 server/patches/auth_tokens.py 字段严格对齐）
+public struct ShortLivedTokenPair: Codable, Equatable, Sendable {
+    public let sessionID: String
+    public let accessToken: String
+    public let refreshToken: String
+    public let tokenType: String
+    public let expiresIn: Int
+    public let accessExpiresAt: Double
+    public let refreshExpiresAt: Double
+
+    public init(
+        sessionID: String,
+        accessToken: String,
+        refreshToken: String,
+        tokenType: String = "Bearer",
+        expiresIn: Int,
+        accessExpiresAt: Double,
+        refreshExpiresAt: Double
+    ) {
+        self.sessionID = sessionID
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.tokenType = tokenType
+        self.expiresIn = expiresIn
+        self.accessExpiresAt = accessExpiresAt
+        self.refreshExpiresAt = refreshExpiresAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+        case accessExpiresAt = "access_expires_at"
+        case refreshExpiresAt = "refresh_expires_at"
+    }
+}
+
+/// GET /v1/auth/sessions 单条会话摘要
+public struct AuthSessionSummary: Codable, Equatable, Sendable, Identifiable {
+    public let sessionID: String
+    public let deviceName: String
+    public let appVersion: String?
+    public let createdAt: Double
+    public let lastUsedAt: Double
+    public let refreshExpiresAt: Double
+    public let revoked: Bool
+    public let revokedReason: String?
+
+    public var id: String { sessionID }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case deviceName = "device_name"
+        case appVersion = "app_version"
+        case createdAt = "created_at"
+        case lastUsedAt = "last_used_at"
+        case refreshExpiresAt = "refresh_expires_at"
+        case revoked
+        case revokedReason = "revoked_reason"
+    }
+}
+
+/// GET /v1/auth/sessions 响应包装
+public struct AuthSessionsListResponse: Codable, Equatable, Sendable {
+    public let object: String?
+    public let data: [AuthSessionSummary]
+}
+
+/// DELETE /v1/auth/sessions/{session_id} 撤销回执
+public struct AuthRevokeReceipt: Codable, Equatable, Sendable {
+    public let revoked: Int
+    public let sessionIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case revoked
+        case sessionIDs = "session_ids"
+    }
+}
+
+/// 短时票据生命周期纯函数判定（默认提前 2 小时触发无感刷新）
+public enum ShortLivedTokenLifecycle {
+    public static let defaultRefreshLeewaySeconds: TimeInterval = 2 * 3600
+
+    public static func isExpired(
+        expiresAt: TimeInterval,
+        now: Date = Date()
+    ) -> Bool {
+        now.timeIntervalSince1970 >= expiresAt
+    }
+
+    public static func needsRefresh(
+        expiresAt: TimeInterval,
+        now: Date = Date(),
+        leewaySeconds: TimeInterval = defaultRefreshLeewaySeconds
+    ) -> Bool {
+        now.timeIntervalSince1970 + leewaySeconds >= expiresAt
+    }
+}
+

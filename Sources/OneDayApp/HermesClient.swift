@@ -553,6 +553,26 @@ protocol HermesClientProtocol: Sendable {
         body: PushTokenRegistrationBody
     ) async throws -> PushTokenRegisteredResponse
 
+    // MARK: 短时票据与会话管理（#1 短时票据）
+
+    /// POST /v1/auth/token（Bearer 长期登录钥）：换取 24h 短时访问票据＋30d 滑动换票凭据
+    func exchangeShortLivedToken(
+        config: ServerConfig, apiKey: String,
+        deviceName: String?, appVersion: String?
+    ) async throws -> ShortLivedTokenPair
+    /// POST /v1/auth/refresh（免 Bearer，凭 refresh_token 轮换）：返回新票据对
+    func refreshShortLivedToken(
+        config: ServerConfig, refreshToken: String
+    ) async throws -> ShortLivedTokenPair
+    /// GET /v1/auth/sessions（Bearer）：列出当前已签发的设备会话
+    func listAuthSessions(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [AuthSessionSummary]
+    /// DELETE /v1/auth/sessions/{session_id}（Bearer）：立即撤销指定设备会话
+    func revokeAuthSession(
+        config: ServerConfig, apiKey: String, sessionID: String
+    ) async throws -> AuthRevokeReceipt
+
     // MARK: 命令授权（批 5，DESIGN §355；网关 Bearer 面）
 
     /// GET /v1/grants（Bearer）：统一授权清单——exec
@@ -959,6 +979,31 @@ extension HermesClientProtocol {
         let data = try await fileData(config: config, path: path)
         onProgress(Int64(data.count), Int64(data.count))
         return data
+    }
+
+    func exchangeShortLivedToken(
+        config: ServerConfig, apiKey: String,
+        deviceName: String?, appVersion: String?
+    ) async throws -> ShortLivedTokenPair {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("短时票据签发"), status: 501)
+    }
+
+    func refreshShortLivedToken(
+        config: ServerConfig, refreshToken: String
+    ) async throws -> ShortLivedTokenPair {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("短时票据刷新"), status: 501)
+    }
+
+    func listAuthSessions(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [AuthSessionSummary] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("登录会话列表"), status: 501)
+    }
+
+    func revokeAuthSession(
+        config: ServerConfig, apiKey: String, sessionID: String
+    ) async throws -> AuthRevokeReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("撤销登录会话"), status: 501)
     }
 }
 
@@ -3198,6 +3243,82 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             throw HermesError.decodingFailed(
                 endpoint: L10n.string("推送登记")
             )
+        }
+    }
+
+    // MARK: - 短时票据与会话管理（#1 短时票据）
+
+    func exchangeShortLivedToken(
+        config: ServerConfig, apiKey: String,
+        deviceName: String?, appVersion: String?
+    ) async throws -> ShortLivedTokenPair {
+        var body: [String: JSONValue] = [:]
+        if let deviceName, !deviceName.isEmpty {
+            body["device_name"] = .string(deviceName)
+        }
+        if let appVersion, !appVersion.isEmpty {
+            body["app_version"] = .string(appVersion)
+        }
+        return try await sendJSONDecoding(
+            config: config,
+            path: "/v1/auth/token",
+            method: "POST",
+            endpoint: L10n.string("短时票据签发"),
+            body: body,
+            bearer: apiKey
+        )
+    }
+
+    func refreshShortLivedToken(
+        config: ServerConfig, refreshToken: String
+    ) async throws -> ShortLivedTokenPair {
+        try await sendJSONDecoding(
+            config: config,
+            path: "/v1/auth/refresh",
+            method: "POST",
+            endpoint: L10n.string("短时票据刷新"),
+            body: ["refresh_token": .string(refreshToken)],
+            bearer: nil
+        )
+    }
+
+    func listAuthSessions(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [AuthSessionSummary] {
+        let response: AuthSessionsListResponse = try await bearerGetJSON(
+            config: config,
+            apiKey: apiKey,
+            path: "/v1/auth/sessions",
+            endpoint: L10n.string("登录会话列表")
+        )
+        return response.data
+    }
+
+    func revokeAuthSession(
+        config: ServerConfig, apiKey: String, sessionID: String
+    ) async throws -> AuthRevokeReceipt {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = sessionID.addingPercentEncoding(withAllowedCharacters: allowed) ?? sessionID
+        var request = URLRequest(url: config.endpoint("/v1/auth/sessions/\(encoded)"))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.fromHTTPResponse(
+                endpoint: L10n.string("撤销登录会话"),
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
+        do {
+            return try decoder.decode(AuthRevokeReceipt.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: L10n.string("撤销登录会话"))
         }
     }
 

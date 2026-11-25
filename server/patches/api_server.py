@@ -75,6 +75,10 @@ _CAPABILITY_ENDPOINTS = (
     ("push_tokens", ("POST", "/v1/push/tokens", "push_tokens")),
     ("push_tokens_list", ("GET", "/v1/push/tokens", "push_tokens")),
     ("push_tokens_delete", ("DELETE", "/v1/push/tokens/{device_token}", "push_tokens")),
+    ("auth_exchange", ("POST", "/v1/auth/token", "short_lived_tokens")),
+    ("auth_refresh", ("POST", "/v1/auth/refresh", "short_lived_tokens")),
+    ("auth_sessions", ("GET", "/v1/auth/sessions", "short_lived_tokens")),
+    ("auth_revoke", ("DELETE", "/v1/auth/sessions/{session_id}", "short_lived_tokens")),
     ("settings_registry", ("GET", "/v1/settings/registry", "settings_registry")),
     ("settings_write", ("POST", "/v1/settings/entries")),
     ("settings_events", ("GET", "/v1/settings/events")),
@@ -1726,6 +1730,21 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
+            if token.startswith("odt1."):
+                try:
+                    from gateway.platforms import auth_tokens as _at
+                    ok, sid, err_code = _at.verify_access_token(token, api_key=expected_key)
+                except Exception:
+                    ok, sid, err_code = False, None, "auth_tokens_unavailable"
+                if ok and sid:
+                    request["auth_session_id"] = sid
+                    return None
+                return _error_response(
+                    "Short-lived access token rejected",
+                    401,
+                    err_type="gateway_auth_error",
+                    code=err_code or "invalid_access_token",
+                )
             # Compare as bytes: compare_digest raises TypeError on non-ASCII str, and the
             # token is raw client input — a stray byte must 401, not 500.
             if hmac.compare_digest(token.encode(), expected_key.encode()):
@@ -1870,6 +1889,10 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/v1/push/tokens", self._handle_post_push_tokens),
             ("GET", "/v1/push/tokens", self._handle_list_push_tokens),
             ("DELETE", "/v1/push/tokens/{device_token}", self._handle_delete_push_token),
+            ("POST", "/v1/auth/token", self._handle_auth_exchange),
+            ("POST", "/v1/auth/refresh", self._handle_auth_refresh),
+            ("GET", "/v1/auth/sessions", self._handle_auth_sessions),
+            ("DELETE", "/v1/auth/sessions/{session_id}", self._handle_auth_revoke),
             ("GET", "/v1/settings/registry", self._handle_settings_registry),
             ("POST", "/v1/settings/entries", self._handle_settings_write),
             ("GET", "/v1/settings/events", self._handle_settings_events),
@@ -3045,7 +3068,17 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                 "push tokens module unavailable", 503,
                 code="push_tokens_unavailable")
         data = await asyncio.to_thread(_pt.list_tokens)
-        return web.json_response({"object": "list", "data": data})
+        apns_configured = False
+        try:
+            from gateway.platforms import push_sender as _ps
+            apns_configured = bool(_ps.is_configured())
+        except Exception:
+            apns_configured = False
+        return web.json_response({
+            "object": "list",
+            "data": data,
+            "apns_configured": apns_configured,
+        })
 
     @_require_auth
     async def _handle_delete_push_token(self, request: web.Request) -> web.Response:
@@ -3061,6 +3094,98 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         if status != 200:
             return _error_response(
                 payload.get("error", "push token delete failed"), status,
+                code=payload.get("code", "invalid_request"))
+        return web.json_response(payload, status=200)
+
+    @_require_auth
+    async def _handle_auth_exchange(self, request: web.Request) -> web.Response:
+        """POST /v1/auth/token -- exchange long-lived API key for short-lived token pair."""
+        try:
+            from gateway.platforms import auth_tokens as _at
+        except Exception:
+            return _error_response(
+                "auth tokens module unavailable", 503,
+                code="auth_tokens_unavailable")
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        expected_key = self._expected_api_key()
+        if not expected_key:
+            return _error_response(
+                "Gateway API key is not available for this profile", 503,
+                code="auth_key_unavailable")
+        payload = await asyncio.to_thread(
+            _at.exchange_key_for_tokens,
+            api_key=expected_key,
+            device_name=str(body.get("device_name") or ""),
+            app_version=str(body.get("app_version") or ""),
+        )
+        return web.json_response(payload, status=200)
+
+    async def _handle_auth_refresh(self, request: web.Request) -> web.Response:
+        """POST /v1/auth/refresh -- public by design; refresh_token is the credential."""
+        try:
+            from gateway.platforms import auth_tokens as _at
+        except Exception:
+            return _error_response(
+                "auth tokens module unavailable", 503,
+                code="auth_tokens_unavailable")
+        try:
+            body = await request.json()
+        except Exception:
+            return _error_response("Invalid JSON in refresh request", 400, code="invalid_json")
+        if not isinstance(body, dict) or not body.get("refresh_token"):
+            return _error_response("Missing refresh_token", 400, code="invalid_request")
+        expected_key = self._expected_api_key()
+        if not expected_key:
+            return _error_response(
+                "Gateway API key is not available for this profile", 503,
+                code="auth_key_unavailable")
+        status, payload = await asyncio.to_thread(
+            _at.refresh_tokens,
+            refresh_token=str(body.get("refresh_token") or ""),
+            api_key=expected_key,
+            app_version=body.get("app_version"),
+        )
+        if status != 200:
+            return _error_response(
+                payload.get("error", "refresh failed"), status,
+                err_type="gateway_auth_error",
+                code=payload.get("code", "invalid_refresh_token"))
+        return web.json_response(payload, status=200)
+
+    @_require_auth
+    async def _handle_auth_sessions(self, request: web.Request) -> web.Response:
+        """GET /v1/auth/sessions -- list active and recently revoked device sessions."""
+        try:
+            from gateway.platforms import auth_tokens as _at
+        except Exception:
+            return _error_response(
+                "auth tokens module unavailable", 503,
+                code="auth_tokens_unavailable")
+        data = await asyncio.to_thread(_at.list_sessions)
+        return web.json_response({"object": "list", "data": data}, status=200)
+
+    @_require_auth
+    async def _handle_auth_revoke(self, request: web.Request) -> web.Response:
+        """DELETE /v1/auth/sessions/{session_id} -- revoke one device session."""
+        try:
+            from gateway.platforms import auth_tokens as _at
+        except Exception:
+            return _error_response(
+                "auth tokens module unavailable", 503,
+                code="auth_tokens_unavailable")
+        session_id = request.match_info.get("session_id", "")
+        status, payload = await asyncio.to_thread(
+            _at.revoke_session,
+            session_id=session_id,
+        )
+        if status != 200:
+            return _error_response(
+                payload.get("error", "session revoke failed"), status,
                 code=payload.get("code", "invalid_request"))
         return web.json_response(payload, status=200)
 
@@ -3703,6 +3828,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             # separately controls whether cards are actually produced.
             "options_card": True,
             "push_tokens": True,
+            "short_lived_tokens": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}
@@ -3710,6 +3836,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             "object": "hermes.api_server.capabilities", "platform": "hermes-agent",
             "model": self._model_name,
             "auth": {"type": "bearer", "required": bool(self._api_key)},
+            "version_gate": {
+                "min_app_version": os.getenv("ONEDAY_MIN_APP_VERSION", "0.50.125"),
+                "recommended_app_version": os.getenv("ONEDAY_RECOMMENDED_APP_VERSION", "0.51.0"),
+                "hermes_version": _hermes_version(),
+            },
             "runtime": {
                 "mode": "server_agent", "tool_execution": "server", "split_runtime": False,
                 "description": (
