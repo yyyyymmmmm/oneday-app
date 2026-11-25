@@ -121,6 +121,27 @@ st, body, _, _ = call("POST", "/identity/avatar",
 preset_id = body.get("id")
 check("avatar preset add 201 current",
       st == 201 and body.get("current") is True and preset_id, f"{st} {body}")
+dynamic_presets = (
+    "blob-blue", "cat-violet", "bear-amber", "bot-cyan",
+    "sprout-green", "star-pink", "blob-coral", "bot-slate",
+)
+classic_presets = ("partner", "paw", "sparkles", "atom")
+for preset in dynamic_presets:
+    st, body, _, _ = call("POST", "/identity/avatar",
+                          {"kind": "preset", "presetId": preset})
+    check(f"dynamic avatar preset {preset} saved + current",
+          st == 201 and body.get("presetId") == preset
+          and body.get("current") is True, f"{st} {body}")
+for preset in classic_presets:
+    st, body, _, _ = call("POST", "/identity/avatar",
+                          {"kind": "preset", "presetId": preset})
+    check(f"classic avatar preset {preset} saved + current",
+          st == 201 and body.get("presetId") == preset
+          and body.get("current") is True, f"{st} {body}")
+st, body, _, _ = call("POST", "/identity/avatar",
+                      {"kind": "preset", "presetId": "not-a-real-avatar"})
+check("unknown avatar preset rejected with 400",
+      st == 400 and "不在目录内" in body.get("error", ""), f"{st} {body}")
 st, body, _, _ = call("POST", "/identity/avatar",
                       {"imageBase64": PNG_B64})
 img_id = body.get("id")
@@ -130,9 +151,9 @@ check("avatar image bytes round-trip",
       st == 200 and raw == base64.b64decode(PNG_B64)
       and hdrs.get("Content-Type") == "image/png", f"{st}")
 st, body, _, _ = call("GET", "/identity/avatar")
-check("avatar index: current=image, 2 items",
+check("avatar index: current=image, 14 items",
       st == 200 and body.get("currentId") == img_id
-      and len(body.get("items", [])) == 2, f"{st} {body}")
+      and len(body.get("items", [])) == 14, f"{st} {body}")
 st, body, _, _ = call("POST", "/identity/avatar/select", {"id": preset_id})
 check("avatar select back to preset",
       st == 200 and body.get("current") is True, f"{st} {body}")
