@@ -1226,22 +1226,8 @@ struct ChatView: View {
                 )
             }
         }
-        // 反应浮排（DESIGN §343／§346）：长按一次
-        // 呈现三层——药丸排＋快照＋动作卡同呈（动作
-        // 集走 actionItems 单源、项/序/图标/危险色
-        // 逐项同系统菜单）；点药丸/卡条目即执行并
-        // 收起、点快照/空白收起。§343 的转交动作表
-        // （confirmationDialog）随 §346 同呈退役
-        .fullScreenCover(item: $reactionBarSession) { session in
-            reactionBarOverlay(session)
-        }
-        // §471：系统 cover 转场（滑入硬切、三层互叠
-        // 重影的来源之一）摘除——呈现/收起的动画全
-        // 归浮排内部 ReactionBarMotion 时钟（Exyte
-        // 参数），cover 只作承载
-        .transaction(value: reactionBarSession?.id) { transaction in
-            transaction.disablesAnimations = true
-        }
+        // 原生上下文菜单＋顶部玻璃反应条已迁入 ChatNativeList（UICollectionView
+        // 原生 UIContextMenuInteraction + UITargetedPreview），不再弹全屏 cover
         // §125：文件打开页（中间页）——聊天侧点牌的
         // 唯一落点（图片仍走上方全屏查看器、不经此页）
         // §129 落点、§219 改通道：失败页「让智能体重
@@ -3354,6 +3340,10 @@ struct ChatView: View {
             revision.addFlag(highlighted)
             revision.addText(styleKey)
             revision.addText(findHL.map { "find:\($0)" })
+            let menuEnabled = !entry.content.isEmpty
+                || !entry.allImageDatas.isEmpty
+                || !entry.remoteImagePaths.isEmpty
+                || !entry.remoteFilePaths.isEmpty
             return ChatNativeRow(
                 key: key,
                 entryID: entry.id,
@@ -3363,6 +3353,8 @@ struct ChatView: View {
                 // 高顶替）标临界——布局提供者对将入
                 // 视口的临界行就地量测给确定高
                 heightIsProvisional: !feedIsExact,
+                makeContextMenuData: menuEnabled ? { actionSheetData(for: entry) } : nil,
+                contextMenuAlignsTrailing: entry.role == "user",
                 makeView: {
                     AnyView(
                         entryRowContent(
@@ -3371,7 +3363,7 @@ struct ChatView: View {
                             sources: sources
                         )
                     )
-                },
+                }
             )
         }
     }
@@ -7160,21 +7152,12 @@ struct ChatView: View {
     /// 排，选字唯一入口＝菜单「选择」行（iMessage
     /// iOS 26 同构）；挂载面纪律本身不变
     private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
+        // 长按上下文菜单已收归 ChatNativeList 原生 UICollectionView Context Menu，
+        // 此处关闭行内 SwiftUI 抢跑手势，避免双菜单竞争
         MessageMenuModifier(
-            isEnabled: !entry.content.isEmpty
-                || !entry.allImageDatas.isEmpty
-                || !entry.remoteImagePaths.isEmpty
-                || !entry.remoteFilePaths.isEmpty,
-            floatingBarHook: ReactionBarRouting.route(
-                flagEnabled: floatingBarEnabled,
-                canReact: entry.canReact
-            ) == .floatingBar
-                ? { frame in
-                    presentReactionBar(for: entry, frame: frame)
-                }
-                : nil,
-            menuSuppressed: reactionBarSession?.entryID
-                == entry.id,
+            isEnabled: false,
+            floatingBarHook: nil,
+            menuSuppressed: false,
             makeData: { actionSheetData(for: entry) }
         )
     }
