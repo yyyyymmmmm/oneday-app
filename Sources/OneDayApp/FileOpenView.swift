@@ -406,6 +406,9 @@ struct FileOpenContent: View {
     @ViewBuilder
     private var actionZone: some View {
         switch phase {
+        case .previewing:
+            // previewing is rendered by mainBody's direct preview branch.
+            EmptyView()
         case .downloading:
             downloadingView
         case .failed(let failure):
