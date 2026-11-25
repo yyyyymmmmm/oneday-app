@@ -766,7 +766,12 @@ struct ChatView: View {
     /// refreshUnreadAnchor）、随即推进水位，锚在
     /// 本次观看内不动、新消息到达不移位
     @State private var readMarkStore = ThreadReadMarkStore()
+    /// 图片和助手文件牌依赖服务端目录回读结果。
+    /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
+    @State private var fileMetadataStore = FileMetadataStore.shared
     @State private var unreadAnchorEntryID: UUID?
+    /// 审批 Store 观察：让审批状态变化触发聊天页和底栏重建。
+    @State private var hubStore: AgentHubStore?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -1036,6 +1041,11 @@ struct ChatView: View {
     var body: some View {
         chatScaffold
         .onAppear { handleChatAppear() }
+        .onAppear {
+            if hubStore == nil {
+                hubStore = appState.sharedHubStore()
+            }
+        }
         // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
         // 同一份通知状态，不另开轮询
@@ -2498,6 +2508,13 @@ struct ChatView: View {
             speechPlaybackBarView: SpeechPlayer.shared.machine
                 .showsPlaybackBar
                 ? AnyView(speechPlaybackBar) : nil,
+            approvalZoneView: AnyView(
+                ChatApprovalZone(
+                    store: hubStore ?? appState.sharedHubStore(),
+                    anchoredRecordIDs: (hubStore ?? appState.sharedHubStore()).anchoredRecordIDs,
+                    ledger: rowStateLedger
+                )
+            ),
             dictation: dictation,
             dictationFailureBarView: dictation.failure.map {
                 AnyView(
@@ -3021,6 +3038,7 @@ struct ChatView: View {
     /// 派生（条目快照/卡与通知编码本体/锚定集本
     /// 体逐值入账），不再复用 gen3 的版本与估算
     private func nativeRows() -> [ChatNativeRow] {
+        _ = fileMetadataStore.existenceByPath.count
         // 卡顿探针（2026-11-20）：每趟喂入耗时＋行
         // 构建/复用数——只记账、无行为影响
         let probeToken = ChatLagProbe.beginFeedPass()
@@ -3169,57 +3187,6 @@ struct ChatView: View {
                 )
             }
         }
-        var approvalRevision = ChatNativeRowRevision()
-        for recordID in appState.sharedHubStore()
-            .anchoredRecordIDs.sorted() {
-            approvalRevision.addText(recordID)
-        }
-        // §331：审批区行高同走量测台；但非 ready
-        // 态高恒 0、无文本量测可言——同步确知，不
-        // 走兜底高（免冷开时列表尾凭空闪 120 空行）
-        let zoneHeight: CGFloat
-        var zoneIsProvisional = false
-        if case .ready = appState.sharedHubStore()
-            .approvalState {
-            let zoneMemoKey = composer.zoneMemoKey()
-            let zoneResolved = rowMeasureDesk.resolve(
-                memoKey: zoneMemoKey,
-                rowKey: "approval-zone",
-                fallback: ChatNativeRowHeightComposer
-                    .fallbackHeight
-            )
-            zoneIsProvisional = !zoneResolved.isExact
-            if zoneResolved.needsJob {
-                rowMeasureDesk.collect(
-                    composer.makeZoneMeasureJob(
-                        memoKey: zoneMemoKey,
-                        rowKey: "approval-zone"
-                    )
-                )
-            }
-            zoneHeight = zoneResolved.height
-        } else {
-            zoneHeight = composer.approvalZoneHeight()
-        }
-        rows.append(
-            ChatNativeRow(
-                key: "approval-zone",
-                entryID: nil,
-                revision: approvalRevision,
-                height: zoneHeight,
-                heightIsProvisional: zoneIsProvisional,
-                makeView: { [rowStateLedger] in
-                    AnyView(
-                        ChatApprovalZone(
-                            store: appState.sharedHubStore(),
-                            anchoredRecordIDs: appState
-                                .sharedHubStore().anchoredRecordIDs,
-                            ledger: rowStateLedger
-                        )
-                    )
-                }
-            )
-        )
         if ChatEmptyState.shows(
             threadIsNil: currentThread == nil,
             entryCount: currentThread?.sortedEntries.count ?? 0,
@@ -3249,6 +3216,25 @@ struct ChatView: View {
                     )
                 )
             }
+        }
+        // 外观设置由根层 AppStorage 观察触发 SwiftUI 重算，但原生
+        // UICollectionView 只按行 revision 决定是否 reconfigure。
+        // 把统一外观指纹加到所有行，避免主题/强调色/背景/字号切换
+        // 后部分 cell 等下一次滚动或导航才换色。
+        let appearanceKey = nativeRowStyleKey
+        rows = rows.map { row in
+            var revision = row.revision
+            revision.addText(appearanceKey)
+            return ChatNativeRow(
+                key: row.key,
+                entryID: row.entryID,
+                revision: revision,
+                height: row.height,
+                heightIsProvisional: row.heightIsProvisional,
+                makeContextMenuData: row.makeContextMenuData,
+                contextMenuAlignsTrailing: row.contextMenuAlignsTrailing,
+                makeView: row.makeView
+            )
         }
         // §331：本趟收集的量测工单统一投递（逆序
         // ——最新行先量先就绪）
@@ -5892,10 +5878,7 @@ struct ChatView: View {
                                     entryID: entry.id, active: active
                                 )
                             },
-                            // §471（病一）：列表态禁直
-                            // 接选字——长按归浮排/菜
-                            // 单，选字只从菜单「选择」
-                            // 行进 sheet
+                            // 正文双击选词交给 UITextView，长按归消息菜单。
                             allowsDirectSelection: false,
                             // §335：用户正文产物段串直
                             // 贴（产物 plain 段与本段同
@@ -6285,8 +6268,7 @@ struct ChatView: View {
                                     entryID: entry.id, active: active
                                 )
                             },
-                            // §471（病一）：列表态禁直
-                            // 接选字（同用户泡口径）
+                            // 正文双击选词交给 UITextView，长按归消息菜单。
                             segmentProducts:
                                 entrySegmentProducts(entry),
                             allowsDirectSelection: false,
@@ -7151,12 +7133,10 @@ struct ChatView: View {
     /// 层与铬件），挂载点清单见 DESIGN §265；长按
     /// 只置呈现状态，动作集在呈现时刻组装（action-
     /// SheetData），两面同开系统上下文菜单
-    /// §471 口径变更：§265「文本区长按归 UITextView
-    /// 原生选字」一句作废——列表态正文已关直接选
-    /// 字（SelectableInlineText allowsDirect-
-    /// Selection=false），长按一切落点归本菜单/浮
-    /// 排，选字唯一入口＝菜单「选择」行（iMessage
-    /// iOS 26 同构）；挂载面纪律本身不变
+    /// 原生列表的菜单由 ChatNativeList collection-view
+    /// delegate 提供；正文触点归 UITextView 原生选区，
+    /// 气泡边距与附件铬件仍走行菜单。此修饰符在原生
+    /// 列表面关闭，保留给回退承载。
     private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
         // 长按上下文菜单已收归 ChatNativeList 原生 UICollectionView Context Menu，
         // 此处关闭行内 SwiftUI 抢跑手势，避免双菜单竞争
@@ -7431,9 +7411,9 @@ struct ChatView: View {
     /// OneDayMetrics.assistantTextWidth（屏宽−2×
     /// pageGutter−2×内距，@402＝330）。卡内距维持
     /// 16/13、圆角走 assistantBubbleCorner（圆角参
-    /// 数辖区）；菜单宿主口径沿 §265：落定行传
-    /// menuEntry 时菜单挂卡身（含内边距带）、流式
-    /// 卡不传（无菜单、形态同此）。进卡＝正文/引
+    /// 数辖区）；落定行传 menuEntry 后，正文触点归
+    /// UITextView 原生选区、气泡边距触点归行菜单；流式
+    /// 卡不传 menuEntry。进卡＝正文/引
     /// 用/代码块/表格（沿 §334 归属）；推理块/工
     /// 具卡/图片/文件牌/交付项维持泡外独立承载、
     /// 层级秩序不动。按段拆分（splitBubbles）时一

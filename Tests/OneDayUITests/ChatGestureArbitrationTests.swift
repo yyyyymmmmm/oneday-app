@@ -140,12 +140,8 @@ final class ChatGestureArbitrationTests: XCTestCase {
         )
     }
 
-    /// §471 改钉（§476 组版，期望反转）：列表正文双击
-    /// 不再选词——§471 仲裁否决文本视图双击识别器，
-    /// 选字唯一入口＝长按菜单「选择」行（iMessage
-    /// 口径）；旧期望（双击选词出编辑菜单）系 §265
-    /// 旧口径、已被 §471 废除。测名沿用备对账溯源。
-    /// 新期望：双击后编辑菜单与整行菜单皆不在场。
+    /// 正文双击由 UITextView 原生处理为选词与编辑菜单，
+    /// 整行菜单只由非文本气泡区域触发。
     func testDoubleTapOnTextSelectsWordNotRowMenu() throws {
         let app = launchDemoApp()
         openSeededThread(in: app)
@@ -153,17 +149,7 @@ final class ChatGestureArbitrationTests: XCTestCase {
         text.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).doubleTap()
-        // 缺席断言给足迟到窗口：3 秒内任一时点
-        // 出现 Copy 菜单即判失败
-        let deadline = Date().addingTimeInterval(3)
-        while Date() < deadline {
-            XCTAssertFalse(
-                editMenuVisible(in: app),
-                "§471 口径：列表双击不许起编辑菜单"
-                    + "（选字只走菜单「选择」行）"
-            )
-            Thread.sleep(forTimeInterval: 0.3)
-        }
+        assertEditMenuShown(in: app)
         assertRowMenuAbsent(in: app)
     }
 

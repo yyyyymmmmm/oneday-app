@@ -691,13 +691,9 @@ private final class ChatNativeLayoutBox {
 /// 内容以行键为 SwiftUI 身份（复用时状态不跨条
 /// 目串行，施工图 §七风险 2）；拟合尺寸由集合视
 /// 图布局自己消费，本类不读、不记（H10）
-/// §332（二次修复题 2）：cell 本体不再挂任何
-/// UIContextMenuInteraction（§265 禁令：交互挂
-/// 文本视图祖先会压死原生选字/编辑菜单）——行
-/// 菜单承载历经 delegate 内建通道（§332）→控制
-/// 器长按识别器＋自绘动作面（台账 187），cell 始
-/// 终只渲染。菜单点位分工的 hitTest 判读口在本
-/// 类（静态、无状态）
+/// cell 本体只渲染。行菜单由 collection-view delegate
+/// 提供；正文触点让给 UITextView 原生选字，气泡边距
+/// 仍打开整行菜单。点位分流在本类静态判定。
 /// （internal 而非 private：装配测试须以生产原
 /// 物读配置普查——与控制器/合成器的 internal
 /// 测试面同式）
@@ -1547,6 +1543,13 @@ final class ChatRootViewController: UIViewController,
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         resolveAnchors()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        activeContextMenuData = nil
+        activeContextMenuIndexPath = nil
+        removeActiveReactionBarHost()
     }
 
     // MARK: 键盘跟随（§302 回 §194 形态）
@@ -4616,14 +4619,20 @@ final class ChatRootViewController: UIViewController,
                 host.view.alpha = 0
                 host.view.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
             }
-            animator.addCompletion { [weak self] in
-                host.view.removeFromSuperview()
-                if self?.activeReactionBarHost === host {
-                    self?.activeReactionBarHost = nil
-                }
+            animator.addCompletion { [weak self, weak host] in
+                guard let host else { return }
+                self?.removeReactionBarHost(host)
+            }
+            // UIKit normally completes the context-menu animator. Keep a
+            // bounded cleanup in case the interaction is interrupted by a
+            // presentation or another window transition.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                [weak self, weak host] in
+                guard let host else { return }
+                self?.removeReactionBarHost(host)
             }
         } else {
-            removeActiveReactionBarHost()
+            removeReactionBarHost(host)
         }
     }
 
@@ -4638,8 +4647,17 @@ final class ChatRootViewController: UIViewController,
     }
 
     private func removeActiveReactionBarHost() {
-        activeReactionBarHost?.view.removeFromSuperview()
-        activeReactionBarHost = nil
+        guard let host = activeReactionBarHost else { return }
+        removeReactionBarHost(host)
+    }
+
+    private func removeReactionBarHost(
+        _ host: UIHostingController<AnyView>
+    ) {
+        host.view.removeFromSuperview()
+        if activeReactionBarHost === host {
+            activeReactionBarHost = nil
+        }
     }
 
     private func presentAllReactionsSheet(ownEmoji: String?, onPick: @escaping (String) -> Void) {

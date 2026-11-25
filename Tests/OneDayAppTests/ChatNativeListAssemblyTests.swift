@@ -61,6 +61,30 @@ final class ChatNativeListAssemblyTests: XCTestCase {
         super.tearDown()
     }
 
+    func testRowMenuDefersSelectableTextHitToTextView() {
+        let contentView = UIView(
+            frame: CGRect(x: 0, y: 0, width: 220, height: 72)
+        )
+        let bubbleText = SelectableUITextView(
+            usingTextLayoutManager: true
+        )
+        bubbleText.frame = CGRect(
+            x: 40, y: 12, width: 160, height: 48
+        )
+        contentView.addSubview(bubbleText)
+
+        XCTAssertTrue(
+            ChatNativeHostingCell.pointHitsSelectableText(
+                CGPoint(x: 80, y: 30), in: contentView
+            )
+        )
+        XCTAssertFalse(
+            ChatNativeHostingCell.pointHitsSelectableText(
+                CGPoint(x: 20, y: 30), in: contentView
+            )
+        )
+    }
+
     /// 装壳：窗口→根→承载（全窗出血、topInset 喂
     /// 122）＋坞座位（舱自 R2 起由容器收编、不在
     /// 壳层装配，见 composerContent/seatComposer）

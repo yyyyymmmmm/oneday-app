@@ -36,6 +36,7 @@ struct ChatBottomBarView: View {
     var scrollToBottomButtonView: AnyView?
     var speechBarVisible: Bool
     var speechPlaybackBarView: AnyView?
+    var approvalZoneView: AnyView?
     // 输入舱段依赖（透传下两件结构体）
     var dictation: DictationController
     var dictationFailureBarView: AnyView?
@@ -125,6 +126,11 @@ struct ChatBottomBarView: View {
             // 朗读同走状态机、同一条出口
             if speechBarVisible, let speechPlaybackBarView {
                 speechPlaybackBarView
+                    .transition(.opacity)
+            }
+            if let approvalZoneView {
+                approvalZoneView
+                    .padding(.horizontal, OneDayMetrics.pageGutter)
                     .transition(.opacity)
             }
             ChatInputBarView(
