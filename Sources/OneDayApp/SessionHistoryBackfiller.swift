@@ -18,7 +18,12 @@ enum SessionHistoryInserter {
         messages: [SessionMessage], into thread: ChatThread,
         context: ModelContext
     ) -> Int {
-        DeliveryStore.shared.ingest(messages.flatMap(\.attachments))
+        let attachments = messages.flatMap(\.attachments)
+        if !attachments.isEmpty {
+            Task { @MainActor in
+                DeliveryStore.shared.ingest(attachments)
+            }
+        }
         return insert(
             items: SessionHistoryImport.richItems(from: messages),
             into: thread, context: context
