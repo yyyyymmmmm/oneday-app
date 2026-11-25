@@ -478,9 +478,18 @@ struct SettingsView: View {
         .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    /// 二级收口页：运维、服务器诊断与极客项全部收纳于此，保持主设置清爽
+    /// 二级收口页：运维、服务器诊断与极客项全部扁平收纳于此，不再套娃嵌套
     private var advancedDiagnosticsView: some View {
         List {
+            SettingsHeroCard(
+                symbol: "wrench.and.screwdriver",
+                tint: .indigo,
+                title: "高级与诊断",
+                subtitle: "服务端运维配置与一键排障工具，全部同级直达。",
+                statusText: gatewayStateWord,
+                statusTone: gatewayStateWord == L10n.string("异常") ? .error : (status != nil ? .healthy : .neutral)
+            )
+
             Section {
                 statusNavRow(
                     icon: "network",
@@ -522,8 +531,8 @@ struct SettingsView: View {
                     navRow(icon: "stethoscope", color: .mint, title: L10n.string("体检与存档"), route: .healthCheck)
                 }
                 navRow(icon: "doc.text", color: .gray, title: L10n.string("系统日志"), route: .logs)
-                navRow(icon: "doc.text.magnifyingglass", color: .indigo, title: L10n.string("聊天诊断"), route: .chatDiagnostics)
                 navRow(icon: "exclamationmark.triangle", color: .red, title: L10n.string("崩溃报告"), route: .crashReports)
+                navRow(icon: "doc.text.magnifyingglass", color: .indigo, title: L10n.string("聊天诊断"), route: .chatDiagnostics)
             } header: {
                 sectionHeader("诊断与日志")
             }
@@ -929,5 +938,164 @@ private extension View {
     /// 0.36.0 自绘分组的贯通口径对齐。逐行施加于行根视图。
     func settingsSeparatorToIconEdge() -> some View {
         alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+    }
+}
+
+/// 大厂级 iOS 26 设置页统一设计系统组件（治本收口）：
+/// 所有设置二级页共用同一套视觉骨架——顶部 Hero 摘要卡、
+/// 语义状态胶囊、图标导航行与操作按钮，消除各页风格割裂。
+enum SettingsStatusTone {
+    case healthy
+    case warning
+    case error
+    case neutral
+
+    var dotColor: Color {
+        switch self {
+        case .healthy: return Palette.success
+        case .warning: return Palette.warning
+        case .error: return Palette.danger
+        case .neutral: return Palette.inkMuted
+        }
+    }
+
+    var textColor: Color {
+        switch self {
+        case .healthy: return Palette.successText
+        case .warning: return Palette.warningText
+        case .error: return Palette.danger
+        case .neutral: return Palette.inkSecondary
+        }
+    }
+
+    var pillBackground: Color {
+        switch self {
+        case .healthy: return Palette.success.opacity(0.12)
+        case .warning: return Palette.warning.opacity(0.14)
+        case .error: return Palette.danger.opacity(0.12)
+        case .neutral: return Palette.inkMuted.opacity(0.12)
+        }
+    }
+}
+
+/// 设置子页顶部 Hero 摘要卡（对标 iOS 设置 / Telegram / ChatGPT）：
+/// 顶部居中或左对齐大图标块 + 标题 + 一句话说明 + 可选状态胶囊
+struct SettingsHeroCard: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let subtitle: String
+    var statusText: String? = nil
+    var statusTone: SettingsStatusTone = .neutral
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+                HStack(alignment: .center, spacing: OneDayMetrics.spacingM) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(tint.gradient)
+                            .frame(width: 48, height: 48)
+                        Image(systemName: symbol)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            Text(title)
+                                .font(.headline)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            if let statusText {
+                                SettingsStatusPill(text: statusText, tone: statusTone)
+                            }
+                        }
+                        Text(subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.vertical, OneDayMetrics.spacingS)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+}
+
+/// 语义状态胶囊（带状态点，不单靠颜色传意）
+struct SettingsStatusPill: View {
+    let text: String
+    let tone: SettingsStatusTone
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(tone.dotColor)
+                .frame(width: 6, height: 6)
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(tone.textColor)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(tone.pillBackground, in: Capsule())
+    }
+}
+
+/// 带图标的键值信息行（支持点按复制）
+struct SettingsValueRow: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let value: String
+    var monospaced: Bool = false
+    var copyable: Bool = false
+
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            IconTile(symbol: symbol, color: tint, size: OneDayMetrics.iconSlot)
+            Text(title)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if copyable {
+                Button {
+                    UIPasteboard.general.string = value
+                    Haptics.success()
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.4))
+                        copied = false
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(copied ? "已复制" : value)
+                            .font(monospaced ? .metaMonospaced : .rowSubtitle)
+                            .foregroundStyle(copied ? Palette.successText : Palette.inkSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(copied ? Palette.successText : Palette.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(value)
+                    .font(monospaced ? .metaMonospaced : .rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 }

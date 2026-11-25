@@ -88,6 +88,14 @@ struct ModelSettingsView: View {
 
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "cpu.fill",
+                tint: Palette.primary,
+                title: "模型与服务商",
+                subtitle: "统一管理默认模型、自定义接口服务商与多用途辅助模型。",
+                statusText: defaultRowValue,
+                statusTone: (store.defaultAssignment?.model ?? store.currentModel) != nil ? .healthy : .warning
+            )
             defaultSection
             providersSection
             auxSection

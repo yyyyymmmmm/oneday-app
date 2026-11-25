@@ -4628,6 +4628,8 @@ final class ChatRootViewController: UIViewController,
     }
 
     private func dismissActiveContextMenu() {
+        removeActiveReactionBarHost()
+        collectionView.contextMenuInteraction?.dismissMenu()
         for interaction in collectionView.interactions {
             if let menuInteraction = interaction as? UIContextMenuInteraction {
                 menuInteraction.dismissMenu()

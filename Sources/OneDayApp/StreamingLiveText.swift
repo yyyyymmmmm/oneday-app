@@ -33,8 +33,9 @@ struct StreamingLiveText: View {
     /// 变化即新一批到达，batchFade 时尾块轻渐显
     let publishGeneration: Int
 
-    @State private var tailOpacity: Double = 1
-    @State private var fadedGeneration: Int = 0
+    @State private var settledTail: String = ""
+    @State private var deltaOpacity: Double = 1
+    @State private var lastGeneration: Int = 0
 
     var body: some View {
         let blocks = StreamingBlockSegmenter.blocks(
@@ -70,27 +71,68 @@ struct StreamingLiveText: View {
                     )
             }
             if !tail.isEmpty {
-                MarkdownText(tail)
-                    .opacity(tailOpacity)
+                tailView(for: tail)
             }
         }
-        .onAppear { notePublishGeneration() }
+        .onAppear { syncTail(tail) }
         .onChange(of: publishGeneration) { _, _ in
-            notePublishGeneration()
+            syncTail(tail)
         }
     }
 
-    /// 新一批到达的入场落点（对标 OpenBot streaming-tail-text）：
-    /// 150ms cubic-bezier(0.23, 1, 0.32, 1) 柔和透明度淡入，
-    /// 遵守 Reduce Motion（instant 恒直显）
-    private func notePublishGeneration() {
-        guard publishGeneration > fadedGeneration
-        else { return }
-        fadedGeneration = publishGeneration
-        guard entrancePlan == .batchFade else { return }
-        tailOpacity = 0.62
-        withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.15)) {
-            tailOpacity = 1
+    @ViewBuilder
+    private func tailView(for tail: String) -> some View {
+        if entrancePlan == .batchFade,
+           Self.isPlainProse(tail),
+           !settledTail.isEmpty,
+           tail.hasPrefix(settledTail),
+           tail.count > settledTail.count {
+            let delta = String(tail.dropFirst(settledTail.count))
+            (
+                Text(settledTail)
+                    .foregroundStyle(Palette.bodyInk)
+                + Text(delta)
+                    .foregroundStyle(Palette.bodyInk.opacity(deltaOpacity))
+            )
+            .font(.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            MarkdownText(tail)
+        }
+    }
+
+    private static func isPlainProse(_ text: String) -> Bool {
+        let markdownSpecials = CharacterSet(charactersIn: "*_`[]#|>")
+        return text.unicodeScalars.allSatisfy { !markdownSpecials.contains($0) }
+    }
+
+    /// 只对新到达的增量 delta 做 140ms 淡入，已上屏的前缀文本保持 1.0 不闪烁
+    private func syncTail(_ currentTail: String) {
+        guard publishGeneration > lastGeneration else {
+            if settledTail.isEmpty { settledTail = currentTail }
+            return
+        }
+        let previous = settledTail
+        lastGeneration = publishGeneration
+        guard entrancePlan == .batchFade,
+              Self.isPlainProse(currentTail),
+              !previous.isEmpty,
+              currentTail.hasPrefix(previous),
+              currentTail.count > previous.count
+        else {
+            settledTail = currentTail
+            deltaOpacity = 1
+            return
+        }
+        deltaOpacity = 0.08
+        withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.14)) {
+            deltaOpacity = 1
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            if lastGeneration == publishGeneration {
+                settledTail = currentTail
+            }
         }
     }
 

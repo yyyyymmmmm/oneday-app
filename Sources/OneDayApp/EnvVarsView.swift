@@ -14,21 +14,14 @@ struct EnvVarsView: View {
     var body: some View {
         List {
             if !entries.isEmpty {
-                // 0.3.7 卡 9：摘要卡「已设置 X / 共 Y」＋
-                // 按服务端类别分组（已裁 4：类别名走
-                // ServerLabels 翻译，未知回落「其他」；
-                // 组内已设定在前）
-                Section {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        Text("已设置 \(entries.filter(\.isSet).count) / 共 \(entries.count)")
-                            .font(.callout)
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                    }
-                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(OneDayMetrics.settingsRowInsets)
+                SettingsHeroCard(
+                    symbol: "key.fill",
+                    tint: .orange,
+                    title: "环境变量与密钥",
+                    subtitle: "密钥仅保存在你的服务端，App 本地不留存明文。",
+                    statusText: "已设 \(entries.filter(\.isSet).count) / \(entries.count)",
+                    statusTone: .healthy
+                )
 
                 ForEach(
                     Array(entryGroups.enumerated()), id: \.element.label

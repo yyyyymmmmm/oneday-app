@@ -1343,7 +1343,7 @@ struct AssistantFileChip: View {
     var body: some View {
         Group {
             if FileMetadataStore.shared.existence(for: path)
-                == .exists {
+                != .missing {
                 FileChip(path: path, onOpen: onOpen)
             } else {
                 Text(path)
@@ -1450,7 +1450,7 @@ struct AssistantMediaImage: View {
     var body: some View {
         Group {
             if FileMetadataStore.shared.existence(for: path)
-                == .exists {
+                != .missing {
                 Button {
                     onOpen()
                 } label: {
