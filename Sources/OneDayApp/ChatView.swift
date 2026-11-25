@@ -1507,6 +1507,12 @@ struct ChatView: View {
             }
         }
         .padding(.top, nativeFedTopInset + 6)
+        .task(id: errorMessage) {
+            guard let currentError = errorMessage else { return }
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, errorMessage == currentError else { return }
+            errorMessage = nil
+        }
         .animation(
             reduceMotion ? .default : .snappy(duration: 0.25),
             value: errorMessage ?? noticePresentation.current?.text
