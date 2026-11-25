@@ -182,20 +182,9 @@ public enum HermesError: Error, Sendable {
             return L10n.string(
                 "这条会话还在运行中，等它跑完再删。", locale: locale
             )
-        case .serverError(_, let status, _):
-            // 5xx 带可分性短语（服务器内部错误），与
-            // unexpectedStatus 不共句（P5-1）；非 5xx
-            // 的结构化拒绝仍走通用句，但与 unexpected-
-            // Status 的新句已分家
-            if (500...599).contains(status) {
-                return L10n.string(
-                    "服务器内部错误，请稍后再试。",
-                    locale: locale
-                )
-            }
-            return L10n.string(
-                "服务器没能处理这个请求，请稍后再试。",
-                locale: locale
+        case .serverError(_, let status, let code):
+            return HermesErrorCodeCatalog.userMessage(
+                forCode: code, status: status, locale: locale
             )
         case .decodingFailed:
             return L10n.string(
@@ -297,10 +286,45 @@ public enum HermesError: Error, Sendable {
     /// 服务器出错；呈现层据此走清本地残留＋人话提
     /// 示，不许把状态码原文甩给用户
     public var isSessionNotFound: Bool {
-        if case .unexpectedStatus(_, let status) = self {
+        switch self {
+        case .unexpectedStatus(_, let status),
+             .serverError(_, let status, _):
             return status == 404
+        default:
+            return false
         }
-        return false
+    }
+
+    /// 是否 HTTP 401 未认证（供 AppState.performAdmin 统一拦截并静默重登）
+    public var isHTTPUnauthorized: Bool {
+        switch self {
+        case .unexpectedStatus(_, let status),
+             .serverError(_, let status, _):
+            return status == 401
+        default:
+            return false
+        }
+    }
+
+    /// P2 统一 HTTP 非 2xx 响应拦截器：
+    /// 自动提取网关 `{"error":{"code":...}}` 或 FastAPI `{"detail":"code:..."}` 结构化错误码，
+    /// 统一转为带大厂人话映射的 `HermesError`，避免各接口丢弃响应体、裸抛状态码。
+    public static func fromHTTPResponse(
+        endpoint: String,
+        status: Int,
+        data: Data,
+        retryAfterSeconds: Double? = nil
+    ) -> HermesError {
+        let code = HermesErrorCodeCatalog.extractCode(from: data)
+        if status == 429,
+           code != "enrollment_locked",
+           code != "enrollment_too_many_pending" {
+            return .rateLimited(retryAfterSeconds: retryAfterSeconds)
+        }
+        if let code, !code.isEmpty {
+            return .serverError(endpoint: endpoint, status: status, code: code)
+        }
+        return .unexpectedStatus(endpoint: endpoint, status: status)
     }
 
     /// URLError → 失败分型（0.20.0）：分型表收进 Core
@@ -452,6 +476,98 @@ extension HermesError {
             return status == 400
         default:
             return false
+        }
+    }
+}
+
+/// P2 统一服务端错误码 → 大厂人话映射目录：
+/// 集中解析网关 `{"error":{"code":...}}` 与 FastAPI `{"detail":"code: ..."}`，
+/// 将结构化错误码翻译为克制、可执行的中文提示（绝不向用户暴露英文堆栈或裸 HTTP 状态码）。
+public enum HermesErrorCodeCatalog {
+    /// 从任意非 2xx 响应体中提取结构化错误码（网关与管理面双口径兼容）
+    public static func extractCode(from data: Data) -> String? {
+        guard !data.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let dict = object as? [String: Any]
+        else { return nil }
+        if let errorObj = dict["error"] as? [String: Any],
+           let code = errorObj["code"] as? String,
+           isValidCode(code) {
+            return code
+        }
+        if let code = dict["code"] as? String, isValidCode(code) {
+            return code
+        }
+        if let detail = dict["detail"] as? String {
+            let prefix = detail
+                .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+                .first
+                .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+            if isValidCode(prefix) {
+                return prefix
+            }
+        }
+        return nil
+    }
+
+    private static func isValidCode(_ code: String) -> Bool {
+        !code.isEmpty
+            && code.count <= 64
+            && code.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+    }
+
+    /// 按结构化错误码返回大厂级人话提示；未知码按 5xx / 4xx 优雅兜底
+    public static func userMessage(
+        forCode code: String,
+        status: Int,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        switch code.lowercased() {
+        case "session_busy":
+            return L10n.string("这条会话还在运行中，等它跑完再操作。", locale: locale)
+        case "revision_conflict", "stale_generation":
+            return L10n.string("数据刚刚有更新，请刷新后再试。", locale: locale)
+        case "client_upgrade_required":
+            return L10n.string("当前 App 版本需要更新后才能执行这项操作。", locale: locale)
+        case "invalid_title":
+            return L10n.string("标题格式不符合要求，换个简短的标题再试。", locale: locale)
+        case "invalid_pagination", "invalid_params", "invalid_request", "validation_error":
+            return L10n.string("请求参数有误，请检查填写内容后再试。", locale: locale)
+        case "session_not_found":
+            return L10n.string("这条会话已不存在，可能已在其他设备删除。", locale: locale)
+        case "message_not_found":
+            return L10n.string("这条消息已不存在，操作未生效。", locale: locale)
+        case "not_found":
+            return L10n.string("找不到对应的内容，可能已被移除。", locale: locale)
+        case "quota_exceeded", "insufficient_quota", "billing_exhausted":
+            return L10n.string("账户余额或额度不足，充值或调整额度后再试。", locale: locale)
+        case "rate_limited", "too_many_requests":
+            return L10n.string("操作太频繁了，请稍等几秒再试。", locale: locale)
+        case "unauthorized", "invalid_token", "session_expired":
+            return L10n.string("登录状态已失效，请重新登录后再试。", locale: locale)
+        case "forbidden", "permission_denied":
+            return L10n.string("当前账号没有这项操作的权限。", locale: locale)
+        case "model_not_found", "unknown_model":
+            return L10n.string("所选模型在服务端不可用，请切换其他模型。", locale: locale)
+        case "provider_not_configured":
+            return L10n.string("对应的模型服务商尚未配置，请先在设置中完成配置。", locale: locale)
+        case "file_too_large", "payload_too_large":
+            return L10n.string("文件体积超过服务端限制，请压缩后再试。", locale: locale)
+        case "invalid_path":
+            return L10n.string("文件路径不合法或不在允许访问的目录内。", locale: locale)
+        case "unknown_toolset", "invalid_enabled":
+            return L10n.string("该工具集在服务端不可用，请刷新列表后再试。", locale: locale)
+        case "grant_projection_unavailable", "approval_projection_unavailable":
+            return L10n.string("服务端审批与授权服务暂时不可用，请稍后再试。", locale: locale)
+        case "upstream_timeout", "gateway_timeout", "timeout":
+            return L10n.string("服务端响应超时，请稍后再试。", locale: locale)
+        case "service_unavailable", "upstream_error":
+            return L10n.string("服务暂时不可用，请稍后再试。", locale: locale)
+        default:
+            if (500...599).contains(status) {
+                return L10n.string("服务器内部错误，请稍后再试。", locale: locale)
+            }
+            return L10n.string("服务器没能处理这个请求，请稍后再试。", locale: locale)
         }
     }
 }

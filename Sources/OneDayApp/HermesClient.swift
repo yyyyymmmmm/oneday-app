@@ -1120,7 +1120,12 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
         let (data, http) = try await dataRequest(request)
         guard http.statusCode == 200 else {
-            throw HermesError.unexpectedStatus(endpoint: endpoint, status: http.statusCode)
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
         }
         do {
             return try decoder.decode(T.self, from: data)
@@ -1131,9 +1136,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     /// Bearer GET＋解码（网关面只读三式：能力发现/深
     /// 度健康/待批聚合）：401/403 → apiKeyRejected；
-    /// 带错误码的非 200 → serverError 连码上行供呈
-    /// 现层分型；其余非 200 → unexpectedStatus（与
-    /// listGrants 同口径，DESIGN §357）
+    /// 其余非 200 统一经 HermesError.fromHTTPResponse 拦截
     private func bearerGetJSON<T: Decodable>(
         config: ServerConfig, apiKey: String, path: String,
         endpoint: String
@@ -1147,14 +1150,11 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             if http.statusCode == 401 || http.statusCode == 403 {
                 throw HermesError.apiKeyRejected
             }
-            if let code = Self.gatewayErrorCode(from: data) {
-                throw HermesError.serverError(
-                    endpoint: endpoint, status: http.statusCode,
-                    code: code
-                )
-            }
-            throw HermesError.unexpectedStatus(
-                endpoint: endpoint, status: http.statusCode
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
             )
         }
         do {
@@ -1164,8 +1164,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
-    /// 带 JSON body 的写请求：2xx 即成功，不解码响应体
-    /// （各写接口的回执形态不一，调用方需要新状态时自行重拉）。
+    /// 带 JSON body 的写请求：2xx 即成功；非 2xx 统一经错误码拦截器解析人话。
     private func sendJSON(
         config: ServerConfig, path: String, method: String, endpoint: String,
         body: [String: JSONValue]? = nil, timeout: TimeInterval? = nil,
@@ -1180,15 +1179,19 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(body)
         }
-        let (_, http) = try await dataRequest(request)
+        let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(endpoint: endpoint, status: http.statusCode)
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
         }
     }
 
     /// 写请求并解码回执（创建类接口返回新建对象时使用）；
-    /// bearer 非 nil 时带 Authorization（网关面接口用，
-    /// 如 0.27.0 改路后的 POST /api/sessions）
+    /// 非 2xx 统一经 HermesError.fromHTTPResponse 提取结构化错误码与人话映射。
     private func sendJSONDecoding<T: Decodable>(
         config: ServerConfig, path: String, method: String, endpoint: String,
         body: [String: JSONValue], bearer: String? = nil
@@ -1202,15 +1205,12 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         request.httpBody = try encoder.encode(body)
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            // §220：回包带结构化错误码时连码上行（分流
-            // 判定要用，如建会话 invalid_title 收养）；
-            // 无码照旧只报状态——不许为拿码改变其余口径
-            if let code = GatewayErrorCode.parse(data) {
-                throw HermesError.serverError(
-                    endpoint: endpoint, status: http.statusCode, code: code
-                )
-            }
-            throw HermesError.unexpectedStatus(endpoint: endpoint, status: http.statusCode)
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
         }
         do {
             return try decoder.decode(T.self, from: data)
@@ -2934,8 +2934,11 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         request.httpMethod = "POST"
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: endpoint, status: http.statusCode
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
             )
         }
         do {
@@ -4229,10 +4232,13 @@ extension HermesClient {
             )
             request.httpBody = try encoder.encode(body)
         }
-        let (_, http) = try await dataRequest(request)
+        let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: endpoint, status: http.statusCode
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
             )
         }
     }
@@ -4254,8 +4260,11 @@ extension HermesClient {
         }
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: endpoint, status: http.statusCode
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
             )
         }
         do {
