@@ -247,6 +247,8 @@ struct SettingsView: View {
                     ChatDiagnosticsView()
                 case .crashReports:
                     CrashReportsView()
+                case .vault:
+                    VaultListView()
                 }
             }
             // §496：断开行已迁当前服务器页，本确认框
@@ -400,6 +402,9 @@ struct SettingsView: View {
             }
             navRow(icon: "bell", title: L10n.string("通知"), route: .notifications)
             navRow(icon: "face.smiling", title: L10n.string("互动"), route: .interaction)
+            if VaultStore().isAvailable {
+                navRow(icon: "lock.shield", title: L10n.string("密码与安全凭证"), route: .vault)
+            }
             Toggle(isOn: Binding(
                 get: { Haptics.isEnabled },
                 set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
