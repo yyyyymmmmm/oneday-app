@@ -151,6 +151,8 @@ final class AgentHubStore {
     /// 已决历史（P10）：与待批同轮 best-effort 拉取——
     /// 拉不到保持上次值（首拉为空），不拖累待批呈现
     private(set) var decisionHistory: [WriteGateDecisionRecord] = []
+    /// 分组动态：nil＝未拉到/旧服务端，呈现回落平铺
+    private(set) var activityGroups: [WriteGateActivityGroup]?
     /// 「总是允许」规则（0.36.21）：桥侧规则的只读镜
     /// 像——规则只存桥、App 不落本地；拉取 best-effort，
     /// 失败保持旧值（rulesLoaded 区分「拉过且为空」与
@@ -526,6 +528,7 @@ final class AgentHubStore {
         reconcileResolvedLines(
             previous: previousPending, current: currentPendingRecords()
         )
+        await refreshActivityGroups()
         await loadRules()
         await refreshAnchorDecisionsIfStale()
         notifyAnchorDataRefreshed()
@@ -539,6 +542,17 @@ final class AgentHubStore {
             config: config, limit: 50
         ) {
             decisionHistory = history
+        }
+    }
+
+    /// 分组动态刷新：best-effort，失败或未分组置 nil 保持回落
+    private func refreshActivityGroups() async {
+        guard let config = appState.config else { return }
+        if let resp = try? await gateClient.activity(config: config, limit: 50),
+           resp.grouped {
+            activityGroups = resp.groups
+        } else {
+            activityGroups = nil
         }
     }
 
@@ -917,6 +931,7 @@ final class AgentHubStore {
 
         approvalState = .ready(filtered)
         reconcileResolvedLines(previous: previous, current: filtered)
+        await refreshActivityGroups()
         await loadRules()
         await refreshAnchorDecisionsIfStale()
         notifyAnchorDataRefreshed()

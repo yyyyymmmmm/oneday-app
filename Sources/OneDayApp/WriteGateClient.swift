@@ -59,6 +59,9 @@ protocol WriteGateClientProtocol: Sendable {
     ) async throws -> WriteGateRule
     /// DELETE /rules/{id}：撤销一条规则
     func deleteRule(config: ServerConfig, id: String) async throws
+    /// GET /activity?limit=：分组动态面；旧桥无此面时 404
+    /// 走桥缺失口径、消费方回落平铺
+    func activity(config: ServerConfig, limit: Int) async throws -> WriteGateActivityResponse
 }
 
 /// URLSession 实现：Base＝<服务器>/api/write-gate（nginx
@@ -191,6 +194,13 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         default:
             throw WriteGateError.failed(L10n.format("撤销规则返回 %@", String(http.statusCode)))
         }
+    }
+
+    func activity(config: ServerConfig, limit: Int) async throws -> WriteGateActivityResponse {
+        try await get(
+            config: config, path: "/activity?limit=\(limit)",
+            endpoint: L10n.string("动态分组")
+        )
     }
 
     // MARK: - 请求底座（基座代行，本类只给状态口径）
@@ -393,6 +403,10 @@ final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
             }
             demoRules.removeAll { $0.id == id }
         }
+    }
+
+    func activity(config: ServerConfig, limit: Int) async throws -> WriteGateActivityResponse {
+        WriteGateActivityResponse(groups: [], grouped: false)
     }
 
     private func decide(

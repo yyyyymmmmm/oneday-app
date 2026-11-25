@@ -780,3 +780,223 @@ public struct WriteGateRuleResponse: Decodable, Equatable, Sendable {
         self.rule = rule
     }
 }
+
+// MARK: - 分组动态模型（task-level grouped activity feed）
+
+/// 分组动态成员：pending 记录或 decisions 记录的原形，
+/// 另加 state 字段区分待批/已决
+public struct WriteGateActivityMember: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let subsystem: WriteGateSubsystem
+    public let action: String
+    public let summary: String
+    public let origin: String
+    /// "pending" / "decided"
+    public let state: String
+    public let decision: String?
+    public let viaRule: String?
+    public let op: String?
+    public let targetName: String?
+    public let opCount: Int?
+    public let opKinds: [String]?
+    public let memTarget: String?
+    public let contentPreview: String?
+    public let anchor: WriteGateAnchor?
+    public let createdAt: Date?
+    public let decidedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, subsystem, action, summary, origin, state, decision, op, anchor
+        case viaRule = "via_rule"
+        case targetName = "target_name"
+        case opCount = "op_count"
+        case opKinds = "op_kinds"
+        case memTarget = "mem_target"
+        case contentPreview = "content_preview"
+        case createdAt = "created_at"
+        case decidedAt = "decided_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        subsystem = try container.decodeIfPresent(
+            WriteGateSubsystem.self, forKey: .subsystem
+        ) ?? .unknown
+        action = try container.decodeIfPresent(String.self, forKey: .action) ?? ""
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        origin = try container.decodeIfPresent(String.self, forKey: .origin) ?? ""
+        state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
+        decision = try container.decodeIfPresent(String.self, forKey: .decision)
+        viaRule = try container.decodeIfPresent(String.self, forKey: .viaRule)
+        op = try container.decodeIfPresent(String.self, forKey: .op)
+        targetName = try container.decodeIfPresent(String.self, forKey: .targetName)
+        opCount = try container.decodeIfPresent(Int.self, forKey: .opCount)
+        opKinds = try container.decodeIfPresent([String].self, forKey: .opKinds)
+        memTarget = try container.decodeIfPresent(String.self, forKey: .memTarget)
+        contentPreview = try container.decodeIfPresent(
+            String.self, forKey: .contentPreview
+        )
+        anchor = try container.decodeIfPresent(
+            WriteGateAnchor.self, forKey: .anchor
+        )
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            createdAt = nil
+        }
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .decidedAt
+        )) ?? nil {
+            decidedAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .decidedAt
+        )) ?? nil {
+            decidedAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            decidedAt = nil
+        }
+    }
+
+    /// 有效动作：op 非空优先、否则 action（照已决记录口径）
+    public var effectiveOp: String {
+        if let op, !op.isEmpty { return op }
+        return action
+    }
+
+    /// 用户面头条（与已决记录同模板）
+    public var headline: String {
+        headline(locale: AppLocale.uiLocale)
+    }
+
+    public func headline(locale: Locale) -> String {
+        ApprovalHeadline.title(
+            subsystem: subsystem, op: effectiveOp,
+            targetName: targetName, opCount: opCount,
+            opKinds: opKinds, memTarget: memTarget,
+            contentPreview: contentPreview, locale: locale
+        )
+    }
+
+    /// 说明行：与 HubAuditText.decisionDescription 逐字
+    /// 同口径（内容预览优先、英文运维串宁缺勿漏；头条
+    /// 已内嵌同一预览时不重复呈一遍）
+    public var previewLine: String? {
+        guard let line = ApprovalHeadline.previewLine(
+            contentPreview: contentPreview, summary: summary
+        ) else { return nil }
+        if headline.hasSuffix(line) { return nil }
+        return line
+    }
+}
+
+/// 一组分组动态
+public struct WriteGateActivityGroup: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let sessionId: String?
+    public let tier: String?
+    public let titleHuman: String
+    public let preview: String?
+    public let status: String
+    public let counts: Counts
+    public let createdAt: Date?
+    public let updatedAt: Date?
+    public let records: [WriteGateActivityMember]
+
+    public struct Counts: Decodable, Equatable, Sendable {
+        public let pending: Int
+        public let approved: Int
+        public let rejected: Int
+        public let total: Int
+
+        public init(pending: Int, approved: Int, rejected: Int, total: Int) {
+            self.pending = pending
+            self.approved = approved
+            self.rejected = rejected
+            self.total = total
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, tier, preview, status, counts, records
+        case sessionId = "session_id"
+        case titleHuman = "title_human"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
+        tier = try container.decodeIfPresent(String.self, forKey: .tier)
+        titleHuman = try container.decodeIfPresent(
+            String.self, forKey: .titleHuman
+        ) ?? ""
+        preview = try container.decodeIfPresent(String.self, forKey: .preview)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? ""
+        counts = try container.decodeIfPresent(
+            Counts.self, forKey: .counts
+        ) ?? Counts(pending: 0, approved: 0, rejected: 0, total: 0)
+        records = try container.decodeIfPresent(
+            [WriteGateActivityMember].self, forKey: .records
+        ) ?? []
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            createdAt = nil
+        }
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .updatedAt
+        )) ?? nil {
+            updatedAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .updatedAt
+        )) ?? nil {
+            updatedAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            updatedAt = nil
+        }
+    }
+
+    public init(
+        id: String, sessionId: String?, tier: String?,
+        titleHuman: String, preview: String?, status: String,
+        counts: Counts, createdAt: Date?, updatedAt: Date?,
+        records: [WriteGateActivityMember]
+    ) {
+        self.id = id
+        self.sessionId = sessionId
+        self.tier = tier
+        self.titleHuman = titleHuman
+        self.preview = preview
+        self.status = status
+        self.counts = counts
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.records = records
+    }
+}
+
+/// GET /api/write-gate/activity 回执
+public struct WriteGateActivityResponse: Decodable, Equatable, Sendable {
+    public let groups: [WriteGateActivityGroup]
+    public let grouped: Bool
+
+    public init(groups: [WriteGateActivityGroup], grouped: Bool) {
+        self.groups = groups
+        self.grouped = grouped
+    }
+}

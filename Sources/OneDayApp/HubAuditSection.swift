@@ -37,6 +37,7 @@ struct HubAuditSection: View {
     /// 同式：destructive 角色＋后果文案）
     @State private var pendingRevoke: AuditEntry?
     @State private var auditSnapshotCache = AuditSnapshotCache()
+    @State private var expandedGroupIDs: Set<String> = []
 
     private final class AuditSnapshotCache {
         private var key: String?
@@ -45,7 +46,8 @@ struct HubAuditSection: View {
         func entries(
             grantsState: AgentHubStore.GrantsState,
             decisionHistory: [WriteGateDecisionRecord],
-            resolvedLines: [ApprovalResolvedLine]
+            resolvedLines: [ApprovalResolvedLine],
+            activityGroups: [WriteGateActivityGroup]?
         ) -> [AuditEntry] {
             let grantCount: Int
             let grantFirst: String
@@ -56,7 +58,9 @@ struct HubAuditSection: View {
                 grantCount = -1
                 grantFirst = ""
             }
-            let fingerprint = "\(grantCount)|\(grantFirst)|\(decisionHistory.count)|\(decisionHistory.first?.id ?? "")|\(resolvedLines.count)|\(resolvedLines.first?.id ?? "")"
+            let groupsCount = activityGroups?.count ?? -1
+            let groupsFirst = activityGroups?.first.map { "\($0.id)|\($0.updatedAt?.timeIntervalSince1970 ?? 0)" } ?? ""
+            let fingerprint = "\(grantCount)|\(grantFirst)|\(decisionHistory.count)|\(decisionHistory.first?.id ?? "")|\(resolvedLines.count)|\(resolvedLines.first?.id ?? "")|\(groupsCount)|\(groupsFirst)"
             if fingerprint == key {
                 return cached
             }
@@ -64,8 +68,23 @@ struct HubAuditSection: View {
             if case .ready(let response) = grantsState {
                 entries += response.grants.map(AuditEntry.grant)
             }
+            // 分组覆盖逻辑：组内 decided 成员的 id 集
+            let coveredDecisionIDs: Set<String>
+            if let groups = activityGroups {
+                coveredDecisionIDs = Set(
+                    groups.flatMap { group in
+                        group.records.filter { $0.state == "decided" }.map(\.id)
+                    }
+                )
+                entries += groups.map(AuditEntry.activityGroup)
+            } else {
+                coveredDecisionIDs = []
+            }
+            // 已决记录：不在覆盖集中的才出平铺行
             let decisionIDs = Set(decisionHistory.map(\.id))
-            entries += decisionHistory.map(AuditEntry.decision)
+            entries += decisionHistory
+                .filter { !coveredDecisionIDs.contains($0.id) }
+                .map(AuditEntry.decision)
             entries += resolvedLines
                 .filter { !decisionIDs.contains($0.id) }
                 .map(AuditEntry.resolved)
@@ -159,23 +178,26 @@ struct HubAuditSection: View {
         case grant(GrantEntry)
         case decision(WriteGateDecisionRecord)
         case resolved(ApprovalResolvedLine)
+        case activityGroup(WriteGateActivityGroup)
 
         var id: String {
             switch self {
             case .grant(let entry): return "grant:" + entry.grantKey
             case .decision(let record): return "decision:" + record.id
             case .resolved(let line): return "resolved:" + line.id
+            case .activityGroup(let group): return "group:" + group.id
             }
         }
 
         /// 排序时刻：授权取回读到的授予时刻（写闸授
         /// 权恒 nil——投影无此字段，不编造）；裁决取
-        /// 落定时刻；就地行取裁决当时
+        /// 落定时刻；就地行取裁决当时；组取 updatedAt
         var sortDate: Date? {
             switch self {
             case .grant(let entry): return entry.grantedAt
             case .decision(let record): return record.decidedAt
             case .resolved(let line): return line.at
+            case .activityGroup(let group): return group.updatedAt
             }
         }
     }
@@ -184,7 +206,8 @@ struct HubAuditSection: View {
         auditSnapshotCache.entries(
             grantsState: hubStore.grantsState,
             decisionHistory: hubStore.decisionHistory,
-            resolvedLines: hubStore.resolvedLines
+            resolvedLines: hubStore.resolvedLines,
+            activityGroups: hubStore.activityGroups
         )
     }
 
@@ -229,7 +252,16 @@ struct HubAuditSection: View {
 
     // MARK: - 合并行（三级人话）
 
+    @ViewBuilder
     private func entryRow(_ entry: AuditEntry) -> some View {
+        if case .activityGroup(let group) = entry {
+            groupRow(group)
+        } else {
+            regularEntryRow(entry)
+        }
+    }
+
+    private func regularEntryRow(_ entry: AuditEntry) -> some View {
         HStack(
             alignment: .top,
             spacing: OneDayMetrics.spacingSM
@@ -291,6 +323,12 @@ struct HubAuditSection: View {
                 ? "checkmark" : "xmark"
         case .resolved(let line):
             return line.outcome.isPositive ? "checkmark" : "xmark"
+        case .activityGroup(let group):
+            switch group.status {
+            case "pending": return "clock"
+            case "failed": return "xmark"
+            default: return "checkmark"
+            }
         }
     }
 
@@ -304,6 +342,12 @@ struct HubAuditSection: View {
         case .resolved(let line):
             return line.outcome.isPositive
                 ? Palette.success : Palette.danger
+        case .activityGroup(let group):
+            switch group.status {
+            case "pending": return Palette.inkSecondary
+            case "failed": return Palette.danger
+            default: return Palette.success
+            }
         }
     }
 
@@ -318,6 +362,9 @@ struct HubAuditSection: View {
         case .resolved(let line):
             // 就地行 summary 即裁决当时的人话头条
             return line.summary
+        case .activityGroup(let group):
+            // 组头条＝服务端派生的人话标题（title_human）
+            return group.titleHuman
         }
     }
 
@@ -329,6 +376,8 @@ struct HubAuditSection: View {
             return HubAuditText.decisionDescription(record)
         case .resolved:
             return nil
+        case .activityGroup(let group):
+            return group.preview
         }
     }
 
@@ -341,6 +390,8 @@ struct HubAuditSection: View {
         case .resolved(let line):
             return line.outcome.label + " · "
                 + ApprovalTimeText.relative(line.at)
+        case .activityGroup(let group):
+            return groupMeta(group)
         }
     }
 
@@ -354,6 +405,179 @@ struct HubAuditSection: View {
         }
         guard let decidedAt = record.decidedAt else { return head }
         return head + " · " + ApprovalTimeText.relative(decidedAt)
+    }
+
+    // MARK: - 分组动态卡（任务级聚合，展开看每笔）
+
+    /// 组元信息：汇总状态词＋笔数＋相对时间（组内最新
+    /// 活动时刻）；待批计数单列，不许藏进总数里
+    private func groupMeta(_ group: WriteGateActivityGroup) -> String {
+        var parts: [String] = []
+        switch group.status {
+        case "pending":
+            parts.append(L10n.string("待批"))
+        case "failed":
+            parts.append(L10n.string("有驳回"))
+        default:
+            parts.append(L10n.string("已完成"))
+        }
+        if group.counts.total > 1 {
+            parts.append("共 \(group.counts.total) 笔")
+        }
+        if group.counts.pending > 0 {
+            parts.append("待批 \(group.counts.pending)")
+        }
+        if let updatedAt = group.updatedAt {
+            parts.append(ApprovalTimeText.relative(updatedAt))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 成员行元信息：裁决口径与已决行同词（手动批
+    /// 准／按规则放行／已驳回三分，照 decisionMeta）
+    private func memberMeta(
+        _ member: WriteGateActivityMember
+    ) -> String {
+        if member.state == "pending" {
+            var text = L10n.string("待批")
+            if let createdAt = member.createdAt {
+                text += " · " + ApprovalTimeText.relative(createdAt)
+            }
+            return text
+        }
+        var head = member.decision == "approved"
+            ? L10n.string("已批准") : L10n.string("已驳回")
+        if member.viaRule != nil {
+            head = L10n.string("已按规则放行")
+        }
+        guard let at = member.decidedAt ?? member.createdAt
+        else { return head }
+        return head + " · " + ApprovalTimeText.relative(at)
+    }
+
+    private func memberGlyphName(
+        _ member: WriteGateActivityMember
+    ) -> String {
+        if member.state == "pending" { return "clock" }
+        return member.decision == "approved" ? "checkmark" : "xmark"
+    }
+
+    private func memberGlyphTint(
+        _ member: WriteGateActivityMember
+    ) -> Color {
+        if member.state == "pending" { return Palette.inkSecondary }
+        return member.decision == "approved"
+            ? Palette.success : Palette.danger
+    }
+
+    /// 组卡：一张卡一件活（头行与普通行同格），点按
+    /// 展开组内每笔操作明细（只读——裁决仍只在聊天
+    /// 面，本段口径不变）
+    private func groupRow(_ group: WriteGateActivityGroup) -> some View {
+        let entry = AuditEntry.activityGroup(group)
+        let expanded = expandedGroupIDs.contains(group.id)
+        return VStack(
+            alignment: .leading,
+            spacing: OneDayMetrics.spacingS
+        ) {
+            Button {
+                if expanded {
+                    expandedGroupIDs.remove(group.id)
+                } else {
+                    expandedGroupIDs.insert(group.id)
+                }
+            } label: {
+                HStack(
+                    alignment: .top,
+                    spacing: OneDayMetrics.spacingSM
+                ) {
+                    rowGlyph(
+                        systemImage: glyphName(for: entry),
+                        tint: glyphTint(for: entry)
+                    )
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingMicro
+                    ) {
+                        Text(title(for: entry))
+                            .font(.system(
+                                size: OneDayMetrics.hubTitleSize,
+                                weight: .semibold
+                            ))
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(2)
+                        if let description = description(for: entry) {
+                            Text(description)
+                                .font(.rowSubtitle)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(2)
+                        }
+                        Text(meta(for: entry))
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.inkMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Image(
+                        systemName: expanded
+                            ? "chevron.up" : "chevron.down"
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkMuted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                expanded ? "收起这组记录" : "展开这组记录"
+            )
+            if expanded {
+                ForEach(group.records) { member in
+                    memberRow(member)
+                }
+            }
+        }
+        .listRowSeparator(.hidden)
+        .listRowInsets(rowInsets)
+        .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
+    /// 组内成员行：与已决行同三级排版、缩进一档（对
+    /// 齐组头行文字缘），标题走已决同模板、副行走同
+    /// 一 previewLine 口径
+    private func memberRow(
+        _ member: WriteGateActivityMember
+    ) -> some View {
+        HStack(
+            alignment: .top,
+            spacing: OneDayMetrics.spacingSM
+        ) {
+            rowGlyph(
+                systemImage: memberGlyphName(member),
+                tint: memberGlyphTint(member)
+            )
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingMicro
+            ) {
+                Text(member.headline)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+                if let line = member.previewLine {
+                    Text(line)
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+                Text(memberMeta(member))
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+        }
+        .padding(.leading, OneDayMetrics.spacingSM + 24)
     }
 
     // MARK: - 审批规则（§493 迁入，与账本/记录同家）
