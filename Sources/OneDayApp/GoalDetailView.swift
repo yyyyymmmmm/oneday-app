@@ -354,9 +354,7 @@ struct GoalDetailView: View {
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.bodyInk)
                         Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Palette.inkMuted)
+                        DisclosureChevron(font: .footnote.weight(.semibold))
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }

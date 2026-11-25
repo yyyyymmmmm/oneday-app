@@ -285,12 +285,27 @@ struct HubSkillDetailView: View {
             )
 
             Section {
-                SettingsValueRow(title: "来源", value: skill.sourceLabel)
+                SettingsValueRow(
+                    symbol: "globe",
+                    tint: .indigo,
+                    title: "来源",
+                    value: skill.sourceLabel
+                )
                 if let author = skill.author, !author.isEmpty {
-                    SettingsValueRow(title: "作者", value: author)
+                    SettingsValueRow(
+                        symbol: "person",
+                        tint: .blue,
+                        title: "作者",
+                        value: author
+                    )
                 }
                 if let version = skill.version, !version.isEmpty {
-                    SettingsValueRow(title: "版本", value: version)
+                    SettingsValueRow(
+                        symbol: "tag",
+                        tint: .teal,
+                        title: "版本",
+                        value: version
+                    )
                 }
             } header: {
                 SettingsSectionHeader("基本信息")

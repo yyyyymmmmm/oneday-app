@@ -216,12 +216,27 @@ struct MCPCatalogDetailView: View {
                 )
 
                 Section {
-                    SettingsValueRow(title: "安装状态", value: liveEntry.stateLabel)
+                    SettingsValueRow(
+                        symbol: liveEntry.installed ? "checkmark.circle" : "arrow.down.circle",
+                        tint: liveEntry.installed ? .green : .gray,
+                        title: "安装状态",
+                        value: liveEntry.stateLabel
+                    )
                     if let transport = liveEntry.transport, !transport.isEmpty {
-                        SettingsValueRow(title: "传输", value: transport)
+                        SettingsValueRow(
+                            symbol: "arrow.left.arrow.right",
+                            tint: .teal,
+                            title: "传输",
+                            value: transport
+                        )
                     }
                     if let authType = liveEntry.authType, !authType.isEmpty {
-                        SettingsValueRow(title: "鉴权", value: authType)
+                        SettingsValueRow(
+                            symbol: "lock.shield",
+                            tint: .orange,
+                            title: "鉴权",
+                            value: authType
+                        )
                     }
                 } header: {
                     SettingsSectionHeader("服务概览")
