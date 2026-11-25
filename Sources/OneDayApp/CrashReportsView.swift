@@ -2,18 +2,24 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 崩溃报告面（DESIGN §384／总表 131 G-14）
-///
-/// CrashReportStore 的唯一可读面：设置→关于→内
-/// 部实验节直达（与聊天诊断同置同式）。数据真回
-/// 读——MetricKit 投递落盘的记录在此逐条呈现，
-/// 全文皆已过隐私门（白名单字段＋三道清洗），可
-/// 选中复制、可经系统分享整表外发（用户手动，
-/// App 不自动上传）。只读呈现＋清空一钮，不写
-/// 任何业务状态。
+/// 崩溃报告面（DESIGN §384／总表 131 G-14 + hermes-deploy 2.6.0 服务端上报与回读）
+/// 支持查看本机 MetricKit 崩溃记录、一键上传至 `POST /v1/diagnostics/crash-reports`，
+/// 并通过 `GET /v1/diagnostics/crash-reports` 回读服务端已落盘记录。
 struct CrashReportsView: View {
+    @Environment(AppState.self) private var appState
+
+    private enum Tab: String, CaseIterable {
+        case local = "本机记录"
+        case server = "服务端已上报"
+    }
+
+    @State private var selectedTab: Tab = .local
     @State private var refreshTick = 0
     @State private var showClearConfirm = false
+    @State private var serverItems: [ServerCrashReportItem] = []
+    @State private var isLoadingServer = false
+    @State private var isUploading = false
+    @State private var statusBanner: String?
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -23,45 +29,123 @@ struct CrashReportsView: View {
     }()
 
     var body: some View {
-        // refreshTick 入依赖：刷新钮自增即整面重读
         let _ = refreshTick
         let records = CrashReportStore.shared.all()
         List {
-            if records.isEmpty {
+            Section {
+                Picker("来源", selection: $selectedTab) {
+                    ForEach(Tab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+
+            if let statusBanner {
                 Section {
-                    Text("暂无崩溃报告")
+                    Text(statusBanner)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .listRowBackground(Palette.surface)
-            } else {
-                ForEach(records) { record in
+            }
+
+            if selectedTab == .local {
+                if records.isEmpty {
                     Section {
-                        Text(record.displayText(
-                            dateFormatter: Self.dateFormatter
-                        ))
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
+                        Text("暂无本机崩溃报告")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
+                } else {
+                    ForEach(records) { record in
+                        Section {
+                            Text(record.displayText(
+                                dateFormatter: Self.dateFormatter
+                            ))
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                        }
+                        .listRowBackground(Palette.surface)
+                    }
+                }
+            } else {
+                if isLoadingServer && serverItems.isEmpty {
+                    Section {
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            ProgressView()
+                            Text("正在读取服务端记录…")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                    .listRowBackground(Palette.surface)
+                } else if serverItems.isEmpty {
+                    Section {
+                        Text("服务端暂无已上报的崩溃报告")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .listRowBackground(Palette.surface)
+                } else {
+                    ForEach(serverItems) { item in
+                        Section {
+                            Text(item.displayText)
+                                .font(.footnote.monospaced())
+                                .textSelection(.enabled)
+                        }
+                        .listRowBackground(Palette.surface)
+                    }
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("崩溃报告")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            let uploaded = await CrashDiagnosticsCollector.shared.uploadPendingIfNeeded(appState: appState)
+            if uploaded > 0 {
+                statusBanner = "已自动上报 \(uploaded) 条脱敏崩溃记录至服务器。"
+            }
+            await loadServerReports()
+        }
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .server {
+                Task { await loadServerReports() }
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    Task { await uploadNow() }
+                } label: {
+                    if isUploading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "icloud.and.arrow.up")
+                    }
+                }
+                .disabled(records.isEmpty || isUploading || appState.config == nil || appState.isDemo)
+                .accessibilityLabel("上报到服务器")
+
                 ShareLink(item: CrashReportStore.shared.exportText()) {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .disabled(records.isEmpty)
+
                 Button {
                     refreshTick += 1
+                    Task { await loadServerReports() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
+
                 Button(role: .destructive) {
                     showClearConfirm = true
                 } label: {
@@ -71,7 +155,7 @@ struct CrashReportsView: View {
             }
         }
         .confirmationDialog(
-            "清空全部崩溃报告？",
+            "清空全部本机崩溃报告？",
             isPresented: $showClearConfirm,
             titleVisibility: .visible
         ) {
@@ -81,7 +165,41 @@ struct CrashReportsView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("只清这台手机上的报告副本，不影响任何其他数据。")
+            Text("只清这台手机上的报告副本，不影响服务端已上报的记录。")
+        }
+    }
+
+    private func uploadNow() async {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey,
+              !appState.isDemo
+        else { return }
+        let records = CrashReportStore.shared.all()
+        guard !records.isEmpty else { return }
+        isUploading = true
+        defer { isUploading = false }
+        do {
+            let receipt = try await appState.client.uploadCrashReports(
+                config: config, apiKey: apiKey, reports: records
+            )
+            statusBanner = "已上报 \(receipt.accepted) 条记录至服务器。"
+            await loadServerReports()
+        } catch {
+            statusBanner = (error as? HermesError)?.userMessage ?? "上报失败，请稍后重试。"
+        }
+    }
+
+    private func loadServerReports() async {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey,
+              !appState.isDemo
+        else { return }
+        isLoadingServer = true
+        defer { isLoadingServer = false }
+        if let list = try? await appState.client.listServerCrashReports(
+            config: config, apiKey: apiKey, limit: 50
+        ) {
+            serverItems = list
         }
     }
 }

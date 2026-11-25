@@ -23,6 +23,9 @@ struct ToolsetsSettingsView: View {
             content
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("工具")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -54,14 +57,14 @@ struct ToolsetsSettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
                     Text("正在读取工具集…")
-                        .font(.subheadline)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
         case .unavailable(let message), .failed(let message):
             Section {
                 Text(message)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
                 Button("重试") {
                     Task { await store.load(appState: appState) }
@@ -119,7 +122,7 @@ struct ToolsetsSettingsView: View {
                     spacing: OneDayMetrics.spacingMicro
                 ) {
                     Text(row.displayLabel)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     if !row.description.isEmpty,
                        ServerLabels.isChineseText(row.description) {
@@ -214,7 +217,7 @@ struct ToolsetsSettingsView: View {
                     spacing: OneDayMetrics.spacingMicro
                 ) {
                     Text(backend.displayLabel)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(backendStatusText(backend))
                         .font(.caption)
@@ -300,6 +303,9 @@ struct ToolsetDetailView: View {
             detailSections
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(row?.displayLabel ?? name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -317,7 +323,7 @@ struct ToolsetDetailView: View {
         return Section {
             if !row.description.isEmpty {
                 Text(row.description)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
             }
             Toggle(
@@ -371,7 +377,7 @@ struct ToolsetDetailView: View {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
                     Text("正在读取细调项…")
-                        .font(.subheadline)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
@@ -427,7 +433,7 @@ struct ToolsetDetailView: View {
                         spacing: OneDayMetrics.spacingXS
                     ) {
                         Text(provider.name)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if !provider.badge.isEmpty {
                             Text(provider.badge)
@@ -513,7 +519,7 @@ struct ToolsetDetailView: View {
                     spacing: OneDayMetrics.spacingMicro
                 ) {
                     Text(model.displayName)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     HStack(
                         spacing: OneDayMetrics.spacingXS

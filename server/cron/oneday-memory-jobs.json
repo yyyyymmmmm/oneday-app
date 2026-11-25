@@ -1,0 +1,20 @@
+[
+  {
+    "id": "6f1d2c3a-4b5e-4a6b-8c7d-0e1f2a3b4c01",
+    "name": "OneDay 记忆日结",
+    "prompt": "执行 OneDay 记忆日结提炼：先完整阅读技能 oneday-memory 的第 2 节程序，再按程序处理今天的 journal 与今日新会话。日期以本机时区今天为准。提炼回执必须写进今天的 journal 文件尾部。不要处理待确认区，不要绕过 write_approval。",
+    "schedule": {"kind": "cron", "expr": "40 23 * * *", "display": "40 23 * * *"},
+    "skills": ["oneday-memory"],
+    "deliver": "local",
+    "enabled": true
+  },
+  {
+    "id": "6f1d2c3a-4b5e-4a6b-8c7d-0e1f2a3b4c02",
+    "name": "OneDay 记忆周体检",
+    "prompt": "执行 OneDay 记忆周体检：先完整阅读技能 oneday-memory 的第 3 节程序，再按程序复核洞见投票、技能准入审计与热度冷层建议。体检报告写进今天的 journal 文件。只出建议与治理动作，不自动搬动或删除任何记忆正文。",
+    "schedule": {"kind": "cron", "expr": "30 10 * * 0", "display": "30 10 * * 0"},
+    "skills": ["oneday-memory"],
+    "deliver": "local",
+    "enabled": true
+  }
+]

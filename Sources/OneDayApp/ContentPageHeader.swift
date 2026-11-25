@@ -2,20 +2,9 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 内容页共同页头簇（§486 立、§498 收编为单源）：动态/
-/// 点子/目标/资源库四内容页共用同一簇——左抽屉圆钮＋
-/// 居中身份区（大头像 hero＋身份胶囊压下沿，与聊天页
-/// topBand 同构成同数值）＋右页专属动作位（逐页登记
-/// 见 §498：动态＝滑杆、点子＝无、目标＝无、资源库＝
-/// 放大镜＋菜单）。
-/// §498（用户 2026-11-24 真机点名）：§486.4 的滚动整
-/// 簇收起废止——共同簇在全部主页面恒常驻，滚动不消
-/// 失、不淡没、不位移（聊天页现行行为）；几何对齐聊
-/// 天 topBand 定版：钮行顶距 spacingS（钮心在头像心
-/// 上方 ≈8，§449.3）、hero 顶距 spacingXS、带高 107
-/// （头像 67＋胶囊 44－重叠 8＋顶距 4）。胶囊状态词
-/// 与聊天同源（§474：liveActivityPhrase 直读、无活
-/// 动留空，不回落连接词）；头像钮与聊天同路。
+/// 内容页共同页头簇（大厂 52pt 标准单行顶栏）：
+/// 动态/点子/目标/资源库共用，搭配原生 .safeAreaBar(edge: .top)
+/// 自动触发与聊天页一致的 iOS 26 顶部 Liquid Glass 朦胧效果。
 struct ContentPageHeader<Trailing: View>: View {
     @Environment(AppState.self) private var appState
 
@@ -23,8 +12,14 @@ struct ContentPageHeader<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        ZStack(alignment: .top) {
-            hero
+        ZStack(alignment: .center) {
+            HubIdentityCapsule(
+                displayName: appState.agentDisplayName,
+                statusWord: appState.liveActivityPhrase,
+                avatar: appState.agentAvatarImage,
+                statusColor: statusColor,
+                onOpenHub: onOpenHub
+            )
             HStack(alignment: .center) {
                 PageHeaderCircleButton(
                     symbol: "line.3.horizontal",
@@ -35,50 +30,9 @@ struct ContentPageHeader<Trailing: View>: View {
                 Spacer()
                 trailing
             }
-            // 钮行顶距与聊天 topBand 同值（spacingS）：
-            // 钮心落在头像心上方 ≈8pt（§449.3 量测
-            // 定版）；§486 旧值 spacingSM 钮心低 4pt，
-            // §498 对齐废止
-            .padding(.top, OneDayMetrics.spacingS)
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
-    }
-
-    /// 居中身份区：与聊天页 headerIdentityHero 逐值同
-    /// 构成（HubAvatarButton hero 档＋HubIdentity-
-    /// Capsule 压下沿 8）——同件同数，不许在本件另
-    /// 定一套。状态点数据源与文件页旧 IdentityAnchor
-    /// 同口径（config 在位判定；聊天页走总览桥
-    /// statusTone，边缘态分叉登记于 §498）
-    private var hero: some View {
-        ZStack(alignment: .bottom) {
-            HubAvatarButton(
-                avatar: appState.agentAvatarImage,
-                displayName: appState.agentDisplayName,
-                statusWord: statusWord,
-                statusColor: statusColor,
-                avatarPointSize: OneDayMetrics.avatarChatHero,
-                onOpenHub: onOpenHub
-            )
-            .padding(.bottom, 36)
-
-            HubIdentityCapsule(
-                displayName: appState.agentDisplayName,
-                // §474/§498：第二行只读工作短语（与聊
-                // 天胶囊同源同口径）；无活动传 nil 留
-                // 空——§486 旧回落「在线/未连接」删除
-                statusWord: appState.liveActivityPhrase,
-                onOpenHub: onOpenHub
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, OneDayMetrics.spacingXS)
-    }
-
-    /// 连接状态词（头像钮状态点/无障碍口径：config
-    /// 缺位＝未连接；胶囊第二行不消费本词）
-    private var statusWord: String {
-        appState.config == nil ? "未连接" : "在线"
+        .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
     private var statusColor: Color {
@@ -86,10 +40,7 @@ struct ContentPageHeader<Trailing: View>: View {
     }
 }
 
-/// 页头圆盘视觉（单源）：系统玻璃盘 40＋字形 20＋
-/// 命中域外扩 44。按钮（PageHeaderCircleButton）与
-/// 菜单标签（资源库 ···）共用同一视觉本体，不许各
-/// 页另描一遍
+/// 页头圆盘视觉（单源）：系统玻璃盘 40＋字形 20＋命中域外扩 44
 struct PageHeaderCircleGlyph: View {
     let symbol: String
 
@@ -113,8 +64,7 @@ struct PageHeaderCircleGlyph: View {
     }
 }
 
-/// 页头圆钮（聊天页顶栏圆钮同规格：HeaderButtonSpec
-/// 单源，见 PageHeaderCircleGlyph）
+/// 页头圆钮
 struct PageHeaderCircleButton: View {
     let symbol: String
     let label: String

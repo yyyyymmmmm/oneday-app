@@ -1,0 +1,11 @@
+data.env
+credentials.txt
+*.conf
+!nginx.conf.example
+!device-bridge-nginx-draft.conf
+!services/*.conf
+*.db
+*.orig
+__pycache__/
+*.pyc
+NotoSansSC-subset.ttf

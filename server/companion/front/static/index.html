@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OneDay 伴生服务</title>
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+
+<!-- 登录页 -->
+<div id="loginView" class="login-wrap">
+  <div class="login-card" id="loginCard">
+    <div class="login-brand">
+      <div class="brand-mark">知</div>
+      <div>
+        <div class="brand-title">OneDay 伴生服务</div>
+        <div class="brand-sub">服务器管理面板</div>
+      </div>
+    </div>
+
+    <div class="seg" id="loginSeg" role="tablist" aria-label="登录方式">
+      <button type="button" class="seg-btn is-active" data-method="password" role="tab" aria-selected="true">密码登录</button>
+      <button type="button" class="seg-btn" data-method="key" role="tab" aria-selected="false">密钥登录</button>
+    </div>
+
+    <form id="loginForm" novalidate>
+      <div id="passwordField" class="field">
+        <label for="loginPassword">面板密码</label>
+        <div class="input-eye">
+          <input type="password" id="loginPassword" autocomplete="current-password" placeholder="输入你设置的密码">
+          <button type="button" class="eye-btn" id="togglePassword" aria-label="显示或隐藏密码">👁</button>
+        </div>
+      </div>
+      <div id="keyField" class="field hidden">
+        <label for="loginKey">登录密钥</label>
+        <input type="password" id="loginKey" autocomplete="off" placeholder="输入系统原生的登录密钥">
+      </div>
+      <p class="hint">密码是你部署时自己设的，好记；密钥是系统原生的那一把，一直有效。首次部署请用密钥进来，再去设置密码。</p>
+      <p class="form-error hidden" id="loginError" role="alert"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+        <span class="btn-spinner hidden" id="loginSpinner"></span>
+        <span id="loginBtnText">登录</span>
+      </button>
+    </form>
+  </div>
+  <p class="login-foot">忘记密码：在服务器上运行重置命令，或改用密钥登录进来重设。</p>
+</div>
+
+<!-- 主界面 -->
+<div id="appView" class="app-shell hidden">
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">OneDay 伴生服务</span>
+      <span class="topbar-ver" id="topVersion"></span>
+    </div>
+    <div class="topbar-right">
+      <button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">退出登录</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidenav" id="mainNav" aria-label="主导航">
+      <button type="button" class="nav-item is-active" data-page="overview">状态总览</button>
+      <button type="button" class="nav-item" data-page="selfcheck">配置自检</button>
+      <button type="button" class="nav-item" data-page="connections">连接管理</button>
+      <button type="button" class="nav-item" data-page="modules">模块开关</button>
+      <button type="button" class="nav-item" data-page="version">版本对齐</button>
+    </nav>
+
+    <main class="content" id="contentArea">
+
+      <!-- 页一：状态总览 -->
+      <section class="page is-active" id="page-overview">
+        <div class="status-banner" id="healthBanner"><span id="healthText">正在读取状态…</span><span class="banner-ver" id="bannerVersion"></span></div>
+
+        <div class="card" id="hermesCard">
+          <div class="card-head"><h2>Hermes 本体</h2><span class="badge" id="hermesBadge">读取中</span></div>
+          <div class="kv-list">
+            <div class="kv"><span>连接状态</span><strong id="hermesUp">—</strong></div>
+            <div class="kv"><span>需要版本</span><strong>v0.23.0</strong></div>
+            <div class="kv hidden" id="hermesLatencyRow"><span>连通延迟</span><strong id="hermesLatency">—</strong></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>服务模块</h2><button type="button" class="btn btn-ghost btn-sm" id="refreshOverview">刷新</button></div>
+          <div id="overviewModules" class="module-list"><p class="empty-text">正在读取…</p></div>
+          <div class="expand-panel hidden" id="overviewLogPanel">
+            <div class="expand-head"><span id="overviewLogTitle">日志</span><button type="button" class="btn btn-ghost btn-sm" id="closeOverviewLog">收起</button></div>
+            <pre class="log-box" id="overviewLogBox"></pre>
+          </div>
+        </div>
+
+        <div class="card hidden" id="resourceCard">
+          <div class="card-head"><h2>资源</h2></div>
+          <div class="kv-list" id="resourceList"></div>
+        </div>
+
+        <div class="card" id="syncCard">
+          <div class="card-head"><h2>本地数据同步</h2><button type="button" class="btn btn-ghost btn-sm" id="refreshSync">刷新</button></div>
+          <div id="syncList"><p class="empty-text">正在读取…</p></div>
+          <p class="muted small">这里只显示每类数据的条数、同步时刻和授权范围，不显示任何一条记录的内容。</p>
+          <button type="button" class="btn btn-danger-lite" id="syncDeleteAll">删除全部同步副本</button>
+        </div>
+
+        <div class="card" id="ledgerCard">
+          <div class="card-head"><h2>工作台账</h2><button type="button" class="btn btn-ghost btn-sm" id="refreshLedger">刷新</button></div>
+          <div id="ledgerSummary"><p class="empty-text">正在读取…</p></div>
+          <p class="muted small">这里只显示台账的计数（正在进行 / 待审批 / 失联待核 / 今日完成与失败）和采集器心跳，不显示任何任务的标题和内容。</p>
+        </div>
+
+        <button type="button" class="chip-card hidden" id="selfcheckChip"></button>
+        <div class="empty-state hidden" id="overviewEmpty">暂时取不到状态，请稍后刷新重试。</div>
+        <p class="muted small" id="overviewUpdated"></p>
+      </section>
+
+      <!-- 页二：配置自检 -->
+      <section class="page" id="page-selfcheck">
+        <div class="page-head">
+          <h1>配置自检</h1>
+          <div class="page-actions">
+            <label class="check-inline"><input type="checkbox" id="probeToggle"> 包含真实探针 <span class="muted">（会产生真实请求）</span></label>
+            <button type="button" class="btn btn-primary" id="runSelfcheckBtn"><span class="btn-spinner hidden" id="selfcheckSpinner"></span><span>开始自检</span></button>
+          </div>
+        </div>
+        <p class="muted" id="selfcheckMeta">还没有运行过自检。</p>
+        <div id="selfcheckResults"></div>
+      </section>
+
+      <!-- 页三：连接管理 -->
+      <section class="page" id="page-connections">
+        <div class="page-head">
+          <h1>连接管理</h1>
+          <button type="button" class="btn btn-primary" id="addComputerBtn">添加云电脑</button>
+        </div>
+        <div class="card"><div id="connectionsList"><p class="empty-text">正在读取…</p></div></div>
+        <p class="muted small">凭据只保存到你自己的服务器，页面只显示有没有配置、不会回显具体内容。保存凭据后如果需要重启 Hermes 才生效，会在每条连接的说明里写明。</p>
+        <div id="connectionsNotes"></div>
+      </section>
+
+      <!-- 页四：模块开关 -->
+      <section class="page" id="page-modules">
+        <div class="page-head"><h1>模块开关</h1><button type="button" class="btn btn-ghost btn-sm" id="refreshModules">刷新</button></div>
+        <div class="card"><div id="modulesList"><p class="empty-text">正在读取…</p></div></div>
+        <div class="expand-panel hidden" id="moduleLogPanel">
+          <div class="expand-head"><span id="moduleLogTitle">日志</span><button type="button" class="btn btn-ghost btn-sm" id="closeModuleLog">收起</button></div>
+          <pre class="log-box" id="moduleLogBox"></pre>
+        </div>
+      </section>
+
+      <!-- 页五：版本对齐 -->
+      <section class="page" id="page-version">
+        <div class="page-head"><h1>版本对齐</h1><button type="button" class="btn btn-ghost btn-sm" id="refreshVersion">刷新</button></div>
+        <div class="card">
+          <table class="ver-table">
+            <thead><tr><th>部件</th><th>这台实际版本</th><th>需要</th><th>状态</th></tr></thead>
+            <tbody id="versionBody"><tr><td colspan="4" class="empty-text">正在读取…</td></tr></tbody>
+          </table>
+          <p class="muted small" id="appCompatNote"></p>
+          <p class="muted small hidden" id="lastKnownGood"></p>
+        </div>
+        <div class="card hidden" id="cmdCard">
+          <h2 class="card-title">在服务器上执行的命令</h2>
+          <div class="cmd-block hidden" id="upgradeBlock">
+            <div class="cmd-head"><span>升级</span><button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="upgradeCmd">复制</button></div>
+            <pre class="cmd-text" id="upgradeCmd"></pre>
+          </div>
+          <div class="cmd-block hidden" id="rollbackBlock">
+            <div class="cmd-head"><span>回滚</span><button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="rollbackCmd">复制</button></div>
+            <pre class="cmd-text" id="rollbackCmd"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">修改面板密码</h2>
+          <form id="passwordForm" class="inline-form">
+            <input type="password" id="newPassword" placeholder="输入新密码" autocomplete="new-password">
+            <button type="submit" class="btn btn-primary">保存新密码</button>
+          </form>
+          <p class="form-ok hidden" id="passwordOk">已保存，下次用新密码登录。</p>
+          <p class="form-error hidden" id="passwordError"></p>
+        </div>
+        <p class="muted small">面板不直接操作服务器，上面的命令请在服务器上执行。</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通用弹窗 -->
+<div class="modal-mask hidden" id="modalMask">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head"><h3 id="modalTitle">提示</h3><button type="button" class="btn btn-ghost btn-sm" id="modalClose">关闭</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<script src="static/app.js"></script>
+</body>
+</html>

@@ -105,6 +105,9 @@ struct ModelSettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("模型与服务商")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.load(appState: appState, forceCatalog: true) }
@@ -214,11 +217,11 @@ struct ModelSettingsView: View {
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Text("默认模型")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Text(defaultRowValue)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                     if store.isLoading {
@@ -358,7 +361,7 @@ struct ModelSettingsView: View {
                         Image(systemName: "plus.circle.fill")
                             .foregroundStyle(Palette.primary)
                         Text("添加服务商")
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                     }
                 }
@@ -395,14 +398,14 @@ struct ModelSettingsView: View {
             ForEach(entries, id: \.key) { entry in
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Text(entry.title)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Button("恢复") {
                         appState.restoreProviderGroup(key: entry.key)
                     }
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.primary)
                 }
             }
@@ -419,7 +422,7 @@ struct ModelSettingsView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(name)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
             Spacer(minLength: OneDayMetrics.spacingS)
@@ -443,7 +446,7 @@ struct ModelSettingsView: View {
             } label: {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text("给各用途分配模型")
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(auxSummaryLine)
                         .font(.footnote)
@@ -455,14 +458,14 @@ struct ModelSettingsView: View {
                 PresetsView(store: store)
             } label: {
                 Text("预设")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
             }
             NavigationLink {
                 MoaView(modelStore: store)
             } label: {
                 Text("多模型会商")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
             }
         } header: {
@@ -518,6 +521,9 @@ struct ModelSettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .searchable(text: $detailQuery, prompt: Text("搜索模型"))
         .navigationTitle("默认服务商")
         .navigationBarTitleDisplayMode(.inline)
@@ -592,11 +598,14 @@ struct ModelSettingsView: View {
                     pendingDeleteProvider = entry
                 } label: {
                     Text("删除服务商")
-                        .font(.body)
+                        .font(.rowTitleL)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .searchable(text: $detailQuery, prompt: Text("搜索模型"))
         .navigationTitle(entry.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -629,7 +638,7 @@ struct ModelSettingsView: View {
                     ProgressView()
                 }
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.primary)
             }
         }
@@ -803,6 +812,9 @@ struct DefaultModelPickerView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .searchable(text: $query, prompt: Text("搜索模型"))
         .navigationTitle("默认模型")
         .navigationBarTitleDisplayMode(.inline)

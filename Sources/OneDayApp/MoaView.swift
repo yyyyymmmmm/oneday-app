@@ -49,6 +49,7 @@ struct MoaView: View {
             content
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("多模型会商")
@@ -149,7 +150,7 @@ struct MoaView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text(name)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 if config.defaultPreset == name {
                     Text("默认")

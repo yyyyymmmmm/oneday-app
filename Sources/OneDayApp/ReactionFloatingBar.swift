@@ -75,6 +75,7 @@ final class ReactionBarSession: ObservableObject, Identifiable {
 struct ReactionFloatingBarView: View {
     let ownEmoji: String?
     let onPick: (String) -> Void
+    var onOpenMore: (() -> Void)? = nil
 
     @State private var showsAllEmojis = false
     @State private var pendingPick: String?
@@ -118,13 +119,7 @@ struct ReactionFloatingBarView: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, OneDayMetrics.spacingXS)
-        .background(Palette.surface, in: Capsule())
-        .overlay {
-            Capsule().strokeBorder(
-                Palette.pageBG, lineWidth: 1.5
-            )
-        }
-        .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
+        .glassEffect(.regular, in: Capsule())
         .sheet(
             isPresented: $showsAllEmojis,
             onDismiss: deliverPendingPick
@@ -141,7 +136,11 @@ struct ReactionFloatingBarView: View {
     /// 「＋」全集入口（Muse 同位：排右端独立圆面）
     private var plusButton: some View {
         Button {
-            showsAllEmojis = true
+            if let onOpenMore {
+                onOpenMore()
+            } else {
+                showsAllEmojis = true
+            }
         } label: {
             ZStack {
                 Circle().fill(Palette.pageBG)

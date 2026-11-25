@@ -179,7 +179,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text("\(proposal.operation.label) · \(proposal.target.label)")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if let note = proposal.note {
@@ -201,7 +201,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(record.headline)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("上次打开时提交的，还在等审批。")
@@ -264,7 +264,7 @@ struct MemoryEntriesSection: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(MemoryEntryPresentation.displayTitle(of: entry))
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(2)
                 Text(AdminFormat.short(
@@ -354,119 +354,123 @@ struct MemoryEntryDetailView: View {
     @ViewBuilder
     private func content(_ entry: BridgeMemoryEntry) -> some View {
         let pending = store.hasPendingOperation(entry)
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                metaGroup(entry)
-                contentGroup(entry)
-                if pending {
+        List {
+            metaGroup(entry)
+            contentGroup(entry)
+            if pending {
+                Section {
                     Text("这条记忆有一条修改正在待审批，批准前内容保持原样。")
                         .font(.footnote)
                         .foregroundStyle(Palette.primary)
-                        .padding(.bottom, OneDayMetrics.spacingM)
                 }
-                if let note = store.notesOnDelete {
-                    InlineError(note)
-                        .padding(.bottom, OneDayMetrics.spacingM)
-                }
-                actionsGroup(entry, pending: pending)
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            if let note = store.notesOnDelete {
+                Section {
+                    InlineError(note)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            }
+            actionsGroup(entry, pending: pending)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
     }
 
     private func metaGroup(_ entry: BridgeMemoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(spacing: 0) {
-                // 键值行走 KeyValueRow（台账 198 收敛
-                // S5 嫌疑页查实：来源/更新时间两行同构造）
-                KeyValueRow("来源", value: entry.target.label)
-                GroupDivider()
-                KeyValueRow(
-                    "更新时间",
-                    value: AdminFormat.short(
-                        Date(timeIntervalSince1970: entry.updatedAt)
-                    )
+        Section {
+            // 键值行走 KeyValueRow（台账 198 收敛
+            // S5 嫌疑页查实：来源/更新时间两行同构造）
+            KeyValueRow("来源", value: entry.target.label)
+            KeyValueRow(
+                "更新时间",
+                value: AdminFormat.short(
+                    Date(timeIntervalSince1970: entry.updatedAt)
                 )
-            }
-            .odGroup()
+            )
+        } footer: {
             Text("更新时间是记忆文件的最近修改时刻，同一文件里的条目相同。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
-                .padding(.top, OneDayMetrics.spacingS)
         }
-        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    @ViewBuilder
     private func contentGroup(_ entry: BridgeMemoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("全文")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            Group {
-                if let detail = store.details[entryID] {
-                    Text(detail.content)
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if let error = store.detailErrors[entryID] {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                        InlineError(error)
-                        Button("重试") {
-                            Task {
-                                await store.loadDetail(
-                                    appState: appState, id: entryID
-                                )
-                            }
+        Section {
+            if let detail = store.details[entryID] {
+                Text(detail.content)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(OneDayMetrics.spacingM)
+            } else if let error = store.detailErrors[entryID] {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                    InlineError(error)
+                    Button("重试") {
+                        Task {
+                            await store.loadDetail(
+                                appState: appState, id: entryID
+                            )
                         }
-                        .buttonStyle(.odSecondary)
                     }
-                } else {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        ProgressView()
-                        Text("正在读取全文…")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
+                    .buttonStyle(.odSecondary)
                 }
+                .padding(OneDayMetrics.spacingM)
+            } else {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text("正在读取全文…")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .padding(OneDayMetrics.spacingM)
             }
-            .padding(OneDayMetrics.spacingM)
-            .odGroup()
+        } header: {
+            SettingsSectionHeader("全文")
         }
-        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func actionsGroup(
         _ entry: BridgeMemoryEntry, pending: Bool
     ) -> some View {
         let writable = !pending && store.memoryGateEnabled != false
-        return VStack(spacing: OneDayMetrics.spacingS) {
-            Button {
-                showingEditor = true
-            } label: {
-                Label("编辑这条记忆", systemImage: "pencil")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.odSecondary)
-            .disabled(!writable || store.details[entryID] == nil)
-            Button(role: .destructive) {
-                store.clearDeleteNote()
-                confirmingForget = true
-            } label: {
-                Label("遗忘这条记忆", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.odSecondary)
-            .disabled(!writable)
-            if store.memoryGateEnabled == false {
-                Text("记忆写入审批未启用，暂时不能提交修改或遗忘。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+        return Section {
+            VStack(spacing: OneDayMetrics.spacingS) {
+                Button {
+                    showingEditor = true
+                } label: {
+                    Label("编辑这条记忆", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.odSecondary)
+                .disabled(!writable || store.details[entryID] == nil)
+                Button(role: .destructive) {
+                    store.clearDeleteNote()
+                    confirmingForget = true
+                } label: {
+                    Label("遗忘这条记忆", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.odSecondary)
+                .disabled(!writable)
+                if store.memoryGateEnabled == false {
+                    Text("记忆写入审批未启用，暂时不能提交修改或遗忘。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
             }
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 }
 
@@ -561,7 +565,7 @@ struct MemoryEntryEditorView: View {
             if isEdit {
                 HStack {
                     Text(target.label)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Text("目标文件不能改")

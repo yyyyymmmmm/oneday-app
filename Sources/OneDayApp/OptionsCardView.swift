@@ -20,34 +20,55 @@ struct OptionsCardView: View {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                     Button {
+                        Haptics.selection()
                         onSelect(option)
                     } label: {
-                        Text(option.label)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(minHeight: OneDayMetrics.minTapTarget)
-                            .padding(.horizontal, OneDayMetrics.spacingS)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: OneDayMetrics.containerCorner
-                                )
-                                .fill(Color.secondary.opacity(0.12))
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            Text(option.label)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Palette.primary.opacity(0.85))
+                        }
+                        .frame(minHeight: OneDayMetrics.minTapTarget)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .background(
+                            RoundedRectangle(
+                                cornerRadius: OneDayMetrics.radiusCard,
+                                style: .continuous
                             )
+                            .fill(Palette.surface)
+                        )
+                        .overlay {
+                            RoundedRectangle(
+                                cornerRadius: OneDayMetrics.radiusCard,
+                                style: .continuous
+                            )
+                            .strokeBorder(Palette.separator.opacity(0.6), lineWidth: 0.5)
+                        }
                     }
-                    .buttonStyle(.odPressable)
+                    .buttonStyle(.plain)
                 }
             }
         case .selected(let label):
-            Text("已选：\(label)")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .frame(minHeight: OneDayMetrics.minTapTarget, alignment: .leading)
+            HStack(spacing: OneDayMetrics.spacingXS) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.primary)
+                Text("已选：\(label)")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            .frame(minHeight: OneDayMetrics.minTapTarget, alignment: .leading)
         case .expired:
             Text(options.map(\.label).joined(separator: " · "))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
-                .opacity(0.45)
+                .foregroundStyle(Palette.inkSecondary)
+                .opacity(0.55)
                 .lineLimit(1)
                 .frame(minHeight: OneDayMetrics.minTapTarget, alignment: .leading)
         case .hidden:

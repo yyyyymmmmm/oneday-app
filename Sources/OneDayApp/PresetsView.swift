@@ -46,6 +46,9 @@ struct PresetsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("预设")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingPreset) { combo in
@@ -86,7 +89,7 @@ struct PresetsView: View {
                 Image(systemName: "tray.and.arrow.down")
                     .foregroundStyle(Palette.primary)
                 Text("把当前设置存为预设")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
             }
         }
@@ -100,7 +103,7 @@ struct PresetsView: View {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(Palette.primary)
                 Text("新建预设")
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
             }
         }
@@ -115,7 +118,7 @@ struct PresetsView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text(preset.name)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if isActive {
                             Text("使用中")

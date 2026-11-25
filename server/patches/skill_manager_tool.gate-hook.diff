@@ -1,0 +1,22 @@
+--- a/tools/skill_manager_tool.py
++++ b/tools/skill_manager_tool.py
+@@ -416,6 +416,19 @@
+         original = target.read_text(encoding="utf-8-sig")
+     if target == skill_dir / "SKILL.md" and (err := _description_budget_error(content, before=original)):
+         return _err(err)
++    # OneDay admission hard gate (deploy package, DESIGN section 444):
++    # validate the would-be skill tree in a temp staging area BEFORE any
++    # byte lands.  A rejection -- or a gate fault, fail-closed -- returns
++    # an error here and the on-disk skill stays untouched; every decision
++    # is recorded in the admission ledger (memories/oneday/admission).
++    try:
++        from tools.skill_admission_gate import admission_check
++        _gate_actor = "curator" if _is_background_review() else "agent"
++        if gate_error := admission_check(name, skill_dir, target, action,
++                                         content, actor=_gate_actor):
++            return _err(gate_error)
++    except Exception as gate_exc:  # fail-closed: never wave a write past a broken gate
++        return _err(f"Skill admission gate unavailable ({gate_exc}); write refused.")
+     from hermes_constants import mkdir_under_hermes_home
+     mkdir_under_hermes_home(target.parent)
+     atomic_write_text(target, content, preserve_mode=True, create_mode=0o644)

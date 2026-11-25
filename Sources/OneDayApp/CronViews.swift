@@ -25,82 +25,81 @@ struct CronJobsView: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
             Spacer(minLength: OneDayMetrics.spacingS)
-            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
         .contentShape(Rectangle())
-        .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if !jobs.isEmpty {
-                    // 0.3.7 卡 15：摘要卡＋按状态两组
-                    summaryCard
-                    jobGroup(title: "开着的", jobs: jobs.filter(\.enabled))
-                    jobGroup(title: "停着的", jobs: jobs.filter { !$0.enabled })
-                } else if !store.hasLoaded, let errorMessage = store.errorMessage {
+        List {
+            if !jobs.isEmpty {
+                // 0.3.7 卡 15：摘要卡＋按状态两组
+                summaryCard
+                jobGroup(title: "开着的", jobs: jobs.filter(\.enabled))
+                jobGroup(title: "停着的", jobs: jobs.filter { !$0.enabled })
+            } else if !store.hasLoaded, let errorMessage = store.errorMessage {
+                Section {
                     InlineError(errorMessage)
                     Button("重试") { Task { await store.refresh() } }
                         .buttonStyle(.odSecondary)
-                        .padding(.top, OneDayMetrics.spacingSM)
-                } else if !store.hasLoaded {
+                }
+                .listRowBackground(Color.clear)
+            } else if !store.hasLoaded {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取任务…")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
-                } else {
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
                     ODEmptyState(
                         "还没有定时任务",
                         systemImage: "clock.arrow.2.circlepath"
                     )
-                    .padding(.top, OneDayMetrics.spacingXXL)
                 }
-                // 接入组（H11/H13，DESIGN §390）：外部事件
-                // 与钩子只读——与定时任务同属自动化面
-                SectionLabel("接入")
-                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                VStack(spacing: 0) {
-                    NavigationLink {
-                        WebhooksView()
-                    } label: {
-                        accessRow(
-                            title: "外部事件",
-                            detail: "GitHub、监控、表单的事件直达触发 Hermes"
-                        )
-                    }
-                    .buttonStyle(.odPressable)
-                    GroupDivider()
-                    NavigationLink {
-                        OpsHooksView()
-                    } label: {
-                        accessRow(
-                            title: "钩子",
-                            detail: "服务器上已配的自动命令，只看不改"
-                        )
-                    }
-                    .buttonStyle(.odPressable)
-                }
-                .odGroup()
+                .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            // 接入组（H11/H13，DESIGN §390）：外部事件
+            // 与钩子只读——与定时任务同属自动化面
+            Section {
+                NavigationLink {
+                    WebhooksView()
+                } label: {
+                    accessRow(
+                        title: "外部事件",
+                        detail: "GitHub、监控、表单的事件直达触发 Hermes"
+                    )
+                }
+                NavigationLink {
+                    OpsHooksView()
+                } label: {
+                    accessRow(
+                        title: "钩子",
+                        detail: "服务器上已配的自动命令，只看不改"
+                    )
+                }
+            } header: {
+                SettingsSectionHeader("接入")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("定时任务")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -150,15 +149,17 @@ struct CronJobsView: View {
     }
 
     private var summaryCard: some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            Text(summaryText)
-                .font(.callout)
-                .foregroundStyle(Palette.ink)
-            Spacer()
+        Section {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Text(summaryText)
+                    .font(.callout)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .odGroup()
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var summaryText: String {
@@ -181,20 +182,15 @@ struct CronJobsView: View {
     @ViewBuilder
     private func jobGroup(title: String, jobs groupJobs: [CronJob]) -> some View {
         if !groupJobs.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                SectionLabel(title)
-                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                VStack(spacing: 0) {
-                    ForEach(Array(groupJobs.enumerated()), id: \.element.id) { index, job in
-                        if index > 0 {
-                            GroupDivider()
-                        }
-                        jobRow(job)
-                    }
+            Section {
+                ForEach(Array(groupJobs.enumerated()), id: \.element.id) { _, job in
+                    jobRow(job)
                 }
-                .odGroup()
+            } header: {
+                SettingsSectionHeader(title)
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
     }
 
@@ -208,7 +204,7 @@ struct CronJobsView: View {
                 StatusDot(color: job.enabled ? Palette.success : Palette.inkMuted)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(job.title)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(job.scheduleText)
@@ -231,14 +227,11 @@ struct CronJobsView: View {
                 Text(job.enabled ? "启用" : "已暂停")
                     .font(.footnote)
                     .foregroundStyle(job.enabled ? Palette.successText : Palette.inkSecondary)
-                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingS)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
     }
 
 }
@@ -269,27 +262,27 @@ struct CronJobDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                summaryGroup
-                if hasDetailRows {
-                    infoGroup
-                }
-                actionsGroup
-                runsGroup
-                dangerGroup
-                if let notice {
+        List {
+            summaryGroup
+            if hasDetailRows {
+                infoGroup
+            }
+            actionsGroup
+            runsGroup
+            dangerGroup
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(current.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadRuns() }
@@ -315,20 +308,17 @@ struct CronJobDetailView: View {
     /// 附则（卡 15）：状态/计划/下次运行升摘要卡置顶
     /// （键值行走 KeyValueRow，台账 198 收敛 S5）
     private var summaryGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("任务")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                KeyValueRow("状态", value: current.enabled ? "启用" : "已暂停")
-                GroupDivider()
-                KeyValueRow("计划", value: current.scheduleText)
-                if let next = AdminFormat.iso(current.nextRunAt) {
-                    GroupDivider()
-                    KeyValueRow("下次运行", value: AdminFormat.short(next))
-                }
+        Section {
+            keyValueRow("状态", value: current.enabled ? "启用" : "已暂停")
+            keyValueRow("计划", value: current.scheduleText)
+            if let next = AdminFormat.iso(current.nextRunAt) {
+                keyValueRow("下次运行", value: AdminFormat.short(next))
             }
-            .odGroup()
+        } header: {
+            SettingsSectionHeader("任务")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     /// 详情组有行才渲染（前三行升摘要卡后，空组不留壳）
@@ -378,27 +368,22 @@ struct CronJobDetailView: View {
     }
 
     private var infoGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("详情")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                ForEach(Array(infoBlocks.enumerated()), id: \.offset) { index, block in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    infoBlockView(block)
-                }
+        Section {
+            ForEach(Array(infoBlocks.enumerated()), id: \.offset) { _, block in
+                infoBlockView(block)
             }
-            .odGroup()
+        } header: {
+            SettingsSectionHeader("详情")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     @ViewBuilder
     private func infoBlockView(_ block: InfoBlock) -> some View {
         switch block {
         case let .keyValue(label, value):
-            KeyValueRow(label, value: value)
+            keyValueRow(label, value: value)
         case let .prompt(prompt):
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text("指令")
@@ -408,7 +393,6 @@ struct CronJobDetailView: View {
                     .font(.callout)
                     .foregroundStyle(Palette.ink)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingSM)
             .frame(maxWidth: .infinity, alignment: .leading)
         case let .error(error):
@@ -428,7 +412,7 @@ struct CronJobDetailView: View {
                         .foregroundStyle(Palette.danger)
                         .accessibilityHidden(true)
                     Text(CronPresentation.errorSummary(error))
-                        .font(.subheadline)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.ink)
                 }
                 Button {
@@ -458,63 +442,52 @@ struct CronJobDetailView: View {
                         .textSelection(.enabled)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingSM)
             .frame(maxWidth: .infinity, alignment: .leading)
 }
     }
 
     private var actionsGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("动作")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                actionRow(
-                    title: current.enabled ? "暂停" : "恢复",
-                    icon: current.enabled ? "pause.circle" : "play.circle"
-                ) {
-                    Task { await togglePause() }
-                }
-                GroupDivider()
-                actionRow(
-                    title: isTriggering ? "触发中（等任务跑完）…" : "立即触发一次",
-                    icon: "play.circle"
-                ) {
-                    Task { await trigger() }
-                }
-                .disabled(isTriggering)
-                GroupDivider()
-                actionRow(title: "编辑", icon: "pencil.circle") {
-                    showEdit = true
-                }
+        Section {
+            actionRow(
+                title: current.enabled ? "暂停" : "恢复",
+                icon: current.enabled ? "pause.circle" : "play.circle"
+            ) {
+                Task { await togglePause() }
             }
-            .odGroup()
+            actionRow(
+                title: isTriggering ? "触发中（等任务跑完）…" : "立即触发一次",
+                icon: "play.circle"
+            ) {
+                Task { await trigger() }
+            }
+            .disabled(isTriggering)
+            actionRow(title: "编辑", icon: "pencil.circle") {
+                showEdit = true
+            }
+        } header: {
+            SettingsSectionHeader("动作")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var runsGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("运行记录")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                if runs.isEmpty {
-                    Text(runsError ?? "还没有运行记录")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .frame(minHeight: OneDayMetrics.rowHeight)
-                }
-                ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    runRow(run)
-                }
+        Section {
+            if runs.isEmpty {
+                Text(runsError ?? "还没有运行记录")
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
-            .odGroup()
+            ForEach(Array(runs.enumerated()), id: \.element.id) { _, run in
+                runRow(run)
+            }
+        } header: {
+            SettingsSectionHeader("运行记录")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func runRow(_ run: ServerSession) -> some View {
@@ -526,7 +499,7 @@ struct CronJobDetailView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(AdminFormat.short(run.startedDate))
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(runSubtitle(run))
                         .font(.footnote)
@@ -535,9 +508,8 @@ struct CronJobDetailView: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingS)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
@@ -566,32 +538,50 @@ struct CronJobDetailView: View {
     }
 
     private var dangerGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("危险操作")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
-                } label: {
-                    HStack {
-                        Text("删除任务")
-                            .font(.body)
-                            .foregroundStyle(Palette.danger)
-                        Spacer()
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .contentShape(Rectangle())
+        Section {
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                HStack {
+                    Text("删除任务")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.danger)
+                    Spacer()
                 }
-                .buttonStyle(.odPressable)
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
             }
-            .odGroup()
+            .buttonStyle(.odPressable)
+        } header: {
+            SettingsSectionHeader("危险操作")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     // （键值行沿革：infoRow（0.4.0 删）→ LabeledContent
     // → KeyValueRow（台账 198 收敛 S5：组卡内键值行单源件））
+
+    /// 组内键值行（List 行内联形）：标签墨色＋值等宽次色，
+    /// 行高走设置页行高（settingsRowHeight），水平内缩由
+    /// Section 的 listRowInsets 统一管，不再自带横向 padding。
+    private func keyValueRow(_ label: String, value: String) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(label)
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(value)
+                .font(.metaMonospaced)
+                .tabularDigits()
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
+    }
 
     private func actionRow(
         title: String, icon: String, action: @escaping () -> Void
@@ -604,12 +594,11 @@ struct CronJobDetailView: View {
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
@@ -736,61 +725,66 @@ struct CronJobFormView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    SectionLabel("任务")
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        FieldRow(label: "名称（可选）") {
-                            TextField("如：节点巡检", text: $name)
-                        }
-                        GroupDivider()
-                        FieldRow(label: "指令") {
-                            TextField("要 Hermes 执行的事", text: $prompt, axis: .vertical)
-                                .lineLimit(2...5)
-                        }
-                        GroupDivider()
-                        FieldRow(label: "计划（cron 表达式）") {
-                            TextField("0 9 * * *", text: $schedule)
-                                .font(.system(.body, design: .monospaced))
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        }
+            List {
+                Section {
+                    fieldRow("名称（可选）") {
+                        TextField("如：节点巡检", text: $name)
                     }
-                    .odGroup()
+                    fieldRow("指令") {
+                        TextField("要 Hermes 执行的事", text: $prompt, axis: .vertical)
+                            .lineLimit(2...5)
+                    }
+                    fieldRow("计划（cron 表达式）") {
+                        TextField("0 9 * * *", text: $schedule)
+                            .font(.system(.body, design: .monospaced))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                } header: {
+                    SettingsSectionHeader("任务")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         presetButton("每小时", "0 * * * *")
                         presetButton("每天 9 点", "0 9 * * *")
                         presetButton("每周一 9 点", "0 9 * * 1")
                     }
-                    .padding(.top, OneDayMetrics.spacingM)
-                    SectionLabel("投递")
-                        .padding(.top, OneDayMetrics.spacingL)
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        FieldRow(label: "投递目标") {
-                            Picker("", selection: $selectedDeliver) {
-                                Text("默认（按服务器设置）").tag("")
-                                ForEach(deliveryTargets) { target in
-                                    Text(deliveryTargetTitle(target))
-                                        .tag(target.id)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                        }
-                    }
-                    .odGroup()
-                    if let errorMessage {
-                        InlineError(errorMessage)
-                            .padding(.top, OneDayMetrics.spacingM)
-                    }
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                Section {
+                    fieldRow("投递目标") {
+                        Picker("", selection: $selectedDeliver) {
+                            Text("默认（按服务器设置）").tag("")
+                            ForEach(deliveryTargets) { target in
+                                Text(deliveryTargetTitle(target))
+                                    .tag(target.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                    }
+                } header: {
+                    SettingsSectionHeader("投递")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                if let errorMessage {
+                    Section {
+                        InlineError(errorMessage)
+                    }
+                    .listRowBackground(Color.clear)
+                }
             }
-            .background(Palette.pageBG)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
+            .background(Palette.settingsBG)
             .navigationTitle(job == nil ? "新建定时任务" : "编辑定时任务")
             .navigationBarTitleDisplayMode(.inline)
             .task { await loadDeliveryTargets() }
@@ -814,6 +808,26 @@ struct CronJobFormView: View {
             schedule = expression
         }
         .buttonStyle(.odSecondary)
+    }
+
+    /// 表单字段行（List 行内联形）：标签在上、本体在下，
+    /// 横向内缩由 Section 的 listRowInsets 统一管，不再自带
+    /// 横向 padding；垂直留白沿原 FieldRow 口径 spacingSM。
+    private func fieldRow<Content: View>(
+        _ label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            content()
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+        }
+        .padding(.vertical, OneDayMetrics.spacingSM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private func save() async {

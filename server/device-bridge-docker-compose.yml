@@ -1,0 +1,18 @@
+services:
+  device-bridge:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: device-bridge
+    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/device_bridge.py"]
+    ports:
+      - "127.0.0.1:8647:8647"
+    volumes:
+      - ./device_bridge.py:/opt/bridge/device_bridge.py:ro
+      - ./data:/opt/device-data
+    env_file:
+      - ./device-bridge.env
+    environment:
+      - TZ=Asia/Shanghai
+      - DEVICE_PORT=8647
+      - DATA_DIR=/opt/device-data
+    mem_limit: 256m
+    restart: unless-stopped

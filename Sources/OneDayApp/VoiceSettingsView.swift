@@ -78,7 +78,7 @@ struct VoiceSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("语音")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await speechPlayer.refreshAvailability(
                 appState: appState, force: true
@@ -121,6 +121,6 @@ struct VoiceSettingsView: View {
     }
 
     private var settingsRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 }

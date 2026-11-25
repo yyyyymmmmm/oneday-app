@@ -1,0 +1,16 @@
+# OneDay 记忆机制 — config.yaml 记忆段建议值（部署包种子附带，人工合并）
+#
+# 用法：把下面 memory: 段与你实例 config.yaml 现有 memory: 段对账合并
+# （只改值、不删你已有的其他键）。各项含义：
+#   memory_enabled / user_profile_enabled —— 上游策展双文件总开关，保持开。
+#   nudge_interval —— 每 N 个用户轮提醒一次存记忆；本机制另有技能里的
+#     「轮末自检」纪律兜底，此值维持上游默认量级即可。
+#   write_approval —— 记忆/技能写入走写闸审批（OneDay App 内批）。个人自用
+#     实例可按部署者意愿关；多用户/对外实例建议开。
+# 字符上限是 L0 双文件的常驻预算：分层之后核心文件只放红线与索引，
+# 上游默认量级（MEMORY 2200 / USER 1375）够用，不要盲目放大。
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  nudge_interval: 10
+  write_approval: true

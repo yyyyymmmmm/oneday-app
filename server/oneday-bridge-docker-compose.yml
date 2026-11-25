@@ -1,0 +1,16 @@
+services:
+  oneday-bridge:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: oneday-bridge
+    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/oneday_bridge.py"]
+    ports:
+      - "127.0.0.1:8646:8646"
+    volumes:
+      - ./oneday_bridge.py:/opt/bridge/oneday_bridge.py:ro
+      - ./data:/opt/oneday-data
+    env_file:
+      - ./oneday-bridge.env
+    environment:
+      - ONEDAY_PORT=8646
+    mem_limit: 256m
+    restart: unless-stopped

@@ -207,12 +207,12 @@ struct CommandGrantsSection: View {
             HStack(spacing: OneDayMetrics.spacingS) {
                 ProgressView()
                 Text("正在读取授权清单…")
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
             }
         case .unavailable(let message), .failed(let message):
             Text(message)
-                .font(.subheadline)
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.inkSecondary)
             Button("重试") {
                 Task { await store.load(appState: appState) }
@@ -262,7 +262,7 @@ struct CommandGrantsSection: View {
         HStack(spacing: OneDayMetrics.spacingS) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(entry.scopeLabel)
-                    .font(.subheadline)
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.ink)
                 Text(execMeta(entry))
                     .font(.caption)
@@ -285,7 +285,7 @@ struct CommandGrantsSection: View {
     private func writegateRow(_ entry: GrantEntry) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             Text(entry.scopeLabel)
-                .font(.subheadline)
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.ink)
             Text(writegateMeta(entry))
                 .font(.caption)

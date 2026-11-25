@@ -32,6 +32,7 @@ struct MemoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                LayeredMemorySection()
                 MemoryEntriesSection(store: memoriesStore)
                 LearningMemorySection(store: learningStore)
                 if let status {
@@ -123,7 +124,7 @@ struct MemoryView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Text(activeName)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text("内置文件 \(AdminFormat.count(totalFiles)) 条")
@@ -216,7 +217,7 @@ struct MemoryView: View {
     private func fileRow(label: String, value: Double?) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(label)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value.map { AdminFormat.count($0) } ?? "—")
@@ -249,7 +250,7 @@ struct MemoryView: View {
         } label: {
             HStack {
                 Text(title)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -306,40 +307,50 @@ struct MemoryProviderConfigView: View {
     @State private var notice: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                statusGroup
-                if let config, !config.fields.isEmpty {
-                    fieldsGroup(config)
-                } else if let errorMessage {
+        List {
+            statusGroup
+            if let config, !config.fields.isEmpty {
+                fieldsGroup(config)
+            } else if let errorMessage {
+                Section {
                     InlineError(errorMessage)
-                        .padding(.top, OneDayMetrics.spacingL)
-                } else if config != nil {
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            } else if config != nil {
+                Section {
                     Text("该提供方没有可配置项。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingL)
-                } else {
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            } else {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取配置…")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
                 }
-                if let notice {
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            }
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(provider.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -357,71 +368,70 @@ struct MemoryProviderConfigView: View {
         }
     }
 
+    @ViewBuilder
     private var statusGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("状态")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                // 键值行走 KeyValueRow（台账 198 收敛
-                // S5 嫌疑页查实：本组三行同构造，一并
-                // 替换；下方「当前提供方」状态行是自绘
-                // HStack、不在此列）
-                KeyValueRow("可用", value: provider.available == true ? "是" : "否")
-                GroupDivider()
-                KeyValueRow("已配置", value: provider.configured == true ? "是" : "否")
-                if let state = provider.status, !state.isEmpty {
-                    GroupDivider()
-                    KeyValueRow("状态", value: state)
-                }
-                if isActive {
-                    GroupDivider()
-                    HStack {
-                        Text("当前提供方")
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                        Text("使用中")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.successText)
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                }
+        Section {
+            // 键值行走 KeyValueRow（台账 198 收敛
+            // S5 嫌疑页查实：本组三行同构造，一并
+            // 替换；下方「当前提供方」状态行是自绘
+            // HStack、不在此列）
+            KeyValueRow("可用", value: provider.available == true ? "是" : "否")
+            KeyValueRow("已配置", value: provider.configured == true ? "是" : "否")
+            if let state = provider.status, !state.isEmpty {
+                KeyValueRow("状态", value: state)
             }
-            .odGroup()
-            // 附则（卡 13）：切换是本页主动作，走组下主按钮位
-            if !isActive {
+            if isActive {
+                HStack {
+                    Text("当前提供方")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    Text("使用中")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.successText)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(minHeight: OneDayMetrics.rowHeight)
+            }
+        } header: {
+            SettingsSectionHeader("状态")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        // 附则（卡 13）：切换是本页主动作，走组下主按钮位
+        if !isActive {
+            Section {
                 Button(isSwitching ? "切换中…" : "切换为当前提供方") {
                     showSwitchConfirm = true
                 }
                 .buttonStyle(.odPrimary)
                 .disabled(isSwitching)
-                .padding(.top, OneDayMetrics.spacingL)
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
     }
 
+    @ViewBuilder
     private func fieldsGroup(_ config: MemoryProviderConfig) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("配置")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                ForEach(Array(config.fields.enumerated()), id: \.element.id) { index, field in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    fieldRow(field)
-                }
+        Section {
+            ForEach(config.fields) { field in
+                fieldRow(field)
             }
-            .odGroup()
+        } header: {
+            SettingsSectionHeader("配置")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+        Section {
             Button(isSaving ? "保存中…" : "保存配置") {
                 Task { await save(config) }
             }
             .buttonStyle(.odPrimary)
             .disabled(isSaving)
-            .padding(.top, OneDayMetrics.spacingL)
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func fieldRow(_ field: MemoryProviderConfig.Field) -> some View {

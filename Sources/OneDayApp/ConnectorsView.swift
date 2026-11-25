@@ -91,7 +91,7 @@ struct ConnectorsView: View {
     }
 
     private var rowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 
     var body: some View {
@@ -199,9 +199,7 @@ struct ConnectorsView: View {
             .sensoryFeedback(.selection, trigger: segment)
         }
         .listRowBackground(Color.clear)
-        .listRowInsets(
-            EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
-        )
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func segmentButton(_ item: Segment) -> some View {
@@ -891,7 +889,7 @@ struct ConnectorsView: View {
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
-                .font(.body)
+                .font(.rowTitleL)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.trailing)
         }
@@ -923,7 +921,7 @@ struct ConnectorsView: View {
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Text(endpoint)
-                            .font(.system(.footnote, design: .monospaced))
+                            .font(.metaMonospaced)
                             .foregroundStyle(Palette.inkSecondary)
                             .textSelection(.enabled)
                     }

@@ -2,36 +2,18 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 身份胶囊（§434 立于 ChatView 页头内、§449 抽为
-/// 独立件供顶带复刻 rig 同件复用）：居中身份区的
-/// 下件——名（.headline）＋状态词（.caption）两行
-/// 装 44 高玻璃胶囊，压大头像下沿（重叠 ≈8 由宿
-/// 主 ZStack 的头像底距 36 构成）。点按开枢纽
-/// （与头像同路、单义）；§449 起长按菜单下沉一
-/// 级挂「在对话中查找」（第 1 条安置：Telegram 点
-/// 名展开页头／WhatsApp 点名进信息页把会话内查
-/// 找挂身份面下沉一级同式，见 DESIGN §449.1），
-/// VoiceOver 自定义动作同达。在线状态不在本件呈
-/// 现（§449 去重：全簇只留头像角点一处）
-/// §474（用户 2026-11-24 10:16 亲令）：第二行只许
-/// 是工作状态（AppState.liveActivityPhrase 单源，
-/// 与中枢状态行同词）；连接状态词（在线／联系不
-/// 上／待审批）一律不进本件——无活动时第二行不
-/// 呈现（回落留空，参照 Muse 空闲态查不到原文
-/// 不自创词），不拿连接词垫底
+/// 身份胶囊（紧凑大厂 44–52pt 单行顶栏版）：
+/// 支持可选内嵌 28pt 头像与状态圆点，聊天页与内容页共用同一胶囊，
+/// 让全 App 四主屏保持统一高度与 iOS 26 原生顶部朦胧位置。
 struct HubIdentityCapsule: View {
     var displayName: String
     var statusWord: String?
-    /// 有待批审批时为 true：第二行亮蓝字「需要批准」，
-    /// 与卡面待批状态同源
     var needsApproval: Bool = false
+    var avatar: Image? = nil
+    var statusColor: Color? = nil
     var onOpenHub: () -> Void
-    /// 「在对话中查找」是聊天页专属下沉动作（§449.1）：
-    /// §486 起本件被内容页页头簇（ContentPageHeader）
-    /// 复用，那些页面没有会话内查找——改可选，nil 时
-    /// 长按菜单只留「打开枢纽」、不挂 VO 自定义动作；
-    /// 聊天页传闭包、行为一字不变
     var onFindInConversation: (() -> Void)? = nil
+    var onForkSession: (() -> Void)? = nil
 
     private var effectiveStatusWord: String? {
         if needsApproval {
@@ -44,9 +26,6 @@ struct HubIdentityCapsule: View {
     }
 
     var body: some View {
-        // VO 自定义动作只在宿主真有此动作时才挂（nil
-        // 时不许留一个按了没反应的空动作）：两分支共
-        // 用 capsuleButton 本体、只差这一条修饰
         if let onFindInConversation {
             capsuleButton
                 .accessibilityAction(named: "在对话中查找") {
@@ -61,23 +40,46 @@ struct HubIdentityCapsule: View {
         Button {
             onOpenHub()
         } label: {
-            VStack(spacing: OneDayMetrics.spacingMicro) {
-                Text(displayName)
-                    .font(.headline)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                if let text = effectiveStatusWord {
-                    Text(text)
-                        .font(.caption)
-                        .foregroundStyle(
-                            needsApproval
-                                ? Palette.primary
-                                : Palette.inkSecondary
-                        )
+            HStack(spacing: OneDayMetrics.spacingS) {
+                if let avatar {
+                    ZStack(alignment: .bottomTrailing) {
+                        avatar
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+                        if let statusColor {
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 8, height: 8)
+                                .overlay {
+                                    Circle()
+                                        .stroke(Palette.surface, lineWidth: 1.5)
+                                }
+                                .offset(x: 1, y: 1)
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+                VStack(alignment: avatar != nil ? .leading : .center, spacing: 1) {
+                    Text(displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
                         .lineLimit(1)
+                    if let text = effectiveStatusWord {
+                        Text(text)
+                            .font(.caption2)
+                            .foregroundStyle(
+                                needsApproval
+                                    ? Palette.primary
+                                    : Palette.inkSecondary
+                            )
+                            .lineLimit(1)
+                    }
                 }
             }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .padding(.leading, avatar != nil ? 6 : OneDayMetrics.spacingSM)
+            .padding(.trailing, OneDayMetrics.spacingSM)
             .frame(height: OneDayMetrics.minTapTarget)
             .glassEffect(.regular, in: Capsule())
         }
@@ -98,6 +100,13 @@ struct HubIdentityCapsule: View {
                     onFindInConversation()
                 } label: {
                     Label("在对话中查找", systemImage: "magnifyingglass")
+                }
+            }
+            if let onForkSession {
+                Button {
+                    onForkSession()
+                } label: {
+                    Label("克隆分支会话", systemImage: "arrow.triangle.branch")
                 }
             }
         }

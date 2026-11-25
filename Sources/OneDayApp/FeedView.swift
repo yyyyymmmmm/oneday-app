@@ -133,39 +133,39 @@ struct FeedView: View {
             isSearching: isSearching
         )
         return NavigationStack(path: $path) {
-            ZStack(alignment: .top) {
-                Group {
-                    switch store.loadState {
-                    case .loading:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .notConnected(let message):
-                        ContentUnavailableView {
-                            Label("还没连上你的服务", systemImage: "link.badge.plus")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重新检查") {
-                                Task { await reload() }
-                            }
-                            .buttonStyle(.bordered)
+            Group {
+                switch store.loadState {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .notConnected(let message):
+                    ContentUnavailableView {
+                        Label("还没连上你的服务", systemImage: "link.badge.plus")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重新检查") {
+                            Task { await reload() }
                         }
-                    case .failed(let message):
-                        ContentUnavailableView {
-                            Label("动态没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重试") {
-                                Task { await reload() }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    case .ready:
-                        readyContent(snapshot)
+                        .buttonStyle(.bordered)
                     }
+                case .failed(let message):
+                    ContentUnavailableView {
+                        Label("动态没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重试") {
+                            Task { await reload() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                case .ready:
+                    readyContent(snapshot)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaBar(edge: .top, spacing: 0) {
                 feedTopHeader
             }
             .background {
@@ -445,7 +445,7 @@ struct FeedView: View {
             .scrollContentBackground(.hidden)
             .background(Color.clear)
             .listSectionSpacing(OneDayMetrics.spacingM)
-            .contentMargins(.top, topMargin + 112, for: .scrollContent)
+            .contentMargins(.top, topMargin, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top
@@ -476,7 +476,6 @@ struct FeedView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.top, 112)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
@@ -508,7 +507,7 @@ struct FeedView: View {
             .scrollContentBackground(.hidden)
             .background(Color.clear)
             .listSectionSpacing(OneDayMetrics.spacingM)
-            .contentMargins(.top, topMargin + 112, for: .scrollContent)
+            .contentMargins(.top, topMargin, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             // §498：滚动偏移只驱动字段槽切换（归一
             // 化偏移＝offset＋顶 inset，静止恒 0）

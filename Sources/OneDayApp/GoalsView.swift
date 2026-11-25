@@ -51,23 +51,12 @@ struct GoalsPageTitle: View {
     }
 }
 
-/// 折叠行把手字形（§485）：3 列×2 行实心点阵——照
-/// Muse 目标页段尾行参照帧实形（审计 §四.8：
-/// ellipsis 换把手点阵；SF 无 3×2 点阵字形，程序
-/// 绘制六点，§452 文件图标程序绘制先例）
+/// 折叠行把手字形：统一使用标准 SF Symbol `ellipsis`，与全 App 图标风格保持一致
 struct GoalFoldHandleGlyph: View {
     var body: some View {
-        VStack(spacing: 4) {
-            ForEach(0..<2, id: \.self) { _ in
-                HStack(spacing: 4) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Circle()
-                            .fill(Palette.inkMuted)
-                            .frame(width: 4.5, height: 4.5)
-                    }
-                }
-            }
-        }
+        Image(systemName: "ellipsis")
+            .font(.system(size: FrameworkIcon.inlineGlyphSize, weight: .medium))
+            .foregroundStyle(Palette.inkMuted)
     }
 }
 
@@ -96,39 +85,39 @@ struct GoalsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                Group {
-                    switch store.loadState {
-                    case .loading:
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .notConnected(let message):
-                        ContentUnavailableView {
-                            Label("还没连上你的服务", systemImage: "link.badge.plus")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重新检查") {
-                                Task { await store.load(appState: appState) }
-                            }
-                            .buttonStyle(.bordered)
+            Group {
+                switch store.loadState {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .notConnected(let message):
+                    ContentUnavailableView {
+                        Label("还没连上你的服务", systemImage: "link.badge.plus")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重新检查") {
+                            Task { await store.load(appState: appState) }
                         }
-                    case .failed(let message):
-                        ContentUnavailableView {
-                            Label("目标没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text(message)
-                        } actions: {
-                            Button("重试") {
-                                Task { await store.load(appState: appState) }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    case .ready:
-                        readyContent
+                        .buttonStyle(.bordered)
                     }
+                case .failed(let message):
+                    ContentUnavailableView {
+                        Label("目标没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("重试") {
+                            Task { await store.load(appState: appState) }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                case .ready:
+                    readyContent
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaBar(edge: .top, spacing: 0) {
                 identityHeader
             }
             .background {
@@ -280,7 +269,6 @@ struct GoalsView: View {
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.vertical, OneDayMetrics.spacingM)
             }
-            .contentMargins(.top, 112, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)
@@ -319,7 +307,6 @@ struct GoalsView: View {
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.vertical, OneDayMetrics.spacingM)
         }
-        .contentMargins(.top, 112, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .refreshable {
             await store.load(appState: appState)

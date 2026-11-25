@@ -250,6 +250,12 @@ struct ChatView: View {
     private var chatThemeID = ChatThemes.defaultID
     @AppStorage(AppearanceStorageKeys.avatarSize)
     private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+    @AppStorage(AppearanceStorageKeys.chatAccentOverride)
+    private var accentOverrideRaw = -1
+    @AppStorage(AppearanceStorageKeys.chatBackground)
+    private var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
+    @AppStorage(AppearanceStorageKeys.chatBubbleStyle)
+    private var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
 
     /// 当前形象档（脏值回中档，与 Appearance-
     /// Preferences 同口径）
@@ -730,6 +736,10 @@ struct ChatView: View {
         [UUID: Task<Void, Never>] = [:]
     @State private var seedSyncTasks:
         [UUID: Task<Void, Never>] = [:]
+    /// 轻量增量尾对账任务与节流时间戳（防同线程并发/高频重复拉取）
+    @State private var tailSyncTasks:
+        [UUID: Task<Void, Never>] = [:]
+    @State private var lastTailSyncAt: [UUID: Date] = [:]
     /// （showSessionInfo 已于 0.20.0 第五条随会话名次
     /// 行一并拆除：聊天页不再有会话详情入口，管理页
     /// ServerSessionRow 承接）
@@ -1216,22 +1226,8 @@ struct ChatView: View {
                 )
             }
         }
-        // 反应浮排（DESIGN §343／§346）：长按一次
-        // 呈现三层——药丸排＋快照＋动作卡同呈（动作
-        // 集走 actionItems 单源、项/序/图标/危险色
-        // 逐项同系统菜单）；点药丸/卡条目即执行并
-        // 收起、点快照/空白收起。§343 的转交动作表
-        // （confirmationDialog）随 §346 同呈退役
-        .fullScreenCover(item: $reactionBarSession) { session in
-            reactionBarOverlay(session)
-        }
-        // §471：系统 cover 转场（滑入硬切、三层互叠
-        // 重影的来源之一）摘除——呈现/收起的动画全
-        // 归浮排内部 ReactionBarMotion 时钟（Exyte
-        // 参数），cover 只作承载
-        .transaction(value: reactionBarSession?.id) { transaction in
-            transaction.disablesAnimations = true
-        }
+        // 原生上下文菜单＋顶部玻璃反应条已迁入 ChatNativeList（UICollectionView
+        // 原生 UIContextMenuInteraction + UITargetedPreview），不再弹全屏 cover
         // §125：文件打开页（中间页）——聊天侧点牌的
         // 唯一落点（图片仍走上方全屏查看器、不经此页）
         // §129 落点、§219 改通道：失败页「让智能体重
@@ -1426,6 +1422,33 @@ struct ChatView: View {
         ) {
             topBarCluster
         }
+    }
+
+    /// 顶部悬浮液态玻璃胶囊 Toast（大厂成熟形态，取代底部全宽丑横幅；不占输入栏布局流）
+    @ViewBuilder
+    private var floatingToastOverlay: some View {
+        Group {
+            if let errorMessage {
+                FloatingToastView(
+                    message: errorMessage,
+                    tone: .error,
+                    onDismiss: { self.errorMessage = nil }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else if let notice = noticePresentation.current {
+                FloatingToastView(
+                    message: notice.text,
+                    tone: .info,
+                    onDismiss: { dismissNotice() }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .padding(.top, nativeFedTopInset + 6)
+        .animation(
+            reduceMotion ? .default : .snappy(duration: 0.25),
+            value: errorMessage ?? noticePresentation.current?.text
+        )
     }
 
     /// §321：新面列表顶 inset 喂入——量得顶簇底缘
@@ -1780,6 +1803,7 @@ struct ChatView: View {
                 // 台时已弃置产物，见下方 background 分支）
                 dictation.armPreheat()
                 Task { await resumeRunIfNeeded() }
+                syncTailIfIdle()
                 // 台账 154（DESIGN §336）：回前台同拍
                 // 排发件箱（对账之后——drain 内查账本
                 // 为空才动，与本处先后无关、双保险）
@@ -1801,6 +1825,7 @@ struct ChatView: View {
         // 路径信号只做触发器、不预判成败
         .onChange(of: appState.networkPathEpoch) {
             Task { await resumeRunIfNeeded() }
+            syncTailIfIdle(force: true)
             // 台账 154（DESIGN §336）：网络恢复同拍
             // 排发件箱——离线失败条目的主复活点
             Task { drainOutboxIfNeeded() }
@@ -1839,6 +1864,7 @@ struct ChatView: View {
                 Task {
                     await refreshEchoTraces()
                 }
+                syncTailIfIdle(force: true)
                 // 发送失败机制包（语义 4）：落定同沿
                 // 的 drain 删除——它是死循环的自激触
                 // 发源（落定失败→下降沿→drain 踢泵→
@@ -1894,6 +1920,7 @@ struct ChatView: View {
             // 为真条目；生成落定沿另有一次补刷，见
             // isStreaming 下降沿注）
             await refreshEchoTraces()
+            syncTailIfIdle()
             // §251（换代包 2）：排版产物预热——进/切
             // 线程时对已载条目在后台预产产物。文本宽走
             // LayoutProductService.textWidth 单源（§263：
@@ -2162,7 +2189,7 @@ struct ChatView: View {
     /// 「会话名次行已撤销」注记随行退役（口径在
     /// §449 与 git 史里）
     private var topBand: some View {
-        ZStack(alignment: .top) {
+        ZStack(alignment: .center) {
             headerIdentityHero
             HStack(alignment: .center, spacing: 0) {
                 drawerButton
@@ -2173,8 +2200,8 @@ struct ChatView: View {
                 }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingS)
         }
+        .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
     /// 左钮：汉堡（开抽屉）。本体自旧 headerBar 迁
@@ -2303,35 +2330,18 @@ struct ChatView: View {
     /// 旧顶簇头像钮同源（agentDisplayName＋over-
     /// viewStatusWord），不新造
     private var headerIdentityHero: some View {
-        ZStack(alignment: .bottom) {
-            HubAvatarButton(
-                avatar: appState.agentAvatarImage,
-                displayName: appState.agentDisplayName,
-                statusWord: overviewStatusWord,
-                statusColor: overviewStatusColor,
-                avatarPointSize: OneDayMetrics.avatarChatHero,
-                onOpenHub: { presentHub() }
-            )
-            .padding(.bottom, 36)
-
-            // §449：胶囊本体抽为独立件 HubIdentity-
-            // Capsule（顶带复刻 rig 同件复用）；名/状
-            // 态数据源与旧顶簇头像钮同源（agentDis-
-            // playName＋overviewStatusWord），不新造
-            HubIdentityCapsule(
-                displayName: appState.agentDisplayName,
-                // §449.9 立源、§474 收口：第二行＝当前
-                // 工具活动短语（与中枢状态行同读
-                // AppState.liveActivityPhrase、同源同
-                // 口径）；有待批时亮蓝字「需要批准」
-                statusWord: appState.liveActivityPhrase,
-                needsApproval: appState.sharedHubStore().hasPendingApprovals,
-                onOpenHub: { presentHub() },
-                onFindInConversation: { showFind = true }
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, OneDayMetrics.spacingXS)
+        HubIdentityCapsule(
+            displayName: appState.agentDisplayName,
+            statusWord: appState.liveActivityPhrase,
+            needsApproval: appState.sharedHubStore().hasPendingApprovals,
+            avatar: appState.agentAvatarImage,
+            statusColor: overviewStatusColor,
+            onOpenHub: { presentHub() },
+            onFindInConversation: { showFind = true },
+            onForkSession: currentThread?.serverSessionID != nil
+                ? { forkCurrentSession() }
+                : nil
+        )
     }
 
     // （§449 退役：顶栏模型选择面 modelPickerSheet
@@ -2388,14 +2398,11 @@ struct ChatView: View {
             },
             importRetrySessionID: importRetryContext?.sessionID,
             historySyncBarView: AnyView(historySyncBar),
-            errorBannerView: errorMessage.map { message in
-                AnyView(errorBanner(message))
-            },
-            errorMessageValue: errorMessage,
-            noticeBarView: noticePresentation.current.map {
-                AnyView(noticeBar($0.text))
-            },
-            noticeID: noticePresentation.current?.id,
+            // 大厂悬浮胶囊 Toast 已迁至顶部 overlay，底部输入栏不再插入提示横幅（彻底消除输入框跳动）
+            errorBannerView: nil,
+            errorMessageValue: nil,
+            noticeBarView: nil,
+            noticeID: nil,
             showsBackToBottomButton: showsBackToBottomButton,
             scrollToBottomButtonView:
                 showsArrowRow && showsBackToBottomButton
@@ -2466,6 +2473,9 @@ struct ChatView: View {
             if newValue != nil {
                 if errorOccurredAt == nil {
                     errorOccurredAt = Date()
+                }
+                if let detail = errorDetail {
+                    ChatDiagTrace.record("错误详情：\(detail)")
                 }
             } else {
                 errorDetail = nil
@@ -2811,6 +2821,7 @@ struct ChatView: View {
         )
         .ignoresSafeArea(edges: [.top, .bottom])
         .overlay { topBarHostOverlay }
+        .overlay(alignment: .top) { floatingToastOverlay }
         .onChange(of: currentThread?.sortedEntries.count) { _, _ in
             applyBottomProximity(
                 distance: bottomDistanceRecorder.latest
@@ -3329,6 +3340,10 @@ struct ChatView: View {
             revision.addFlag(highlighted)
             revision.addText(styleKey)
             revision.addText(findHL.map { "find:\($0)" })
+            let menuEnabled = !entry.content.isEmpty
+                || !entry.allImageDatas.isEmpty
+                || !entry.remoteImagePaths.isEmpty
+                || !entry.remoteFilePaths.isEmpty
             return ChatNativeRow(
                 key: key,
                 entryID: entry.id,
@@ -3338,6 +3353,8 @@ struct ChatView: View {
                 // 高顶替）标临界——布局提供者对将入
                 // 视口的临界行就地量测给确定高
                 heightIsProvisional: !feedIsExact,
+                makeContextMenuData: menuEnabled ? { actionSheetData(for: entry) } : nil,
+                contextMenuAlignsTrailing: entry.role == "user",
                 makeView: {
                     AnyView(
                         entryRowContent(
@@ -3346,7 +3363,7 @@ struct ChatView: View {
                             sources: sources
                         )
                     )
-                },
+                }
             )
         }
     }
@@ -3947,6 +3964,13 @@ struct ChatView: View {
             components(Palette.bodyInk),
             components(Palette.inkSecondaryOnFill),
             components(Palette.userBubbleText),
+            components(Palette.userBubbleFill),
+            components(Palette.bubbleFill),
+            components(Palette.primary),
+            chatThemeID,
+            "\(accentOverrideRaw)",
+            chatBackgroundRaw,
+            bubbleStyleRaw,
             aiSelfReactionsEnabled ? "ai1" : "ai0",
         ].joined(separator: "|")
     }
@@ -4594,6 +4618,12 @@ struct ChatView: View {
         }
     }
 
+    private func isInlineInteractiveToolCard(_ entry: ChatEntry) -> Bool {
+        guard let card = entry.toolCard else { return false }
+        return TodoChecklistParser.parse(from: card) != nil
+            || ClarifyPromptParser.parse(from: card) != nil
+    }
+
     private func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
@@ -4605,7 +4635,7 @@ struct ChatView: View {
             result.append(.traceGroup(traceBuffer))
             traceBuffer.removeAll(keepingCapacity: true)
         }
-        for entry in entries where entry.toolCard == nil {
+        for entry in entries where entry.toolCard == nil || isInlineInteractiveToolCard(entry) {
             if entry.traceKey != nil {
                 traceBuffer.append(entry)
             } else {
@@ -5732,13 +5762,20 @@ struct ChatView: View {
             // 行，不是气泡、不冒充任何一方发言（回响
             // 是 App 按真源落的事实记录，见 GoalEcho）
             echoRow(entry)
-        } else if entry.toolCard != nil {
-            // §449.9（2026-11-24 用户令）：工具条目不
-            // 再成卡进流——活动归页头胶囊活动行；渲染
-            // 计划层已过滤，本支是其余直调（长按快照
-            // 等）的兜底，恒空；条目数据层不动、仍不
-            // 进发送上下文（0.8.0 口径不变）
-            EmptyView()
+        } else if let card = entry.toolCard {
+            // 普通工具调用归页头胶囊活动行；Hermes v0.23.0 原生
+            // 结构化交互卡片（todo 任务进度 / clarify 澄清选项）
+            // 直接在对话流内渲染原生卡片
+            if let todoItems = TodoChecklistParser.parse(from: card) {
+                TodoChecklistCardView(items: todoItems)
+            } else if let clarifyPrompt = ClarifyPromptParser.parse(from: card) {
+                ClarifyPromptCardView(prompt: clarifyPrompt) { choice in
+                    input = choice
+                    send()
+                }
+            } else {
+                EmptyView()
+            }
         } else if entry.role == "user" {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
@@ -7115,21 +7152,12 @@ struct ChatView: View {
     /// 排，选字唯一入口＝菜单「选择」行（iMessage
     /// iOS 26 同构）；挂载面纪律本身不变
     private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
+        // 长按上下文菜单已收归 ChatNativeList 原生 UICollectionView Context Menu，
+        // 此处关闭行内 SwiftUI 抢跑手势，避免双菜单竞争
         MessageMenuModifier(
-            isEnabled: !entry.content.isEmpty
-                || !entry.allImageDatas.isEmpty
-                || !entry.remoteImagePaths.isEmpty
-                || !entry.remoteFilePaths.isEmpty,
-            floatingBarHook: ReactionBarRouting.route(
-                flagEnabled: floatingBarEnabled,
-                canReact: entry.canReact
-            ) == .floatingBar
-                ? { frame in
-                    presentReactionBar(for: entry, frame: frame)
-                }
-                : nil,
-            menuSuppressed: reactionBarSession?.entryID
-                == entry.id,
+            isEnabled: false,
+            floatingBarHook: nil,
+            menuSuppressed: false,
             makeData: { actionSheetData(for: entry) }
         )
     }
@@ -7451,6 +7479,34 @@ struct ChatView: View {
     /// 是拉取发起时的线程，拉取在途切了线程则本轮
     /// 只更新缓冲、不落盘（新线程的 .task 会自带一
     /// 轮刷新，不许把甲线程的回响落进乙线程）
+    /// 轻量增量尾对账（大厂「流式预览 + 服务端真源对账」双保险）：
+    /// 当当前线程空闲（无在飞流与未落定账本）且已绑定服务端会话时，
+    /// 静默拉取最新一页消息，自动修复半截截断正文并补插漏帧消息。
+    private func syncTailIfIdle(force: Bool = false) {
+        guard let thread = currentThread,
+              !isStreaming, !isDrivingRun,
+              appState.runLedger.entry(forThreadID: thread.id) == nil,
+              let sessionID = thread.serverSessionID,
+              !sessionID.isEmpty,
+              !SideChatLink.isMergeBucket(sessionID),
+              appState.config != nil,
+              tailSyncTasks[thread.id] == nil
+        else { return }
+        if !force, let last = lastTailSyncAt[thread.id],
+           Date().timeIntervalSince(last) < 4 {
+            return
+        }
+        let threadID = thread.id
+        lastTailSyncAt[threadID] = Date()
+        tailSyncTasks[threadID] = Task {
+            defer { tailSyncTasks[threadID] = nil }
+            let backfiller = SessionHistoryBackfiller(appState: appState)
+            _ = await backfiller.syncTail(
+                thread: thread, context: modelContext
+            )
+        }
+    }
+
     private func refreshEchoTraces() async {
         guard let config = appState.config else { return }
         guard let thread = currentThread else { return }
@@ -9810,12 +9866,8 @@ private struct ComposerBarLayout: Layout {
                 )
                 refreshMainSyncStatus(thread)
                 if !state.needsSyncAttempt {
-                    if threadID == currentThreadID {
-                        if state == .syncedTextOnly {
-                            showNotice("本地历史已同步到服务器（仅文本）")
-                        } else if state == .localOnly {
-                            showNotice("这段对话的部分早期历史仅保存在本机")
-                        }
+                    if state == .syncedTextOnly || state == .localOnly {
+                        ChatDiagTrace.record("种子同步状态：\(state)")
                     }
                     break
                 }
@@ -9970,9 +10022,6 @@ private struct ComposerBarLayout: Layout {
                 // 落点已定：对象引用归频道行（导入途
                 // 中的同步可能已派生过，此处收尾钉死）
                 appState.router.currentDrawerObject = .channel(channelID)
-                if outcome == .importedNew {
-                    showNotice("已转入我的对话")
-                }
             case .failed, .missing:
                 // 没打开成（仍停在原线程）：出处作废、
                 // 对象引用按当前线程回派，不许把胶囊
@@ -10561,6 +10610,17 @@ private struct ComposerBarLayout: Layout {
             pendingQuote = quote
             pendingFeedQuote = feedQuote
             pendingSourceQuote = sourceQuote
+            return
+        }
+        // 服务端 2.6.0 运行中纠偏（POST /v1/runs/{id}/steer）：
+        // 当前会话正在流式执行且无附件/非编辑态时，直接向在飞 run
+        // 注入实时纠偏指令，无需中止重来
+        if (isStreaming || isDrivingRun),
+           activeRunThreadID == thread.id,
+           pending.isEmpty, !text.isEmpty,
+           unsentEditTargetID == nil,
+           let activeRunID = appState.runLedger.entry(forThreadID: thread.id)?.runID {
+            steerActiveRun(runID: activeRunID, text: text)
             return
         }
         // §414（修复包一·路三）：未发送条目原位编辑
@@ -13539,7 +13599,8 @@ private struct ComposerBarLayout: Layout {
             failed: false, failureText: nil
         )
         applySettledTurn(
-            thread: thread, entry: entry, settled: settled
+            thread: thread, entry: entry, settled: settled,
+            unverified: true
         )
     }
 
@@ -13579,7 +13640,8 @@ private struct ComposerBarLayout: Layout {
     /// 账本清除
     private func applySettledTurn(
         thread: ChatThread, entry: RunLedgerEntry,
-        settled: SettledRunTurn
+        settled: SettledRunTurn,
+        unverified: Bool = false
     ) {
         // H2-a 自动朗读的在场判读：本轮是不是用户在
         // 本页亲手发出并看着落定的（发送打点起点只
@@ -13709,6 +13771,10 @@ private struct ComposerBarLayout: Layout {
                         + 0.001
                 )
             modelContext.insert(assistantEntry)
+            // 兜底落定或未钉桩的助手条目打上「待核验」标记，下次尾对账自动以服务端真源原位覆写
+            if unverified || assistantEntry.serverRowID == nil {
+                UnverifiedEntryStore.shared.mark(assistantEntry.id)
+            }
             // §247（包 4）：落定映射登记——本条目在
             // 新承载里沿用本轮流式行键建行（同键换
             // 代＝落定不换装）；映射只记账不判事，
@@ -13760,7 +13826,7 @@ private struct ComposerBarLayout: Layout {
                 appState.noteLinkedSideChatTurnFinished()
             }
         } else if phase == .cancelled {
-            showNotice("已停止生成。")
+            // 停止按钮已提供即时视觉与触感反馈，不再弹多余文字提示
         }
         finishRunPresentation(failed: false)
     }
@@ -13987,6 +14053,49 @@ private struct ComposerBarLayout: Layout {
             try? await appState.client.stopRun(
                 config: config, apiKey: apiKey, runID: runID
             )
+        }
+    }
+
+    /// 向正在执行的 run 注入纠偏指令（POST /v1/runs/{id}/steer）
+    private func steerActiveRun(runID: String, text: String) {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        Haptics.impact(.light)
+        Task {
+            do {
+                let receipt = try await appState.client.steerRun(
+                    config: config, apiKey: apiKey, runID: runID, input: text
+                )
+                if receipt.accepted {
+                    showNotice(L10n.string("已向生成中的任务插入纠偏指令"), tier: .brief)
+                } else {
+                    showNotice(L10n.string("当前任务暂无法插入纠偏"), tier: .brief)
+                }
+            } catch {
+                ChatDiagTrace.record("steer_run_failed: \(error.localizedDescription)")
+                showNotice(L10n.string("纠偏指令发送失败"), tier: .brief)
+            }
+        }
+    }
+
+    /// 在服务端无损克隆当前会话为新分支（POST /api/sessions/{id}/fork）
+    private func forkCurrentSession() {
+        guard !appState.isDemo,
+              let sessionID = currentThread?.serverSessionID,
+              let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        Haptics.selection()
+        Task {
+            do {
+                let forked = try await appState.client.forkServerSession(
+                    config: config, apiKey: apiKey, id: sessionID, title: nil
+                )
+                appState.router.pendingChatSessionID = forked.id
+                showNotice(L10n.string("已创建分支会话"), tier: .brief)
+            } catch {
+                ChatDiagTrace.record("fork_session_failed: \(error.localizedDescription)")
+                showNotice(L10n.string("分支会话创建失败"), tier: .brief)
+            }
         }
     }
 

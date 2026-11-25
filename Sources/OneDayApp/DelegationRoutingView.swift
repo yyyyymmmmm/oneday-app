@@ -63,6 +63,7 @@ struct DelegationRoutingView: View {
             content
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("子任务")
@@ -145,7 +146,7 @@ struct DelegationRoutingView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(backend.displayLabel)
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             if !backend.description.isEmpty {
                                 Text(backend.description)
@@ -187,7 +188,7 @@ struct DelegationRoutingView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text(route.name)
-                            .font(.body)
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if routing.modelRouteDefault == route.name {
                             Text("默认")
@@ -222,7 +223,7 @@ struct DelegationRoutingView: View {
             ForEach(routing.profileRoutes) { route in
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Text(route.name)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     if routing.profileRouteDefault == route.name {
                         Text("默认")

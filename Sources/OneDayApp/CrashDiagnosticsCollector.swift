@@ -29,6 +29,37 @@ final class CrashDiagnosticsCollector: NSObject, MXMetricManagerSubscriber,
         setEnabled(CrashCollectionFeature.isEnabled())
     }
 
+    /// 静默自动上报本机未上报的崩溃记录至 `POST /v1/diagnostics/crash-reports`（仅上报已过隐私门的记录）。
+    /// 返回本次服务端接受条数；已上报过的 ID 记入 UserDefaults 避免重复提交。
+    @MainActor
+    @discardableResult
+    func uploadPendingIfNeeded(appState: AppState) async -> Int {
+        guard CrashCollectionFeature.isEnabled(),
+              !appState.isDemo,
+              let config = appState.config,
+              let apiKey = appState.apiKey
+        else { return 0 }
+        let uploadedKey = "oneday.crash.uploadedRecordIDs"
+        var uploaded = Set(UserDefaults.standard.stringArray(forKey: uploadedKey) ?? [])
+        let pending = CrashReportStore.shared.all().filter { !uploaded.contains($0.id.uuidString) }
+        guard !pending.isEmpty else { return 0 }
+        do {
+            let receipt = try await appState.client.uploadCrashReports(
+                config: config, apiKey: apiKey, reports: pending
+            )
+            for item in pending {
+                uploaded.insert(item.id.uuidString)
+            }
+            if uploaded.count > 200 {
+                uploaded = Set(uploaded.prefix(200))
+            }
+            UserDefaults.standard.set(Array(uploaded), forKey: uploadedKey)
+            return receipt.accepted
+        } catch {
+            return 0
+        }
+    }
+
     /// 开关翻转即时生效（关于页内部实验节 Toggle 的
     /// onChange 直达）：开＝订阅、关＝摘除。
     func setEnabled(_ enabled: Bool) {

@@ -176,7 +176,7 @@ struct IdentityDetailView: View {
     // MARK: - 共用件（与设置首页同口径复刻）
 
     private var rowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+        OneDayMetrics.settingsRowInsets
     }
 
     private func sectionHeader(_ title: String) -> some View {

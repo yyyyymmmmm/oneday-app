@@ -32,7 +32,7 @@ struct SkillsView: View {
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text("技能商店")
-                                    .font(.body)
+                                    .font(.rowTitleL)
                                     .foregroundStyle(Palette.ink)
                                 Text("从技能库搜索并安装新技能")
                                     .font(.footnote)
@@ -131,7 +131,7 @@ struct SkillsView: View {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         HStack(spacing: OneDayMetrics.spacingXS) {
                             Text(skill.name)
-                                .font(.body)
+                                .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
                             if skill.locked == true {
                                 Image(systemName: "lock")
@@ -238,83 +238,113 @@ struct SkillDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                metaGroup
-                contentGroup
-                if let notice {
+        List {
+            metaGroup
+            contentGroup
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(skill.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
 
     private var metaGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("技能")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                if let description = skill.description, !description.isEmpty {
-                    Text(description)
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    GroupDivider()
-                }
-                HStack {
-                    Text("启用")
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                    Spacer()
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .disabled(isLocked)
-                        .onChange(of: isEnabled) { _, newValue in
-                            Task { await setEnabled(newValue) }
-                        }
-                }
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
-                GroupDivider()
-                HStack {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("锁定")
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                        Text("锁定后不能改内容、不能停用")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    Spacer()
-                    Toggle("", isOn: $isLocked)
-                        .labelsHidden()
-                        .onChange(of: isLocked) { _, newValue in
-                            Task { await setLocked(newValue) }
-                        }
-                }
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
+        Section {
+            if let description = skill.description, !description.isEmpty {
+                Text(description)
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .odGroup()
+            HStack {
+                Text("启用")
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .disabled(isLocked)
+                    .onChange(of: isEnabled) { _, newValue in
+                        Task { await setEnabled(newValue) }
+                    }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            HStack {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("锁定")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text("锁定后不能改内容、不能停用")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: $isLocked)
+                    .labelsHidden()
+                    .onChange(of: isLocked) { _, newValue in
+                        Task { await setLocked(newValue) }
+                    }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+        } header: {
+            SettingsSectionHeader("技能")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var contentGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        Section {
+            VStack(alignment: .leading, spacing: 0) {
+                if isEditing {
+                    TextEditor(text: $draft)
+                        .font(.metaMonospaced)
+                        .frame(minHeight: 320)
+                        .scrollContentBackground(.hidden)
+                        .padding(OneDayMetrics.spacingS)
+                } else if let content {
+                    Text(content)
+                        .font(.metaMonospaced)
+                        .foregroundStyle(Palette.ink)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(OneDayMetrics.spacingM)
+                } else if let errorMessage {
+                    InlineError(errorMessage)
+                        .padding(OneDayMetrics.spacingM)
+                } else {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        ProgressView()
+                        Text("正在读取内容…")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .padding(OneDayMetrics.spacingM)
+                }
+            }
+            .background(
+                Palette.fieldFill,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+            )
+        } header: {
             HStack(alignment: .firstTextBaseline) {
-                SectionLabel("内容（SKILL.md）")
+                SettingsSectionHeader("内容（SKILL.md）")
                 Spacer()
                 if isEditing {
                     Button("取消") {
@@ -337,40 +367,9 @@ struct SkillDetailView: View {
                     .disabled(isLocked)
                 }
             }
-            .padding(.top, OneDayMetrics.sectionOuterSpacing)
-            .padding(.bottom, OneDayMetrics.spacingS)
-            Group {
-                if isEditing {
-                    TextEditor(text: $draft)
-                        .font(.system(.footnote, design: .monospaced))
-                        .frame(minHeight: 320)
-                        .scrollContentBackground(.hidden)
-                        .padding(OneDayMetrics.spacingS)
-                } else if let content {
-                    Text(content)
-                        .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(Palette.ink)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(OneDayMetrics.spacingM)
-                } else if let errorMessage {
-                    InlineError(errorMessage)
-                        .padding(OneDayMetrics.spacingM)
-                } else {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        ProgressView()
-                        Text("正在读取内容…")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    .padding(OneDayMetrics.spacingM)
-                }
-            }
-            .background(
-                Palette.fieldFill,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
-            )
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func load() async {

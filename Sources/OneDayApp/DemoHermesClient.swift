@@ -278,6 +278,14 @@ struct DemoHermesClient: HermesClientProtocol {
         // 演示停止：静默成功（事件流由视图侧任务取消收尾）
     }
 
+    func steerRun(config: ServerConfig, apiKey: String, runID: String, input: String) async throws -> RunSteerReceipt { throw HermesError.demoLimitReached }
+    func forkServerSession(config: ServerConfig, apiKey: String, id: String, title: String?) async throws -> ServerSession { throw HermesError.demoLimitReached }
+    func uploadCrashReports(config: ServerConfig, apiKey: String, reports: [CrashReportRecord]) async throws -> CrashReportsUploadReceipt { throw HermesError.demoLimitReached }
+    func listServerCrashReports(config: ServerConfig, apiKey: String, limit: Int) async throws -> [ServerCrashReportItem] { throw HermesError.demoLimitReached }
+    func memoryLayers(config: ServerConfig, apiKey: String) async throws -> [MemoryLayerSummary] { throw HermesError.demoLimitReached }
+    func searchLayeredMemory(config: ServerConfig, apiKey: String, query: String, limit: Int, mode: String) async throws -> [MemorySearchHit] { throw HermesError.demoLimitReached }
+    func memoryInsights(config: ServerConfig, apiKey: String) async throws -> [MemoryInsightItem] { throw HermesError.demoLimitReached }
+
     /// 演示定稿回复（与 chatStream 旧演示同文）
     static let demoReply = """
         好。那我先从定时任务模块动手：列表、新建、暂停、立即触发、运行记录，五条接口都是现成的，第一版只做查看和启停，编辑放第二轮。做完先出包给你验，通过了我再碰技能和会话。
@@ -539,13 +547,17 @@ struct DemoHermesClient: HermesClientProtocol {
     }
 
     func sessionMessagesPage(
-        config: ServerConfig, id: String, limit: Int, offset: Int
+        config: ServerConfig, id: String, limit: Int, offset: Int,
+        afterRowID: Int? = nil
     ) async throws -> [SessionMessage] {
         // §331：模拟服务端 latest 语义——offset 自
         // 最新端量、取最新页、页内按 id 升序（时序）
         // 返回（调用方本就按 id 重排落盘，编排等价）
         let all = try await sessionMessages(config: config, id: id)
-        let ascending = all.sorted { $0.id < $1.id }
+        var ascending = all.sorted { $0.id < $1.id }
+        if let afterRowID {
+            ascending = ascending.filter { Int($0.id) > afterRowID }
+        }
         let end = max(ascending.count - max(offset, 0), 0)
         let start = max(end - max(limit, 0), 0)
         return Array(ascending[start..<end])

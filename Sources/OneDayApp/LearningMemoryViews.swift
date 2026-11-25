@@ -230,7 +230,7 @@ struct LearningMemorySection: View {
                 }
                 Text(memoryMetaLine(node, card: card))
                     .font(.caption)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -250,7 +250,7 @@ struct LearningMemorySection: View {
                     .lineLimit(1)
                 Text(skillMetaLine(node))
                     .font(.caption)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -402,7 +402,7 @@ struct LearningNodeDetailView: View {
                 .foregroundStyle(Palette.ink)
             Text(metaLine)
                 .font(.caption)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
         }
     }
 

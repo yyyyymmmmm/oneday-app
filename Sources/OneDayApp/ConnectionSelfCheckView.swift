@@ -144,7 +144,7 @@ struct ConnectionSelfCheckView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(status.phaseWord)
-                    .font(.body)
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 if let detail = status.detailText {
                     Text(detail)
@@ -190,12 +190,12 @@ struct ConnectionSelfCheckView: View {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(row.title)
-                        .font(.body)
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     if let value = row.value {
                         Text(value)
-                            .font(.subheadline)
+                            .font(.rowSubtitle)
                             .foregroundStyle(Palette.inkSecondary)
                             .multilineTextAlignment(.trailing)
                     }
