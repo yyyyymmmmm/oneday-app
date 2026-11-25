@@ -72,6 +72,10 @@ enum SettingsRoute: Hashable {
     /// 体检面（H1-a，台账 158）：原服务器管理「维护」段，
     /// 结构归位后归设置根服务器组维护尾段
     case healthCheck
+    /// 高级与诊断面（总表 70）：运维诊断枢纽页，统一路由管理
+    /// 避免直接目标式 NavigationLink 与 value 路由混用
+    /// 造成的导航栈状态冲突
+    case advancedDiagnostics
     /// 连接自检面（H13，台账 33，DESIGN §357）：客
     /// 户端只读探活驻留面，落设置根服务器段（Core
     /// 目录 connectionSelfCheck 条目直达）

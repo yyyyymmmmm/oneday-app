@@ -227,6 +227,8 @@ struct SettingsView: View {
                         onRequestChat: onRequestChat,
                         onClose: onClose
                     )
+                case .advancedDiagnostics:
+                    advancedDiagnosticsView
                 case .healthCheck:
                     HealthCheckView()
                 case .connectionSelfCheck:
@@ -382,8 +384,8 @@ struct SettingsView: View {
 
     private var generalPreferencesSection: some View {
         Section {
-            navRow(icon: "sun.max", color: .indigo, title: L10n.string("外观"), route: .appearance)
-            navRow(icon: "globe", color: .blue, title: L10n.string("语言"), route: .language)
+            navRow(icon: "sun.max", title: L10n.string("外观"), route: .appearance)
+            navRow(icon: "globe", title: L10n.string("语言"), route: .language)
             if let voiceAvailabilityWord {
                 statusNavRow(
                     icon: "speaker.wave.2",
@@ -393,10 +395,10 @@ struct SettingsView: View {
                     route: .voice
                 )
             } else {
-                navRow(icon: "speaker.wave.2", color: .orange, title: L10n.string("语音"), route: .voice)
+                navRow(icon: "speaker.wave.2", title: L10n.string("语音"), route: .voice)
             }
-            navRow(icon: "bell", color: .red, title: L10n.string("通知"), route: .notifications)
-            navRow(icon: "face.smiling", color: .pink, title: L10n.string("互动"), route: .interaction)
+            navRow(icon: "bell", title: L10n.string("通知"), route: .notifications)
+            navRow(icon: "face.smiling", title: L10n.string("互动"), route: .interaction)
             Toggle(isOn: Binding(
                 get: { Haptics.isEnabled },
                 set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
@@ -425,14 +427,14 @@ struct SettingsView: View {
 
     private var modelAndConnectionSection: some View {
         Section {
-            navRow(icon: "cpu", color: Palette.primary, title: L10n.string("模型与服务商"), route: .models)
-            navRow(icon: "chart.bar", color: .teal, title: L10n.string("用量统计"), route: .usage)
-            navRow(icon: "server.rack", color: .blue, title: L10n.string("当前服务器"), route: .serverDetail)
+            navRow(icon: "cpu", title: L10n.string("模型与服务商"), route: .models)
+            navRow(icon: "chart.bar", title: L10n.string("用量统计"), route: .usage)
+            navRow(icon: "server.rack", title: L10n.string("当前服务器"), route: .serverDetail)
             NavigationLink {
                 AuthSessionsView()
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("key.radiowaves.forward", color: .indigo)
+                    rowIcon("key.radiowaves.forward")
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("登录会话与票据")
                             .font(.rowTitleL)
@@ -448,7 +450,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .settingsSeparatorToIconEdge()
-            navRow(icon: "qrcode", color: .cyan, title: L10n.string("添加设备"), route: .addDevice)
+            navRow(icon: "qrcode", title: L10n.string("添加设备"), route: .addDevice)
             if pendingPairingCount > 0 {
                 statusNavRow(
                     icon: "person.badge.key",
@@ -469,11 +471,9 @@ struct SettingsView: View {
 
     private var advancedAndSupportSection: some View {
         Section {
-            NavigationLink {
-                advancedDiagnosticsView
-            } label: {
+            NavigationLink(value: SettingsRoute.advancedDiagnostics) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("wrench.and.screwdriver", color: .gray)
+                    rowIcon("wrench.and.screwdriver")
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("高级与诊断")
                             .font(.rowTitleL)
@@ -489,8 +489,8 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .settingsSeparatorToIconEdge()
-            navRow(icon: "questionmark.circle", color: .blue, title: L10n.string("帮助与反馈"), route: .help)
-            navRow(icon: "info.circle", color: .secondary, title: L10n.string("关于 OneDay"), route: .about)
+            navRow(icon: "questionmark.circle", title: L10n.string("帮助与反馈"), route: .help)
+            navRow(icon: "info.circle", title: L10n.string("关于 OneDay"), route: .about)
         } header: {
             sectionHeader("高级与支持")
         }
@@ -518,9 +518,9 @@ struct SettingsView: View {
                     status: gatewayStateWord,
                     route: .gateway
                 )
-                navRow(icon: "key", color: .orange, title: L10n.string("环境变量"), route: .envVars)
-                navRow(icon: "link", color: .teal, title: L10n.string("主会话"), route: .mainSession)
-                navRow(icon: "person.badge.key", color: .purple, title: L10n.string("平台用户配对"), route: .pairingManagement)
+                navRow(icon: "key", title: L10n.string("环境变量"), route: .envVars)
+                navRow(icon: "link", title: L10n.string("主会话"), route: .mainSession)
+                navRow(icon: "person.badge.key", title: L10n.string("平台用户配对"), route: .pairingManagement)
             } header: {
                 sectionHeader("服务端与运维")
             }
@@ -537,7 +537,7 @@ struct SettingsView: View {
                         route: .connectionSelfCheck
                     )
                 } else {
-                    navRow(icon: "antenna.radiowaves.left.and.right", color: .green, title: L10n.string("连接自检"), route: .connectionSelfCheck)
+                    navRow(icon: "antenna.radiowaves.left.and.right", title: L10n.string("连接自检"), route: .connectionSelfCheck)
                 }
                 if let lastHealthWord {
                     statusNavRow(
@@ -548,11 +548,11 @@ struct SettingsView: View {
                         route: .healthCheck
                     )
                 } else {
-                    navRow(icon: "stethoscope", color: .mint, title: L10n.string("体检与存档"), route: .healthCheck)
+                    navRow(icon: "stethoscope", title: L10n.string("体检与存档"), route: .healthCheck)
                 }
-                navRow(icon: "doc.text", color: .gray, title: L10n.string("系统日志"), route: .logs)
+                navRow(icon: "doc.text", title: L10n.string("系统日志"), route: .logs)
                 navRow(icon: "exclamationmark.triangle", color: .red, title: L10n.string("崩溃报告"), route: .crashReports)
-                navRow(icon: "doc.text.magnifyingglass", color: .indigo, title: L10n.string("聊天诊断"), route: .chatDiagnostics)
+                navRow(icon: "doc.text.magnifyingglass", title: L10n.string("聊天诊断"), route: .chatDiagnostics)
             } header: {
                 sectionHeader("诊断与日志")
             }
@@ -833,16 +833,16 @@ struct SettingsView: View {
 
     // MARK: - 共用行组件
 
-    private func rowIcon(_ name: String, color: Color = Palette.primary) -> some View {
-        // 设置行图标统一走 IconTile（§344 入口图标底
-        // 色块：饱和底圆角块＋白字形），取代旧裸线性
-        // 灰符号——Apple/Telegram 式设置入口画法。色
-        // 缺省主题强调单色统一（不逐行新造分类色）
-        IconTile(
-            symbol: name,
-            color: color,
-            size: OneDayMetrics.iconSlot
-        )
+    private func rowIcon(_ name: String, color: Color? = nil) -> some View {
+        // 设置行图标（总表 70 视觉整改）：20pt 单色线性
+        // SF Symbols，默认次级色，只在状态/危险操作保留
+        // 语义色——对齐 OpenBot Mobile 设置页图标层级
+        Image(systemName: name)
+            .font(.system(size: 20, weight: .regular))
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(color ?? Palette.bodyInkSecondary)
+            .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
+            .accessibilityHidden(true)
     }
 
     /// 导航行（共用行组件）：图标＋题（0.24.0 起
