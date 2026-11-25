@@ -428,6 +428,26 @@ struct SettingsView: View {
             navRow(icon: "cpu", color: Palette.primary, title: L10n.string("模型与服务商"), route: .models)
             navRow(icon: "chart.bar", color: .teal, title: L10n.string("用量统计"), route: .usage)
             navRow(icon: "server.rack", color: .blue, title: L10n.string("当前服务器"), route: .serverDetail)
+            NavigationLink {
+                AuthSessionsView()
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    rowIcon("key.radiowaves.forward", color: .indigo)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        Text("登录会话与票据")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text(appState.shortLivedTokenActive ? "短时票据已启用" : "点击启用或管理设备")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .settingsSeparatorToIconEdge()
             navRow(icon: "qrcode", color: .cyan, title: L10n.string("添加设备"), route: .addDevice)
             if pendingPairingCount > 0 {
                 statusNavRow(

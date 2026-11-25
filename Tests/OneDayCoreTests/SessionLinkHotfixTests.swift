@@ -314,4 +314,140 @@ final class SessionLinkHotfixTests: XCTestCase {
             .mismatch
         )
     }
+
+    // MARK: - #15 会话创建双门一致性回归自测（网关 POST /api/sessions vs Dashboard import）
+
+    func testDualDoorSessionCreationParity() {
+        let id = "oneday-side-parity-1"
+        let model = "deepseek-v4-pro"
+
+        let gatewayBody = SideChatLink.linkedCreateSessionBody(id: id, model: model)
+        let importBody = SideChatLink.importSessionBody(
+            id: id,
+            title: nil,
+            model: model,
+            messages: [SeedEntry(role: "user", content: "测试双门一致")],
+            lockUpdatedAt: 1_700_000_000
+        )
+
+        XCTAssertEqual(gatewayBody["id"], importBody["id"])
+        XCTAssertEqual(gatewayBody["model"], importBody["model"])
+        XCTAssertNil(gatewayBody["title"])
+        XCTAssertNil(importBody["title"])
+        XCTAssertEqual(gatewayBody["require_model_lock"], .bool(true))
+        if case .object(let cfg) = importBody["model_config"],
+           case .object(let lock) = cfg["browser_model_lock"] {
+            XCTAssertEqual(lock["confirmed"], .bool(true))
+            XCTAssertEqual(lock["model"], .string(model))
+        } else {
+            XCTFail("import 门缺失 browser_model_lock")
+        }
+    }
+
+    // MARK: - #3/#23 三态版本兼容门禁单测
+
+    func testVersionCompatibilityGateThreeStates() {
+        let blocked = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.50.120",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertTrue(blocked.isBlocked)
+
+        let soft = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.50.126",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertFalse(soft.isBlocked)
+        if case .upgradeRecommended(let msg) = soft {
+            XCTAssertTrue(msg.contains("0.51.0"))
+        } else {
+            XCTFail("期望返回 upgradeRecommended，实际：\(soft)")
+        }
+
+        let ok = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.51.0",
+            minAppVersion: "0.50.125",
+            recommendedAppVersion: "0.51.0"
+        ))
+        XCTAssertEqual(ok, .compatible)
+    }
+
+    // MARK: - #1 短时票据生命周期与回执解码单测
+
+    func testShortLivedTokenLifecycleAndDecoding() throws {
+        let json = """
+        {
+          "session_id": "sess_001",
+          "access_token": "odt1.payload.sig",
+          "refresh_token": "odr1.sess_001.secret",
+          "token_type": "Bearer",
+          "expires_in": 86400,
+          "access_expires_at": 1700086400,
+          "refresh_expires_at": 1702592000
+        }
+        """
+        let pair = try JSONDecoder().decode(ShortLivedTokenPair.self, from: Data(json.utf8))
+        XCTAssertEqual(pair.sessionID, "sess_001")
+        XCTAssertTrue(pair.accessToken.hasPrefix("odt1."))
+        XCTAssertTrue(pair.refreshToken.hasPrefix("odr1."))
+        XCTAssertEqual(pair.expiresIn, 86400)
+
+        let farBefore = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertFalse(ShortLivedTokenLifecycle.isExpired(expiresAt: pair.accessExpiresAt, now: farBefore))
+        XCTAssertFalse(ShortLivedTokenLifecycle.needsRefresh(expiresAt: pair.accessExpiresAt, now: farBefore))
+
+        let withinLeeway = Date(timeIntervalSince1970: pair.accessExpiresAt - 3600)
+        XCTAssertFalse(ShortLivedTokenLifecycle.isExpired(expiresAt: pair.accessExpiresAt, now: withinLeeway))
+        XCTAssertTrue(ShortLivedTokenLifecycle.needsRefresh(expiresAt: pair.accessExpiresAt, now: withinLeeway))
+
+        let expired = Date(timeIntervalSince1970: pair.accessExpiresAt + 10)
+        XCTAssertTrue(ShortLivedTokenLifecycle.isExpired(expiresAt: pair.accessExpiresAt, now: expired))
+        XCTAssertTrue(ShortLivedTokenLifecycle.needsRefresh(expiresAt: pair.accessExpiresAt, now: expired))
+    }
+
+    // MARK: - #3/#23 /v1/capabilities 版本门禁与短时票据能力位解码单测
+
+    func testCapabilitiesDecodesVersionGateAndShortLivedTokens() throws {
+        let json = """
+        {
+          "object": "hermes.api_server.capabilities",
+          "platform": "hermes-agent",
+          "model": "hermes-agent",
+          "features": {
+            "short_lived_tokens": true,
+            "push_tokens": true
+          },
+          "version_gate": {
+            "min_app_version": "0.50.125",
+            "recommended_app_version": "0.51.0",
+            "hermes_version": "0.23.0"
+          },
+          "endpoints": {}
+        }
+        """
+        let caps = try JSONDecoder().decode(CapabilitiesResponse.self, from: Data(json.utf8))
+        XCTAssertEqual(caps.shortLivedTokensSupported, true)
+        XCTAssertEqual(caps.versionGate?.minAppVersion, "0.50.125")
+        XCTAssertEqual(caps.versionGate?.recommendedAppVersion, "0.51.0")
+        XCTAssertEqual(caps.versionGate?.hermesVersion, "0.23.0")
+
+        let status = VersionCompatibilityGate.evaluate(.init(
+            appVersion: "0.50.120",
+            minAppVersion: caps.versionGate?.minAppVersion,
+            recommendedAppVersion: caps.versionGate?.recommendedAppVersion,
+            hermesVersion: caps.versionGate?.hermesVersion
+        ))
+        XCTAssertTrue(status.isBlocked)
+    }
+
+    // MARK: - #2 表格/代码块列宽呈现边界锁定单测
+
+    func testMarkdownTablePresentationBoundsLocked() {
+        XCTAssertEqual(MarkdownTablePresentation.maxColumnWidth, 168)
+        XCTAssertEqual(MarkdownTablePresentation.gridColumnLimit, 4)
+        XCTAssertEqual(MarkdownTablePresentation.mode(columnCount: 4), .grid)
+        XCTAssertEqual(MarkdownTablePresentation.mode(columnCount: 5), .list)
+    }
 }

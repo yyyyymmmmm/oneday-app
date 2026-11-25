@@ -11,6 +11,10 @@ enum CredentialKey {
     static let username = "auth.username"
     static let password = "auth.password"
     static let apiKey = "api.key"
+    /// #1 短时票据对（JSON 编码的 ShortLivedTokenPair）：
+    /// 含 24h access_token 与 30d 滑动 refresh_token，随
+    /// 断开连接一并清除（纳入 all）
+    static let shortLivedTokenPair = "auth.shortLivedTokenPair"
     /// 旧桥共用钥的发放键（0.5.0–0.32.1 历史）：设置页
     /// 「桥钥匙」曾写入本键、桥客户端曾以它作 Bearer。
     /// 0.33.1 起无人读写（桥请求改用 api.key、入口在服
@@ -19,7 +23,7 @@ enum CredentialKey {
     /// all（断开连接不清它，生命周期独立）
     static let writeGateKey = "writegate.key"
 
-    static let all = [baseURL, username, password, apiKey]
+    static let all = [baseURL, username, password, apiKey, shortLivedTokenPair]
 }
 
 /// 身份键名（根治版包 1，DESIGN §330）：主线钦定身
@@ -115,5 +119,25 @@ enum KeychainStore {
         for account in CredentialKey.all {
             delete(account: account)
         }
+    }
+
+    static func saveShortLivedTokenPair(_ pair: ShortLivedTokenPair) {
+        guard let data = try? JSONEncoder().encode(pair),
+              let text = String(data: data, encoding: .utf8) else {
+            return
+        }
+        save(text, account: CredentialKey.shortLivedTokenPair)
+    }
+
+    static func readShortLivedTokenPair() -> ShortLivedTokenPair? {
+        guard let text = read(account: CredentialKey.shortLivedTokenPair),
+              let data = text.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ShortLivedTokenPair.self, from: data)
+    }
+
+    static func deleteShortLivedTokenPair() {
+        delete(account: CredentialKey.shortLivedTokenPair)
     }
 }

@@ -237,3 +237,237 @@ private struct IssuedCodeView: View {
         return UIImage(cgImage: cgImage)
     }
 }
+
+// MARK: - 设备会话与短时票据管理页（#1 短时票据）
+
+/// 设置 → 模型与连接 →「登录会话与票据」：
+/// 展示当前设备的短时票据状态（支持一键启用/刷新）、列出服务端已签发的所有设备会话并支持按设备撤销。
+struct AuthSessionsView: View {
+    @Environment(AppState.self) private var appState
+
+    @State private var sessions: [AuthSessionSummary] = []
+    @State private var isLoading = false
+    @State private var isExchanging = false
+    @State private var errorMessage: String?
+    @State private var statusBanner: String?
+
+    var body: some View {
+        List {
+            SettingsHeroCard(
+                symbol: "key.radiowaves.forward",
+                tint: .indigo,
+                title: "登录会话与短时票据",
+                subtitle: "用 24 小时短时票据替代长期密钥直传，支持多设备独立撤销与重放自动吊销。",
+                statusText: appState.shortLivedTokenActive ? "短时票据已启用" : "仅长期密钥",
+                statusTone: appState.shortLivedTokenActive ? .healthy : .neutral
+            )
+
+            Section {
+                if let pair = appState.shortLivedTokenPair {
+                    SettingsValueRow(
+                        symbol: "person.badge.shield.checkmark",
+                        tint: .green,
+                        title: "当前会话",
+                        value: pair.sessionID,
+                        monospaced: true,
+                        copyable: true
+                    )
+                    SettingsValueRow(
+                        symbol: "clock",
+                        tint: .blue,
+                        title: "访问票据有效期至",
+                        value: Self.formatTimestamp(pair.accessExpiresAt)
+                    )
+                    SettingsValueRow(
+                        symbol: "arrow.triangle.2.circlepath",
+                        tint: .teal,
+                        title: "换票凭据有效期至",
+                        value: Self.formatTimestamp(pair.refreshExpiresAt)
+                    )
+                }
+
+                Button {
+                    enableOrRotate()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        IconTile(
+                            symbol: appState.shortLivedTokenActive ? "arrow.clockwise" : "bolt.shield",
+                            color: Palette.primary,
+                            size: OneDayMetrics.iconSlot
+                        )
+                        Text(appState.shortLivedTokenActive ? "重新签发短时票据" : "启用短时票据")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.primary)
+                        Spacer()
+                        if isExchanging {
+                            ProgressView()
+                        }
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+                .disabled(isExchanging)
+            } header: {
+                SettingsSectionHeader("本机票据状态")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            if let statusBanner {
+                Section {
+                    Text(statusBanner)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.successText)
+                }
+                .listRowBackground(Palette.surface)
+            }
+
+            if let errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.danger)
+                }
+                .listRowBackground(Palette.surface)
+            }
+
+            Section {
+                if isLoading && sessions.isEmpty {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        ProgressView()
+                        Text("正在加载已登录设备…")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                } else if sessions.isEmpty {
+                    Text("服务端暂无短时票据会话记录（若服务端尚未升级到短时票据版本，此列表为空）。")
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                } else {
+                    ForEach(sessions) { item in
+                        sessionRow(item)
+                    }
+                }
+            } header: {
+                SettingsSectionHeader("已签发设备会话")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .navigationTitle("登录会话与票据")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await loadSessions()
+        }
+        .task {
+            await loadSessions()
+        }
+    }
+
+    private func sessionRow(_ item: AuthSessionSummary) -> some View {
+        let isCurrent = item.sessionID == appState.shortLivedTokenPair?.sessionID
+        return HStack(spacing: OneDayMetrics.spacingSM) {
+            IconTile(
+                symbol: item.revoked ? "xmark.shield" : "iphone",
+                color: item.revoked ? .gray : (isCurrent ? .green : .blue),
+                size: OneDayMetrics.iconSlot
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(item.deviceName)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    if isCurrent {
+                        SettingsStatusPill(text: "本机", tone: .healthy)
+                    } else if item.revoked {
+                        SettingsStatusPill(text: "已撤销", tone: .error)
+                    }
+                }
+                Text("最近活跃：\(Self.formatTimestamp(item.lastUsedAt))")
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if !item.revoked {
+                Button("撤销", role: .destructive) {
+                    revoke(sessionID: item.sessionID)
+                }
+                .font(.footnote.weight(.medium))
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func loadSessions() async {
+        guard let config = appState.config,
+              let token = await appState.effectiveBearerToken() else {
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            sessions = try await appState.client.listAuthSessions(config: config, apiKey: token)
+        } catch let error as HermesError {
+            errorMessage = error.userMessage
+        } catch {
+            errorMessage = "读取会话列表失败，请稍后重试。"
+        }
+    }
+
+    private func enableOrRotate() {
+        isExchanging = true
+        errorMessage = nil
+        statusBanner = nil
+        Task {
+            defer { isExchanging = false }
+            do {
+                _ = try await appState.enableShortLivedToken()
+                statusBanner = "已成功签发 24 小时短时票据并安全存入钥匙串。"
+                await loadSessions()
+            } catch let error as HermesError {
+                errorMessage = error.userMessage
+            } catch {
+                errorMessage = "签发短时票据失败，请确认服务端已部署最新补丁。"
+            }
+        }
+    }
+
+    private func revoke(sessionID: String) {
+        errorMessage = nil
+        statusBanner = nil
+        Task {
+            guard let config = appState.config,
+                  let token = await appState.effectiveBearerToken() else { return }
+            do {
+                _ = try await appState.client.revokeAuthSession(
+                    config: config, apiKey: token, sessionID: sessionID
+                )
+                if sessionID == appState.shortLivedTokenPair?.sessionID {
+                    appState.clearShortLivedToken()
+                }
+                statusBanner = "已立即撤销会话 \(sessionID)。"
+                await loadSessions()
+            } catch let error as HermesError {
+                errorMessage = error.userMessage
+            } catch {
+                errorMessage = "撤销会话失败，请稍后再试。"
+            }
+        }
+    }
+
+    private static func formatTimestamp(_ epoch: Double) -> String {
+        let date = Date(timeIntervalSince1970: epoch)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+}

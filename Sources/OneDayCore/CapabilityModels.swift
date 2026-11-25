@@ -15,10 +15,23 @@ public struct CapabilitiesResponse: Decodable, Sendable {
     public let runtimeMode: String?
     public let features: [String: JSONValue]
     public let endpoints: [String: Endpoint]
+    public let versionGate: VersionGateInfo?
 
     public struct Endpoint: Decodable, Sendable {
         public let method: String?
         public let path: String?
+    }
+
+    public struct VersionGateInfo: Decodable, Equatable, Sendable {
+        public let minAppVersion: String?
+        public let recommendedAppVersion: String?
+        public let hermesVersion: String?
+
+        enum CodingKeys: String, CodingKey {
+            case minAppVersion = "min_app_version"
+            case recommendedAppVersion = "recommended_app_version"
+            case hermesVersion = "hermes_version"
+        }
     }
 
     private struct AuthBody: Decodable {
@@ -32,6 +45,7 @@ public struct CapabilitiesResponse: Decodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case object, platform, model, auth, runtime, features, endpoints
+        case versionGate = "version_gate"
     }
 
     public init(from decoder: Decoder) throws {
@@ -51,6 +65,9 @@ public struct CapabilitiesResponse: Decodable, Sendable {
         endpoints = try container.decodeIfPresent(
             [String: Endpoint].self, forKey: .endpoints
         ) ?? [:]
+        versionGate = try container.decodeIfPresent(
+            VersionGateInfo.self, forKey: .versionGate
+        )
     }
 
     /// 布尔旗标取值（字符串／对象型旗标回 nil）
@@ -93,6 +110,11 @@ public struct CapabilitiesResponse: Decodable, Sendable {
     /// CapabilityNegotiation
     public var selfReactionsSupported: Bool? {
         featureFlag("self_reactions")
+    }
+
+    /// 短时票据能力位（#1 短时票据）：features.short_lived_tokens
+    public var shortLivedTokensSupported: Bool? {
+        featureFlag("short_lived_tokens")
     }
 
     /// 关键端点完整性（施工图 §1.5：缺失才上屏告警）
