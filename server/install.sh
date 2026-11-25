@@ -266,6 +266,7 @@ grep -q "auth_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT
 grep -q "push_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "push_sender.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "db_schema_guard.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "cron_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 [ "$COMPOSE_NEEDS_MOUNT" = "0" ] || log "compose 待加模块挂载行"
