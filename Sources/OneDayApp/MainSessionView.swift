@@ -131,7 +131,7 @@ struct MainSessionView: View {
                     }
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "arrow.clockwise", color: Palette.primary, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "arrow.clockwise", color: Palette.primary)
                         Text("重新发现主线")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.primary)

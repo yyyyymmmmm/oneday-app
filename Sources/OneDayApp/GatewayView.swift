@@ -47,7 +47,7 @@ struct GatewayView: View {
                     }
                     NavigationLink(value: SettingsRoute.usage) {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            IconTile(symbol: "chart.bar", color: .teal, size: OneDayMetrics.iconSlot)
+                            SettingsRowIcon(symbol: "chart.bar")
                             Text("用量统计")
                                 .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
@@ -94,7 +94,7 @@ struct GatewayView: View {
                         pendingAction = "restart"
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            IconTile(symbol: "arrow.clockwise", color: .blue, size: OneDayMetrics.iconSlot)
+                            SettingsRowIcon(symbol: "arrow.clockwise")
                             Text("重启网关")
                                 .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
@@ -109,10 +109,9 @@ struct GatewayView: View {
                         pendingAction = running ? "stop" : "start"
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            IconTile(
+                            SettingsRowIcon(
                                 symbol: running ? "stop.fill" : "play.fill",
-                                color: running ? .red : .green,
-                                size: OneDayMetrics.iconSlot
+                                color: running ? .red : .green
                             )
                             Text(running ? "停止网关" : "启动网关")
                                 .font(.rowTitleL)

@@ -59,7 +59,7 @@ struct NotificationSettingsView: View {
             Section {
                 Toggle(isOn: $liveActivityEnabled) {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "platter.filled.top.iphone", color: .blue, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "platter.filled.top.iphone")
                         Text("实时活动")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)

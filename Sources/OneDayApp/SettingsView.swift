@@ -391,7 +391,6 @@ struct SettingsView: View {
             if let voiceAvailabilityWord {
                 statusNavRow(
                     icon: "speaker.wave.2",
-                    color: .orange,
                     title: L10n.string("语音"),
                     status: voiceAvailabilityWord,
                     route: .voice
@@ -450,7 +449,6 @@ struct SettingsView: View {
             if pendingPairingCount > 0 {
                 statusNavRow(
                     icon: "person.badge.key",
-                    color: .purple,
                     title: L10n.string("设备配对"),
                     status: "\(pendingPairingCount) 条待批准",
                     route: .pairingManagement
@@ -509,7 +507,7 @@ struct SettingsView: View {
             Section {
                 statusNavRow(
                     icon: "network",
-                    color: .blue,
+                    color: gatewayStateWord == L10n.string("异常") ? .red : nil,
                     title: L10n.string("网关状态"),
                     status: gatewayStateWord,
                     route: .gateway
@@ -527,7 +525,7 @@ struct SettingsView: View {
                 if let lastSelfCheckWord {
                     statusNavRow(
                         icon: "antenna.radiowaves.left.and.right",
-                        color: .green,
+                        color: lastSelfCheckWord == L10n.string("异常") ? .red : nil,
                         title: L10n.string("连接自检"),
                         status: lastSelfCheckWord,
                         route: .connectionSelfCheck
@@ -538,7 +536,7 @@ struct SettingsView: View {
                 if let lastHealthWord {
                     statusNavRow(
                         icon: "stethoscope",
-                        color: .mint,
+                        color: lastHealthWord == L10n.string("异常") ? .red : nil,
                         title: L10n.string("体检与存档"),
                         status: lastHealthWord,
                         route: .healthCheck
@@ -830,15 +828,7 @@ struct SettingsView: View {
     // MARK: - 共用行组件
 
     private func rowIcon(_ name: String, color: Color? = nil) -> some View {
-        // 设置行图标（总表 70 视觉整改）：20pt 单色线性
-        // SF Symbols，默认次级色，只在状态/危险操作保留
-        // 语义色——对齐 OpenBot Mobile 设置页图标层级
-        Image(systemName: name)
-            .font(.system(size: 20, weight: .regular))
-            .symbolRenderingMode(.monochrome)
-            .foregroundStyle(color ?? Palette.inkSecondary)
-            .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
-            .accessibilityHidden(true)
+        SettingsRowIcon(symbol: name, color: color)
     }
 
     /// 导航行（共用行组件）：图标＋题（0.24.0 起
@@ -1064,6 +1054,22 @@ struct SettingsStatusPill: View {
     }
 }
 
+/// 统一设置行图标：20pt 单色线性 SF Symbols，默认次级色，
+/// 仅在异常、危险或明确状态指示时传入语义色
+struct SettingsRowIcon: View {
+    let symbol: String
+    var color: Color? = nil
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 20, weight: .regular))
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(color ?? Palette.inkSecondary)
+            .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
+            .accessibilityHidden(true)
+    }
+}
+
 /// 带图标的键值信息行（支持点按复制）
 struct SettingsValueRow: View {
     let symbol: String
@@ -1077,7 +1083,7 @@ struct SettingsValueRow: View {
 
     var body: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            IconTile(symbol: symbol, color: tint, size: OneDayMetrics.iconSlot)
+            SettingsRowIcon(symbol: symbol)
             Text(title)
                 .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)

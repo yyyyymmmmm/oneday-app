@@ -83,7 +83,7 @@ struct ServerDetailView: View {
                     Task { await retest() }
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "antenna.radiowaves.left.and.right", color: .green, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "antenna.radiowaves.left.and.right")
                         Text("重新测试连接")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
@@ -216,7 +216,7 @@ struct ServerDetailView: View {
         icon: String, color: Color, title: String, summary: String
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            IconTile(symbol: icon, color: color, size: OneDayMetrics.iconSlot)
+            SettingsRowIcon(symbol: icon)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.rowTitleL)

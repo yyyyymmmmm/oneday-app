@@ -290,10 +290,9 @@ struct AuthSessionsView: View {
                     enableOrRotate()
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(
+                        SettingsRowIcon(
                             symbol: appState.shortLivedTokenActive ? "arrow.clockwise" : "bolt.shield",
-                            color: Palette.primary,
-                            size: OneDayMetrics.iconSlot
+                            color: Palette.primary
                         )
                         Text(appState.shortLivedTokenActive ? "重新签发短时票据" : "启用短时票据")
                             .font(.rowTitleL)
@@ -372,10 +371,9 @@ struct AuthSessionsView: View {
     private func sessionRow(_ item: AuthSessionSummary) -> some View {
         let isCurrent = item.sessionID == appState.shortLivedTokenPair?.sessionID
         return HStack(spacing: OneDayMetrics.spacingSM) {
-            IconTile(
+            SettingsRowIcon(
                 symbol: item.revoked ? "xmark.shield" : "iphone",
-                color: item.revoked ? .gray : (isCurrent ? .green : .blue),
-                size: OneDayMetrics.iconSlot
+                color: item.revoked ? Palette.inkMuted : (isCurrent ? Palette.successText : nil)
             )
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {

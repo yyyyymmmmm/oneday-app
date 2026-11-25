@@ -28,7 +28,7 @@ struct SkillsView: View {
                     SkillHubView()
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "bag.fill", color: .blue, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "bag")
                         VStack(alignment: .leading, spacing: 2) {
                             Text("技能商店")
                                 .font(.rowTitleL)
