@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.8.0   # 台账新增结构化 title_human 与 cron 列表 is_system 投影（2026-11-26；不部署）
+version: 2.8.0   # 台账新增结构化 title_human 与 cron 列表 is_system 投影＋头像目录补齐 8 个灵动 preset（Bug1，2026-11-26 组包 deploy/2.8.0-with-avatar-fix）
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -182,7 +182,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/identity_gateway.py
       mount_mode: ro
-      sha256: 015c9251c7d9be5b35c620e77c09ebfdf40fb8414a0c9c506c0f55ff642cc352
+      sha256: 91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物（行为本体自 companion identity_bridge.py 平移；原件在预制覆盖事故中丢失，本件按登记接口＋自测契约重建、应用前与桥原件 1.0.77 逐函数 AST 对账通过——21 个业务函数签名＋函数体全等，差异全为登记在案的传输壳适配）
       provides: [identity-name-gateway, identity-avatar-gateway, identity-mcp-gateway]
       summary: 身份面入关（2.3.0 新增，断桥批四）：companion identity 桥（8648）拆壳——名字状态（GET name／原子落盘／审计链 traces）、头像托管（内容寻址 av_<sha16>、索引、GET/POST avatar；GET name/avatar 免钥供保形口与 MCP 进程内调用、POST avatar 单钥）、MCP JSON-RPC 门面（initialize/ping/tools/list/tools/call，工具 identity_get_name／identity_set_name／identity_get_avatar／identity_set_avatar，进程内直调、进程内密钥永不出关）全部保留；仅换壳：传输层由独立 HTTP 服务改网关内 dispatch（同步核，api_server 在工作线程驱动），鉴权改单钥 API_SERVER_KEY，数据目录 IDENTITY_DATA_DIR（默认 /opt/data/identity，数据自宿主旧桥目录整树平移）。改名写口保持关停（NAME_WRITE_RETIRED_180：POST /identity/name 回 404、改名仅 MCP 进程内直调，对位 §180 App 侧改名下线）。模块导入即 start()（建目录、载入状态）。不在任何判定链上，模块故障只降级身份面。包内自测 identity_front_gateway_selftest.py 21 项全过。
