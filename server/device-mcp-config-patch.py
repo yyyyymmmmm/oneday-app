@@ -19,7 +19,7 @@ servers -- is byte-identical afterwards. Idempotent: a config
 already in final form verifies and exits 0 without writing.
 
 Usage: python3 device-mcp-config-patch.py [deploy-dir]
-       (default /www/dk_project/dk_app/hermes)
+       (default /srv/hermes)
 """
 import os
 import re
@@ -51,7 +51,7 @@ def load_key(deploy: Path) -> str:
 
 def main():
     deploy = Path(sys.argv[1] if len(sys.argv) > 1
-                  else "/www/dk_project/dk_app/hermes")
+                  else "/srv/hermes")
     cfg_path = deploy / "data" / "config.yaml"
     if not cfg_path.exists():
         die(f"config not found: {cfg_path}")
