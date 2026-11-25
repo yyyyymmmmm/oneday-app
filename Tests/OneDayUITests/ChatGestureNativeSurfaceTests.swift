@@ -761,6 +761,18 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
         }
     }
 
+    /// 整行菜单出现的判据：双口径轮询（同
+    /// pollRowMenu），限时未出即判失败并附
+    /// 按钮树（与 assertEditMenuShown 同式）
+    private func assertRowMenuShown(in app: XCUIApplication) {
+        if !pollRowMenu(in: app, timeout: 10) {
+            XCTFail(
+                "长按后整行菜单未出现；当时按钮树："
+                    + treeSnapshot(in: app)
+            )
+        }
+    }
+
     private func assertRowMenuAbsent(in app: XCUIApplication) {
         // 双口径同 pollRowMenu（台账 193 判读对
         // 齐）：自绘动作面项以标题在树——只查 SF
