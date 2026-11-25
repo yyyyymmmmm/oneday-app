@@ -19,16 +19,16 @@ public enum ChatNoticeTier: String, CaseIterable, Equatable, Sendable {
     /// 常驻失败（OB-I3）：不自清，用户手关才退场
     case persistent
 
-    /// 自消秒数（赋值即起计时，到点自清、不留残影）；
-    /// 常驻档为 nil——不起计时
+    /// 自消秒数（赋值即起计时，到点自清、不留残影）：
+    /// 遵循主流 Toast 规范，所有提示均自动退场，用户也可手关
     public var autoDismissSeconds: Double? {
         switch self {
         case .brief:
-            return 5
+            return 3.5
         case .extended:
-            return 8
+            return 6
         case .persistent:
-            return nil
+            return 5
         }
     }
 }

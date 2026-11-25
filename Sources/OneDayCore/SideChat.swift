@@ -135,8 +135,7 @@ public enum SideChatArchive {
     }
 }
 
-/// 回告入线判定（D4 红线）：回告卡只在主线聊天页由总览桥
-/// 通知在呈现层拼装；非主线恒为空。只取未读、保入序、限量
+/// 回告入线判定：通知统一收口到顶栏铃铛面板，不在主线聊天流底部常驻堆卡
 public enum ReportCardPolicy {
     public static let defaultLimit = 3
 
@@ -145,7 +144,6 @@ public enum ReportCardPolicy {
         isMainThread: Bool,
         limit: Int = defaultLimit
     ) -> [OverviewNotification] {
-        guard isMainThread else { return [] }
-        return Array(notifications.filter { !$0.read }.prefix(max(0, limit)))
+        return []
     }
 }

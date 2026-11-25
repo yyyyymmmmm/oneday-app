@@ -161,10 +161,10 @@ final class AgentHubStore {
     private(set) var rulesNote: String?
     /// 正在撤销的规则 id（只禁用当前行）
     private(set) var revokingRuleIDs: Set<String> = []
-    /// 就地卡裁决结果行（0.36.21）：本进程内已收口的
-    /// 卡——裁决后原地收成一行，不凭空消失（规格 §1）；
-    /// 权威账本仍是桥 /decisions，这里只是呈现层痕迹
+    /// 就地卡裁决结果行：裁决后原地短暂提示 3 秒即自动消散，
+    /// 不再长期占用输入框上方空间（权威账本仍在桥 /decisions）
     private(set) var resolvedLines: [ApprovalResolvedLine] = []
+    @ObservationIgnored private var resolvedLineDismissTasks: [String: Task<Void, Never>] = [:]
     /// 经「总是允许」路径批准中的记录 id（裁决落定后
     /// 据此把结果行标成 approvedAlways，decide 成功分
     /// 支消费后即除名）
@@ -903,6 +903,13 @@ final class AgentHubStore {
         )
         if resolvedLines.count > 20 {
             resolvedLines.removeFirst(resolvedLines.count - 20)
+        }
+        resolvedLineDismissTasks[id]?.cancel()
+        resolvedLineDismissTasks[id] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.resolvedLines.removeAll { $0.id == id }
+            self?.resolvedLineDismissTasks.removeValue(forKey: id)
         }
     }
 
