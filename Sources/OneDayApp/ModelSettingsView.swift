@@ -224,24 +224,30 @@ struct ModelSettingsView: View {
                 )
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "sparkles")
                     Text("默认模型")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Text(defaultRowValue)
-                        .font(.rowTitleL)
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                     if store.isLoading {
                         ProgressView()
                     }
                 }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
         } header: {
-            Text("默认")
+            SettingsSectionHeader("默认")
         } footer: {
             Text(Self.defaultScopeText)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     /// 某家某模型是不是当前默认（默认的唯一判定口，
@@ -366,20 +372,24 @@ struct ModelSettingsView: View {
                     showProviderEditor = true
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(Palette.primary)
+                        SettingsRowIcon(symbol: "plus.circle", color: Palette.primary)
                         Text("添加服务商")
                             .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
+                            .foregroundStyle(Palette.primary)
                     }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
             }
             hiddenProvidersRows
         } header: {
-            Text("服务商")
+            SettingsSectionHeader("服务商")
         } footer: {
             Text("填接口和密钥，获取模型，再选用。密钥只保存在你的服务端，App 不留存。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     /// 网关组是否已被隐藏（本机账，AppState 唯一账本）
@@ -429,20 +439,20 @@ struct ModelSettingsView: View {
         name: String, modelCount: Int, isDefaultOwner: Bool
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
+            SettingsRowIcon(symbol: "server.rack")
             Text(name)
                 .font(.rowTitleL)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
-            Spacer(minLength: OneDayMetrics.spacingS)
             if isDefaultOwner {
-                Text("默认")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.successText)
+                SettingsStatusPill(text: "默认", tone: .healthy)
             }
-            Text(L10n.format("%lld 个模型", modelCount))
-                .font(.footnote)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(L10n.format("%lld 个", modelCount))
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.inkSecondary)
         }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
     // MARK: - 第三段：辅助模型＋预设入口（B5，降权）
@@ -452,33 +462,47 @@ struct ModelSettingsView: View {
             NavigationLink {
                 AuxModelsView(store: store)
             } label: {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("给各用途分配模型")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(auxSummaryLine)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "slider.horizontal.3")
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        Text("给各用途分配模型")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text(auxSummaryLine)
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
             NavigationLink {
                 PresetsView(store: store)
             } label: {
-                Text("预设")
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "wand.and.stars")
+                    Text("预设")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
             NavigationLink {
                 MoaView(modelStore: store)
             } label: {
-                Text("多模型会商")
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "person.3")
+                    Text("多模型会商")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
         } header: {
-            Text("辅助模型")
+            SettingsSectionHeader("辅助模型")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var auxSummaryLine: String {

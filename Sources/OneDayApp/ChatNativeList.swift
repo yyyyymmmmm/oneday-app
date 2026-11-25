@@ -1548,9 +1548,6 @@ final class ChatRootViewController: UIViewController,
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        activeContextMenuData = nil
-        activeContextMenuIndexPath = nil
-        removeActiveReactionBarHost()
     }
 
     // MARK: 键盘跟随（§302 回 §194 形态）
@@ -4088,7 +4085,6 @@ final class ChatRootViewController: UIViewController,
     func scrollViewWillBeginDragging(
         _ scrollView: UIScrollView
     ) {
-        removeActiveReactionBarHost()
         // 用户接管：落点意图即消（H6 的意图边界）
         userInteracting = true
         // §335：浏览态置真（与 userInteracting 同
@@ -4459,7 +4455,6 @@ final class ChatRootViewController: UIViewController,
                 return
             }
             SelectableUITextView.clearAllSelections(in: collectionView)
-            removeActiveReactionBarHost()
             callbacks?.onBlankTap()
         }
         let tap = UITapGestureRecognizer(
@@ -4475,32 +4470,7 @@ final class ChatRootViewController: UIViewController,
         blankTapDelegate = delegate
     }
 
-    // MARK: - 原生上下文菜单 + 顶部玻璃反应条（方案 A：iMessage / Telegram 同构）
-
-    private static var contextMenuDataAssocKey: UInt8 = 0
-    private static var contextMenuTrailingAssocKey: UInt8 = 0
-    private static var contextMenuIndexPathAssocKey: UInt8 = 0
-    private static var reactionBarHostAssocKey: UInt8 = 0
-
-    private var activeContextMenuData: ChatRowActionSheetData? {
-        get { objc_getAssociatedObject(self, &Self.contextMenuDataAssocKey) as? ChatRowActionSheetData }
-        set { objc_setAssociatedObject(self, &Self.contextMenuDataAssocKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
-    }
-
-    private var activeContextMenuAlignsTrailing: Bool {
-        get { (objc_getAssociatedObject(self, &Self.contextMenuTrailingAssocKey) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &Self.contextMenuTrailingAssocKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
-    }
-
-    private var activeContextMenuIndexPath: IndexPath? {
-        get { objc_getAssociatedObject(self, &Self.contextMenuIndexPathAssocKey) as? IndexPath }
-        set { objc_setAssociatedObject(self, &Self.contextMenuIndexPathAssocKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
-    }
-
-    private var activeReactionBarHost: UIHostingController<AnyView>? {
-        get { objc_getAssociatedObject(self, &Self.reactionBarHostAssocKey) as? UIHostingController<AnyView> }
-        set { objc_setAssociatedObject(self, &Self.reactionBarHostAssocKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
-    }
+    // MARK: - 原生上下文菜单 + 系统原生 Palette 反应排（iOS 17+ .displayAsPalette，彻底零窗口挂件）
 
     func collectionView(
         _ collectionView: UICollectionView,
@@ -4515,13 +4485,39 @@ final class ChatRootViewController: UIViewController,
         guard let data = row.makeContextMenuData?() else { return nil }
         let items = data.actionItems()
         guard !items.isEmpty || data.canReact else { return nil }
-        activeContextMenuData = data
-        activeContextMenuAlignsTrailing = row.contextMenuAlignsTrailing
-        activeContextMenuIndexPath = indexPath
         return UIContextMenuConfiguration(
             identifier: row.key as NSString,
             previewProvider: nil
-        ) { _ in
+        ) { [weak self] _ in
+            var children: [UIMenuElement] = []
+            if data.canReact {
+                let reactionActions = MessageReactions.palette.map { emoji in
+                    UIAction(
+                        title: emoji,
+                        state: data.ownEmoji == emoji ? .on : .off
+                    ) { _ in
+                        Haptics.selection()
+                        data.onPickReaction(emoji)
+                    }
+                }
+                let moreAction = UIAction(
+                    title: L10n.string("更多"),
+                    image: UIImage(systemName: "plus")
+                ) { _ in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        self?.presentAllReactionsSheet(
+                            ownEmoji: data.ownEmoji,
+                            onPick: data.onPickReaction
+                        )
+                    }
+                }
+                let paletteMenu = UIMenu(
+                    title: "",
+                    options: .displayAsPalette,
+                    children: reactionActions + [moreAction]
+                )
+                children.append(paletteMenu)
+            }
             let actions = items.map { item in
                 UIAction(
                     title: item.title,
@@ -4531,7 +4527,8 @@ final class ChatRootViewController: UIViewController,
                     item.action()
                 }
             }
-            return UIMenu(title: "", children: actions)
+            children.append(contentsOf: actions)
+            return UIMenu(title: "", children: children)
         }
     }
 
@@ -4558,137 +4555,6 @@ final class ChatRootViewController: UIViewController,
         let params = UIPreviewParameters()
         params.backgroundColor = .clear
         return UITargetedPreview(view: cell.contentView, parameters: params)
-    }
-
-    private static let reactionBarWindowTag = 948271
-
-    func collectionView(
-        _ collectionView: UICollectionView,
-        willDisplayContextMenu configuration: UIContextMenuConfiguration,
-        animator: (any UIContextMenuInteractionAnimating)?
-    ) {
-        guard let data = activeContextMenuData, data.canReact,
-              let indexPath = activeContextMenuIndexPath,
-              let window = view.window else { return }
-        removeActiveReactionBarHost()
-        Self.removeTaggedReactionBars(in: window)
-        let barView = ReactionFloatingBarView(
-            ownEmoji: data.ownEmoji,
-            onPick: { [weak self] emoji in
-                Haptics.selection()
-                data.onPickReaction(emoji)
-                self?.dismissActiveContextMenu()
-            },
-            onOpenMore: { [weak self] in
-                self?.dismissActiveContextMenu()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                    self?.presentAllReactionsSheet(ownEmoji: data.ownEmoji, onPick: data.onPickReaction)
-                }
-            }
-        )
-        let host = UIHostingController(rootView: AnyView(barView))
-        host.safeAreaRegions = []
-        host.view.backgroundColor = .clear
-        host.view.tag = Self.reactionBarWindowTag
-        let barW = ReactionFloatingBarView.barWidth
-        let barH = ReactionFloatingBarView.barHeight
-        let cellRect: CGRect
-        if let attrs = collectionView.layoutAttributesForItem(at: indexPath) {
-            cellRect = collectionView.convert(attrs.frame, to: window)
-        } else {
-            cellRect = CGRect(x: 20, y: window.bounds.midY - 40, width: window.bounds.width - 40, height: 80)
-        }
-        let safeTop = window.safeAreaInsets.top + 8
-        let originX: CGFloat
-        if activeContextMenuAlignsTrailing {
-            originX = min(max(cellRect.maxX - barW, 8), window.bounds.width - barW - 8)
-        } else {
-            originX = min(max(cellRect.minX, 8), window.bounds.width - barW - 8)
-        }
-        let originY = max(safeTop, cellRect.minY - barH - 10)
-        host.view.frame = CGRect(x: originX, y: originY, width: barW, height: barH)
-        host.view.alpha = 0
-        host.view.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
-        window.addSubview(host.view)
-        activeReactionBarHost = host
-        if let animator {
-            animator.addAnimations {
-                host.view.alpha = 1
-                host.view.transform = .identity
-            }
-        } else {
-            UIView.animate(withDuration: 0.22) {
-                host.view.alpha = 1
-                host.view.transform = .identity
-            }
-        }
-    }
-
-    func collectionView(
-        _ collectionView: UICollectionView,
-        willEndFor configuration: UIContextMenuConfiguration,
-        animator: (any UIContextMenuInteractionAnimating)?
-    ) {
-        let host = activeReactionBarHost
-        activeContextMenuData = nil
-        activeContextMenuIndexPath = nil
-        guard let host else {
-            if let window = view.window {
-                Self.removeTaggedReactionBars(in: window)
-            }
-            return
-        }
-        host.view.isUserInteractionEnabled = false
-        if let animator {
-            animator.addAnimations {
-                host.view.alpha = 0
-                host.view.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
-            }
-            animator.addCompletion { [weak self, weak host] in
-                guard let host else { return }
-                self?.removeReactionBarHost(host)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self, weak host] in
-                guard let host else { return }
-                self?.removeReactionBarHost(host)
-            }
-        } else {
-            removeReactionBarHost(host)
-        }
-    }
-
-    private func dismissActiveContextMenu() {
-        removeActiveReactionBarHost()
-        collectionView.contextMenuInteraction?.dismissMenu()
-        for interaction in collectionView.interactions {
-            if let menuInteraction = interaction as? UIContextMenuInteraction {
-                menuInteraction.dismissMenu()
-            }
-        }
-    }
-
-    private func removeActiveReactionBarHost() {
-        if let host = activeReactionBarHost {
-            removeReactionBarHost(host)
-        }
-        if let window = view.window {
-            Self.removeTaggedReactionBars(in: window)
-        }
-    }
-
-    private func removeReactionBarHost(
-        _ host: UIHostingController<AnyView>
-    ) {
-        host.view.removeFromSuperview()
-        if activeReactionBarHost === host {
-            activeReactionBarHost = nil
-        }
-    }
-
-    private static func removeTaggedReactionBars(in window: UIWindow) {
-        for sub in window.subviews where sub.tag == reactionBarWindowTag {
-            sub.removeFromSuperview()
-        }
     }
 
     private func presentAllReactionsSheet(ownEmoji: String?, onPick: @escaping (String) -> Void) {

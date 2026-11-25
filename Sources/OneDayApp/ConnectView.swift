@@ -169,16 +169,7 @@ struct ConnectView: View {
     private var welcomePage: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .center, spacing: OneDayMetrics.spacingM) {
-                Image("SangouPartner")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 88, height: 88)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle().stroke(Palette.hairline, lineWidth: 0.5)
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
-                    .accessibilityHidden(true)
+                welcomeBrandMark
 
                 VStack(spacing: OneDayMetrics.spacingXS) {
                     Text("欢迎使用 OneDay")
@@ -238,6 +229,31 @@ struct ConnectView: View {
                 .buttonStyle(.odPressable)
             }
             .padding(.top, OneDayMetrics.spacingXL + 8)
+        }
+    }
+
+    /// 大厂标准欢迎页品牌标识：优先使用真实桌面 App 图标（圆角矩形 + 轻阴影），
+    /// 图标不可用时回落极简几何品牌徽标，不使用具体宠物/角色照片。
+    @ViewBuilder
+    private var welcomeBrandMark: some View {
+        if AppIconBitmap.image != nil {
+            AppIconView(size: 80, cornerRadius: 20)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Palette.hairline, lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Palette.primary.gradient)
+                    .frame(width: 80, height: 80)
+                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .shadow(color: Palette.primary.opacity(0.24), radius: 16, y: 6)
+            .accessibilityHidden(true)
         }
     }
 

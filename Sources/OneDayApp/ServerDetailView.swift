@@ -63,21 +63,24 @@ struct ServerDetailView: View {
                 Button {
                     Task { await save() }
                 } label: {
-                    HStack {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        SettingsRowIcon(
+                            symbol: "checkmark.circle",
+                            color: isEdited && !isSaving ? Palette.primary : Palette.inkMuted
+                        )
+                        Text(isSaving ? "正在测试…" : "保存并测试")
+                            .font(.rowTitleL.weight(.medium))
+                            .foregroundStyle(isEdited && !isSaving ? Palette.primary : Palette.inkMuted)
                         Spacer()
                         if isSaving {
                             ProgressView()
-                                .padding(.trailing, 6)
                         }
-                        Text(isSaving ? "正在测试…" : "保存并测试")
-                            .font(.rowTitleL.weight(.semibold))
-                            .foregroundStyle(isEdited && !isSaving ? .white : Palette.inkSecondary)
-                        Spacer()
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
                 .disabled(isSaving || !isEdited)
-                .listRowBackground(isEdited && !isSaving ? Palette.primary : Palette.surface)
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
 
                 Button {
                     Task { await retest() }
@@ -96,6 +99,7 @@ struct ServerDetailView: View {
                 }
                 .disabled(isRetesting)
                 .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             } footer: {
                 if let retestResult {
                     Text(retestResult)
@@ -108,7 +112,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.addDevice) {
                     serverLinkRow(
                         icon: "qrcode",
-                        color: .cyan,
                         title: "添加设备",
                         summary: "生成认领二维码，让新设备扫码接入"
                     )
@@ -116,7 +119,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.pairingManagement) {
                     serverLinkRow(
                         icon: "person.badge.key",
-                        color: .purple,
                         title: "设备配对",
                         summary: "批准消息平台上申请对话的新用户"
                     )
@@ -131,7 +133,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.envVars) {
                     serverLinkRow(
                         icon: "key",
-                        color: .orange,
                         title: "服务器密钥",
                         summary: "管理保存在服务端的环境变量与 API 密钥"
                     )
@@ -139,7 +140,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.connectionSelfCheck) {
                     serverLinkRow(
                         icon: "antenna.radiowaves.left.and.right",
-                        color: .green,
                         title: "连接自检",
                         summary: "秒级探活检查网络连通与接口能力"
                     )
@@ -147,7 +147,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.healthCheck) {
                     serverLinkRow(
                         icon: "stethoscope",
-                        color: .mint,
                         title: "体检与存档",
                         summary: "深度自检、安全审计与备份存档"
                     )
@@ -155,7 +154,6 @@ struct ServerDetailView: View {
                 NavigationLink(value: SettingsRoute.logs) {
                     serverLinkRow(
                         icon: "doc.text",
-                        color: .gray,
                         title: "系统日志",
                         summary: "查看服务端运行日志"
                     )
@@ -213,7 +211,7 @@ struct ServerDetailView: View {
     }
 
     private func serverLinkRow(
-        icon: String, color: Color, title: String, summary: String
+        icon: String, title: String, summary: String
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             SettingsRowIcon(symbol: icon)
