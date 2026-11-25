@@ -174,7 +174,7 @@ def phase_b():
     tmp = tempfile.mkdtemp(prefix="p5b-")
     now = time.time()
     seed = {
-        "goals": [{"id": "g_a", "title": "办好年会", "note": "",
+        "goals": [{"id": "g_a", "title": "办好婚礼", "note": "",
                    "milestones": [{"id": "m1", "title": "定发言稿",
                                    "done": True}],
                    "createdAt": now - 30 * 86400,
@@ -208,10 +208,10 @@ def phase_b():
                          "source": "user",
                          "createdAt": now - 2 * 86400}],
         "briefings": [{"id": "b1", "goalId": "g_a",
-                       "period": "2026-W45", "title": "年会筹备周报",
+                       "period": "2026-W45", "title": "婚礼筹备周报",
                        "body": "x", "createdAt": now - 3 * 86400}],
         "feedPosts": [],
-        "meta": {"brief": "关心年会与自托管"},
+        "meta": {"brief": "关心婚礼与自托管"},
     }
     data_path = os.path.join(tmp, "data.json")
     with open(data_path, "w", encoding="utf-8") as f:
@@ -233,9 +233,9 @@ def phase_b():
     _dsync.init(_Path(dev_dir))
     _dsync.stage_batch("calendar", "p5-cal", [{
         "occurrenceId": "occ_rehearsal", "eventId": "ev_rehearsal",
-        "title": "年会彩排", "start": iso(now + 2 * 86400),
+        "title": "婚礼彩排", "start": iso(now + 2 * 86400),
         "end": iso(now + 2 * 86400 + 3600), "allDay": False,
-        "calendarName": "个人", "location": "青云镇白杨村"}],
+        "calendarName": "个人", "location": "土基镇西故现村"}],
         mode="full")
     _dsync.complete("calendar", "p5-cal", 1,
                     permission_state="granted")
@@ -245,7 +245,7 @@ def phase_b():
     mod._load()
 
     mod._ledger_sessions = lambda: [
-        {"id": "sess-main-1", "title": "聊年会安排",
+        {"id": "sess-main-1", "title": "聊婚礼安排",
          "startedAt": now - 86400, "endedAt": None,
          "messageCount": 5, "source": "api"},
         {"id": "cron-1", "title": "定时任务会话",
@@ -260,8 +260,8 @@ def phase_b():
     ]
     mod._ledger_messages = lambda sid: [
         {"role": "user", "ts": now - 80000,
-         "text": "年会主持稿 10 月 29 日定稿了，11 月 16 日 13 点"
-                 "在青云镇白杨村办"},
+         "text": "婚礼发言 10 月 29 日定稿了，11 月 16 日 13 点"
+                 "在土基镇西故现村办"},
         {"role": "assistant", "ts": now - 79900,
          "text": "记下了，当天流程还没排"},
         {"role": "tool", "ts": now - 79800, "text": "tool noise"},
@@ -281,9 +281,9 @@ def phase_b():
         "get": staticmethod(
             lambda path: board if "kanban" in path else None)})()
     entries = {"entries": [
-        {"id": "mem_wed", "target": "memory", "title": "年会主持稿定稿",
+        {"id": "mem_wed", "target": "memory", "title": "婚礼发言定稿",
          "summary": "10 月 29 日确认的发言原稿，11 月 16 日 13 时"
-                    "在青云镇白杨村举行年会",
+                    "在土基镇西故现村举行婚礼",
          "updatedAt": now, "digest": "x"},
         {"id": "mem_old", "target": "memory", "title": "某次旧备份",
          "summary": "三年前的服务器备份记录",
@@ -299,8 +299,8 @@ def phase_b():
 
     digest_out = json.dumps([{
         "ref": "D1",
-        "summary": "谈了年会主持稿：10 月 29 日定稿，11 月 16 日"
-                   " 13 时在青云镇白杨村举行，还留了当天流程"
+        "summary": "谈了婚礼发言：10 月 29 日定稿，11 月 16 日"
+                   " 13 时在土基镇西故现村举行，还留了当天流程"
                    "没排的尾巴"}], ensure_ascii=False)
     card_ok = {"title": "我可以替你催办卡住的合同确认",
                # G1 (1.0.16): the anchor lives in the detail's
@@ -322,7 +322,7 @@ def phase_b():
         {"title": "我可以给场地定金做收尾确认", "detail": "x",
          "evidence": "场地定金任务 2 天前刚完成",
          "evidenceRef": "K2", "goalId": None},
-        {"title": "我可以把发言原稿做成年会当天包",
+        {"title": "我可以把发言原稿做成婚礼当天包",
          "detail": "长期记忆里 10 月 29 日确认的发言原稿还没"
                    "做成当天包，我把原稿加上 11 月 16 日的"
                    "流程整理成一份当天包发你。",
@@ -338,16 +338,16 @@ def phase_b():
     check_out = json.dumps([
         {"title": "我可以替你催办卡住的合同确认", "ok": True,
          "issues": ""},
-        {"title": "我可以把发言原稿做成年会当天包", "ok": False,
+        {"title": "我可以把发言原稿做成婚礼当天包", "ok": False,
          "issues": "正文没有写清边界（哪些不做、哪一步先经"
                    "用户确认）"},
     ], ensure_ascii=False)
     check_out_rw = json.dumps([
-        {"title": "我可以把发言原稿做成年会当天包", "ok": True,
+        {"title": "我可以把发言原稿做成婚礼当天包", "ok": True,
          "issues": ""},
     ], ensure_ascii=False)
     rewrite_out = json.dumps([{
-        "title": "我可以把发言原稿做成年会当天包",
+        "title": "我可以把发言原稿做成婚礼当天包",
         "detail": "按长期记忆里 10 月 29 日确认的发言原稿，"
                   "我把原稿和 11 月 16 日当天流程整理成一份"
                   "当天包发你确认，确认后不再改动。",
@@ -409,7 +409,7 @@ def phase_b():
           and new_cards[0]["evidenceRef"] == "K1",
           f"{new_cards}")
     rescued = [i for i in ideas
-               if i["title"] == "我可以把发言原稿做成年会当天包"]
+               if i["title"] == "我可以把发言原稿做成婚礼当天包"]
     check("B rescued card stored with its anchor (G2)",
           len(rescued) == 1
           and rescued[0]["anchorId"] == "R:mem_wed"
@@ -419,13 +419,13 @@ def phase_b():
           "materialNotes" not in rec, f"{rec}")
     prompt = prompts.get("gen", "")
     check("B material carries S digest, not just titles",
-          "摘要：谈了年会主持稿" in prompt)
+          "摘要：谈了婚礼发言" in prompt)
     check("B material excludes cron/probe/old sessions",
           "定时任务会话" not in prompt
           and "探针会话" not in prompt
           and "旧会话" not in prompt)
     check("B material carries G entries + briefing",
-          "发言稿已定稿" in prompt and "年会筹备周报" in prompt)
+          "发言稿已定稿" in prompt and "婚礼筹备周报" in prompt)
     check("B material carries K signals",
           "卡住" in prompt and "长期未动 10 天" in prompt)
     check("B material excludes done tasks entirely (B2, "
@@ -433,12 +433,12 @@ def phase_b():
           "已完成待收尾" not in prompt
           and "场地定金缴纳" not in prompt)
     check("B material carries R excerpt, drops stale memory",
-          "年会主持稿定稿" in prompt and "某次旧备份" not in prompt)
+          "婚礼发言定稿" in prompt and "某次旧备份" not in prompt)
     check("B material marks tooGeneric dismissals",
           "〔太泛〕" in prompt)
     check("B material carries C calendar line (ID-1)",
-          "近期日程" in prompt and "《年会彩排》" in prompt
-          and "地点：青云镇白杨村" in prompt)
+          "近期日程" in prompt and "《婚礼彩排》" in prompt
+          and "地点：土基镇西故现村" in prompt)
 
     mod._run_generation_round("manual")
     with mod._lock:

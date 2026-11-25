@@ -4,7 +4,7 @@ batch 5) one-shot config migration.
 
 Scope: exactly one entry of the instance config -- mcp_servers.device
 in <deploy-dir>/data/config.yaml:
-  url:                https://hermes.example.com/api/device-mcp
+  url:                https://hermes.didichou.site/api/device-mcp
                       -> http://127.0.0.1:8642/api/device-mcp
   headers.Authorization: Bearer <retired bridge key>
                       -> Bearer <API_SERVER_KEY> (the single key)
@@ -19,7 +19,7 @@ servers -- is byte-identical afterwards. Idempotent: a config
 already in final form verifies and exits 0 without writing.
 
 Usage: python3 device-mcp-config-patch.py [deploy-dir]
-       (default /srv/hermes)
+       (default /www/dk_project/dk_app/hermes)
 """
 import os
 import re
@@ -51,7 +51,7 @@ def load_key(deploy: Path) -> str:
 
 def main():
     deploy = Path(sys.argv[1] if len(sys.argv) > 1
-                  else "/srv/hermes")
+                  else "/www/dk_project/dk_app/hermes")
     cfg_path = deploy / "data" / "config.yaml"
     if not cfg_path.exists():
         die(f"config not found: {cfg_path}")

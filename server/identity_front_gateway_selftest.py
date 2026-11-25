@@ -17,9 +17,9 @@ from pathlib import Path
 ROOT = Path(tempfile.mkdtemp(prefix="batch4-selftest-"))
 HERMES_HOME = ROOT / "data"
 HERMES_HOME.mkdir(parents=True)
-(HERMES_HOME / "SOUL.md").write_text("# 小天\n\n我是小天，OneDay 的智能体。\n", encoding="utf-8")
+(HERMES_HOME / "SOUL.md").write_text("# 三狗\n\n我是三狗，OneDay 的智能体。\n", encoding="utf-8")
 (HERMES_HOME / ".env").write_text(
-    "GITHUB_MCP_TOKEN=test-github-token\nMCP_BOX_API_KEY=box-stub-key-123456\n",
+    "GITHUB_MCP_TOKEN=ghp_stubtoken1234567890\nMCP_BOX_API_KEY=box-stub-key-123456\n",
     encoding="utf-8")
 
 traces = []
@@ -111,7 +111,7 @@ check("health 200 + traceSink oneday",
       st == 200 and body.get("module") == "identity"
       and body.get("traceSink") == "oneday", f"{st} {body}")
 st, body, _, _ = call("GET", "/identity/name")
-check("name read from SOUL", st == 200 and body.get("soulName") == "小天",
+check("name read from SOUL", st == 200 and body.get("soulName") == "三狗",
       f"{st} {body}")
 st, body, _, _ = call("POST", "/identity/name", {"name": "x"})
 check("POST /identity/name stays retired (404 fall-through)", st == 404,
@@ -157,7 +157,7 @@ soul_now = (HERMES_HOME / "SOUL.md").read_text(encoding="utf-8")
 check("mcp set_name rewrites only the title line",
       res.get("soulName") == "阿狗"
       and soul_now.splitlines()[0] == "# 阿狗"
-      and "我是小天，OneDay 的智能体。" in soul_now, f"{res} / {soul_now!r}")
+      and "我是三狗，OneDay 的智能体。" in soul_now, f"{res} / {soul_now!r}")
 check("set_name trace via sink (mode oneday)",
       res.get("trace", {}).get("mode") == "oneday", f"{res.get('trace')}")
 st, body, _, _ = call("POST", "/mcp", {
@@ -169,11 +169,11 @@ check("mcp get_name reads back 阿狗", res.get("soulName") == "阿狗", f"{res}
 trace_server.shutdown()
 st, body, _, _ = call("POST", "/mcp", {
     "jsonrpc": "2.0", "id": 5, "method": "tools/call",
-    "params": {"name": "identity_set_name", "arguments": {"name": "小天"}}})
+    "params": {"name": "identity_set_name", "arguments": {"name": "三狗"}}})
 res = json.loads(body["result"]["content"][0]["text"])
 spill = Path(os.environ["AVATAR_DIR"]) / "traces-spill.jsonl"
 check("sink down -> trace spills locally, action still succeeds",
-      res.get("soulName") == "小天" and res.get("trace", {}).get("mode") == "spill"
+      res.get("soulName") == "三狗" and res.get("trace", {}).get("mode") == "spill"
       and spill.exists(), f"{res.get('trace')}")
 
 print("== front_gateway ==")
@@ -190,7 +190,7 @@ check("public view carries no secret material",
 st, payload = fg.get_gateway_channels()
 check("gateway-channels unconfigured -> honest 503", st == 503, f"{st}")
 fg.NEWAPI_BASE = f"http://127.0.0.1:{newapi_port}"
-fg.NEWAPI_ADMIN_TOKEN = "test-admin-token"
+fg.NEWAPI_ADMIN_TOKEN = "stub-admin-token"
 st, payload = fg.get_gateway_channels()
 ch = (payload.get("channels") or [{}])[0]
 check("gateway-channels proxies display fields only",

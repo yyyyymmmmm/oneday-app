@@ -636,21 +636,6 @@ def _sentinel_pass() -> None:
     if _degraded_reason:
         return
     watermark = _sentinel_load_watermark()
-    try:
-        from db_schema_guard import verify_state_db_schema
-    except ImportError:
-        try:
-            from modules.db_schema_guard import verify_state_db_schema
-        except ImportError:
-            verify_state_db_schema = None
-    if verify_state_db_schema is not None:
-        guard = verify_state_db_schema(_SENTINEL_DB_PATH)
-        if not guard.get("ok"):
-            _sentinel_status.update(
-                lastRunAt=_now(),
-                lastError=f"schema_guard:{guard.get('reason')}:{guard.get('missing')}",
-            )
-            return
     conn = sqlite3.connect(
         f"file:{_SENTINEL_DB_PATH}?mode=ro", uri=True, timeout=2.0)
     try:

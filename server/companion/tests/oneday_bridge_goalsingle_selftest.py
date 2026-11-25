@@ -299,7 +299,7 @@ def phase_b():
 
     mod._dash_json = fake_dash
     out = mod._delegate_goal_task(
-        "g_b", {"title": "订年会场地",
+        "g_b", {"title": "订婚礼场地",
                 "idempotencyKey": "del-key-1"})
     check("B delegate returns the assignment",
           out["taskId"] == "t_del1" and out["goalId"] == "g_b"
@@ -323,7 +323,7 @@ def phase_b():
           a.get("goalId") == "g_b"
           and a.get("delegateKey") == "del-key-1", f"{a}")
     out2 = mod._delegate_goal_task(
-        "g_b", {"title": "订年会场地",
+        "g_b", {"title": "订婚礼场地",
                 "idempotencyKey": "del-key-1"})
     creates2 = [c for c in calls if c[0] == "POST"
                 and "tasks?" in c[1]]
@@ -333,7 +333,7 @@ def phase_b():
     # moving the delegated task resets its echo ledger
     with mod._lock:
         mod._record_completed_task_entries_locked(
-            {"t_del1": ("订年会场地", "done")}, now)
+            {"t_del1": ("订婚礼场地", "done")}, now)
         mod._set_task_goal_locked("t_del1", "g_a", None)
         st = mod._db["goalEchoState"].get("t_del1")
     check("B move resets the echo ledger",

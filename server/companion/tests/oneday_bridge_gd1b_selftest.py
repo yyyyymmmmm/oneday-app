@@ -200,7 +200,7 @@ def phase_b():
 def phase_c():
     tmp = tempfile.mkdtemp(prefix="gd1b-c-")
     ob = load_module(tmp)
-    ob.HERMES_API_KEY = "test-api-key"
+    ob.HERMES_API_KEY = "stub-key"
     holder = {}
 
     def fake_submit(prompt, idem):

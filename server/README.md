@@ -26,6 +26,7 @@ install.sh 是幂等的：已是目标状态的文件自动跳过、不重启；
 ./verify.sh /path/to/部署目录
 ```
 
+按能力注册表逐项探活，输出每项能力是 齐 / 缺 / 规划中 / 未验。现行 instance 的基线结果见 `verify-baseline-20261122.txt`（齐 11 / 缺 0 / 规划中 4 / 未验 3）。
 
 ## 升级与回滚口径
 
@@ -43,7 +44,9 @@ services/                        compose 模板（hermes + companion）与 env �
 install.sh                       幂等安装（校验版本→备份→保 inode 应用→重启→健康检查→失败回滚）
 verify.sh                        能力探针（只读）
 CAPABILITIES.md                  能力注册表：功能 → 服务端依赖 → 探针 → 缺失时 OneDay 的表现
+INVENTORY.md                     现行 instance 盘点（来源、路径、哈希）
 RULES.md                         先入包后应用等规矩
+verify-baseline-20261122.txt     现行 instance 的 verify 基线输出
 ```
 
-注：本目录是部署包的脱敏分发副本，实例盘点、部署日记与验收输出等运维档案不随仓分发；根下 docker-compose.yml 为旧双容器形态副本，与现行版不一致、勿用，现行形态见 services/ 模板。
+注：本目录根下另有 2026-11 月的历史运维文档与一份 2026-11-09 的旧 `docker-compose.yml` 副本，与服务器现行版不一致，**不是包的一部分，勿用**；包的正本是上面列出的文件。

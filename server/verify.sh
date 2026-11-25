@@ -2,13 +2,13 @@
 # hermes-deploy verify.sh — 按 CAPABILITIES.md 能力注册表逐项探活（只读）
 #
 # 用法: 在部署机上运行: ./verify.sh [部署目录]
-#   部署目录可选（默认 /srv/hermes），仅静态探针（规划路由 grep）用到。
+#   部署目录可选（默认 /www/dk_project/dk_app/hermes），仅静态探针（规划路由 grep）用到。
 #   写型探针（run 幂等重放等）本版一律不执行，只在输出里标注人工验收路径。
 #
 # 输出口径: [齐] 在位且行为/路由证据通过; [缺] 应有而未有; [规划中] 批次未到、当前缺失符合预期; [未验] 本轮条件不足未探
 set -uo pipefail
 
-DEPLOY_DIR="${1:-/srv/hermes}"
+DEPLOY_DIR="${1:-/www/dk_project/dk_app/hermes}"
 TARGET_IMAGE="nousresearch/hermes-agent:v0.23.0"
 BASE="http://127.0.0.1:8642"
 
@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=df7b0845fea49a2c799a0c2e2d9703284e581865b6d5a8c135a2071357640731
+  [api_server.py]=24116e037a55713d25138dc193a4b8df5e0def18df6296f4245a0732808f0849
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -34,9 +34,14 @@ declare -A WANT_SHA_EXTRA=(
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
   [identity_gateway.py]=015c9251c7d9be5b35c620e77c09ebfdf40fb8414a0c9c506c0f55ff642cc352
   [front_gateway.py]=857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf
+  [api_server_oneday_routes.py]=c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b
+  [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
+  [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
+  [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
+  [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=ebd3e8c05934ea72abc0d424dd0275b07e038b011c254cd3801aae058b7dac79
+  [write_gate_gateway.py]=98e8c2a59166ed668927e63b60111d70ed85d13641f6240447d96a42d093e880
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
   [oneday_prompt.py]=7b72d19c9806b1ee0750c41516aa2e4abe61950f4d0680ba23076c44b5053fcb
@@ -51,7 +56,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
-  [oneday_seg_delivery.py]=b369f9480295decb32f9944748dc9ad4d5c027d4b9541581b8e2da2f09ebb191
+  [oneday_seg_delivery.py]=fd0a9e52ec46fbc4c4ac8b31016f6df0ed8449e5401e244a5e6b398a096f20a2
   [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
   [oneday_seg_filelibrary.py]=77d747bd95bb182c68b20d4fe2ce3131b932f0ba28d5b80513abaa5c63c4adc1
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
@@ -84,6 +89,11 @@ declare -A CPATH=(
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
   [identity_gateway.py]=/opt/hermes/gateway/platforms/identity_gateway.py
   [front_gateway.py]=/opt/hermes/gateway/platforms/front_gateway.py
+  [api_server_oneday_routes.py]=/opt/hermes/gateway/platforms/api_server_oneday_routes.py
+  [auth_tokens.py]=/opt/hermes/gateway/platforms/auth_tokens.py
+  [push_tokens.py]=/opt/hermes/gateway/platforms/push_tokens.py
+  [push_sender.py]=/opt/hermes/gateway/platforms/push_sender.py
+  [db_schema_guard.py]=/opt/hermes/gateway/platforms/db_schema_guard.py
   [react_to_message_tool.py]=/opt/hermes/tools/react_to_message_tool.py
   [self_reaction_pending.py]=/opt/hermes/gateway/platforms/self_reaction_pending.py
   [write_gate_gateway.py]=/opt/hermes/gateway/platforms/write_gate_gateway.py
@@ -129,7 +139,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -720,7 +730,7 @@ case "$CAPS" in *'"device_bridge": true'*) ok "device-capability-flag" "features
 if grep -A3 'device:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null | grep -q '127.0.0.1:8642/api/device-mcp'; then ok "device-mcp-config" "config.yaml mcp_servers.device 指向网关 8642（单钥）"; else bad "device-mcp-config" "config.yaml device 条目未指网关（device-mcp-config-patch.py 未应用）"; fi
 
 # ---- 28. identity/front 网关入关（断桥批四, 包 2.3.0, #38/#39）: 只读探针; 写型默认不跑 ----
-for name in identity_gateway.py front_gateway.py; do
+for name in identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -749,6 +759,7 @@ case "$EV" in *'"object": "list"'*) ok "settings-events-route" "GET /v1/settings
 REG_N=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/settings/registry" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("records", [])))' 2>/dev/null || echo -1)
 if [ "$REG_N" -ge 43 ] 2>/dev/null; then ok "settings-registry-count" "注册表 $REG_N 条（种子 43＋二期登记增量）"; else bad "settings-registry-count" "注册表条数: $REG_N（期望 ≥43）"; fi
 if grep -q 'settings_admin' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -A2 '^settings:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null | grep -q 'agent_admin: true'; then ok "settings-admin-config" "config.yaml 含 settings_admin 工具集行＋settings.agent_admin=true（settings-admin-config-patch.py 已应用）"; else bad "settings-admin-config" "config.yaml 缺工具集行或总闸未翻（settings-admin-config-patch.py 未应用）"; fi
+if grep -q '^platform_hints:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -q 'OneDay app, reached through the gateway' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null; then ok "platform-hint-config" "config.yaml 含 platform_hints.api_server.replace（OneDay 渲染口径，platform-hint-config-patch.py 已应用，包 2.7.1）"; else bad "platform-hint-config" "config.yaml 缺 platform_hints 覆盖（上游纯文本提示将压制加粗口径，platform-hint-config-patch.py 未应用）"; fi
 DASHENV=$(docker exec hermes env 2>/dev/null | grep -c '^HERMES_DASH_USER=\|^HERMES_DASH_PASSWORD=' || true)
 if [ "$DASHENV" = "0" ]; then ok "c3-dash-password-env-retired" "容器环境无 HERMES_DASH_USER/HERMES_DASH_PASSWORD（C-3 终局：内部通道只剩服务凭据，包 2.5.0）"; else bad "c3-dash-password-env-retired" "容器环境仍有 $DASHENV 行密码登录变量（C-3 未终局）"; fi
 if docker exec hermes grep -q 'idem = f"ideas-sum-{int(_now())}"' /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py 2>/dev/null; then ok "ideas-digest-epoch-key" "点子摘要轮幂等键为轮次 epoch 形态（内容寻址键退役，包 2.5.0）"; else bad "ideas-digest-epoch-key" "摘要轮仍为内容寻址幂等键（409 毒化未除）"; fi
