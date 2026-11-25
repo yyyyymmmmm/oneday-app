@@ -121,8 +121,11 @@ final class StreamingPresentation485Tests: XCTestCase {
             from: "private func liveStreamingRow(",
             to: "private func liveStreamRowKey()"
         )
+        // 0.51.0 改钉（判读 B2）：gen4StreamingEnabled
+        // 随 §503 gen4 特性退役摘除（退役已在 Streaming-
+        // BlockProductTests.testStreamingFeatureRetired503
+        // 落钉），令牌数组删该项，余五项不变
         for token in [
-            "gen4StreamingEnabled",
             "streamPresentationArmed",
             "livePartialEntryIDs.isEmpty",
             "liveStreamRowKey()",

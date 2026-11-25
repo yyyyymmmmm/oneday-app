@@ -60,13 +60,20 @@ final class ErrorBannerG03StructureTests: XCTestCase {
             chatView.contains("Text(errorOccurredAt, style: .time)"),
             "§389：横幅须有发生时刻时间戳"
         )
+        // 0.51.0 改钉（判读 release-0510-red12-triage
+        // B1）：发送失败机制包已删提交拒绝／run 落定
+        // 失败的两个 presentError 调用点，改走 present-
+        // SendFailure 行内分类文案——§389 横幅自此只管
+        // 非发送类错误，发送失败呈现面以行内分类为准
         XCTAssertTrue(
-            chatView.contains("presentError(submitError)"),
-            "§389：提交拒绝须走 presentError"
+            chatView.contains(
+                "presentSendFailure(kind: .authRejected)"),
+            "§389 改钉：提交凭据被拒须走 presentSendFailure 行内分类"
         )
         XCTAssertTrue(
-            chatView.contains("presentError(failure)"),
-            "§389：run 落定失败须走 presentError"
+            chatView.contains(
+                "kind: SendFailureKind.classify(run: failure)"),
+            "§389 改钉：run 落定失败须经 SendFailureKind 分类走 presentSendFailure"
         )
     }
 

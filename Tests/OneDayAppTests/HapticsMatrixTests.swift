@@ -129,7 +129,12 @@ final class HapticsMatrixTests: XCTestCase {
         // 改名未确认一处 error 改判 warning（error
         // －1、warning＋1）。合并树实数：error 57、
         // warning 8，以本钉为准。
-        XCTAssertEqual(count(of: "Haptics.error()", in: all), 57)
+        // 0.51.0 组版改钉（合并树逐文件归因，见
+        // release-0.51.0-report §3）：集成分支合入
+        // ChatView 新增 error 两落点（7→9），其余
+        // 文件逐数不变、无既有落点丢失，error
+        // 57→59。
+        XCTAssertEqual(count(of: "Haptics.error()", in: all), 59)
         XCTAssertEqual(count(of: "Haptics.warning()", in: all), 8)
         // §259（文件预览双轨合一）：自研文档阅读页退
         // 役，其「复制全文」success 落点 −1（18→17）；
@@ -168,8 +173,12 @@ final class HapticsMatrixTests: XCTestCase {
         // 声明式 selection（主题／模式／语言／形象
         // 大小），3→7；同包声明式 impact 首落点＝1
         // （外观页形象大小 Menu 点开，见下断言）
+        // 0.51.0 组版改钉（同上归因）：外观分段＋
+        // 预览在 AppearanceView 新增三落点（4→7）、
+        // 语言设置在 LanguageSettingsView 新增一
+        // 落点（0→1），selection 7→11。
         XCTAssertEqual(
-            count(of: ".sensoryFeedback(.selection", in: all), 7)
+            count(of: ".sensoryFeedback(.selection", in: all), 11)
         XCTAssertEqual(
             count(of: ".sensoryFeedback(.impact", in: all), 1)
         // §467（目标对齐组版，0.50.112 改钉）：G-6 里程

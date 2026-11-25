@@ -10,6 +10,19 @@ import UIKit
 /// Core 谓词同表；H1 深度采集（卡内让行事实）
 /// 用真层级验；五入口 cover 收编与栈根全覆盖
 /// 走源码守护。
+/// 定值位移替身（B4）：无触摸时真识别器的位移
+/// 读数恒 (0,0)，替身只覆写 delegate 真读的两值
+private final class FixedTranslationPan:
+    UIPanGestureRecognizer {
+    var fixedTranslation: CGPoint = .zero
+    override func translation(
+        in view: UIView?
+    ) -> CGPoint { fixedTranslation }
+    override func location(
+        in view: UIView?
+    ) -> CGPoint { CGPoint(x: 200, y: 400) }
+}
+
 final class FullscreenPopBridgeTests: XCTestCase {
 
     private func spin(seconds: TimeInterval) {
@@ -84,11 +97,16 @@ final class FullscreenPopBridgeTests: XCTestCase {
             XCTFail("桥未装配")
             return
         }
-        let probe = UIPanGestureRecognizer()
+        // 0.51.0 修复轮（判读 B4 改法二）：游离 probe
+        // 与桥 pan 本人均实测——无触摸时 setTranslation
+        // 读回恒 (0,0)，true 断言无从成立。delegate 裁
+        // 决只读 translation／location 两值，改用定值
+        // 替身喂入，裁决与 Core 谓词同表照旧全验
+        let probe = FixedTranslationPan()
         func begins(
             _ translation: CGPoint
         ) -> Bool {
-            probe.setTranslation(translation, in: nav.view)
+            probe.fixedTranslation = translation
             return delegate.gestureRecognizerShouldBegin(probe)
         }
         // 栈深 1（根页）：右滑横向也不触发

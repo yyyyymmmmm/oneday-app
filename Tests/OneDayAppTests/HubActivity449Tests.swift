@@ -28,8 +28,16 @@ final class HubActivity449Tests: XCTestCase {
             chat.contains("ToolCardView("),
             "§449.9：工具单卡不得再进聊天流"
         )
+        // 0.51.0 改钉（判读 B3）：计划构建已由 .map 改
+        // 命令式 entryRenderItems 构建器（17803bef 简报
+        // 5–8 工具活动折行），工具条目过滤仍在计划层
         XCTAssertTrue(
-            chat.contains(".map(EntryRenderItem.entry)"),
+            chat.contains("private func entryRenderItems("),
+            "§449.9：渲染计划须由 entryRenderItems 构建器产出"
+        )
+        XCTAssertTrue(
+            chat.contains(
+                "for entry in entries where entry.toolCard == nil"),
             "§449.9：渲染计划层应过滤工具条目"
         )
     }
