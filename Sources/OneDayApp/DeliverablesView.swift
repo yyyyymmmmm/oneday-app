@@ -1230,7 +1230,14 @@ struct DeliverablesView: View {
     private func fetchData(
         _ entry: WorkspaceFileEntry
     ) async throws -> Data {
-        try await appState.performAdmin { client, config in
+        if let deliveryID = entry.deliveryID,
+           let config = appState.config,
+           let data = try? await bridgeClient.deliveryContent(
+               config: config, id: deliveryID
+           ) {
+            return data
+        }
+        return try await appState.performAdmin { client, config in
             try await client.fileData(config: config, path: entry.path)
         }
     }

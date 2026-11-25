@@ -22,6 +22,7 @@ public struct WorkspaceFileEntry: Decodable, Sendable, Identifiable, Hashable {
     /// 修改时间（epoch 秒，可为浮点）
     public let mtime: Double?
     public let mimeType: String?
+    public let deliveryID: String?
 
     public var id: String { path }
 
@@ -33,7 +34,8 @@ public struct WorkspaceFileEntry: Decodable, Sendable, Identifiable, Hashable {
         isDirectory: Bool,
         size: Int64?,
         mtime: Double?,
-        mimeType: String?
+        mimeType: String?,
+        deliveryID: String? = nil
     ) {
         self.name = name
         self.path = path
@@ -41,12 +43,14 @@ public struct WorkspaceFileEntry: Decodable, Sendable, Identifiable, Hashable {
         self.size = size
         self.mtime = mtime
         self.mimeType = mimeType
+        self.deliveryID = deliveryID
     }
 
     enum CodingKeys: String, CodingKey {
         case name, path, size, mtime
         case isDirectory = "is_directory"
         case mimeType = "mime_type"
+        case deliveryID = "delivery_id"
     }
 
     public var modifiedAt: Date? {
