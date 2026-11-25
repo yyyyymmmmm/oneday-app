@@ -13,10 +13,9 @@ import XCTest
 /// finder 沿基线的值匹配＋reveal 路（第 95 条
 /// 的帧落定机器按收口口径不迁移、不重建）。
 /// 五件：
-/// 1. 长按正文→系统编辑菜单、长按气泡边距→反应浮排；
-/// 2. 长按气泡边距带→整行菜单（§332：集合视图
-///    delegate 内建通道＋hitTest 点位分工）；
-/// 3. 双击正文→选词＋编辑菜单；
+/// 1. 长按正文/气泡→原生消息操作菜单与顶部玻璃反应条；
+/// 2. 长按气泡边距带→整行菜单；
+/// 3. 双击正文→UITextView 原生选词＋编辑菜单；
 /// 4. 右滑一行→引用横幅（桥辖区帧＝cell 帧）；
 /// 5. 电话（T4）：长按号码由文本选择接管（平
 ///    台定性）或点按出系统链接动作——任一达即
@@ -33,16 +32,15 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
 
     // MARK: - 用例
 
-    /// Long press stays with UITextView inside the message body.
-    func testLongPressOnTextShowsNativeEditMenu() throws {
+    /// 长按正文归消息操作菜单（含反应浮排），双击正文归系统选词与编辑菜单。
+    func testLongPressOnTextShowsRowMenu() throws {
         let app = launchDemoApp()
         openSeededThread(in: app)
         let text = try lastUserTextView(in: app)
         text.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).press(forDuration: 1.2)
-        assertEditMenuShown(in: app)
-        assertRowMenuAbsent(in: app)
+        assertRowMenuShown(in: app)
     }
 
     func testLongPressOnBubblePaddingShowsRowMenu() throws {

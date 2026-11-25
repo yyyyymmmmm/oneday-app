@@ -239,6 +239,8 @@ struct SettingsView: View {
                     NotificationSettingsView()
                 case .addDevice:
                     AddDeviceView()
+                case .authSessions:
+                    AuthSessionsView()
                 case .pairingManagement:
                     PairingManagementView()
                 case .chatDiagnostics:
@@ -404,11 +406,7 @@ struct SettingsView: View {
                 set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
             )) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    IconTile(
-                        symbol: "iphone.radiowaves.left.and.right",
-                        color: .green,
-                        size: OneDayMetrics.iconSlot
-                    )
+                    rowIcon("iphone.radiowaves.left.and.right")
                     Text("触感反馈")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -430,9 +428,7 @@ struct SettingsView: View {
             navRow(icon: "cpu", title: L10n.string("模型与服务商"), route: .models)
             navRow(icon: "chart.bar", title: L10n.string("用量统计"), route: .usage)
             navRow(icon: "server.rack", title: L10n.string("当前服务器"), route: .serverDetail)
-            NavigationLink {
-                AuthSessionsView()
-            } label: {
+            NavigationLink(value: SettingsRoute.authSessions) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     rowIcon("key.radiowaves.forward")
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -840,7 +836,7 @@ struct SettingsView: View {
         Image(systemName: name)
             .font(.system(size: 20, weight: .regular))
             .symbolRenderingMode(.monochrome)
-            .foregroundStyle(color ?? Palette.bodyInkSecondary)
+            .foregroundStyle(color ?? Palette.inkSecondary)
             .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
             .accessibilityHidden(true)
     }
@@ -852,7 +848,7 @@ struct SettingsView: View {
     /// 撤的行走下方 statusNavRow 降为题下副行
     private func navRow(
         icon: String,
-        color: Color = Palette.primary,
+        color: Color? = nil,
         title: String,
         route: SettingsRoute
     ) -> some View {
@@ -872,7 +868,7 @@ struct SettingsView: View {
 
     private func statusNavRow(
         icon: String,
-        color: Color = Palette.primary,
+        color: Color? = nil,
         title: String,
         status: String,
         route: SettingsRoute

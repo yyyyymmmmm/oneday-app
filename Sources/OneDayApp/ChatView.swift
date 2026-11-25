@@ -770,8 +770,6 @@ struct ChatView: View {
     /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
     @State private var fileMetadataStore = FileMetadataStore.shared
     @State private var unreadAnchorEntryID: UUID?
-    /// 审批 Store 观察：让审批状态变化触发聊天页和底栏重建。
-    @State private var hubStore: AgentHubStore?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -1041,11 +1039,6 @@ struct ChatView: View {
     var body: some View {
         chatScaffold
         .onAppear { handleChatAppear() }
-        .onAppear {
-            if hubStore == nil {
-                hubStore = appState.sharedHubStore()
-            }
-        }
         // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
         // 同一份通知状态，不另开轮询
@@ -2508,13 +2501,22 @@ struct ChatView: View {
             speechPlaybackBarView: SpeechPlayer.shared.machine
                 .showsPlaybackBar
                 ? AnyView(speechPlaybackBar) : nil,
-            approvalZoneView: AnyView(
-                ChatApprovalZone(
-                    store: hubStore ?? appState.sharedHubStore(),
-                    anchoredRecordIDs: (hubStore ?? appState.sharedHubStore()).anchoredRecordIDs,
-                    ledger: rowStateLedger
-                )
+            approvalZoneVisible: ChatApprovalZone.hasVisibleContent(
+                store: appState.sharedHubStore(),
+                anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs
             ),
+            approvalZoneView: ChatApprovalZone.hasVisibleContent(
+                store: appState.sharedHubStore(),
+                anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs
+            )
+                ? AnyView(
+                    ChatApprovalZone(
+                        store: appState.sharedHubStore(),
+                        anchoredRecordIDs: appState.sharedHubStore().anchoredRecordIDs,
+                        ledger: rowStateLedger
+                    )
+                )
+                : nil,
             dictation: dictation,
             dictationFailureBarView: dictation.failure.map {
                 AnyView(

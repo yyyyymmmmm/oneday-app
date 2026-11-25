@@ -691,9 +691,10 @@ private final class ChatNativeLayoutBox {
 /// 内容以行键为 SwiftUI 身份（复用时状态不跨条
 /// 目串行，施工图 §七风险 2）；拟合尺寸由集合视
 /// 图布局自己消费，本类不读、不记（H10）
-/// cell 本体只渲染。行菜单由 collection-view delegate
-/// 提供；正文触点让给 UITextView 原生选字，气泡边距
-/// 仍打开整行菜单。点位分流在本类静态判定。
+/// cell 本体只渲染。三手势分工：长按气泡（含正文）由
+/// collection-view delegate 原生上下文菜单接管（选区在场时
+/// 让行）；正文双击由 UITextView 原生选词与编辑菜单接管；
+/// 右滑由引用手势接管。
 /// （internal 而非 private：装配测试须以生产原
 /// 物读配置普查——与控制器/合成器的 internal
 /// 测试面同式）

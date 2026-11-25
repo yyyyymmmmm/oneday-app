@@ -61,27 +61,23 @@ final class ChatNativeListAssemblyTests: XCTestCase {
         super.tearDown()
     }
 
-    func testRowMenuDefersSelectableTextHitToTextView() {
-        let contentView = UIView(
-            frame: CGRect(x: 0, y: 0, width: 220, height: 72)
-        )
+    func testSelectableTextRejectsLongPressAllowsDoubleTapInListMode() {
         let bubbleText = SelectableUITextView(
             usingTextLayoutManager: true
         )
-        bubbleText.frame = CGRect(
-            x: 40, y: 12, width: 160, height: 48
-        )
-        contentView.addSubview(bubbleText)
+        bubbleText.suppressesDirectSelection = true
 
-        XCTAssertTrue(
-            ChatNativeHostingCell.pointHitsSelectableText(
-                CGPoint(x: 80, y: 30), in: contentView
-            )
-        )
+        let longPress = UILongPressGestureRecognizer()
+        let doubleTap = UITapGestureRecognizer()
+        doubleTap.numberOfTapsRequired = 2
+
         XCTAssertFalse(
-            ChatNativeHostingCell.pointHitsSelectableText(
-                CGPoint(x: 20, y: 30), in: contentView
-            )
+            bubbleText.gestureRecognizerShouldBegin(longPress),
+            "列表态正文应拒绝 UITextView 长按，让位给消息操作菜单"
+        )
+        XCTAssertTrue(
+            bubbleText.gestureRecognizerShouldBegin(doubleTap),
+            "列表态正文应保留双击选词与原生编辑菜单"
         )
     }
 

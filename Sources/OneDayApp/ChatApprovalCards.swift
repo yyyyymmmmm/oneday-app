@@ -27,6 +27,29 @@ struct ChatApprovalZone: View {
     /// 提、合成器可见）；不传＝卡内 @State 原行为
     var ledger: ChatRowStateLedger? = nil
 
+    /// 审批区当前是否有可见内容（供底栏按需挂载，避免空态白占间距）
+    @MainActor
+    static func hasVisibleContent(
+        store: AgentHubStore,
+        anchoredRecordIDs: Set<String>
+    ) -> Bool {
+        guard case .ready(let records) = store.approvalState else {
+            return false
+        }
+        if store.alwaysAllowToast != nil { return true }
+        let queue = ApprovalZoneQueue.derive(
+            recordIDs: records.map(\.id),
+            anchoredIDs: anchoredRecordIDs
+        )
+        if let activeID = queue.activeRecordID,
+           records.contains(where: { $0.id == activeID }) {
+            return true
+        }
+        return store.resolvedLines.contains {
+            !anchoredRecordIDs.contains($0.id)
+        }
+    }
+
     var body: some View {
         if case .ready(let records) = store.approvalState {
             // D10 定版②（一次只活一张）：未锚待批
