@@ -3,13 +3,7 @@ import OneDayDesign
 import SwiftUI
 
 /// 技能商店（P10）：/api/skills/hub 搜索/预览/安装/卸载。
-/// 数据源实查（2026-11-09 只读联调）：三端点在 OpenAPI
-/// 在册，但本部署服务端抓外部注册表时出网受阻、30 秒
-/// 无响应——本页全部状态如实露：慢/失败给原因与重试，
-/// 绝不拿空结果冒充「商店里没东西」。
-/// 安装/卸载是服务端动作：POST 成功只算已提交，必须
-/// 回读已装列表对账（出现/消失）才标已装/已卸，与本仓
-/// 写动作回读口径一致。
+/// 统一原生 iOS 26 List(.insetGrouped) + .searchable + SettingsHeroCard + ContentUnavailableView。
 struct SkillHubView: View {
     @Environment(AppState.self) private var appState
 
@@ -32,37 +26,57 @@ struct SkillHubView: View {
         return false
     }
 
+    private var heroTone: SettingsStatusTone {
+        if case .failed = phase { return .error }
+        return installedNames.isEmpty ? .neutral : .healthy
+    }
+
+    private var heroStatusText: String {
+        if isSearching { return "搜索中" }
+        if case .failed = phase { return "连接异常" }
+        return installedNames.isEmpty ? "可搜索" : "已装 \(installedNames.count) 项"
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                searchBar
-                if !sources.isEmpty {
+        List {
+            SettingsHeroCard(
+                symbol: "bag.fill",
+                tint: .indigo,
+                title: "技能商店",
+                subtitle: "从远程技能库搜索、预览并安装扩展技能包。",
+                statusText: heroStatusText,
+                statusTone: heroTone
+            )
+
+            if !sources.isEmpty {
+                Section {
                     sourceChips
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                } header: {
+                    SettingsSectionHeader("来源筛选")
                 }
-                content
+                .listRowBackground(Palette.surface)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+
+            content
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .searchable(
+            text: $queryText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索技能，如 pdf、browser"
+        )
+        .onSubmit(of: .search) {
+            Task { await search() }
+        }
         .navigationTitle("技能商店")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadSources()
             await refreshInstalled()
-        }
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            TextField("搜索技能，如 pdf、browser", text: $queryText)
-                .textFieldStyle(.roundedBorder)
-                .submitLabel(.search)
-                .onSubmit { Task { await search() } }
-            Button("搜索") { Task { await search() } }
-                .buttonStyle(.odPrimary)
-                .disabled(isSearching)
         }
     }
 
@@ -83,7 +97,7 @@ struct SkillHubView: View {
                     }
                 }
             }
-            .padding(.vertical, OneDayMetrics.spacingSM)
+            .padding(.vertical, 2)
         }
     }
 
@@ -99,15 +113,13 @@ struct SkillHubView: View {
                 .padding(.horizontal, OneDayMetrics.spacingSM)
                 .padding(.vertical, OneDayMetrics.rowInnerGap)
                 .background(
-                    selected ? Palette.primaryTint : Palette.surface,
+                    selected ? Palette.primaryTint : Palette.pageBG,
                     in: Capsule()
                 )
-                // HIG 全过第一波：胶囊视觉高约 30 不变、
-                // 命中域纵向扩到 minTapTarget（§485 同法）
                 .frame(minHeight: OneDayMetrics.minTapTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
+        .buttonStyle(.plain)
     }
 
     /// 已搜过才随来源切换重搜；还没搜时只记选择
@@ -120,47 +132,61 @@ struct SkillHubView: View {
     private var content: some View {
         switch phase {
         case .idle:
-            EmptyState(
-                icon: "bag",
-                title: "搜索技能库",
-                message: ""
-            )
-            .padding(.top, OneDayMetrics.spacingXXL)
-        case .searching:
-            HStack(spacing: OneDayMetrics.spacingS) {
-                ProgressView()
-                Text("正在连接技能库…")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+            Section {
+                ContentUnavailableView(
+                    "搜索技能库",
+                    systemImage: "bag",
+                    description: Text("在顶部搜索框输入关键词（如 pdf、browser）并回车检索。")
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, OneDayMetrics.spacingL)
             }
-            .padding(.top, OneDayMetrics.spacingL)
+            .listRowBackground(Color.clear)
+        case .searching:
+            Section {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text("正在连接技能库…")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
+            .listRowBackground(Palette.surface)
         case .results(let skills) where skills.isEmpty:
-            EmptyState(
-                icon: "magnifyingglass",
-                title: "没有找到相关技能",
-                message: "换个关键词，或切换来源再试。"
-            )
-            .padding(.top, OneDayMetrics.spacingXXL)
+            Section {
+                ContentUnavailableView(
+                    "没有找到相关技能",
+                    systemImage: "magnifyingglass",
+                    description: Text("换个关键词，或切换来源再试。")
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, OneDayMetrics.spacingL)
+            }
+            .listRowBackground(Color.clear)
         case .results(let skills):
-            VStack(spacing: 0) {
-                ForEach(
-                    Array(skills.enumerated()), id: \.element.id
-                ) { index, skill in
-                    if index > 0 {
-                        GroupDivider()
-                    }
+            Section {
+                ForEach(skills) { skill in
                     hubRow(skill)
                 }
+            } header: {
+                SettingsSectionHeader("搜索结果（\(skills.count)）")
             }
-            .odGroup()
-            .padding(.top, OneDayMetrics.spacingS)
+            .listRowBackground(Palette.surface)
         case .failed(let message):
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-                InlineError(message)
-                Button("重试") { Task { await search() } }
-                    .buttonStyle(.odSecondary)
+            Section {
+                ContentUnavailableView {
+                    Label("搜索失败", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("重试") { Task { await search() } }
+                        .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, OneDayMetrics.spacingM)
             }
-            .padding(.top, OneDayMetrics.spacingL)
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -168,46 +194,28 @@ struct SkillHubView: View {
         NavigationLink {
             HubSkillDetailView(skill: skill, installedNames: $installedNames)
         } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    HStack(spacing: OneDayMetrics.spacingXS) {
-                        Text(skill.displayName)
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                        if installedNames.contains(skill.installedName) {
-                            Text("已安装")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Palette.successText)
-                                .padding(.horizontal, OneDayMetrics.rowInnerGap)
-                                .padding(.vertical, OneDayMetrics.spacingMicro)
-                                .background(
-                                    Palette.success.opacity(0.12), in: Capsule()
-                                )
-                        }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: OneDayMetrics.spacingXS) {
+                    Text(skill.displayName)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    if installedNames.contains(skill.installedName) {
+                        SettingsStatusPill(text: "已安装", tone: .healthy)
                     }
-                    // 商店目录文案是内容不是界面装饰：与技能页
-                    // 「英文不上屏」口径不同，这里照原文呈现，
-                    // 用户靠它判断装不装
-                    if let description = skill.description,
-                       !description.isEmpty {
-                        Text(description)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(2)
-                    }
-                    Text(skill.sourceLabel)
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
                 }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
+                if let description = skill.description,
+                   !description.isEmpty {
+                    Text(description)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+                Text(skill.sourceLabel)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
             }
-            .contentShape(Rectangle())
+            .padding(.vertical, 4)
         }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
     private func search() async {
@@ -221,11 +229,9 @@ struct SkillHubView: View {
             }
             phase = .results(results)
         } catch HermesError.demoLimitReached {
-            // 演示空态（第 4 项）：统一文案一条，不走
-            // 本面的超时归因文案
             phase = .failed(HermesError.demoLimitReached.userMessage)
         } catch {
-            phase = .failed("搜索失败：服务端连接外部技能库超时或出错，请稍后再试。")
+            phase = .failed("服务端连接外部技能库超时或出错，请稍后再试。")
         }
     }
 
@@ -247,9 +253,7 @@ struct SkillHubView: View {
     }
 }
 
-/// 商店技能详情：预览（SKILL.md 全文＋文件清单）＋
-/// 安装/卸载。安装态以父页共享的已装名集为准，动作后
-/// 回读刷新该集合，父页行徽章随之同步。
+/// 商店技能详情：预览（SKILL.md 全文＋文件清单）＋安装/卸载。
 struct HubSkillDetailView: View {
     @Environment(AppState.self) private var appState
 
@@ -258,8 +262,6 @@ struct HubSkillDetailView: View {
 
     @State private var preview: HubPreview?
     @State private var previewFailed = false
-    /// 预览失败文案覆盖（演示空态时为统一文案，其余
-    /// 失败走呈现位的固定句式）
     @State private var previewFailureMessage: String?
     @State private var isActing = false
     @State private var actionNote: String?
@@ -270,24 +272,86 @@ struct HubSkillDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                actionArea
-                    .padding(.top, OneDayMetrics.spacingM)
+        List {
+            SettingsHeroCard(
+                symbol: "puzzlepiece.extension.fill",
+                tint: .indigo,
+                title: skill.displayName,
+                subtitle: skill.description?.isEmpty == false
+                    ? (skill.description ?? "")
+                    : "来自 \(skill.sourceLabel) 的扩展技能包",
+                statusText: isInstalled ? "已安装" : "未安装",
+                statusTone: isInstalled ? .healthy : .neutral
+            )
+
+            Section {
+                SettingsValueRow(title: "来源", value: skill.sourceLabel)
+                if let author = skill.author, !author.isEmpty {
+                    SettingsValueRow(title: "作者", value: author)
+                }
+                if let version = skill.version, !version.isEmpty {
+                    SettingsValueRow(title: "版本", value: version)
+                }
+            } header: {
+                SettingsSectionHeader("基本信息")
+            }
+            .listRowBackground(Palette.surface)
+
+            Section {
+                if isInstalled {
+                    Button(role: .destructive) {
+                        confirmUninstall = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isActing {
+                                ProgressView()
+                                    .padding(.trailing, 6)
+                            }
+                            Text(isActing ? "正在卸载…" : "卸载技能")
+                                .font(.rowTitleL.weight(.semibold))
+                                .foregroundStyle(Palette.danger)
+                            Spacer()
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    }
+                    .disabled(isActing)
+                    .listRowBackground(Palette.surface)
+                } else {
+                    Button {
+                        Task { await install() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isActing {
+                                ProgressView()
+                                    .tint(.white)
+                                    .padding(.trailing, 6)
+                            }
+                            Text(isActing ? "正在安装…" : "安装技能")
+                                .font(.rowTitleL.weight(.semibold))
+                                .foregroundStyle(.white)
+                            Spacer()
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    }
+                    .disabled(isActing)
+                    .listRowBackground(Palette.primary)
+                }
+            } footer: {
                 if let actionNote {
                     Text(actionNote)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingS)
                 }
-                previewArea
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+
+            previewSection
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(skill.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadPreview() }
@@ -305,100 +369,67 @@ struct HubSkillDetailView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            Text(skill.displayName)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Palette.ink)
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Text("来源 \(skill.sourceLabel)")
-                if let author = skill.author, !author.isEmpty {
-                    Text("作者 \(author)")
-                }
-                if let version = skill.version, !version.isEmpty {
-                    Text("版本 \(version)")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(Palette.inkSecondary)
-            if let description = skill.description, !description.isEmpty {
-                Text(description)
-                    .font(.body)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-    }
-
     @ViewBuilder
-    private var actionArea: some View {
-        if isInstalled {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Label("已安装", systemImage: "checkmark.circle.fill")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(Palette.successText)
-                Spacer()
-                Button("卸载", role: .destructive) {
-                    confirmUninstall = true
-                }
-                .buttonStyle(.odSecondary)
-                .disabled(isActing)
-            }
-        } else {
-            Button {
-                Task { await install() }
-            } label: {
-                if isActing {
-                    ProgressView()
-                } else {
-                    Text("安装")
-                }
-            }
-            .buttonStyle(.odPrimary)
-            .disabled(isActing)
-        }
-    }
-
-    @ViewBuilder
-    private var previewArea: some View {
-        SectionLabel("技能说明")
-            .padding(.top, OneDayMetrics.sectionOuterSpacing)
-            .padding(.bottom, OneDayMetrics.spacingS)
+    private var previewSection: some View {
         if let preview {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-                if let content = preview.content, !content.isEmpty {
+            if let content = preview.content, !content.isEmpty {
+                Section {
                     MarkdownText(content)
+                        .padding(.vertical, 4)
+                } header: {
+                    SettingsSectionHeader("技能说明")
                 }
-                if !preview.files.isEmpty {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                        Text("包含文件")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Palette.inkSecondary)
-                        ForEach(preview.files, id: \.self) { file in
-                            Label(file, systemImage: "doc")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.ink)
-                        }
+                .listRowBackground(Palette.surface)
+            }
+            if !preview.files.isEmpty {
+                Section {
+                    ForEach(preview.files, id: \.self) { file in
+                        Label(file, systemImage: "doc")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.ink)
                     }
+                } header: {
+                    SettingsSectionHeader("包含文件（\(preview.files.count)）")
                 }
-                if (preview.content ?? "").isEmpty && preview.files.isEmpty {
+                .listRowBackground(Palette.surface)
+            }
+            if (preview.content ?? "").isEmpty && preview.files.isEmpty {
+                Section {
                     Text("预览没有返回内容。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                } header: {
+                    SettingsSectionHeader("技能说明")
                 }
+                .listRowBackground(Palette.surface)
             }
         } else if previewFailed {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-                InlineError(previewFailureMessage ?? "预览读取失败：服务端连接外部技能库超时或出错。")
-                Button("重试") { Task { await loadPreview() } }
-                    .buttonStyle(.odSecondary)
+            Section {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+                    Text(previewFailureMessage ?? "预览读取失败：服务端连接外部技能库超时或出错。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.danger)
+                    Button("重试读取预览") { Task { await loadPreview() } }
+                        .font(.footnote.weight(.medium))
+                }
+                .padding(.vertical, 4)
+            } header: {
+                SettingsSectionHeader("技能说明")
             }
+            .listRowBackground(Palette.surface)
         } else {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                ProgressView()
-                Text("正在读取预览…")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+            Section {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text("正在读取预览…")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            } header: {
+                SettingsSectionHeader("技能说明")
             }
+            .listRowBackground(Palette.surface)
         }
     }
 
@@ -412,8 +443,6 @@ struct HubSkillDetailView: View {
                 )
             }
         } catch HermesError.demoLimitReached {
-            // 演示空态（第 4 项）：统一文案一条，不走
-            // 本面的超时归因文案
             previewFailed = true
             previewFailureMessage = HermesError.demoLimitReached.userMessage
         } catch {

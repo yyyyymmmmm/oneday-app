@@ -2,17 +2,7 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 记忆页（智能体格，IA v3 §5.2）：提供方清单＋当前值，
-/// 点入 provider 配置页切换/改配置；内置记忆文件计数与重置
-/// 在本页（重置口径据服务端源码：target ∈ all/memory/user，
-/// 删的是内置记忆文件，destructive＋二次确认沿定版纪律）。
-/// 0.13.0（P7）顶部增「记忆条目」段（MemoryEntriesSection）：
-/// 逐条看全文、新建/修改/遗忘全走 write-gate 待批流，
-/// 与本页状态面分属两个数据源、互不冒充。
-/// 台账 164 续增「它记住的事」段（LearningMemory-
-/// Section）：Hermes 本体学习图谱（技能＋记忆块）
-/// 可见可改可删，与条目段又分属两个数据源——三者
-/// 同页不同源、标题与说明各自交代，不合并。
+/// 记忆页（P1-2 重构：原生 iOS 26 List(.insetGrouped) + SettingsHeroCard + 原生四层记忆/提供方/重置分组）
 struct MemoryView: View {
     @Environment(AppState.self) private var appState
 
@@ -21,46 +11,81 @@ struct MemoryView: View {
     @State private var isLoading = false
     @State private var resetTarget: String?
     @State private var notice: String?
-    /// 记忆条目段的数据中枢（0.13.0 P7）：与本页
-    /// 状态面各自独立数据源（条目走 write-gate 桥
-    /// 契约面、状态走 Hermes 本体），互不冒充
     @State private var memoriesStore = MemoriesStore()
-    /// 台账 164：学习图谱段的数据中枢（Hermes 本体
-    /// 数据源，与条目段的桥数据各自独立、互不冒充）
     @State private var learningStore = LearningGraphStore()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                LayeredMemorySection()
+        List {
+            if let status {
+                let activeName = (status.active ?? "").isEmpty ? "内置记忆" : (status.active ?? "内置记忆")
+                let totalFiles = status.builtinFiles.values.reduce(0, +)
+                SettingsHeroCard(
+                    symbol: "memorychip.fill",
+                    tint: .purple,
+                    title: "记忆系统",
+                    subtitle: "管理四层语义记忆、长期档案与外接记忆提供方。",
+                    statusText: "\(activeName) · \(AdminFormat.count(totalFiles)) 条",
+                    statusTone: .healthy
+                )
+            } else {
+                SettingsHeroCard(
+                    symbol: "memorychip.fill",
+                    tint: .purple,
+                    title: "记忆系统",
+                    subtitle: "管理四层语义记忆、长期档案与外接记忆提供方。"
+                )
+            }
+
+            LayeredMemorySection()
+
+            Section {
                 MemoryEntriesSection(store: memoriesStore)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+
+            Section {
                 LearningMemorySection(store: learningStore)
-                if let status {
-                    // 0.3.7 卡 13：摘要卡——当前提供方＋内置文件总数
-                    summaryCard(status)
-                    providersGroup(status)
-                    builtinGroup(status)
-                    resetGroup
-                } else if let errorMessage {
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+
+            if let status {
+                providersSection(status)
+                builtinSection(status)
+                resetSection
+            } else if let errorMessage {
+                Section {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
-                        .buttonStyle(.odSecondary)
-                        .padding(.top, OneDayMetrics.spacingSM)
-                } else {
-                    loadingRow
+                        .foregroundStyle(Palette.primary)
                 }
-                if let notice {
+                .listRowBackground(Palette.surface)
+            } else {
+                Section {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        ProgressView()
+                        Text("正在读取记忆状态…")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .listRowBackground(Palette.surface)
+            }
+
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("记忆")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
@@ -104,72 +129,51 @@ struct MemoryView: View {
         }
     }
 
-    private var loadingRow: some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            ProgressView()
-            Text("正在读取记忆状态…")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.top, OneDayMetrics.spacingL)
-    }
-
-    private func summaryCard(_ status: MemoryStatus) -> some View {
-        let activeName = (status.active ?? "").isEmpty
-            ? "内置记忆"
-            : (status.active ?? "内置记忆")
-        let totalFiles = status.builtinFiles.values.reduce(0, +)
-        return VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("现在用的记忆")
-                .padding(.bottom, OneDayMetrics.spacingS)
+    private func providersSection(_ status: MemoryStatus) -> some View {
+        let builtinActive = (status.active ?? "").isEmpty
+        return Section {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                Text(activeName)
+                IconTile(symbol: "internaldrive", color: .blue, size: OneDayMetrics.iconSlot)
+                Text("内置记忆")
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer()
-                Text("内置文件 \(AdminFormat.count(totalFiles)) 条")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .odGroup()
-        }
-        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
-    }
-
-    // MARK: - 提供方
-
-    private func providersGroup(_ status: MemoryStatus) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("记忆提供方")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                builtinRow(status)
-                ForEach(status.providers) { provider in
-                    GroupDivider()
-                    NavigationLink {
-                        MemoryProviderConfigView(provider: provider, isActive: isActive(provider, in: status))
-                    } label: {
-                        providerRow(provider, status: status)
-                    }
-                    .buttonStyle(.odPressable)
+                if builtinActive {
+                    SettingsStatusPill(text: "使用中", tone: .healthy)
                 }
             }
-            .odGroup()
-        }
-    }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
 
-    /// 内置记忆行：active 为空串即内置当值（实测口径）
-    /// 0.3.8：收编统一行组件 UnifiedRow（增量令 2）
-    private func builtinRow(_ status: MemoryStatus) -> some View {
-        let active = (status.active ?? "").isEmpty
-        return UnifiedRow(
-            icon: "internaldrive",
-            title: "内置记忆",
-            trailing: active ? "使用中" : nil,
-            trailingColor: Palette.successText
-        )
+            ForEach(status.providers) { provider in
+                NavigationLink {
+                    MemoryProviderConfigView(provider: provider, isActive: isActive(provider, in: status))
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        IconTile(symbol: "brain", color: .purple, size: OneDayMetrics.iconSlot)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(provider.name)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            if let desc = provider.description, !desc.isEmpty, ServerLabels.isChineseText(desc) {
+                                Text(desc)
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer()
+                        if isActive(provider, in: status) {
+                            SettingsStatusPill(text: "使用中", tone: .healthy)
+                        }
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+            }
+        } header: {
+            SettingsSectionHeader("记忆提供方")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func isActive(
@@ -178,70 +182,39 @@ struct MemoryView: View {
         status.active == provider.name
     }
 
-    private func providerRow(
-        _ provider: MemoryStatus.MemoryProvider, status: MemoryStatus
-    ) -> some View {
-        // 0.3.8：收编统一行组件 UnifiedRow（增量令 2）；
-        // 副题沿卡 13 口径（英文 description 不上屏）；
-        // 右侧状态原文（unavailable 等内部词）退场——
-        // 「使用中」是唯一上屏状态词，其余归详情页
-        let chineseDescription = provider.description.flatMap {
-            !$0.isEmpty && ServerLabels.isChineseText($0) ? $0 : nil
+    private func builtinSection(_ status: MemoryStatus) -> some View {
+        Section {
+            SettingsValueRow(
+                symbol: "doc.text",
+                tint: .indigo,
+                title: "MEMORY（长期记忆）",
+                value: status.builtinFiles["memory"].map { AdminFormat.count($0) } ?? "—",
+                monospaced: true
+            )
+            SettingsValueRow(
+                symbol: "person.text.rectangle",
+                tint: .teal,
+                title: "USER（用户档案）",
+                value: status.builtinFiles["user"].map { AdminFormat.count($0) } ?? "—",
+                monospaced: true
+            )
+        } header: {
+            SettingsSectionHeader("内置记忆文件")
         }
-        return UnifiedRow(
-            icon: "brain",
-            title: provider.name,
-            subtitle: chineseDescription,
-            trailing: isActive(provider, in: status) ? "使用中" : nil,
-            trailingColor: Palette.successText,
-            showsChevron: true
-        )
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    // MARK: - 内置文件与重置
-
-    private func builtinGroup(_ status: MemoryStatus) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("内置记忆文件")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                fileRow(label: "MEMORY（长期记忆）", value: status.builtinFiles["memory"])
-                GroupDivider()
-                fileRow(label: "USER（用户档案）", value: status.builtinFiles["user"])
-            }
-            .odGroup()
+    private var resetSection: some View {
+        Section {
+            resetRow(title: "重置全部记忆", target: "all")
+            resetRow(title: "只重置 MEMORY", target: "memory")
+            resetRow(title: "只重置 USER", target: "user")
+        } header: {
+            SettingsSectionHeader("危险操作")
         }
-    }
-
-    private func fileRow(label: String, value: Double?) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value.map { AdminFormat.count($0) } ?? "—")
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
-
-    private var resetGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("重置")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                resetRow(title: "重置全部记忆", target: "all")
-                GroupDivider()
-                resetRow(title: "只重置 MEMORY", target: "memory")
-                GroupDivider()
-                resetRow(title: "只重置 USER", target: "user")
-            }
-            .odGroup()
-        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func resetRow(title: String, target: String) -> some View {
@@ -254,14 +227,9 @@ struct MemoryView: View {
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         }
-        .buttonStyle(.odPressable)
     }
-
-    // MARK: - 数据
 
     private func load() async {
         guard !isLoading else { return }
@@ -290,9 +258,7 @@ struct MemoryView: View {
     }
 }
 
-/// 记忆提供方配置页：字段表单（GET …/config 的 fields 驱动）＋
-/// 切换当前提供方。字段按 kind 呈现：secret 走 SecureField、
-/// 其余走 TextField；保存走 PUT {"values": {…}}（只回写改动项）。
+/// 记忆提供方配置页：字段表单（GET …/config 的 fields 驱动）＋切换当前提供方
 struct MemoryProviderConfigView: View {
     @Environment(AppState.self) private var appState
     let provider: MemoryStatus.MemoryProvider
@@ -308,6 +274,14 @@ struct MemoryProviderConfigView: View {
 
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "brain.head.profile",
+                tint: .purple,
+                title: provider.name,
+                subtitle: "配置外接记忆引擎参数或切换为当前默认提供方。",
+                statusText: isActive ? "使用中" : (provider.available == true ? "可用" : "不可用"),
+                statusTone: isActive ? .healthy : (provider.available == true ? .neutral : .warning)
+            )
             statusGroup
             if let config, !config.fields.isEmpty {
                 fieldsGroup(config)
@@ -371,34 +345,16 @@ struct MemoryProviderConfigView: View {
     @ViewBuilder
     private var statusGroup: some View {
         Section {
-            // 键值行走 KeyValueRow（台账 198 收敛
-            // S5 嫌疑页查实：本组三行同构造，一并
-            // 替换；下方「当前提供方」状态行是自绘
-            // HStack、不在此列）
             KeyValueRow("可用", value: provider.available == true ? "是" : "否")
             KeyValueRow("已配置", value: provider.configured == true ? "是" : "否")
             if let state = provider.status, !state.isEmpty {
                 KeyValueRow("状态", value: state)
-            }
-            if isActive {
-                HStack {
-                    Text("当前提供方")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Spacer()
-                    Text("使用中")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.successText)
-                }
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
             }
         } header: {
             SettingsSectionHeader("状态")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
-        // 附则（卡 13）：切换是本页主动作，走组下主按钮位
         if !isActive {
             Section {
                 Button(isSwitching ? "切换中…" : "切换为当前提供方") {
@@ -462,8 +418,6 @@ struct MemoryProviderConfigView: View {
             set: { values[field.key] = $0 }
         )
     }
-
-    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     private func load() async {
         do {

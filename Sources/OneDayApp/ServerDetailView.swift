@@ -166,11 +166,7 @@ struct ServerDetailView: View {
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)
 
-            Section {
-                ServerVersionSection()
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
+            ServerVersionSection()
 
             Section {
                 Button(role: .destructive) {

@@ -1368,14 +1368,14 @@ final class AppState {
         }
         do {
             return try await operation(client, config)
-        } catch HermesError.unexpectedStatus(_, let status) where status == 401 {
+        } catch let error as HermesError where error.isHTTPUnauthorized {
             guard let password else {
                 throw HermesError.sessionExpired
             }
             try await client.login(config: config, password: password)
             do {
                 return try await operation(client, config)
-            } catch HermesError.unexpectedStatus(_, let retryStatus) where retryStatus == 401 {
+            } catch let retryError as HermesError where retryError.isHTTPUnauthorized {
                 throw HermesError.sessionExpired
             }
         }
