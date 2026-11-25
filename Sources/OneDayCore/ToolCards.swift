@@ -1178,7 +1178,7 @@ public enum FileRefDetector {
                     .trimmingCharacters(in: .whitespaces)
                 changed = true
             }
-            if text.hasPrefix("["),
+            if text.hasPrefix("![") || text.hasPrefix("["),
                let mid = text.range(of: "]("),
                text.hasSuffix(")") {
                 let target = String(text[mid.upperBound..<text.index(before: text.endIndex)])
