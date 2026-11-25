@@ -22,6 +22,14 @@ struct VaultListView: View {
         }
         .navigationTitle("密码与安全凭证")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(destination: VaultEditView(entryId: nil, initialEntry: nil)) {
+                    Image(systemName: "plus")
+                }
+                .disabled(!isUnlocked)
+            }
+        }
         .task {
             await authenticateAndUnlock()
         }
@@ -65,7 +73,9 @@ struct VaultListView: View {
             } else {
                 Section {
                     ForEach(store.entries) { entry in
-                        VaultEntryRow(entry: entry)
+                        NavigationLink(destination: VaultDetailView(entryId: entry.id)) {
+                            VaultEntryRow(entry: entry)
+                        }
                     }
                 }
             }
