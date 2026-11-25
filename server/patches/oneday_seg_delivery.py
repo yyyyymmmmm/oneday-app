@@ -141,8 +141,11 @@ def _is_sensitive_name(name: str) -> bool:
     return any(t in _SENSITIVE_TOKENS for t in tokens)
 
 
-def _delivery_resolve(raw) -> Path:
-    """Mirror of _resolve_spreadsheet_path, root = DELIVERY_ROOT."""
+def _delivery_resolve(raw, *, allow_ingest: bool = False) -> Path:
+    """Mirror of _resolve_spreadsheet_path, root = DELIVERY_ROOT.
+    When allow_ingest=True (used by the deliver_file MCP tool),
+    non-sensitive files outside DELIVERY_ROOT (e.g. /tmp) are
+    copied into DELIVERY_ASSET_DIR/ingested/ so they persist."""
     if not isinstance(raw, str) or not raw.strip():
         raise _Err(400, "缺少 path")
     candidate = Path(raw)
@@ -150,14 +153,23 @@ def _delivery_resolve(raw) -> Path:
         raise _Err(400, "路径必须是绝对路径")
     root = DELIVERY_ROOT.resolve()
     resolved = candidate.resolve()
-    if resolved != root and root not in resolved.parents:
-        raise _Err(400, "路径不在允许范围内")
     if _is_sensitive_name(resolved.name):
         raise _Err(403, "敏感文件不允许登记")
     if not resolved.exists():
         raise _Err(404, "文件不存在")
     if not resolved.is_file():
         raise _Err(400, "路径不是文件")
+    if resolved != root and root not in resolved.parents:
+        if not allow_ingest:
+            raise _Err(400, "路径不在允许范围内")
+        import shutil
+        sha = _delivery_sha256(resolved)
+        ingest_dir = DELIVERY_ASSET_DIR / "ingested"
+        ingest_dir.mkdir(parents=True, exist_ok=True)
+        dest = ingest_dir / f"{sha[:16]}_{resolved.name}"
+        if not dest.exists():
+            shutil.copy2(resolved, dest)
+        return dest.resolve()
     return resolved
 
 
@@ -395,7 +407,8 @@ def _delivery_register(body: dict) -> tuple:
     """(status_code, response). The response is the ONLY source of
     a delivery marker: metadata is read back from the real file,
     never taken from the caller's word."""
-    path = _delivery_resolve(body.get("path"))
+    allow_ingest = bool(body.get("ingest"))
+    path = _delivery_resolve(body.get("path"), allow_ingest=allow_ingest)
     st = path.stat()
     sha = _delivery_sha256(path)
     for rec in _delivery_load():
@@ -627,6 +640,47 @@ def _delivery_index(session_id: str, message_id=None) -> list:
             continue
         slot.append(_delivery_public(rec, _delivery_status(rec)))
     return sorted(by_msg.items())
+
+
+_DELIVERY_MARKER_RE = re.compile(r"\[\[deliver:(dlv_[0-9a-f]{20})\]\]")
+
+
+def _delivery_deliveries_for_session(session_id: str) -> dict:
+    """Fast lookup map {messageId: [delivery public meta, ...]} plus
+    a {id: rec} cache for marker resolution in api_server."""
+    records_by_id = {rec["id"]: rec for rec in _delivery_load() if rec.get("id")}
+    by_msg = {}
+    for link in _delivery_links_load():
+        if link.get("sessionId") != session_id:
+            continue
+        mid = link.get("messageId")
+        rec = records_by_id.get(link["deliveryId"])
+        if rec is None:
+            continue
+        slot = by_msg.setdefault(mid, [])
+        if any(d["id"] == rec["id"] for d in slot):
+            continue
+        slot.append(_delivery_public(rec, _delivery_status(rec)))
+    return {"byMessage": by_msg, "records": records_by_id}
+
+
+def _delivery_attachments_for_message(
+    message_id, content: str, session_cache: dict
+) -> list:
+    """Resolve all attachments for one message from both the link
+    index and inline [[deliver:dlv_...]] markers."""
+    items = list(session_cache.get("byMessage", {}).get(message_id) or [])
+    seen = {d["id"] for d in items}
+    records = session_cache.get("records") or {}
+    for rid in _DELIVERY_MARKER_RE.findall(content or ""):
+        if rid in seen:
+            continue
+        rec = records.get(rid) or _delivery_find(rid)
+        if rec is None:
+            continue
+        seen.add(rid)
+        items.append(_delivery_public(rec, _delivery_status(rec)))
+    return items
 
 
 def _sentinel_pass() -> None:

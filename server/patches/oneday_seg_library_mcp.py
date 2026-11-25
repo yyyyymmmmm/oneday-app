@@ -53,6 +53,20 @@ LIBRARY_TOOLS = [
             },
         },
     },
+    {
+        "name": "deliver_file",
+        "description": "将文件或图片正式交付给用户（生成不可变的交付登记号、缩略图与客户端卡片标记）。向用户发送任何文件、图表、截图或生成的文档时必须调用本工具，并在回复中附上返回的 marker（如 [[deliver:dlv_...]]）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string",
+                         "description": "待交付文件的绝对路径"},
+                "title": {"type": "string",
+                          "description": "可选显示标题"},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
@@ -106,15 +120,49 @@ def _library_list(args: dict) -> dict:
             "truncated": False}
 
 
+def _library_deliver_file(args: dict) -> dict:
+    raw_path = args.get("path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise _Err(400, "缺少 path")
+    with _DELIVERY_LOCK:
+        _, out = _delivery_register({"path": raw_path.strip(), "ingest": True})
+    return {
+        "id": out["id"],
+        "marker": out["marker"],
+        "name": out["name"],
+        "kind": out["kind"],
+        "size": out["size"],
+        "mime": out["mime"],
+        "width": out.get("width"),
+        "height": out.get("height"),
+        "delivery": out,
+    }
+
+
 def _library_tool_call(name: str, args: dict):
     """Execute + trace one library tools/call. Returns
-    (result_obj, is_error). The surface is read-only; the
-    only write is the P0 trace itself, the same discipline
-    as the goals / sessions / automation facades: every
-    call, success or failure, books exactly one trace."""
+    (result_obj, is_error)."""
     action = "library." + name.removeprefix("library_")
     target = {"kind": "library", "id": "",
               "label": "资源库", "ref": "oneday://library"}
+    if name == "deliver_file":
+        try:
+            out = _library_deliver_file(args or {})
+        except _Err as e:
+            _append_trace(action, target, "failed", error=e.message,
+                          detail={"tool": name})
+            return {"error": e.message}, True
+        except Exception as e:
+            _print(f"library tool {name} unhandled: {e!r}",
+                   file=sys.stderr, flush=True)
+            _append_trace(action, target, "failed",
+                          error=f"{type(e).__name__}: {e}",
+                          detail={"tool": name})
+            return {"error": "服务器内部错误"}, True
+        _append_trace(action, target, "ok",
+                      result=f"已交付 {out['name']} ({out['id']})",
+                      detail={"tool": name, "id": out["id"]})
+        return out, False
     if name != "library_list":
         _append_trace(action, target, "failed",
                       error=f"未知工具：{name}",

@@ -372,7 +372,7 @@ def _clean_idea_category(value):
 #: 2026-11-24): a DOMAIN from Muse's own production domain
 #: set (ideas.ideas.domain, observed 2026-11-24) plus a FREE
 #: category label in the user's own words (Muse's
-#: category_label: 「年会」「服务器运维」「Ai 培训」...). The
+#: category_label: 「婚礼」「服务器运维」「Ai 培训」...). The
 #: legacy seven-bucket category above stays stored and served
 #: for the shipped App; domain/categoryLabel are the parity
 #: dimensions the next App consumes. Domain folds like the
@@ -1380,12 +1380,49 @@ class Handler:
                         200,
                         _delivery_public(rec, _delivery_status(rec)))
                 which = parts[2]
-                if which not in ("thumb", "cover"):
+                if which not in ("thumb", "cover", "content"):
                     return self._send(404, {"error": "路径不存在"})
                 if self.command != "GET":
                     return self._send(405, {"error": "方法不允许"})
                 if _delivery_status(rec) == "gone":
                     return self._send(410, {"error": "文件已不存在"})
+                if which == "content":
+                    fpath = Path(rec["path"])
+                    if not fpath.exists() or not fpath.is_file():
+                        return self._send(410, {"error": "文件已不存在"})
+                    mime = rec.get("mime") or "application/octet-stream"
+                    raw = fpath.read_bytes()
+                    total = len(raw)
+                    rng = self.headers.get("Range", "")
+                    m_rng = re.match(r"^bytes=(\d*)-(\d*)$", rng.strip()) if rng else None
+                    extra_hdrs = {
+                        "Accept-Ranges": "bytes",
+                        "Content-Disposition": f'inline; filename="{rec["name"]}"',
+                    }
+                    if m_rng and total > 0:
+                        s_raw, e_raw = m_rng.group(1), m_rng.group(2)
+                        if s_raw == "" and e_raw != "":
+                            suffix = int(e_raw)
+                            start = max(0, total - suffix)
+                            end = total - 1
+                        else:
+                            start = int(s_raw) if s_raw else 0
+                            end = int(e_raw) if e_raw else total - 1
+                            end = min(end, total - 1)
+                        if start >= total or start > end:
+                            self._resp["status"] = 416
+                            self._resp["body"] = b""
+                            self._resp["headers"] = {
+                                "Content-Range": f"bytes */{total}",
+                                "Accept-Ranges": "bytes",
+                            }
+                            return
+                        extra_hdrs["Content-Range"] = f"bytes {start}-{end}/{total}"
+                        return self._send_bytes(
+                            206, raw[start:end + 1], mime,
+                            extra_headers=extra_hdrs)
+                    return self._send_bytes(
+                        200, raw, mime, extra_headers=extra_hdrs)
                 asset = DELIVERY_ASSET_DIR / rid / f"{which}.jpg"
                 flags = rec.get("cover") or {}
                 if not flags.get(which) or not asset.exists():
@@ -1402,10 +1439,13 @@ class Handler:
 
     def _send_bytes(self, status: int, raw: bytes,
                     content_type: str,
-                    etag: str | None = None) -> None:
+                    etag: str | None = None,
+                    extra_headers: dict | None = None) -> None:
         headers = {"Content-Type": content_type}
         if etag:
             headers["ETag"] = etag
+        if extra_headers:
+            headers.update(extra_headers)
         headers["Cache-Control"] = \
             "private, max-age=31536000, immutable"
         self._resp["status"] = status
