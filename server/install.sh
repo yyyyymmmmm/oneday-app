@@ -86,7 +86,7 @@ MODULES=(
   "fileproc_gateway.py|patches/fileproc_gateway.py|/opt/hermes/gateway/platforms/fileproc_gateway.py|96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c"
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
   "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a"
-  "identity_gateway.py|patches/identity_gateway.py|/opt/hermes/gateway/platforms/identity_gateway.py|015c9251c7d9be5b35c620e77c09ebfdf40fb8414a0c9c506c0f55ff642cc352"
+  "identity_gateway.py|patches/identity_gateway.py|/opt/hermes/gateway/platforms/identity_gateway.py|91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c"
   "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
