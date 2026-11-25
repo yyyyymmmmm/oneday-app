@@ -148,18 +148,20 @@ struct ServerVersionSection: View {
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
         } else {
-            SettingsValueRow(title: "当前版本", value: versionText)
+            SettingsValueRow(symbol: "tag", tint: .blue, title: "当前版本", value: versionText)
             SettingsValueRow(
+                symbol: "calendar", tint: .indigo,
                 title: "发布日期",
                 value: store.statusFailed
                     ? "拉取失败" : store.facts.releaseDateText
             )
             SettingsValueRow(
+                symbol: "gearshape.2", tint: .secondary,
                 title: "配置版本",
                 value: store.statusFailed
                     ? "拉取失败" : store.facts.configVersionText
             )
-            SettingsValueRow(title: "更新回执", value: receiptText)
+            SettingsValueRow(symbol: "checkmark.seal", tint: .green, title: "更新回执", value: receiptText)
         }
     }
 
