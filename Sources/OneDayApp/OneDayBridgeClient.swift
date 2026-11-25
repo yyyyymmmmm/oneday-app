@@ -456,14 +456,29 @@ final class OneDayBridgeClient: @unchecked Sendable {
     /// GET /deliveries/{id}：登记元数据＋读时状态
     /// （ok/stale/gone 由桥按指纹实时复核）；未知
     /// id 走条目 404＝recordGone，调用方按规格
-    /// §7.3 降级为纯文本（查无此号不成卡）
+    /// §7.3 降级为纯文本（查无此号不成卡）。
+    /// 先走 /api/oneday-bridge，若网关反代未配置该前缀，
+    /// 自动回落到同网关的 /v1/oneday/deliveries/{id}。
     func delivery(
         config: ServerConfig, id: String
     ) async throws -> BridgeDelivery {
-        try await get(
-            config: config, path: "/deliveries/\(id)",
-            endpoint: L10n.string("交付内容"), collection: false
-        )
+        let primaryPath = "/deliveries/\(id)"
+        do {
+            return try await get(
+                config: config, path: primaryPath,
+                endpoint: L10n.string("交付内容"), collection: false
+            )
+        } catch let error as OneDayBridgeError
+            where error == .noKey || error == .unauthorized {
+            throw error
+        } catch {
+            return try await getFullPath(
+                config: config,
+                fullPath: "/v1/oneday/deliveries/\(id)",
+                endpoint: L10n.string("交付内容"),
+                collection: false
+            )
+        }
     }
 
     /// GET /deliveries/{id}/thumb|cover：登记时快照
@@ -477,10 +492,64 @@ final class OneDayBridgeClient: @unchecked Sendable {
         config: ServerConfig, id: String,
         variant: DeliveryImageVariant
     ) async throws -> Data {
-        let request = try makeRequest(
-            config: config,
-            path: "/deliveries/\(id)/\(variant.rawValue)",
-            method: "GET"
+        do {
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "\(base.pathPrefix)/deliveries/\(id)/\(variant.rawValue)"
+            )
+        } catch let error as OneDayBridgeError
+            where error == .noKey || error == .unauthorized {
+            throw error
+        } catch let error as HermesError {
+            if case .unexpectedStatus(_, let status) = error, status == 401 {
+                throw error
+            }
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "/v1/oneday/deliveries/\(id)/\(variant.rawValue)"
+            )
+        } catch {
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "/v1/oneday/deliveries/\(id)/\(variant.rawValue)"
+            )
+        }
+    }
+
+    /// GET /deliveries/{id}/content：原文件/原图字节（走桥鉴权，
+    /// 不依赖 Admin 会话登录态）
+    func deliveryContent(
+        config: ServerConfig, id: String
+    ) async throws -> Data {
+        do {
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "\(base.pathPrefix)/deliveries/\(id)/content"
+            )
+        } catch let error as OneDayBridgeError
+            where error == .noKey || error == .unauthorized {
+            throw error
+        } catch let error as HermesError {
+            if case .unexpectedStatus(_, let status) = error, status == 401 {
+                throw error
+            }
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "/v1/oneday/deliveries/\(id)/content"
+            )
+        } catch {
+            return try await fetchDeliveryBinary(
+                config: config,
+                fullPath: "/v1/oneday/deliveries/\(id)/content"
+            )
+        }
+    }
+
+    private func fetchDeliveryBinary(
+        config: ServerConfig, fullPath: String
+    ) async throws -> Data {
+        let request = try base.makeRequest(
+            config: config, fullPath: fullPath, method: "GET"
         )
         let (data, http) = try await send(
             request, endpoint: L10n.string("交付内容")
@@ -494,26 +563,26 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return data
     }
 
-    /// GET /deliveries/{id}/content：原文件/原图字节（走桥鉴权，
-    /// 不依赖 Admin 会话登录态）
-    func deliveryContent(
-        config: ServerConfig, id: String
-    ) async throws -> Data {
-        let request = try makeRequest(
-            config: config,
-            path: "/deliveries/\(id)/content",
-            method: "GET"
+    private func getFullPath<T: Decodable>(
+        config: ServerConfig, fullPath: String,
+        endpoint: String, collection: Bool
+    ) async throws -> T {
+        let request = try base.makeRequest(
+            config: config, fullPath: fullPath, method: "GET"
         )
-        let (data, http) = try await send(
-            request, endpoint: L10n.string("交付内容")
+        let (data, http) = try await base.data(
+            for: request, endpoint: endpoint
         )
-        guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: L10n.string("交付内容"),
-                status: http.statusCode
+        try base.checkStatus(
+            http, data: data, endpoint: endpoint,
+            collection: collection
+        )
+        return try base.decode(
+            data,
+            orThrow: OneDayBridgeError.failed(
+                L10n.format("%@返回格式无法识别", endpoint)
             )
-        }
-        return data
+        )
     }
 
     // MARK: - 文件库聚合（A-06，伴生 1.0.66）

@@ -23,9 +23,11 @@ final class DeliveryStore {
     enum MetaResult: Equatable {
         case loaded(BridgeDelivery)
         case notFound
+        case failed(String)
     }
 
     private(set) var metaResults: [String: MetaResult] = [:]
+    private(set) var metaRevision: Int = 0
     @ObservationIgnored private var metaInFlight: Set<String> = []
     @ObservationIgnored private var imageBytes: [String: Data] = [:]
     @ObservationIgnored private var imageMisses: Set<String> = []
@@ -37,9 +39,11 @@ final class DeliveryStore {
 
     /// 预灌服务端消息投影内联下发的交付元数据，避免回补后二次查询
     func ingest(_ deliveries: [BridgeDelivery]) {
+        guard !deliveries.isEmpty else { return }
         for delivery in deliveries {
             metaResults[delivery.id] = .loaded(delivery)
         }
+        metaRevision &+= 1
     }
 
     /// 同步 peek（§329 行高合成用）：某档快照字节
@@ -55,19 +59,52 @@ final class DeliveryStore {
     func loadMeta(
         id: String, client: OneDayBridgeClient, appState: AppState
     ) async {
-        guard metaResults[id] == nil,
-              !metaInFlight.contains(id),
-              let config = appState.config
-        else { return }
+        if case .loaded = metaResults[id] { return }
+        if case .notFound = metaResults[id] { return }
+        guard !metaInFlight.contains(id) else { return }
+        guard let config = appState.config else {
+            metaResults[id] = .failed(L10n.string("服务器未连接"))
+            metaRevision &+= 1
+            return
+        }
         metaInFlight.insert(id)
         defer { metaInFlight.remove(id) }
         do {
             let meta = try await client.delivery(config: config, id: id)
             metaResults[id] = .loaded(meta)
+            metaRevision &+= 1
         } catch let error as OneDayBridgeError where error == .recordGone {
             metaResults[id] = .notFound
+            metaRevision &+= 1
+        } catch let error as OneDayBridgeError {
+            metaResults[id] = .failed(Self.failureMessage(for: error))
+            metaRevision &+= 1
         } catch {
-            // 网络/未连接类失败不落账：下次渲染重查
+            metaResults[id] = .failed(L10n.string("网络请求失败"))
+            metaRevision &+= 1
+        }
+    }
+
+    func retryMeta(
+        id: String, client: OneDayBridgeClient, appState: AppState
+    ) async {
+        metaResults.removeValue(forKey: id)
+        metaRevision &+= 1
+        await loadMeta(id: id, client: client, appState: appState)
+    }
+
+    private static func failureMessage(for error: OneDayBridgeError) -> String {
+        switch error {
+        case .noKey:
+            return L10n.string("缺少登录密钥")
+        case .unauthorized:
+            return L10n.string("登录密钥已失效")
+        case .bridgeMissing:
+            return L10n.string("服务端未开通交付接口")
+        case .recordGone:
+            return L10n.string("登记号不存在")
+        case .failed(let message):
+            return message
         }
     }
 

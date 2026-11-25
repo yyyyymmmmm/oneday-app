@@ -40,8 +40,56 @@ struct AssistantDeliveryItem: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            case .failed(let message):
+                Button {
+                    Task {
+                        await DeliveryStore.shared.retryMeta(
+                            id: id, client: client, appState: appState
+                        )
+                    }
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: FrameworkIcon.actionGlyphSize))
+                            .foregroundStyle(Palette.warning)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.string("附件加载失败"))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            Text("\(message) · 点按重试")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
+                            .foregroundStyle(Palette.primary)
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: 280, minHeight: 64, maxHeight: 64, alignment: .leading)
+                    .background(
+                        Palette.bubbleFill,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                    )
+                }
+                .buttonStyle(.odPressable)
             case nil:
-                EmptyView()
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text(L10n.string("正在加载附件…"))
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingSM)
+                .frame(maxWidth: 240, minHeight: 64, maxHeight: 64, alignment: .leading)
+                .background(
+                    Palette.bubbleFill,
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                )
             }
         }
         .task(id: id) {

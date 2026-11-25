@@ -1095,6 +1095,8 @@ struct ChatNativeRowHeightComposer {
             return "nil"
         case .notFound:
             return "nf"
+        case .failed(let message):
+            return "err\(LayoutProductKey.fnv1a(message))"
         case .loaded(let meta):
             // 封面三路缓存态在高里只以合成形态
             // （coverForm）出现——摘要同口径折合
@@ -1613,16 +1615,14 @@ struct ChatNativeRowHeightComposer {
     // MARK: - 交付项
 
     /// AssistantDeliveryItem 高（DeliveryViews 状
-    /// 态机同判）：meta 未到＝先按 §130 定高卡 190
-    /// 占位（台账 185：旧口径 0 与 meta 到达后的
-    /// 高翻转、整行凭空长高；占位后翻转方向只剩
-    /// 「确证为小件时塌一次」）、查无＝标记原文
-    /// .callout、gone＝一行 .callout、image＝§130
-    /// 定高卡 190、其余＝封面卡
+    /// 态机同判）：meta 未到/失败＝紧凑卡片 64pt
+    /// （不再用 0 或 190 造成空白或隐身）、查无＝
+    /// 标记原文 .callout、gone＝一行 .callout、
+    /// image＝§130 定高卡 190、其余＝封面卡
     func deliveryItemHeight(id: String) -> CGFloat {
         switch facetDeliveryMeta(id) {
-        case nil:
-            return ChatImageSizing.cardHeight
+        case nil, .failed:
+            return 64
         case .notFound:
             return plainHeight(
                 DeliveryMarker.markerText(for: id),

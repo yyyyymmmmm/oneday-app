@@ -3055,6 +3055,7 @@ struct ChatView: View {
     private func nativeRows() -> [ChatNativeRow] {
         _ = fileMetadataStore.existenceByPath.count
         _ = deliveryStore.metaResults.count
+        _ = deliveryStore.metaRevision
         // 卡顿探针（2026-11-20）：每趟喂入耗时＋行
         // 构建/复用数——只记账、无行为影响
         let probeToken = ChatLagProbe.beginFeedPass()
@@ -3358,6 +3359,8 @@ struct ChatView: View {
                     baseRevision.addText("dlv:\(deliveryID):\(meta.status.rawValue):\(meta.kind):\(meta.path)")
                 case .notFound:
                     baseRevision.addText("dlv:\(deliveryID):nf")
+                case .failed(let message):
+                    baseRevision.addText("dlv:\(deliveryID):err:\(message)")
                 case nil:
                     baseRevision.addText("dlv:\(deliveryID):-")
                 }
