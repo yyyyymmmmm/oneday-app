@@ -2,12 +2,8 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// MCP 目录面（§388 H7，总表 167）：服务端批准目录单源
-/// ——GET /api/mcp/catalog 浏览、详情摊全信任信息（命令/
-/// 地址/自举步骤，服务端信任模型原文要求）、POST install
-/// 点按安装，落定靠门面回读对账。已配置服务的启停/测试
-/// 仍在连接器面原位，本面不重复造管理面；入口在连接器
-/// 面「可连接」段，与技能 hub 凑成能力商店双面。
+/// MCP 目录面（§388 H7，总表 167）：服务端批准目录单源。
+/// 统一原生 iOS 26 List(.insetGrouped) + SettingsHeroCard + ContentUnavailableView。
 struct MCPCatalogView: View {
     @Environment(AppState.self) private var appState
 
@@ -23,16 +19,39 @@ struct MCPCatalogView: View {
         facade.catalogEntries.filter(\.installed)
     }
 
+    private var heroTone: SettingsStatusTone {
+        if facade.catalogError != nil, facade.catalogEntries.isEmpty { return .error }
+        if facade.isLoadingCatalog, facade.catalogEntries.isEmpty { return .neutral }
+        return installed.isEmpty ? .neutral : .healthy
+    }
+
+    private var heroStatusText: String {
+        if facade.isLoadingCatalog, facade.catalogEntries.isEmpty { return "读取中" }
+        if facade.catalogError != nil, facade.catalogEntries.isEmpty { return "读取失败" }
+        if facade.catalogEntries.isEmpty { return "暂无条目" }
+        return "已装 \(installed.count)/\(facade.catalogEntries.count)"
+    }
+
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "shippingbox.fill",
+                tint: .teal,
+                title: "MCP 目录",
+                subtitle: "浏览服务器批准的 MCP 工具目录，查看运行详情并一键安装。",
+                statusText: heroStatusText,
+                statusTone: heroTone
+            )
+
             if let notice = facade.catalogNotice {
                 Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                .listRowBackground(Color.clear)
+                .listRowBackground(Palette.surface)
             }
+
             if facade.isLoadingCatalog, facade.catalogEntries.isEmpty {
                 Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
@@ -41,27 +60,35 @@ struct MCPCatalogView: View {
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
-                .listRowBackground(Color.clear)
+                .listRowBackground(Palette.surface)
             } else if let catalogError = facade.catalogError,
                       facade.catalogEntries.isEmpty {
                 Section {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                    ContentUnavailableView {
+                        Label("目录读取失败", systemImage: "exclamationmark.triangle")
+                    } description: {
                         Text(catalogError)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
+                    } actions: {
                         Button("重试") {
                             Task { await facade.loadCatalog(appState: appState) }
                         }
-                        .buttonStyle(.odSecondary)
+                        .buttonStyle(.borderedProminent)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, OneDayMetrics.spacingM)
                 }
                 .listRowBackground(Color.clear)
             } else if facade.catalogEntries.isEmpty {
                 Section {
-                    Text("服务器目录是空的。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView(
+                        "目录暂无内容",
+                        systemImage: "shippingbox",
+                        description: Text("服务器当前没有可展示的 MCP 目录条目。")
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, OneDayMetrics.spacingL)
                 }
                 .listRowBackground(Color.clear)
             } else {
@@ -71,7 +98,7 @@ struct MCPCatalogView: View {
                             catalogRow(entry)
                         }
                     } header: {
-                        headerText("可安装")
+                        SettingsSectionHeader("可安装（\(installable.count)）")
                     }
                     .listRowBackground(Palette.surface)
                 }
@@ -81,7 +108,7 @@ struct MCPCatalogView: View {
                             catalogRow(entry)
                         }
                     } header: {
-                        headerText("已安装")
+                        SettingsSectionHeader("已安装（\(installed.count)）")
                     }
                     .listRowBackground(Palette.surface)
                 }
@@ -97,13 +124,14 @@ struct MCPCatalogView: View {
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                     } header: {
-                        headerText("目录诊断")
+                        SettingsSectionHeader("目录诊断")
                     }
                     .listRowBackground(Palette.surface)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("MCP 目录")
@@ -115,19 +143,12 @@ struct MCPCatalogView: View {
         }
     }
 
-    private func headerText(_ title: String) -> some View {
-        Text(title)
-            .font(.sectionLabel)
-            .foregroundStyle(Palette.inkSecondary)
-            .textCase(nil)
-    }
-
     private func catalogRow(_ entry: MCPCatalogEntry) -> some View {
         Button {
             detailEntry = entry
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -139,14 +160,15 @@ struct MCPCatalogView: View {
                     }
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Text(entry.stateLabel)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+                SettingsStatusPill(
+                    text: entry.stateLabel,
+                    tone: entry.installed ? .healthy : .neutral
+                )
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
+        .buttonStyle(.plain)
     }
 }
 
@@ -162,8 +184,7 @@ struct MCPCatalogDetailView: View {
     @State private var envValues: [String: String] = [:]
     @State private var enableOnInstall = true
 
-    /// 实时条目：安装回读后以门面最新名单为准，不看打开
-    /// 时的旧快照
+    /// 实时条目：安装回读后以门面最新名单为准，不看打开时的旧快照
     private var liveEntry: MCPCatalogEntry {
         facade.catalogEntries.first { $0.name == entry.name } ?? entry
     }
@@ -182,65 +203,68 @@ struct MCPCatalogDetailView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if !liveEntry.description.isEmpty {
-                        Text(liveEntry.description)
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                            .padding(.bottom, OneDayMetrics.spacingM)
-                    }
-                    SectionLabel("状态")
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        FieldRow(label: "安装状态") {
-                            Text(liveEntry.stateLabel)
-                        }
-                        if let transport = liveEntry.transport, !transport.isEmpty {
-                            GroupDivider()
-                            FieldRow(label: "传输") {
-                                Text(transport)
-                            }
-                        }
-                        if let authType = liveEntry.authType, !authType.isEmpty {
-                            GroupDivider()
-                            FieldRow(label: "鉴权") {
-                                Text(authType)
-                            }
-                        }
-                    }
-                    .odGroup()
+            List {
+                SettingsHeroCard(
+                    symbol: "shippingbox.fill",
+                    tint: .teal,
+                    title: liveEntry.name,
+                    subtitle: liveEntry.description.isEmpty
+                        ? "服务器批准的 MCP 工具服务"
+                        : liveEntry.description,
+                    statusText: liveEntry.stateLabel,
+                    statusTone: liveEntry.installed ? .healthy : .neutral
+                )
 
-                    trustSection
+                Section {
+                    SettingsValueRow(title: "安装状态", value: liveEntry.stateLabel)
+                    if let transport = liveEntry.transport, !transport.isEmpty {
+                        SettingsValueRow(title: "传输", value: transport)
+                    }
+                    if let authType = liveEntry.authType, !authType.isEmpty {
+                        SettingsValueRow(title: "鉴权", value: authType)
+                    }
+                } header: {
+                    SettingsSectionHeader("服务概览")
+                }
+                .listRowBackground(Palette.surface)
 
-                    if !liveEntry.postInstall.isEmpty {
+                trustSection
+
+                if !liveEntry.postInstall.isEmpty {
+                    Section {
                         Text(liveEntry.postInstall)
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
-                            .padding(.top, OneDayMetrics.spacingM)
+                    } header: {
+                        SettingsSectionHeader("安装后说明")
                     }
+                    .listRowBackground(Palette.surface)
+                }
 
-                    if liveEntry.installed {
+                if liveEntry.installed {
+                    Section {
                         Text("已安装。在连接器「已连接」里可以启停和测试它。")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
-                            .padding(.top, OneDayMetrics.spacingL)
-                    } else {
-                        installSection
                     }
+                    .listRowBackground(Palette.surface)
+                } else {
+                    installSection
+                }
 
-                    if let notice = facade.catalogNotice {
+                if let notice = facade.catalogNotice {
+                    Section {
                         Text(notice)
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
-                            .padding(.top, OneDayMetrics.spacingM)
                     }
+                    .listRowBackground(Palette.surface)
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .background(Palette.pageBG)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
+            .background(Palette.settingsBG)
             .navigationTitle(liveEntry.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -252,8 +276,7 @@ struct MCPCatalogDetailView: View {
         .fullscreenPopBridge()
     }
 
-    /// 信任信息：命令/地址/自举步骤全量摊开（服务端信任
-    /// 模型要求用户装前能查实际要跑什么）
+    /// 信任信息：命令/地址/自举步骤全量摊开（服务端信任模型要求用户装前能查实际要跑什么）
     @ViewBuilder
     private var trustSection: some View {
         let commandLine = liveEntry.commandLine
@@ -261,51 +284,64 @@ struct MCPCatalogDetailView: View {
         let installUrl = liveEntry.installUrl
         if commandLine != nil || url != nil || installUrl != nil
             || !liveEntry.bootstrap.isEmpty {
-            SectionLabel("将要运行")
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
+            Section {
                 if let commandLine {
-                    FieldRow(label: "命令") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("命令")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
                         Text(commandLine)
                             .font(.system(.footnote, design: .monospaced))
+                            .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
                     }
+                    .padding(.vertical, 2)
                 }
                 if let url, !url.isEmpty {
-                    if commandLine != nil { GroupDivider() }
-                    FieldRow(label: "地址") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("地址")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
                         Text(url)
                             .font(.system(.footnote, design: .monospaced))
+                            .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
                     }
+                    .padding(.vertical, 2)
                 }
                 if let installUrl, !installUrl.isEmpty {
-                    if commandLine != nil || url != nil { GroupDivider() }
-                    FieldRow(label: "自举来源") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("自举来源")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
                         Text(installLine(installUrl))
                             .font(.system(.footnote, design: .monospaced))
+                            .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
                     }
+                    .padding(.vertical, 2)
                 }
                 if !liveEntry.bootstrap.isEmpty {
-                    if commandLine != nil || url != nil || installUrl != nil {
-                        GroupDivider()
-                    }
-                    FieldRow(label: "自举步骤") {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            ForEach(
-                                Array(liveEntry.bootstrap.enumerated()),
-                                id: \.offset
-                            ) { _, step in
-                                Text(step)
-                                    .font(.system(.footnote, design: .monospaced))
-                            }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("自举步骤")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
+                        ForEach(
+                            Array(liveEntry.bootstrap.enumerated()),
+                            id: \.offset
+                        ) { _, step in
+                            Text(step)
+                                .font(.system(.footnote, design: .monospaced))
+                                .foregroundStyle(Palette.ink)
+                                .textSelection(.enabled)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
+            } header: {
+                SettingsSectionHeader("将要运行")
             }
-            .odGroup()
+            .listRowBackground(Palette.surface)
         }
     }
 
@@ -319,59 +355,70 @@ struct MCPCatalogDetailView: View {
     @ViewBuilder
     private var installSection: some View {
         if !liveEntry.requiredEnv.isEmpty {
-            SectionLabel("安装参数")
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                ForEach(
-                    Array(liveEntry.requiredEnv.enumerated()),
-                    id: \.element.id
-                ) { index, spec in
-                    if index > 0 { GroupDivider() }
-                    FieldRow(label: envLabel(spec)) {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            if spec.looksSecret {
-                                SecureField(spec.name, text: envBinding(spec))
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                            } else {
-                                TextField(spec.name, text: envBinding(spec))
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                            }
-                            if !spec.prompt.isEmpty {
-                                Text(spec.prompt)
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.inkSecondary)
-                            }
+            Section {
+                ForEach(liveEntry.requiredEnv) { spec in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(envLabel(spec))
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(Palette.ink)
+                        if spec.looksSecret {
+                            SecureField(spec.name, text: envBinding(spec))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        } else {
+                            TextField(spec.name, text: envBinding(spec))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        if !spec.prompt.isEmpty {
+                            Text(spec.prompt)
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
+            } header: {
+                SettingsSectionHeader("安装参数")
             }
-            .odGroup()
+            .listRowBackground(Palette.surface)
         }
-        Toggle("安装后启用", isOn: $enableOnInstall)
-            .padding(.top, OneDayMetrics.spacingL)
-        Button {
-            Task { await install() }
-        } label: {
-            if isInstalling {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    ProgressView()
-                    Text("安装中…")
+
+        Section {
+            Toggle("安装后启用", isOn: $enableOnInstall)
+                .listRowBackground(Palette.surface)
+
+            Button {
+                Task { await install() }
+            } label: {
+                HStack {
+                    Spacer()
+                    if isInstalling {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.trailing, 6)
+                        Text("安装中…")
+                            .font(.rowTitleL.weight(.semibold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(liveEntry.needsInstall ? "安装（后台自举）" : "安装")
+                            .font(.rowTitleL.weight(.semibold))
+                            .foregroundStyle(requiredEnvMissing ? Palette.inkSecondary : .white)
+                    }
+                    Spacer()
                 }
-            } else {
-                Text(liveEntry.needsInstall ? "安装（后台自举）" : "安装")
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
-        }
-        .buttonStyle(.odPrimary)
-        .disabled(isInstalling || requiredEnvMissing)
-        .padding(.top, OneDayMetrics.spacingM)
-        if requiredEnvMissing {
-            Text("标了「必填」的参数还没填。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.top, OneDayMetrics.spacingS)
+            .disabled(isInstalling || requiredEnvMissing)
+            .listRowBackground(
+                isInstalling || requiredEnvMissing ? Palette.surface : Palette.primary
+            )
+        } footer: {
+            if requiredEnvMissing {
+                Text("标了「必填」的参数还没填。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
         }
     }
 
@@ -386,8 +433,7 @@ struct MCPCatalogDetailView: View {
         )
     }
 
-    /// 只带填了值的声明键（服务端对未声明键 400、本面
-    /// 只从声明清单取值，天然合规）
+    /// 只带填了值的声明键（服务端对未声明键 400、本面只从声明清单取值，天然合规）
     private func install() async {
         var env: [String: String] = [:]
         for spec in liveEntry.requiredEnv {

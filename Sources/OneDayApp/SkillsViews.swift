@@ -2,116 +2,108 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 技能页（智能体格，IA v3 §5.2）：已装技能列表＋行内开关，
-/// 点入详情看/改内容与锁定。顶部「技能商店」入口进
-/// SkillHubView（P10 已接 /api/skills/hub）。锁定中的技能
-/// 行内开关禁用（锁的语义就是防误改），解锁在详情页。
+/// 技能页（P1-3 重构：原生 iOS 26 List(.insetGrouped) + SettingsHeroCard + 行内开关）
 struct SkillsView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var skills: [SkillItem] = []
     @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var notice: String?
-    /// 正在写开关的技能名（防重复点）
     @State private var toggling: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // 技能商店入口（P10）：独立成组置顶，常驻
-                VStack(spacing: 0) {
-                    NavigationLink {
-                        SkillHubView()
-                    } label: {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            Image(systemName: "bag")
-                                .font(.system(size: FrameworkIcon.fileGlyphSize))
+        List {
+            SettingsHeroCard(
+                symbol: "puzzlepiece.extension.fill",
+                tint: .indigo,
+                title: "智能体技能",
+                subtitle: "为智能体安装、启用或锁定领域技能与工作流。",
+                statusText: skills.isEmpty ? nil : "已启用 \(skills.filter(\.isEnabled).count) / \(skills.count)",
+                statusTone: .healthy
+            )
+
+            Section {
+                NavigationLink {
+                    SkillHubView()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        IconTile(symbol: "bag.fill", color: .blue, size: OneDayMetrics.iconSlot)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("技能商店")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Text("从技能库搜索并安装新技能")
+                                .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                                Text("技能商店")
-                                    .font(.rowTitleL)
-                                    .foregroundStyle(Palette.ink)
-                                Text("从技能库搜索并安装新技能")
-                                    .font(.footnote)
-                                    .foregroundStyle(Palette.inkSecondary)
-                            }
-                            Spacer(minLength: OneDayMetrics.spacingS)
-                            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         }
-                        .contentShape(Rectangle())
+                        Spacer(minLength: OneDayMetrics.spacingS)
                     }
-                    .buttonStyle(.odPressable)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
-                .odGroup()
-                .padding(.bottom, OneDayMetrics.spacingM)
-                if !skills.isEmpty {
-                    // 0.3.7 卡 14：摘要卡「已装 N · 启用 M」＋
-                    // 按服务端类别分组（已裁 4，类别名走翻译）
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        Text("已装 \(skills.count) 个 · 启用 \(skills.filter(\.isEnabled).count) 个")
-                            .font(.callout)
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .odGroup()
-                    ForEach(
-                        Array(skillGroups.enumerated()), id: \.element.label
-                    ) { _, group in
-                        SectionLabel(group.label)
-                            .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                            .padding(.bottom, OneDayMetrics.spacingS)
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, skill in
-                                if index > 0 {
-                                    GroupDivider()
-                                }
-                                skillRow(skill)
-                            }
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            if !skills.isEmpty {
+                ForEach(skillGroups, id: \.label) { group in
+                    Section {
+                        ForEach(group.items) { skill in
+                            skillRow(skill)
                         }
-                        .odGroup()
+                    } header: {
+                        SettingsSectionHeader(group.label)
                     }
-                } else if let errorMessage {
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
+                }
+            } else if let errorMessage {
+                Section {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
-                        .buttonStyle(.odSecondary)
-                        .padding(.top, OneDayMetrics.spacingSM)
-                } else if isLoading {
+                        .foregroundStyle(Palette.primary)
+                }
+                .listRowBackground(Palette.surface)
+            } else if isLoading {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取技能…")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
-                } else {
-                    EmptyState(
-                        icon: "puzzlepiece.extension",
-                        title: "还没有技能",
-                        message: "服务端尚未安装任何技能。"
-                    )
-                    .padding(.top, OneDayMetrics.spacingXXL)
                 }
+                .listRowBackground(Palette.surface)
+            } else {
+                Section {
+                    ContentUnavailableView(
+                        "还没有技能",
+                        systemImage: "puzzlepiece.extension",
+                        description: Text("服务端尚未安装任何技能，可前往技能商店浏览安装。")
+                    )
+                }
+                .listRowBackground(Color.clear)
+            }
+
+            Section {
                 CuratorBlock()
-                if let notice {
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("技能")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
@@ -127,43 +119,33 @@ struct SkillsView: View {
             NavigationLink {
                 SkillDetailView(skill: skill)
             } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        HStack(spacing: OneDayMetrics.spacingXS) {
-                            Text(skill.name)
-                                .font(.rowTitleL)
-                                .foregroundStyle(Palette.ink)
-                            if skill.locked == true {
-                                Image(systemName: "lock")
-                                    .font(.system(size: FrameworkIcon.tinyGlyphSize))
-                                    .foregroundStyle(Palette.inkMuted)
-                                    .accessibilityLabel("已锁定")
-                            }
-                        }
-                        // 卡 14：英文 description 不上屏；
-                        // category 原文小字删（已升组头译名）
-                        if let description = skill.description,
-                           !description.isEmpty,
-                           ServerLabels.isChineseText(description) {
-                            Text(description)
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
+                        Text(skill.name)
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        if skill.locked == true {
+                            Image(systemName: "lock.fill")
+                                .font(.caption2)
+                                .foregroundStyle(Palette.inkMuted)
+                                .accessibilityLabel("已锁定")
                         }
                     }
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                    DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
+                    if let description = skill.description,
+                       !description.isEmpty,
+                       ServerLabels.isChineseText(description) {
+                        Text(description)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.odPressable)
             Toggle("", isOn: toggleBinding(for: skill))
                 .labelsHidden()
                 .disabled(skill.locked == true || toggling == skill.name)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
     private func toggleBinding(for skill: SkillItem) -> Binding<Bool> {
@@ -192,7 +174,6 @@ struct SkillsView: View {
     private func toggle(_ skill: SkillItem, to newValue: Bool) async {
         toggling = skill.name
         defer { toggling = nil }
-        // 先乐观更新，失败回滚并提示
         if let index = skills.firstIndex(where: { $0.id == skill.id }) {
             skills[index] = SkillItem(
                 name: skill.name, description: skill.description,
@@ -216,8 +197,7 @@ struct SkillsView: View {
     }
 }
 
-/// 技能详情：内容（SKILL.md）查看与编辑、启用开关、锁定开关。
-/// 内容是代码类文本：等宽、字段面底，编辑走 TextEditor 全量保存。
+/// 技能详情：内容（SKILL.md）查看与编辑、启用开关、锁定开关
 struct SkillDetailView: View {
     @Environment(AppState.self) private var appState
     let skill: SkillItem
@@ -239,6 +219,14 @@ struct SkillDetailView: View {
 
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "puzzlepiece.extension.fill",
+                tint: .indigo,
+                title: skill.name,
+                subtitle: skill.description ?? "查看或编辑此技能的 SKILL.md 指令定义。",
+                statusText: isLocked ? "已锁定" : (isEnabled ? "已启用" : "已停用"),
+                statusTone: isLocked ? .warning : (isEnabled ? .healthy : .neutral)
+            )
             metaGroup
             contentGroup
             if let notice {
@@ -262,30 +250,19 @@ struct SkillDetailView: View {
 
     private var metaGroup: some View {
         Section {
-            if let description = skill.description, !description.isEmpty {
-                Text(description)
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingSM)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack {
+            Toggle(isOn: $isEnabled) {
                 Text("启用")
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
-                Spacer()
-                Toggle("", isOn: $isEnabled)
-                    .labelsHidden()
-                    .disabled(isLocked)
-                    .onChange(of: isEnabled) { _, newValue in
-                        Task { await setEnabled(newValue) }
-                    }
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            HStack {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+            .disabled(isLocked)
+            .onChange(of: isEnabled) { _, newValue in
+                Task { await setEnabled(newValue) }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+
+            Toggle(isOn: $isLocked) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("锁定")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -293,17 +270,13 @@ struct SkillDetailView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                Spacer()
-                Toggle("", isOn: $isLocked)
-                    .labelsHidden()
-                    .onChange(of: isLocked) { _, newValue in
-                        Task { await setLocked(newValue) }
-                    }
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .onChange(of: isLocked) { _, newValue in
+                Task { await setLocked(newValue) }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         } header: {
-            SettingsSectionHeader("技能")
+            SettingsSectionHeader("状态控制")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
@@ -355,7 +328,6 @@ struct SkillDetailView: View {
                     Button(isSaving ? "保存中…" : "保存") {
                         Task { await saveContent() }
                     }
-                    // 卡 17：medium 退出，保存钮 regular
                     .font(.callout)
                     .disabled(isSaving)
                 } else if content != nil {
