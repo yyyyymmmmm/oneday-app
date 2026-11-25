@@ -6311,7 +6311,20 @@ struct ChatView: View {
                             fields: meta.fields
                         )
                         .modifier(messageMenu(for: entry))
+                    } else if vaultStore.requestsLoaded {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.shield")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text("凭据请求已处理或已过期")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .modifier(messageMenu(for: entry))
                     }
+                }
+                .task(id: scans.vaultRequest.requestIDs) {
+                    await vaultStore.refreshRequests(appState: appState)
                 }
                 // 聊天可靠性包：整条裸路径的附件区——
                 // 呈现与 remoteImagePaths 行同口径（图

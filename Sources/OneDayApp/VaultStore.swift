@@ -9,6 +9,9 @@ final class VaultStore {
     private(set) var loading = false
     private(set) var loadError: String?
 
+    private(set) var requests: [VaultRequestMeta] = []
+    private(set) var requestsLoaded = false
+
     private let client = VaultBridgeClient()
 
     var isAvailable: Bool {
@@ -48,6 +51,26 @@ final class VaultStore {
             }
         } catch {
             loadError = L10n.string("凭据库加载失败")
+        }
+    }
+
+    func refreshRequests(appState: AppState) async {
+        guard appState.phase == .connected, let config = appState.config else {
+            return
+        }
+        guard isAvailable else {
+            return
+        }
+        if appState.isDemo {
+            return
+        }
+
+        do {
+            let fetched = try await client.listRequests(config: config)
+            requests = fetched
+            requestsLoaded = true
+        } catch {
+            // 失败保持原状，不更新 requests 和 requestsLoaded
         }
     }
 
