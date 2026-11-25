@@ -910,7 +910,12 @@ struct DrawerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            // OpenBot 样式采纳包（2026-11-20）：选中垫
+            // 改整行贴边填充——去旧外层 spacingS 缩进、
+            // 内边距改 drawerInset 直达（标题/图标起点
+            // 恒 20 线不变），圆角改 drawerSelection-
+            // Corner 16；三行（导航/频道/旁聊）同改同口径
+            .padding(.horizontal, OneDayMetrics.drawerInset)
             .background {
                 if selected {
                     // 2026-11-21 样板对齐包：选中垫改全
@@ -925,7 +930,6 @@ struct DrawerView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingS)
         .accessibilityLabel(
             accessory.word.map { "\(channel.name)，\($0)" }
                 ?? channel.name
@@ -1364,7 +1368,6 @@ struct DrawerView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingS)
         // §157④：图钉是纯视觉标记——置顶状态经 acces-
         // sibilityValue 补播报（标题的内容自读不受
         // 影响）；未置顶行值为空、不出声
@@ -1680,7 +1683,9 @@ struct DrawerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            // OpenBot 样式采纳包（2026-11-20）：选中垫
+            // 改整行贴边填充（口径同频道行注）
+            .padding(.horizontal, OneDayMetrics.drawerInset)
             .background {
                 if selected {
                     // 2026-11-21 样板对齐包：选中垫改全
@@ -1692,7 +1697,6 @@ struct DrawerView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingS)
         .accessibilityLabel(title)
         // 0.43.0（A11Y-V5）：选中态只靠浅灰垫——补
         // 已选特征，与频道行同式

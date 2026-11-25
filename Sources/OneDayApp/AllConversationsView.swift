@@ -181,10 +181,22 @@ struct AllConversationsView: View {
             }
             .background(Palette.pageBG)
             .navigationTitle("全部对话")
-            .navigationBarTitleDisplayMode(.inline)
+            // OpenBot 样式采纳包（2026-11-20）：标题改
+            // 系统大标题呈现（.large＝34pt bold 本体、
+            // 滚动态栏内自动收小标题——与 OpenBot 首页
+            // 「大标题＋滚过收小题」同形态，标题内容
+            // 「全部对话」口径不动）；顶栏改透明（去栏
+            // 自有底、透出页面底 pageBG）
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("完成") { onClose() }
+                    // 采纳包：文字钮改 48 圆钮（口径见
+                    // barRoundButton），无障碍名保留原文
+                    barRoundButton(
+                        systemName: "checkmark",
+                        label: "完成"
+                    ) { onClose() }
                 }
                 // 结构归位第二批：原「选择」（多选批
                 // 量）钮随维护层下沉退役，本页工具栏
@@ -390,6 +402,9 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
+        // OpenBot 样式采纳包：本页全面去分隔线、靠
+        // 留白分行（各段 List 同口径，逐个落）
+        .listRowSeparator(.hidden)
     }
 
     private var mainContent: some View {
@@ -412,6 +427,7 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
+        .listRowSeparator(.hidden)
         .refreshable { await reload() }
     }
 
@@ -440,6 +456,7 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
+        .listRowSeparator(.hidden)
         .refreshable { await reload() }
     }
 
@@ -482,7 +499,12 @@ struct AllConversationsView: View {
                             Image(asset)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 40, height: 40)
+                                // 采纳包：频道图标 40→44，
+                                // 走头像列表行档令牌
+                                .frame(
+                                    width: OneDayMetrics.avatarListRow,
+                                    height: OneDayMetrics.avatarListRow
+                                )
                                 .accessibilityHidden(true)
                         }
                         VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
@@ -498,7 +520,14 @@ struct AllConversationsView: View {
                         Spacer(minLength: 0)
                         DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // 采纳包：与会话行同高档（68），整页
+                    // 列表一个节奏
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: OneDayMetrics
+                            .sessionListRowMinHeight,
+                        alignment: .leading
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.odPressable)
@@ -511,7 +540,10 @@ struct AllConversationsView: View {
                                 Image(asset)
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(width: 40, height: 40)
+                                    .frame(
+                                        width: OneDayMetrics.avatarListRow,
+                                        height: OneDayMetrics.avatarListRow
+                                    )
                                     .accessibilityHidden(true)
                             }
                             VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
@@ -527,7 +559,12 @@ struct AllConversationsView: View {
                             Spacer(minLength: 0)
                             DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: OneDayMetrics
+                                .sessionListRowMinHeight,
+                            alignment: .leading
+                        )
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.odPressable)
@@ -535,6 +572,7 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
+        .listRowSeparator(.hidden)
         .refreshable { await reload() }
     }
 
@@ -557,10 +595,43 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
+        .listRowSeparator(.hidden)
         .refreshable { await reload() }
     }
 
     // MARK: - 行与小区
+
+    /// 顶栏圆钮（OpenBot 样式采纳包）：48 圆＋裸玻璃
+    /// ＋ink 字形——画法与抽屉底条圆钮（drawerRound-
+    /// Button）同式（现行圆钮语言），直径走令牌
+    /// barRoundButtonDiameter、字形走 FrameworkIcon
+    /// .barButtonGlyphSize（22、regular、禁 fill 本
+    /// 表宪法）；系统工具栏的共享玻璃底关掉
+    /// （sharedBackgroundVisibility），免与自有玻璃
+    /// 叠成双层。无障碍名由调用方给原文（「完成」/
+    /// 「选择」），UI 测试按名命中不受形态影响
+    private func barRoundButton(
+        systemName: String, label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(
+                    size: FrameworkIcon.barButtonGlyphSize,
+                    weight: .regular
+                ))
+                .foregroundStyle(Palette.ink)
+                .frame(
+                    width: OneDayMetrics.barRoundButtonDiameter,
+                    height: OneDayMetrics.barRoundButtonDiameter
+                )
+                .glassEffect(.regular, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel(label)
+        .sharedBackgroundVisibility(.hidden)
+    }
 
     /// 会话行（浏览态）：共用组件（点按打开＋长按
     /// 四件）；多选批量形态已随维护层下沉到
@@ -632,7 +703,15 @@ struct AllConversationsView: View {
                 // 0.43.0（A11Y-D3）：AX 档放宽行数
                 .a11yLineLimit(1, ax: 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // OpenBot 样式采纳包：去线后靠留白分行——行
+        // 最小高走 sessionListRowMinHeight 68（定值
+        // 依据见令牌注；AX 档内容更高时由内容撑高、
+        // 本值只作下限不钉死）
+        .frame(
+            maxWidth: .infinity,
+            minHeight: OneDayMetrics.sessionListRowMinHeight,
+            alignment: .leading
+        )
         .contentShape(Rectangle())
     }
 

@@ -71,6 +71,11 @@ public enum FrameworkIcon {
     /// 20/17.4，与样板两数同归一档（旧 17 齿轮墨迹
     /// 仅约 16.7、偏小一圈）
     public static let drawerBarGlyphSize: CGFloat = 20
+    /// 顶栏圆钮字形（OpenBot 样式采纳包，2026-11-20）：
+    /// 会话列表页 48 圆钮内的符号——取字形尺寸带
+    /// （20–22）上沿 22，与 OpenBot 首页栏图标 22 同
+    /// 值；字重恒 regular、禁 fill（本表宪法）
+    public static let barButtonGlyphSize: CGFloat = 22
     /// 设置页行字形：第 14 条——与同列统一复杂度档
     /// （密度上限由量测断言钉）；尺寸沿革：17（0.3.8）
     /// →24（0.20.0）→28（0.22.0 Muse 图量测追认）；
