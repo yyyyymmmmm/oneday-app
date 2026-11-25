@@ -1,0 +1,55 @@
+内存使用率 49%（红线 80%）
+[齐]     hermes-version nousresearch/hermes-agent:v0.23.0
+[齐]     patch-hash api_server.py 容器内回读一致
+[齐]     patch-hash hermes_state_portability.py 容器内回读一致
+[齐]     patch-hash web_routers_sessions.py 容器内回读一致
+[齐]     patch-hash approval_projection.py 容器内回读一致
+[齐]     patch-hash grant_projection.py 容器内回读一致
+[齐]     patch-hash api_server_runs.py 容器内回读一致
+[齐]     patch-hash crash_reports.py 容器内回读一致
+[齐]     patch-hash fileproc_gateway.py 容器内回读一致
+[齐]     patch-hash react_to_message_tool.py 容器内回读一致
+[齐]     patch-hash self_reaction_pending.py 容器内回读一致
+[齐]     patch-hash write_gate_gateway.py 容器内回读一致
+[齐]     gateway-health 8642 /v1/health ok, version 0.23.0
+[齐]     enrollment-route POST /v1/enrollment/claim 已注册
+[齐]     reactions-write-route PUT/DELETE /v1/reactions/{sid}/{row} 已注册
+[齐]     reactions-projection verdict=found sessions=40 messages=486 reactions_key=1 reactions_nonempty=1
+[齐]     companion-8643-retired 8643 无监听（写闸桥已退役入关，包 1.10.0）
+[齐]     companion-8644 应答 401（在位+鉴权）
+[未验]   companion-deep 8644 鉴权后深行为与 8646-8652 逐路对应未验（需桥 key）
+[齐]     web-face 9119 应答 302
+[未验]   reactions-projection-9119 需 Dashboard 登录 cookie 流, 本探针未含
+[齐]     rewind-route 补丁内路由已在位（批 0 行为验收已通过）
+[齐]     approvals-endpoint GET /v1/approvals 应答 200（批 2 在役）
+[齐]     approvals-ledger 待批账文件在位 /opt/data/approvals/approval_ledger.jsonl
+[规划中] apns-push 批 4b 未入包（令牌登记端点未定路径, 入包时补探针）
+[齐]     grants-endpoint GET /v1/grants 应答 200（批 5 在役）
+[齐]     grants-reconcile 清单与真源对账一致（exec=0 writegate=2 total=2 partial=False vs 真源 exec=0 writegate=2）
+[齐]     grants-audit-purge grant_projection 含审计 1 年自动清除 sweep（包 1.6.0）
+[齐]     toolset-toggle-route 补丁内 PUT /v1/toolsets/{name} 路由已在位（批 34-S）
+[齐]     toolset-toggle-method GET /v1/toolsets/{name} 应答 405（PUT 路由在位）
+[未验]   toolset-toggle-behavior 写型探针（翻转一集 enabled→GET /v1/toolsets 回读对账→复原）默认不跑; 人工验收路径见 CAPABILITIES.md #13
+[未验]   run-idempotency 写型探针（同键重放 POST /v1/runs）本版不执行; 人工验收路径见 CAPABILITIES.md #4
+[齐]     runs-client-message-id GET /v1/capabilities runs_idempotency.client_message_id=true（包 1.5.0）
+[未验]   runs-client-message-id-behavior 写型探针（无头带 client_message_id 同体重复 POST→第二次 202 replayed 同 run_id; 同 id 异体→409）默认不跑; 人工验收路径见 CAPABILITIES.md #14
+[齐]     runs-terminal-list GET /v1/runs 应答 200 且投影无内容字段（rows=5 leak=False; 包 1.7.0）
+[齐]     crash-reports-endpoint GET /v1/diagnostics/crash-reports 应答 200（包 1.7.0）
+[未验]   crash-reports-ingest 写型探针（POST 合成白名单记录→GET 回读→脱敏断言）默认不跑; 人工验收路径见 CAPABILITIES.md #17
+[齐]     companion-version oneday/companion:1.0.69
+[齐]     overview-notification-kinds 在役 overview 模块含 approval_pending（G2）与 run_failed（G1/G3）映射（静态探针; 活条目随真实待批/run 终态出现）
+[齐]     rendition-route GET /v1/media/rendition 无钥应答 401（网关路由在位+鉴权生效; 行为证据见 CAPABILITIES.md #18）
+[齐]     rendition-shape-route 保形口 GET /api/fileproc-bridge/media/rendition 无钥应答 401（已发货 App 路径在位）
+[齐]     spreadsheet-route GET /v1/files/spreadsheet 无钥应答 401（网关路由在位+鉴权生效）
+[齐]     self-reactions-capability GET /v1/capabilities features.self_reactions=true（包 1.8.0; 仅证代码在位, 产反应另受 display.agent_self_reactions 闸控）
+[未验]   self-reactions-projection 未触发: 样本充足仍无 agent 反应（闸未开或尚无纯聊天轮贴反应; 非能力缺失证据; verdict=ample_empty sessions=60 messages=573 agent_reactions=0）
+[未验]   self-reactions-behavior 写型探针（一次性会话: 纯聊天轮要求贴反应→触发用户消息行 agent 反应恰 1 且在盘内; 工具轮/失败轮→无 agent 反应; 正文无标记文本）默认不跑, 须 --with-mutating 人工执行; 路径见 CAPABILITIES.md #19
+[齐]     channels-retired 8649 无监听（channels 模块已整退）
+[齐]     identity-name-write-retired 在役 identity 模块含写口关停标记（POST /identity/name 回 404, GET 读口与 MCP 本体在位）
+[齐]     write-gate-status-endpoint GET /v1/write-gate/status 应答 200（包 1.10.0）
+[齐]     write-gate-rules-endpoint GET /v1/write-gate/rules 应答 200（包 1.10.0）
+[齐]     write-gate-shape-endpoint GET /api/write-gate/status 保形口应答 200（包 1.10.0 迁移期）
+[齐]     memories-endpoint GET /v1/memories 应答 200（包 1.10.0）
+[未验]   write-gate-decide 写型探针（待批产生→聚合可见→端点作答→原 run 续跑）默认不跑; 人工验收路径见 CAPABILITIES.md #20
+[未验]   memory-propose 写型探针（提交→pending 在位→暂存文件存在）默认不跑; 人工验收路径见 CAPABILITIES.md #20
+汇总: 齐 42 / 缺 0 / 规划中 1 / 未验 10

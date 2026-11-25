@@ -1,0 +1,61 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    ports:
+      - "127.0.0.1:8642:8642"
+      - "127.0.0.1:9119:9119"
+    volumes:
+      - ./data:/opt/data
+    environment:
+      - TZ=Asia/Shanghai
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=admin
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD}
+      - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_BASIC_AUTH_SECRET}
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_KEY=${API_SERVER_KEY}
+    mem_limit: 2g
+    shm_size: 1g
+
+  write-gate-bridge:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: write-gate-bridge
+    restart: unless-stopped
+    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/write_gate_bridge.py"]
+    ports:
+      - "127.0.0.1:8643:8643"
+    volumes:
+      - ./data:/opt/data
+      - ./write_gate_bridge.py:/opt/bridge/write_gate_bridge.py:ro
+    env_file:
+      - ./write-gate.env
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONPATH=/opt/hermes
+      - WRITE_GATE_PORT=8643
+    mem_limit: 512m
+
+  overview-bridge:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: overview-bridge
+    restart: unless-stopped
+    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/overview_bridge.py"]
+    ports:
+      - "127.0.0.1:8644:8644"
+    volumes:
+      - ./data:/opt/data:ro
+      - ./overview_bridge.py:/opt/bridge/overview_bridge.py:ro
+      - ./overview-data:/opt/overview-data
+      - /www/dk_project/dk_app/oneday-bridge/data:/opt/oneday-data:ro
+    env_file:
+      - ./write-gate.env
+      - ./overview-bridge.env
+    environment:
+      - TZ=Asia/Shanghai
+      - OVERVIEW_PORT=8644
+      - MONITOR_PATH=/opt/oneday-data/monitor-notifications.jsonl
+    mem_limit: 256m

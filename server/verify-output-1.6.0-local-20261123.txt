@@ -1,0 +1,63 @@
+# hermes-deploy 1.6.0 包内本地验证（非生产 verify.sh 运行；未应用生产）
+# 范围: ①grant_projection 审计 1 年自动清除 sweep（运维核 2026-11-23 差异 2）
+#       ②verify.sh #3 reactions-projection 探针样本口径修正（差异 1）
+# 日期: 2026-11-23
+
+## 生产只读预检（应用前现状对照, 零写）
+PASS server memory 53% (<80% red line)
+PASS prod container grant_projection.py sha256 == pkg 1.5.0 (0aa1c29d..., purge not implemented)
+PASS prod /opt/data/grants/ absent (audit zero samples, matches ops-verify)
+PASS prod #3 current probe shape reproduced: limit=10 -> messages=40 key=0 nonempty=0 (false-negative shape)
+PASS prod #3 expanded scan read-only: limit=60 -> messages=533 key=1 nonempty=1 (capability behaviorally present)
+
+## grants sweep（构造样本, 注入 now/留存期, 临时文件）
+PASS missing file -> purged 0
+PASS missing file -> still absent (no lazy creation by sweep)
+PASS observed seeded incl ancient
+PASS sweep purged == 2 (400d + retention+1s)
+PASS recent kept
+PASS just_over purged (retention + 1s)
+PASS exact_edge kept (strict > boundary, same as approvals sweep)
+PASS ancient purged (400d)
+PASS revoked recent kept
+PASS no-ts line kept (undatable never deleted)
+PASS corrupt line kept (undatable never deleted)
+PASS observed rebuilt: ancient out
+PASS observed rebuilt: recent in
+PASS observed rebuilt: edge in
+PASS no .tmp left behind (tmp + fsync + os.replace)
+PASS second sweep idempotent purged 0
+PASS aged-out key re-observed after purge (fresh observed event appended)
+PASS injected short retention purges fresh-ish events (test-injection surface)
+PASS empty file -> purged 0
+PASS EVENT_RETENTION_SECONDS == 365*86400 (same as approvals DECIDED_RETENTION_SECONDS)
+PASS sweep() called at end of list_grants (projection-refresh path)
+
+## verify.sh #3 probe（抽原样 Python 段, 桩 urlopen 四态 + 原样 bash case 映射）
+PASS found -> verdict=found, early exit at session 4 (hit stops scan)
+PASS insufficient -> verdict=insufficient (10 sessions / 40 messages, mirrors prod shape)
+PASS ample_empty -> verdict=ample_empty (60 sessions / 600 messages cap)
+PASS few_sessions_ample -> verdict=ample_empty (3 sessions / 450 messages: floor is message-based)
+PASS error -> ERROR line
+PASS case found -> [齐]
+PASS case insufficient -> [未验] with explicit sample-insufficient wording (non-capability wording)
+PASS case ample_empty -> [未验] with sample-ample wording (distinct from insufficient)
+PASS case ERROR -> [未验] probe failure
+PASS case garbage -> [未验] unreadable output guard
+
+## 脚本与清单一致性
+PASS grant_projection.py py_compile
+PASS verify.sh bash -n
+PASS install.sh bash -n
+PASS manifest.yaml parses, version 1.6.0
+PASS new grant sha256 identical in manifest.yaml / install.sh / verify.sh (1e8cb812...)
+PASS old grant sha256 retired from all three sync points
+PASS no stale "not implemented" wording in live package files
+
+== 40 passed, 0 failed ==
+
+## 归应用时验（本地验不了的）
+- verify.sh 在生产全跑: patch-hash grant_projection.py 应转新哈希齐、grants-audit-purge 静态探针齐、
+  reactions-projection 按当日数据判读（2026-11-23 只读扫描 533 条命中非空, 预期转齐; 数据依赖, 以应用时为准）。
+- sweep 在生产的首跑行为: /opt/data/grants/ 当前不存在, 首跑必为 no-op; 真实清除行为待审计文件
+  产生事件且有事件满 1 年后自然验证（或应用窗口内以注入 now 的一次性自检脚本验, 见批次报告）。

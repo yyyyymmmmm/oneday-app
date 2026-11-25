@@ -1,0 +1,32 @@
+# OneDay Companion compose 模板（源自 118.24.41.52 现行 /www/dk_project/dk_app/companion/docker-compose.yml，2026-11-22 盘点版）
+# companion 是独立镜像（oneday/companion），不在本包构建范围内；本模板只登记其部署形态与挂载契约。
+# ${..._DIR} 为部署机上的数据目录占位，按部署者自己的目录布局填；companion.env 从保险库取（键名见 env.template）。
+services:
+  companion:
+    image: oneday/companion:1.0.77
+    volumes:
+      - ${HERMES_DATA_DIR}:/opt/data
+      - ${HERMES_DATA_DIR}:/opt/data-ro:ro
+      - ${HERMES_OVERVIEW_DATA_DIR}:/opt/overview-data
+      - ${ONEDAY_BRIDGE_DATA_DIR}:/opt/oneday-data
+      - ${ONEDAY_BRIDGE_DATA_DIR}:/opt/oneday-data-ro:ro
+      - ${DEVICE_BRIDGE_DATA_DIR}:/opt/device-data
+      - ${IDENTITY_BRIDGE_DATA_DIR}:/opt/identity-data
+      - ${COMPANION_STATE_DIR}:/opt/companion-state
+      - ${COMPANION_ENV_FILE}:/opt/companion/companion.env
+    container_name: oneday-companion
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8647:8647"   # 以下 8647-8650 为 companion 其余模块（device/identity/front/fileproc），逐路对应未逐项复核
+      - "127.0.0.1:8648:8648"
+      - "127.0.0.1:8650:8650"
+    environment:
+      - TZ=Asia/Shanghai
+      - COMPANION_VERSION=1.0.77
+      - COMPANION_API_LEVEL=1
+    mem_limit: 1g
+    networks: [hermes_net]
+networks:
+  hermes_net:
+    external: true
+    name: hermes_default

@@ -1,0 +1,52 @@
+# OneDay 双容器部署（规格 companion-service-design §3.1）。
+# hermes 服务为现行定义原样（配置/数据卷零改动），此处收录仅为成套交付；
+# 真正新增的只有 companion 服务。
+services:
+  hermes:
+    image: nousresearch/hermes-agent:v0.23.0
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    ports:
+      - "127.0.0.1:8642:8642"
+      - "127.0.0.1:9119:9119"
+    volumes:
+      - ./data:/opt/data
+    environment:
+      - TZ=Asia/Shanghai
+      - HERMES_DASHBOARD=1
+      # 仪表盘账号与 API_SERVER_KEY 在部署者的现行 compose 里维护，不进本模板
+    mem_limit: 2g
+    shm_size: 1g
+
+  companion:
+    image: oneday/companion:1.0.77
+    container_name: oneday-companion
+    restart: unless-stopped
+    depends_on: [hermes]            # 仅启动顺序；模块对 Hermes 不在线须容错
+    ports:
+      - "127.0.0.1:8647:8647"       # 手机设备 device
+      - "127.0.0.1:8648:8648"       # AI 身份 identity
+      - "127.0.0.1:8650:8650"       # front（面板＋companion API），只经 nginx
+    volumes:
+      - ./data:/opt/data                       # HERMES_HOME（write-gate/front 读写）
+      - ./data:/opt/data-ro:ro                 # overview 的只读视角
+      - ./overview-data:/opt/overview-data
+      - ./oneday-data:/opt/oneday-data
+      - ./oneday-data:/opt/oneday-data-ro:ro   # overview 读监测账本的只读视角
+      - ./device-data:/opt/device-data
+      - ./companion-state:/opt/companion-state # 监督者状态（开关/会话/连接记录）
+      # 与规格 §3.1 的一处实现偏差（M0 定）：不用 env_file 平铺注入，
+      # 改为整文件挂载由监督者按段解析分发——否则五段钥会先平铺进
+      # 监督者自身环境、且同名键有覆盖风险；分段隔离以 §2.3 为准。
+      - ./companion.env:/opt/companion/companion.env
+    environment:
+      - TZ=Asia/Shanghai
+      - COMPANION_VERSION=1.0.77
+      - COMPANION_API_LEVEL=1
+    mem_limit: 1g
+
+  newapi:                            # 可选：仅多渠道聚合时启用
+    profiles: [gateway]
+    image: calciumion/new-api:latest # 占位：镜像与配置由部署者自备
+    restart: unless-stopped

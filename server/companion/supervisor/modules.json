@@ -1,0 +1,46 @@
+{
+  "modules": [
+    {
+      "id": "device",
+      "name": "手机设备",
+      "sub": "device_bridge.py",
+      "path": "modules/device_bridge.py",
+      "port": 8647,
+      "segment": "device"
+    },
+    {
+      "id": "identity",
+      "name": "AI 身份",
+      "sub": "identity_bridge.py",
+      "path": "modules/identity_bridge.py",
+      "port": 8648,
+      "segment": "identity",
+      "env_from": {
+        "HERMES_HOME": "global",
+        "ONEDAY_BRIDGE_KEY": "oneday",
+        "HERMES_API_KEY": "global"
+      }
+    },
+    {
+      "id": "front",
+      "name": "伴生面板",
+      "sub": "front.py",
+      "path": "front/front.py",
+      "port": 8650,
+      "segment": "front",
+      "inject_module_keys": true,
+      "include_global": true
+    },
+    {
+      "id": "fileproc",
+      "name": "文件加工",
+      "sub": "fileproc_bridge.py",
+      "path": "modules/fileproc_bridge.py",
+      "port": 8652,
+      "segment": "fileproc",
+      "env_from": {
+        "DATA_PATH": "oneday"
+      }
+    }
+  ]
+}

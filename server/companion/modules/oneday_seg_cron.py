@@ -1,0 +1,601 @@
+# ---------------------------------------------------------------------
+# oneday_bridge segment: oneday_seg_cron.py -- part of modules/oneday_bridge.py,
+# split out by the C-8 single-file split (2026-11-14).
+#
+# This file is NOT a standalone module and must never be imported:
+# oneday_bridge.py exec-loads it in its OWN namespace at this
+# segment's original position (see _load_segment there), so every
+# name defined here lives in oneday_bridge's globals, in the
+# original definition order, sharing the same _db, locks and
+# monkeypatch seams the selftests use. Do not add imports of
+# oneday_bridge here (that would build a second module instance);
+# names from the core head and earlier segments are simply in
+# scope, exactly as when this code lived in the single file.
+# ---------------------------------------------------------------------
+
+
+
+# --- Hermes cron convergence (sweep B-01, 2026-11-15) -----------------
+# Until 1.0.58 this bridge ran its own scheduler: a 20 s tick that
+# hand-rolled due-checks, missed-run handling and per-round
+# idempotency for the monitors and for the three generation rounds
+# (ideas 07:30 / briefings Mon 08:00 / feed editions 08:30+19:30),
+# while the automation facade in this same codebase states the
+# opposite rule ("built ON TOP of the Hermes cron engine... no
+# second scheduler is built here"). The old decision records (see
+# the monitors segment, pre-1.0.59) rested on three premises that
+# were re-checked against the live deployment on 2026-11-15 and
+# no longer hold:
+#   * "Hermes cron is prompt/agent-only, no non-agent trigger" --
+#     the deployed v0.23.0 engine runs no_agent script jobs (cron/
+#     scheduler.py _run_no_agent_job: "the script IS the job (no
+#     AIAgent, no tokens)"); scripts live in HERMES_HOME/scripts
+#     and stdout is filed locally with deliver="local".
+#   * "the bridge is not on the hermes docker network" -- since
+#     the companion era both containers share the hermes_default
+#     network; a cron script inside the hermes container reaches
+#     this bridge at http://oneday-companion:8646.
+#   * "the bridge key would have to sit inside a cron prompt" --
+#     no prompt is involved. The callback carries a DEDICATED key
+#     (ONEDAY_CRON_CALLBACK_KEY, [oneday] env segment), valid only
+#     for the /internal/cron/* routes below; scripts read it from
+#     a 0600 file the bridge maintains inside HERMES_HOME/scripts.
+# What lives here now:
+#   * registration: the four system rounds + one job per monitor
+#     are Hermes cron jobs (no_agent + generated callback script);
+#     missed-run policy is the engine's (catch_up + grace), the
+#     bridge keeps NO due-time computation of its own.
+#   * the callback routes (dispatched from the core Handler under
+#     the callback key, never the bridge key).
+#   * the reconcile loop: the old scheduler tick minus every
+#     schedule semantic -- idea expiry, the feed reconcile duties
+#     and a throttled ensure pass that re-registers anything the
+#     engine lost (and prunes orphan monitor jobs).
+# Round internals are untouched: the callback starts a round with
+# the same trigger string the tick used ("schedule"/"schedule-b"),
+# so idempotency keys, edition tags and run ledgers are unchanged.
+
+CRON_TZ_NAME = "Asia/Shanghai"
+CRON_SCRIPTS_DIR = Path(os.environ.get("HERMES_HOME", "/opt/data")) / "scripts"
+CRON_KEY_FILE = CRON_SCRIPTS_DIR / ".oneday-callback-key"
+CRON_CALLBACK_BASE = os.environ.get(
+    "ONEDAY_CALLBACK_BASE", "http://oneday-companion:8646").rstrip("/")
+CRON_JOB_PREFIX_ROUND = "OneDay 系统轮·"
+CRON_JOB_PREFIX_MONITOR = "OneDay 监测·"
+#: ensure pass cadence: every Nth reconcile tick (20 s ticks)
+CRON_ENSURE_EVERY_TICKS = 15
+
+_cron_key_cache = None
+_cron_ensure_ticks = 0
+_cron_ensure_lock = threading.Lock()
+
+
+def _cron_callback_key() -> str:
+    """The dedicated callback key: env wins; otherwise a key the
+    bridge generates once and persists next to its data file.
+    Never the bridge key, never in a cron prompt (there is none)."""
+    global _cron_key_cache
+    if _cron_key_cache:
+        return _cron_key_cache
+    env_key = os.environ.get("ONEDAY_CRON_CALLBACK_KEY", "").strip()
+    if env_key:
+        _cron_key_cache = env_key
+        return env_key
+    key_path = DATA_PATH.parent / "cron-callback-key"
+    try:
+        if key_path.exists():
+            val = key_path.read_text(encoding="utf-8").strip()
+            if val:
+                _cron_key_cache = val
+                return val
+        val = secrets.token_hex(24)
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_text(val, encoding="utf-8")
+        try:
+            os.chmod(key_path, 0o600)
+        except OSError:
+            pass
+        _cron_key_cache = val
+        return val
+    except OSError as e:
+        print(f"cron callback key unavailable: {e!r}",
+              file=sys.stderr, flush=True)
+        return ""
+
+
+_CRON_SCRIPT_TEMPLATE = '''#!/usr/bin/env python3
+# OneDay cron callback -- generated by the oneday bridge
+# (B-01 convergence, 2026-11-15). The Hermes cron engine runs
+# this as a no_agent job; it only calls the bridge back. Do not
+# edit: the bridge rewrites it on every ensure pass.
+import os
+import sys
+import urllib.error
+import urllib.request
+
+ROUTE = "__ROUTE__"
+BASE = os.environ.get("ONEDAY_CALLBACK_BASE",
+                      "http://oneday-companion:8646").rstrip("/")
+KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        ".oneday-callback-key")
+
+
+def main() -> int:
+    try:
+        with open(KEY_FILE, encoding="utf-8") as f:
+            key = f.read().strip()
+    except OSError:
+        key = os.environ.get("ONEDAY_CRON_CALLBACK_KEY", "")
+    req = urllib.request.Request(
+        BASE + ROUTE, method="POST", data=b"{}",
+        headers={"Content-Type": "application/json",
+                 "X-Cron-Callback-Key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:200]
+        print(f"oneday cron callback {ROUTE} failed: "
+              f"HTTP {e.code} {body}")
+        return 1
+    except Exception as e:
+        print(f"oneday cron callback {ROUTE} failed: {e!r}")
+        return 1
+    return 0  # empty stdout = silent success for the engine
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
+def _cron_write_script(name: str, route: str) -> bool:
+    """(Re)write one callback script + the shared key file into
+    HERMES_HOME/scripts. Best-effort: returns False on any I/O
+    failure (the ensure pass retries; a missing script makes the
+    engine report the run as failed, which is visible, not silent)."""
+    try:
+        CRON_SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+        key = _cron_callback_key()
+        if key:
+            CRON_KEY_FILE.write_text(key, encoding="utf-8")
+            try:
+                # 0644, NOT 0600: the cron script subprocess runs
+                # as the hermes runtime user (uid 10000) inside
+                # the Hermes container, while this bridge writes
+                # as root -- a 0600 root-owned file is unreadable
+                # there and the callback degrades to an empty key
+                # (401), as observed live at the 1.0.60 deploy.
+                # The file lives inside HERMES_HOME (0700,
+                # hermes-owned), so world-read exposes it to no
+                # one outside the two containers and host root.
+                os.chmod(CRON_KEY_FILE, 0o644)
+            except OSError:
+                pass
+        path = CRON_SCRIPTS_DIR / name
+        path.write_text(_CRON_SCRIPT_TEMPLATE.replace("__ROUTE__", route),
+                        encoding="utf-8")
+        try:
+            os.chmod(path, 0o755)
+        except OSError:
+            pass
+        return True
+    except OSError as e:
+        print(f"cron script write failed ({name}): {e!r}",
+              file=sys.stderr, flush=True)
+        return False
+
+
+#: The four system rounds: (slug, job name, cron expr, script, route)
+_CRON_ROUNDS = (
+    ("ideas", CRON_JOB_PREFIX_ROUND + "点子日轮", "30 7 * * *",
+     "oneday-round-ideas.py", "/internal/cron/rounds/ideas"),
+    ("briefing", CRON_JOB_PREFIX_ROUND + "目标周报", "0 8 * * 1",
+     "oneday-round-briefing.py", "/internal/cron/rounds/briefing"),
+    ("feed-a", CRON_JOB_PREFIX_ROUND + "动态调研 A 版", "30 8 * * *",
+     "oneday-round-feed-a.py", "/internal/cron/rounds/feed-a"),
+    ("feed-b", CRON_JOB_PREFIX_ROUND + "动态调研 B 版", "30 19 * * *",
+     "oneday-round-feed-b.py", "/internal/cron/rounds/feed-b"),
+)
+
+
+def _cron_list_jobs() -> list:
+    raw = _dash_json("/api/cron/jobs")
+    if isinstance(raw, dict):
+        jobs = raw.get("jobs")
+        return jobs if isinstance(jobs, list) else []
+    return raw if isinstance(raw, list) else []
+
+
+def _cron_create_job(name: str, schedule: str, script: str):
+    raw = _dash_json("/api/cron/jobs", method="POST", body={
+        "name": name, "schedule": schedule, "prompt": "",
+        "script": script, "no_agent": True, "deliver": "local",
+        "timezone": CRON_TZ_NAME, "catch_up": True})
+    job = raw.get("job") if isinstance(raw, dict) else None
+    if not isinstance(job, dict):
+        job = raw if isinstance(raw, dict) else {}
+    return _cron_job_id(job)
+
+
+def _cron_delete_job(job_id: str) -> None:
+    try:
+        _dash_json(f"/api/cron/jobs/{job_id}", method="DELETE")
+    except Exception:
+        pass  # best-effort: a 404 here is the desired end state
+
+
+def _cron_job_matches(job: dict, name: str, schedule: str,
+                      script: str) -> bool:
+    if job.get("name") != name or job.get("script") != script:
+        return False
+    if not job.get("no_agent"):
+        return False
+    sched = job.get("schedule")
+    expr = sched.get("expr") if isinstance(sched, dict) else sched
+    return expr == schedule
+
+
+# --- monitor registration ----------------------------------------------
+# One engine job per monitor; the record's cronJobId is the real
+# job id from the moment of registration (it was permanently null
+# under the bridge-internal scheduler). The engine's interval
+# granularity is one minute: minute-divisible intervals map to
+# "every Nm" exactly; a sub-minute remainder keeps an "every 1m"
+# wake-up and the callback gates on the monitor's own nextRunAt
+# (the bridge's cron arithmetic survives ONLY for that gate and
+# for create-time expression validation).
+
+def _cron_monitor_script_name(mid: str) -> str:
+    return f"oneday-monitor-{mid}.py"
+
+
+def _cron_monitor_job_name(m: dict) -> str:
+    return f"{CRON_JOB_PREFIX_MONITOR}{m.get('name') or '监测'}·{m['id']}"
+
+
+def _cron_monitor_schedule(m: dict):
+    """(engine schedule string, gated?) for one monitor."""
+    if m.get("cron"):
+        return m["cron"], False
+    interval = m.get("intervalSeconds")
+    if interval:
+        secs = int(interval)
+        if secs % 60 == 0:
+            return f"every {secs // 60}m", False
+        return "every 1m", True
+    return None, False
+
+
+def _cron_register_monitor(m: dict) -> None:
+    """Create (or adopt) the engine job for a monitor and fold
+    the job id + next run back into the record. Best-effort by
+    design: any failure leaves cronJobId as-is and the ensure
+    pass retries -- monitor CRUD never blocks on the Dashboard."""
+    schedule, _gated = _cron_monitor_schedule(m)
+    if schedule is None:
+        return  # manual-only monitor: no engine job, by design
+    mid = m["id"]
+    route = f"/internal/cron/monitors/{mid}/check"
+    if not _cron_write_script(_cron_monitor_script_name(mid), route):
+        return
+    try:
+        job_id = m.get("cronJobId")
+        job = None
+        if job_id:
+            try:
+                raw = _dash_json(f"/api/cron/jobs/{job_id}")
+                job = raw.get("job") if isinstance(raw, dict) else raw
+            except Exception:
+                job = None
+        if not isinstance(job, dict):
+            # Adopt by name: a previous registration may have
+            # landed engine-side while its id never made it back
+            # into the record -- never create a duplicate.
+            for cand in _cron_list_jobs():
+                if isinstance(cand, dict) and cand.get("name") == \
+                        _cron_monitor_job_name(m):
+                    job = cand
+                    break
+        if isinstance(job, dict) and job.get("name") == \
+                _cron_monitor_job_name(m):
+            _cron_mirror_monitor_job(m, job)
+            return
+        if job_id:
+            _cron_delete_job(job_id)
+        new_id = _cron_create_job(_cron_monitor_job_name(m), schedule,
+                                  _cron_monitor_script_name(mid))
+        if new_id:
+            with _lock:
+                cur = _find_monitor(mid)
+                if cur is not None:
+                    cur["cronJobId"] = new_id
+                    _save_locked()
+            if not m.get("enabled", True):
+                _cron_set_monitor_paused(
+                    {**m, "cronJobId": new_id}, True)
+    except Exception as e:
+        print(f"cron register monitor {mid} failed: {e!r}",
+              file=sys.stderr, flush=True)
+
+
+def _cron_mirror_monitor_job(m: dict, job: dict) -> None:
+    """Fold engine-owned facts (job id, next run) into the
+    record; the engine is the single source for both."""
+    nxt = job.get("next_run_at")
+    with _lock:
+        cur = _find_monitor(m["id"])
+        if cur is None:
+            return
+        changed = False
+        jid = _cron_job_id(job)
+        if jid and cur.get("cronJobId") != jid:
+            cur["cronJobId"] = jid
+            changed = True
+        if isinstance(nxt, (int, float)) \
+                and cur.get("nextRunAt") != float(nxt):
+            cur["nextRunAt"] = float(nxt)
+            changed = True
+        if changed:
+            _save_locked()
+
+
+def _cron_set_monitor_paused(m: dict, paused: bool) -> None:
+    job_id = m.get("cronJobId")
+    if not job_id:
+        return
+    try:
+        _dash_json(f"/api/cron/jobs/{job_id}/"
+                   + ("pause" if paused else "resume"), method="POST")
+    except Exception as e:
+        print(f"cron {'pause' if paused else 'resume'} monitor "
+              f"{m['id']} failed: {e!r}", file=sys.stderr, flush=True)
+
+
+def _cron_sync_monitor_enabled(m: dict) -> None:
+    if not m.get("cronJobId"):
+        _cron_register_monitor(m)
+        return
+    _cron_set_monitor_paused(m, not m.get("enabled", True))
+
+
+def _cron_unregister_monitor(m: dict) -> None:
+    job_id = m.get("cronJobId")
+    if job_id:
+        _cron_delete_job(job_id)
+    try:
+        (CRON_SCRIPTS_DIR / _cron_monitor_script_name(m["id"])).unlink(
+            missing_ok=True)
+    except OSError:
+        pass
+
+
+# --- ensure pass ---------------------------------------------------------
+
+def _cron_ensure_all() -> None:
+    """Reconcile bridge records with the engine's job store:
+    system rounds exist with the right shape, every scheduled
+    monitor has a live job (id + next run mirrored back), orphan
+    monitor jobs are pruned. Runs at startup and on a throttled
+    cadence from the reconcile loop; fully failure-tolerant (the
+    Dashboard may be down -- the next pass retries).
+
+    Single-flight: the startup pass and the reconcile loop's
+    first pass can overlap; without the lock both would list an
+    empty store and create duplicates (observed live at the
+    1.0.59 deploy -- every round job existed twice)."""
+    if not _cron_ensure_lock.acquire(blocking=False):
+        return
+    try:
+        _cron_ensure_all_locked()
+    finally:
+        _cron_ensure_lock.release()
+
+
+def _cron_ensure_all_locked() -> None:
+    try:
+        jobs = _cron_list_jobs()
+    except Exception as e:
+        print(f"cron ensure: job list failed: {e!r}",
+              file=sys.stderr, flush=True)
+        return
+    # Dedupe by name first: for every name we manage, keep the
+    # oldest job and delete the rest -- a duplicate fires twice.
+    managed = {name for _s, name, _e, _sc, _r in _CRON_ROUNDS}
+    with _lock:
+        managed |= {_cron_monitor_job_name(m) for m in _db["monitors"]}
+    by_name = {}
+    for job in sorted(
+            (j for j in jobs if isinstance(j, dict)),
+            key=lambda j: str(j.get("created_at") or "")):
+        name = job.get("name")
+        if not name:
+            continue
+        if name in managed and name in by_name:
+            _cron_delete_job(_cron_job_id(job) or "")
+            continue
+        by_name.setdefault(name, job)
+    for _slug, name, schedule, script, route in _CRON_ROUNDS:
+        _cron_write_script(script, route)
+        job = by_name.get(name)
+        try:
+            if job is not None and not _cron_job_matches(
+                    job, name, schedule, script):
+                _cron_delete_job(_cron_job_id(job) or "")
+                job = None
+            if job is None:
+                _cron_create_job(name, schedule, script)
+        except Exception as e:
+            print(f"cron ensure round {name} failed: {e!r}",
+                  file=sys.stderr, flush=True)
+    with _lock:
+        monitors = [dict(m) for m in _db["monitors"]]
+    live_ids = set()
+    for m in monitors:
+        schedule, _gated = _cron_monitor_schedule(m)
+        if schedule is None:
+            continue
+        live_ids.add(m["id"])
+        job = by_name.get(_cron_monitor_job_name(m))
+        if job is not None:
+            _cron_mirror_monitor_job(m, job)
+            # The engine's pause state lives in state/enabled
+            # (there is no boolean "paused" on the job record).
+            paused = job.get("state") == "paused" \
+                or job.get("enabled") is False
+            if paused == bool(m.get("enabled", True)):
+                _cron_set_monitor_paused(m, not m.get("enabled", True))
+        else:
+            # No live job under our name: register (adopts by
+            # stored id / by name first, creates only if absent).
+            _cron_register_monitor(m)
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        name = str(job.get("name") or "")
+        if name.startswith(CRON_JOB_PREFIX_MONITOR):
+            mid = name.rsplit("·", 1)[-1]
+            if mid not in live_ids and mid not in {
+                    m["id"] for m in monitors}:
+                _cron_delete_job(_cron_job_id(job) or "")
+
+
+def _cron_startup() -> None:
+    threading.Thread(target=_cron_ensure_all, daemon=True).start()
+
+
+# --- callback handlers ---------------------------------------------------
+
+def _cron_try_start(which: str) -> bool:
+    """Start one system round with the trigger string the old
+    tick used, so round internals (idempotency keys, edition
+    tags, ledgers) are byte-identical. Feed edition slots in the
+    meta are display bookkeeping now -- advanced here at fire
+    time, exactly where the tick advanced them."""
+    if which == "ideas":
+        return _start_generation("schedule")
+    if which == "briefing":
+        return _start_briefing("schedule")
+    if which == "feed-a":
+        if _start_research("schedule"):
+            with _lock:
+                _feed_gen_meta_locked()["nextRunAt"] = \
+                    _next_morning_time(_now())
+                _save_locked()
+            return True
+        return False
+    if which == "feed-b":
+        if _start_research("schedule-b"):
+            with _lock:
+                _feed_gen_meta_locked()["nextRunAtB"] = \
+                    _next_evening_time(_now())
+                _save_locked()
+            return True
+        return False
+    return False
+
+
+def _cron_round_retry(which: str, attempt: int) -> None:
+    if _cron_try_start(which):
+        return
+    if attempt >= 3:
+        print(f"cron round {which}: still busy after retries, "
+              f"edition skipped (engine run record shows the fire)",
+              file=sys.stderr, flush=True)
+        return
+    delay = 300 if attempt == 1 else 900
+    t = threading.Timer(delay, _cron_round_retry,
+                        args=(which, attempt + 1))
+    t.daemon = True
+    t.start()
+
+
+def _cron_cb_round(which: str):
+    """POST /internal/cron/rounds/{which}: the engine fired.
+    Busy is not an error -- a manual round may hold the slot;
+    the old tick retried at +900 s, the callback keeps a bounded
+    version of that courtesy (300 s, then 900 s, then give up
+    loudly). This is collision backoff, not scheduling: the
+    cadence itself lives only in the engine."""
+    if which not in ("ideas", "briefing", "feed-a", "feed-b"):
+        return 404, {"error": "未知轮次"}
+    if _cron_try_start(which):
+        return 202, {"ok": True, "started": True}
+    t = threading.Timer(300, _cron_round_retry, args=(which, 2))
+    t.daemon = True
+    t.start()
+    return 202, {"ok": True, "started": False, "retrying": True}
+
+
+def _cron_cb_monitor_check(mid: str):
+    """POST /internal/cron/monitors/{id}/check: run one check
+    for an engine-fired monitor. Unknown id = orphan job (the
+    ensure pass prunes it); a 404 makes the engine file a failed
+    run instead of silently succeeding."""
+    with _lock:
+        m = _find_monitor(mid)
+        if m is None:
+            return 404, {"error": "监测不存在"}
+        m = dict(m)
+    if not m.get("enabled", True):
+        return 200, {"ok": True, "skipped": "paused"}
+    _schedule, gated = _cron_monitor_schedule(m)
+    if gated:
+        # sub-minute interval: the engine wakes us every minute
+        # and the monitor's own nextRunAt gates the real check
+        if m.get("nextRunAt") and _now() < m["nextRunAt"]:
+            return 200, {"ok": True, "skipped": "not-due"}
+    with _lock:
+        if mid in _checking:
+            return 200, {"ok": True, "skipped": "checking"}
+        _checking.add(mid)
+    try:
+        _run_check(mid)
+    finally:
+        with _lock:
+            _checking.discard(mid)
+    with _lock:
+        cur = _find_monitor(mid)
+        return 200, _monitor_view(cur) if cur else {"ok": True}
+
+
+# --- reconcile loop --------------------------------------------------------
+
+def _rounds_display_init_locked() -> None:
+    """Settle the rounds' nextRunAt display values when unset
+    (lock held). Display bookkeeping only: the engine owns the
+    actual fire times; these values are what the ledger views
+    have always shown, and rounds advance them as they run."""
+    changed = False
+    gen = _gen_meta_locked()
+    if gen["nextRunAt"] is None:
+        gen["nextRunAt"] = _next_gen_time(_now())
+        changed = True
+    brief = _brief_meta_locked()
+    if brief["nextRunAt"] is None:
+        brief["nextRunAt"] = _next_brief_time(_now())
+        changed = True
+    if changed:
+        _save_locked()
+
+
+def _reconcile_loop() -> None:
+    """The old 20 s scheduler tick with every schedule semantic
+    removed (B-01): monitors and rounds are fired by the Hermes
+    cron engine now. What remains is pure reconciliation --
+    expiring ideas, the feed's event-ledger/poll duties, and the
+    throttled cron ensure pass."""
+    global _cron_ensure_ticks
+    while True:
+        try:
+            with _lock:
+                _expire_ideas_locked()
+                _rounds_display_init_locked()
+            _feed_reconcile()
+            _cron_ensure_ticks += 1
+            if _cron_ensure_ticks % CRON_ENSURE_EVERY_TICKS == 1:
+                _cron_ensure_all()
+        except Exception as e:
+            print(f"reconcile failed: {e!r}", file=sys.stderr,
+                  flush=True)
+        time.sleep(MON_SCHED_TICK)
