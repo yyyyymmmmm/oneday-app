@@ -994,11 +994,17 @@ public enum OneDayMetrics {
 public struct ChatBackgroundSurface: View {
     public init() {}
 
+    @AppStorage(AppearanceStorageKeys.chatBackground)
+    private var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
+
+    private var backgroundStyle: ChatBackgroundStyle {
+        ChatBackgroundStyle(rawValue: chatBackgroundRaw) ?? .standard
+    }
+
     public var body: some View {
         ZStack {
             Palette.chatBackground
-            if let kind = AppearancePreferences
-                .backgroundStyle().patternKind {
+            if let kind = backgroundStyle.patternKind {
                 Canvas { context, size in
                     draw(kind, in: &context, size: size)
                 }

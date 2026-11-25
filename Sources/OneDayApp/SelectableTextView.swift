@@ -551,16 +551,8 @@ private extension UIFont {
 /// 会污染粘贴到别处的内容；系统「拷贝」走本覆盖，
 /// 选区与高亮行为全归系统
 final class SelectableUITextView: UITextView {
-    /// §471（长按三病过渡版·病一）：列表呈现态抑制
-    /// 直接选字——开启时内部长按选字链（放大镜/选
-    /// 区）与多击选词识别器在 shouldBegin 处被否、
-    /// 编辑菜单动作全关；触摸因此落回宿主的长按
-    /// 挂载点（浮排/系统菜单单点仲裁，与 iMessage
-    /// iOS 26「列表态禁直接选字、选字只从菜单
-    /// 『选择』行进入」口径同构）。选字能力只活在
-    /// 「选择」sheet 的独立实例（本旗默认关、逐字
-    /// 不变）。单点链接点按（tapsRequired==1）不
-    /// 在否决之列，shouldInteractWith 出口不变
+    /// 聊天正文门控：拒绝 UITextView 长按手势（归消息菜单），
+    /// 允许双击选词、拖柄扩选与编辑菜单。
     var suppressesDirectSelection = false
 
     override func gestureRecognizerShouldBegin(
@@ -569,11 +561,6 @@ final class SelectableUITextView: UITextView {
         if suppressesDirectSelection {
             if gestureRecognizer
                 is UILongPressGestureRecognizer {
-                return false
-            }
-            if let tap = gestureRecognizer
-                as? UITapGestureRecognizer,
-                tap.numberOfTapsRequired >= 2 {
                 return false
             }
         }
@@ -585,7 +572,6 @@ final class SelectableUITextView: UITextView {
     override func canPerformAction(
         _ action: Selector, withSender sender: Any?
     ) -> Bool {
-        if suppressesDirectSelection { return false }
         return super.canPerformAction(
             action, withSender: sender
         )
