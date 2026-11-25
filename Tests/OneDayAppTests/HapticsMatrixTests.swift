@@ -77,7 +77,10 @@ final class HapticsMatrixTests: XCTestCase {
         // §352（D3 编辑重发）：编辑重发走自有发送路径、
         // 是同一「发送」事件的第二落点，同档 +1（2→3）；
         // 除此不得再多加
-        XCTAssertEqual(count(of: "Haptics.impact(.light)", in: chat), 3)
+        // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
+        // 新增「实时纠偏」（steerActiveRun 向运行中任务注入
+        // 指令）属同一发送事件家族、落同档轻触，3→4
+        XCTAssertEqual(count(of: "Haptics.impact(.light)", in: chat), 4)
     }
 
     func testDrawerGestureSnapHasLightImpact() throws {

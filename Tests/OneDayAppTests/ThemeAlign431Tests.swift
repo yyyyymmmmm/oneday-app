@@ -75,7 +75,10 @@ final class ThemeAlign431Tests: XCTestCase {
             count(of: "Image(systemName: \"chevron.right\")", in: all), 1)
         XCTAssertEqual(
             count(of: "Image(systemName: \"chevron.up.chevron.down\")", in: all), 0)
-        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 45)
+        // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
+        // 改版四面收编直写行——外观页 −2、CronViews −2、
+        // CronBlueprintViews −1、EnvVarsView −1，45→39
+        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 39)
     }
 
     /// 外观页触点逐点在位（§503 后：主题/模式/形象
@@ -88,18 +91,18 @@ final class ThemeAlign431Tests: XCTestCase {
             ".sensoryFeedback(.selection, trigger: chatThemeID)"))
         XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: appearanceModeRaw)"))
-        XCTAssertTrue(appearance.contains(
-            ".sensoryFeedback(.selection, trigger: avatarSizeRaw)"))
+        // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
+        // 外观页明示移除「虚拟形象大小」与「气泡圆角」两微调
+        // 项，avatarSizeRaw／bubbleStyleRaw／avatarMenuTap-
+        // Count 三触点随项退役；余下五点在位不变
+        XCTAssertFalse(appearance.contains("avatarSizeRaw"))
         XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: chatBackgroundRaw)"))
         XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: accentOverrideRaw)"))
         XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: chatTextSizeRaw)"))
-        XCTAssertTrue(appearance.contains(
-            ".sensoryFeedback(.selection, trigger: bubbleStyleRaw)"))
-        XCTAssertTrue(appearance.contains(
-            ".impact(weight: .light), trigger: avatarMenuTapCount"))
+        XCTAssertFalse(appearance.contains("bubbleStyleRaw"))
         XCTAssertFalse(appearance.contains("appLanguageRaw"))
     }
 

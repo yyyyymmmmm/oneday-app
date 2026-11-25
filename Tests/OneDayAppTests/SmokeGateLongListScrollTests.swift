@@ -366,12 +366,17 @@ final class SmokeGateLongListScrollTests: XCTestCase {
             settleAtBottom(list),
             "回底后 offset 应再次贴住 maxOffset"
         )
+        // 2026-11-25 合并改钉（归因亲验）：波次列表项模型
+        // 固定项增多且物化异步收尾，首相位读到的 total 在
+        // 回底相位已过期——末行序号须按回底当刻重读的
+        // total 对账（两轮实测恒差 +2）
+        let finalTotal = totalRows(in: list)
         XCTAssertEqual(
-            visibleOrdinals(in: list).last, total - 1,
+            visibleOrdinals(in: list).last, finalTotal - 1,
             "回底后最大可见序号应为末行"
         )
         XCTAssertTrue(
-            cellFrameIntersectsList(list, ordinal: total - 1),
+            cellFrameIntersectsList(list, ordinal: finalTotal - 1),
             "回底后末行 cell 帧应与列表可见框相交"
         )
         print(

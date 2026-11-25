@@ -103,8 +103,12 @@ final class OBBundleStructureTests: XCTestCase {
             "Sources/OneDayDesign/EmptyState.swift"
         )
         XCTAssertTrue(design.contains("struct ODEmptyState"))
+        // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次把
+        // 空态改判为全面原生统一——ODEmptyState 直接委托系统
+        // ContentUnavailableView，自研分阶入场（含减动效分支）
+        // 随之退役；减动效/字号适配由系统件原生承担
         XCTAssertTrue(
-            design.contains("accessibilityReduceMotion")
+            design.contains("ContentUnavailableView")
         )
         for file in [
             "Sources/OneDayApp/FeedView.swift",
@@ -177,13 +181,13 @@ final class OBBundleStructureTests: XCTestCase {
         )
         // §503 改判：personalizationSection 拆为背景/
         // 圆角两节（原二合一节退役），键引用不变
+        // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
+        // 外观页改版明示移除「气泡圆角」微调项（Appearance-
+        // View 文件头注），bubbleCornerSection 与 chatBubble-
+        // Style 键引用随之退役；Core 读口（Palette 侧断言）
+        // 不动、仍由下方把守
         XCTAssertTrue(appearance.contains("backgroundSection"))
-        XCTAssertTrue(appearance.contains("bubbleCornerSection"))
-        XCTAssertTrue(
-            appearance.contains(
-                "AppearanceStorageKeys.chatBubbleStyle"
-            )
-        )
+        XCTAssertFalse(appearance.contains("bubbleCornerSection"))
         XCTAssertTrue(
             appearance.contains(
                 "AppearanceStorageKeys.chatBackground"

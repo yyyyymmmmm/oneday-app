@@ -1,11 +1,15 @@
 import XCTest
 @testable import OneDayCore
 
-/// §494（2026-11-24）流式发布门钉测：节流双
-/// 触发（N 字／M 秒）／渲染下限／单拍步进上
-/// 限追赶／首拍直发／flush 落定逐字一致／快
-/// 照前缀单调／断流恢复回放拼接（装配器 res-
-/// tore 续喂后最终快照与连续喂入逐字相同）
+/// §494（2026-11-24）流式发布门钉测：首拍直发／
+/// flush 落定逐字一致／快照前缀单调／断流恢复
+/// 回放拼接（装配器 restore 续喂后最终快照与
+/// 连续喂入逐字相同）。
+/// 2026-11-25 合并改钉（归因亲验）：all-8-issues
+/// 波次把节流口径整体换成 OpenBot stream-reveal-
+/// pool 词级尾窗（32ms 节拍／CJK 三字一拍／积压
+/// ≥64 跳尾窗留 16 字），原 Telegram 双触发口径
+/// （80 字／90ms／步进 120）三例随之按新口径重写
 final class StreamingPublishGateTests: XCTestCase {
 
     private func text(_ n: Int) -> String {
@@ -28,25 +32,23 @@ final class StreamingPublishGateTests: XCTestCase {
     func testSmallBacklogWaitsForTimeTrigger() {
         var gate = StreamingPublishGate()
         _ = gate.offer(text(10), now: 0)
-        // 积压 10 字 < N：字符触发不到；90ms 内
-        // 时间触发也不到 → 不发布
-        XCTAssertNil(gate.offer(text(20), now: 0.05))
+        // 距上拍 <32ms 节拍：不发布
+        XCTAssertNil(gate.offer(text(20), now: 0.016))
         XCTAssertEqual(gate.publishedText, text(10))
-        // 满 90ms：时间触发发布全部积压
-        let snapshot = gate.tick(now: 0.09)
-        XCTAssertEqual(snapshot, text(20))
+        // 满一拍：词级推进——CJK 三字一拍
+        let snapshot = gate.tick(now: 0.032)
+        XCTAssertEqual(snapshot, text(13))
     }
 
     func testCharTriggerNeedsMinInterval() {
         var gate = StreamingPublishGate()
         _ = gate.offer(text(10), now: 0)
-        // 积压 ≥N（80）但距上拍 <50ms：渲染下限
-        // 拦住，不许超 20Hz 发布
-        XCTAssertNil(gate.offer(text(100), now: 0.03))
-        // 满 50ms：字符触发发布（积压 90 ≤ 步进
-        // 上限，全量）
-        let snapshot = gate.offer(text(100), now: 0.05)
-        XCTAssertEqual(snapshot, text(100))
+        // 积压虽大，距上拍 <32ms：节拍下限拦住
+        XCTAssertNil(gate.offer(text(100), now: 0.016))
+        // 满一拍且积压 90 ≥64：跳尾窗——目标取
+        // max(已发布＋步进 24, 全文−留尾 16)＝84
+        let snapshot = gate.offer(text(100), now: 0.032)
+        XCTAssertEqual(snapshot, text(84))
     }
 
     func testNoBacklogNoPublish() {
@@ -62,7 +64,9 @@ final class StreamingPublishGateTests: XCTestCase {
     func testBurstBacklogCatchesUpByCappedSteps() {
         var gate = StreamingPublishGate()
         _ = gate.offer(text(5), now: 0)
-        // 突发积压 1000 字：每拍至多前进 120 字
+        // 突发积压 1000 字 ≥64：首拍跳尾窗（留尾
+        // 16 字）不拖尾；其后词级小步收尾，flush
+        // 落定逐字一致
         var now = 0.0
         var lastCount = gate.publishedText.count
         var steps = 0
@@ -72,9 +76,15 @@ final class StreamingPublishGateTests: XCTestCase {
             let snapshot = gate.tick(now: now)
             XCTAssertNotNil(snapshot)
             let advanced = (snapshot?.count ?? 0) - lastCount
-            XCTAssertLessThanOrEqual(
-                advanced, StreamingPublishGate.maxStep,
-                "单拍步进不许超上限")
+            if steps == 0 {
+                XCTAssertEqual(
+                    snapshot?.count, 1005 - 16,
+                    "突发首拍应跳至尾窗（全文−16）")
+            } else {
+                XCTAssertLessThanOrEqual(
+                    advanced, StreamingPublishGate.maxStep,
+                    "尾窗后单拍步进不许超上限")
+            }
             XCTAssertGreaterThan(advanced, 0)
             lastCount = snapshot?.count ?? lastCount
             steps += 1
