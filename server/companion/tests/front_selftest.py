@@ -419,11 +419,11 @@ def main():
                DEVICE_BRIDGE_KEY=FAKE_DEVICE_KEY,
                BOX_MCP_URL=f"http://127.0.0.1:{BPORT}/mcp",
                NEWAPI_BASE_URL=f"http://127.0.0.1:{NPORT}",
-               NEWAPI_ADMIN_TOKEN="newapi-admin-test",
+               NEWAPI_ADMIN_TOKEN="test-admin-token",
                NEWAPI_ADMIN_USER_ID="1",
                HERMES_DASHBOARD_BASE=f"http://127.0.0.1:{DPORT}",
                HERMES_DASHBOARD_USER="dash-user",
-               HERMES_DASHBOARD_PASSWORD="dash-pass",
+               HERMES_DASHBOARD_PASSWORD="test-pass",
                PANEL_PASSWORD_HASH=pw_hash)
     front = subprocess.Popen([sys.executable, FRONT], env=env,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

@@ -125,14 +125,14 @@ def main():
     # 4. generation parser
     anchors = {
         "S1": {"kind": "S", "objectId": "sess_a",
-               "title": "聊了婚礼发言定稿"},
+               "title": "聊了年会主持稿定稿"},
         "S2": {"kind": "S", "objectId": "sess_b",
                "title": "体检报告出来了"},
         "S3": {"kind": "S", "objectId": "sess_c",
                "title": "副业账号十月结算"},
     }
     lines = {
-        "S1": "S1 会话：10 月 29 日聊了婚礼发言定稿",
+        "S1": "S1 会话：10 月 29 日聊了年会主持稿定稿",
         "S2": "S2 会话：11 月 3 日体检报告出来了",
         "S3": "S3 会话：10 月 31 日副业账号结算 2300 元",
     }
@@ -147,7 +147,7 @@ def main():
     output = json.dumps([
         card("我可以把定稿发言存成文件",
              "把 10 月 29 日定稿的发言原文存成一份文件，"
-             "婚礼当天直接打开就能念。",
+             "年会当天直接打开就能念。",
              "10月29日定稿的发言还没落盘", "S1",
              category="relationships"),
         card("我可以把体检指标整理成表",
@@ -191,8 +191,8 @@ def main():
     bf = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bf)
 
-    wedding = {"id": "i_1", "title": "把婚礼发言做成当天包",
-               "evidence": "11月16日婚礼", "detail": "发言稿存盘"}
+    wedding = {"id": "i_1", "title": "把年会主持稿做成当天包",
+               "evidence": "11月16日年会", "detail": "发言稿存盘"}
     health = {"id": "i_2", "title": "整理体检报告",
               "evidence": "", "detail": "指标对照"}
     money = {"id": "i_3", "title": "副业月度结算表",

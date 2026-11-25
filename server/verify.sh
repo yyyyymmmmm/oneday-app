@@ -2,13 +2,13 @@
 # hermes-deploy verify.sh — 按 CAPABILITIES.md 能力注册表逐项探活（只读）
 #
 # 用法: 在部署机上运行: ./verify.sh [部署目录]
-#   部署目录可选（默认 /www/dk_project/dk_app/hermes），仅静态探针（规划路由 grep）用到。
+#   部署目录可选（默认 /srv/hermes），仅静态探针（规划路由 grep）用到。
 #   写型探针（run 幂等重放等）本版一律不执行，只在输出里标注人工验收路径。
 #
 # 输出口径: [齐] 在位且行为/路由证据通过; [缺] 应有而未有; [规划中] 批次未到、当前缺失符合预期; [未验] 本轮条件不足未探
 set -uo pipefail
 
-DEPLOY_DIR="${1:-/www/dk_project/dk_app/hermes}"
+DEPLOY_DIR="${1:-/srv/hermes}"
 TARGET_IMAGE="nousresearch/hermes-agent:v0.23.0"
 BASE="http://127.0.0.1:8642"
 

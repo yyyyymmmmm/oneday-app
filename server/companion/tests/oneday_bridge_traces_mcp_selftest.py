@@ -221,7 +221,7 @@ def main():
             "target": {"kind": "identity", "id": "soul",
                        "label": "智能体名",
                        "ref": "oneday://hub/identity"},
-            "status": "ok", "result": "已把名字改为「三狗」"})
+            "status": "ok", "result": "已把名字改为「小天」"})
         check("generic trace write (P1-shaped) lands",
               st == 201 and rec["id"].startswith("trc_"), str(rec))
         st, _ = call("POST", "/traces", {

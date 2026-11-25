@@ -381,12 +381,12 @@ def main():
     check("kanban_create without owner refused", err
           and "ownerSessionId" in text, text)
     err, view, _ = tool("kanban_create_task", {
-        "title": "核对婚礼天气", "body": "15 号复核三家预报",
+        "title": "核对年会天气", "body": "15 号复核三家预报",
         "ownerSessionId": "sess-owner-1"})
     check("kanban_create ok", not err and view["taskId"] == "t_1",
           str(view))
     check("kanban payload carried title",
-          STUB.task_posts[-1]["title"] == "核对婚礼天气")
+          STUB.task_posts[-1]["title"] == "核对年会天气")
     err, view, _ = tool("kanban_get_task", {"taskId": "t_1"})
     check("kanban_get round-trip", not err
           and view["status"] == "todo", str(view))

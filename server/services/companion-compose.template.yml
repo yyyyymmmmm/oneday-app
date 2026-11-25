@@ -1,4 +1,4 @@
-# OneDay Companion compose 模板（源自 118.24.41.52 现行 /www/dk_project/dk_app/companion/docker-compose.yml，2026-11-22 盘点版）
+# OneDay Companion compose 模板（脱敏版：源自现行部署整理，路径为示例，部署时按实际环境调整）
 # companion 是独立镜像（oneday/companion），不在本包构建范围内；本模板只登记其部署形态与挂载契约。
 # ${..._DIR} 为部署机上的数据目录占位，按部署者自己的目录布局填；companion.env 从保险库取（键名见 env.template）。
 services:

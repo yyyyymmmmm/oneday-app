@@ -1,4 +1,4 @@
-# Hermes 主部署 compose 模板（源自 118.24.41.52 现行 /www/dk_project/dk_app/hermes/docker-compose.yml，2026-11-22 盘点脱敏版）
+# Hermes 主部署 compose 模板（脱敏版：源自现行部署整理，路径为示例，部署时按实际环境调整）
 # 用法：置于部署目录根，命名 docker-compose.yml；所有 ${...} 凭据变量从部署者自己的保险库取（见 env.template），严禁把真值写进本文件后提交。
 # 注意：write-gate-bridge / overview-bridge 两服务为历史定义——现行环境中未运行，其 8643/8644 职能曾由 oneday-companion
 # 承载、已随断桥批二/批三入关网关；companion 本身亦已于部署包 2.0.0（断桥批五）整容器退役，现行终局为 hermes 单容器，
