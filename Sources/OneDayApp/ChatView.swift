@@ -5397,11 +5397,12 @@ struct ChatView: View {
             fromKey: entry.approvalKey ?? ""
         ) ?? ""
         switch store.anchorRowState(recordID: recordID) {
-        case .pending(let record):
-            ChatApprovalCard(
-                store: store, record: record,
-                ledger: rowStateLedger
-            )
+        case .pending:
+            // Bug3 修复：待批审批不在消息流内渲染，只出
+            // 现在输入栏上方停靠卡（ChatApprovalZone）；
+            // 消息流内只留已决汇总行，不再有可点按的待批
+            // 卡片（2026-11-26 用户截图定版）
+            EmptyView()
         case .decided(let item):
             HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(systemName: item.isApproved

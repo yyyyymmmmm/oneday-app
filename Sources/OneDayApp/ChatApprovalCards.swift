@@ -30,6 +30,11 @@ struct ChatApprovalZone: View {
     /// 点击他会话「审核」提示条按钮时打开底部半屏审核卡
     var onOpenOtherThreadSheet: (() -> Void)? = nil
 
+    /// 分桶口径（2026-11-26 落锚死区修复后）：只按 anchor 的会话
+    /// 归属分桶——锚在其他会话进 other、其余（锚回本会话/未落锚/
+    /// 无锚）一律进 current。anchoredIDs 参数保留仅为调用点兼容，
+    /// 自此不再参与分桶（旧口径以它排除已落锚记录、与流内锚行待
+    /// 批恒空叠加成结构性不可见，勿按参数名误读回旧逻辑）
     private static func splitPending(
         records: [WriteGateRecord],
         anchoredIDs: Set<String>,
@@ -43,11 +48,25 @@ struct ChatApprovalZone: View {
                !currentServerSessionID.isEmpty,
                anchorSession != currentServerSessionID {
                 other.append(record)
-            } else if !anchoredIDs.contains(record.id) {
+            } else {
+                // 锚回本会话的待批记录也进当前桶（修复锚回本会话结构性不可见）
                 current.append(record)
             }
         }
         return (current, other)
+    }
+
+    /// 测试用公开接口：暴露 splitPending 给测试用例
+    static func splitPendingForTest(
+        records: [WriteGateRecord],
+        anchoredIDs: Set<String>,
+        currentServerSessionID: String?
+    ) -> (current: [WriteGateRecord], other: [WriteGateRecord]) {
+        return splitPending(
+            records: records,
+            anchoredIDs: anchoredIDs,
+            currentServerSessionID: currentServerSessionID
+        )
     }
 
     /// 审批区当前是否有可见内容（供底栏按需挂载，避免空态白占间距）

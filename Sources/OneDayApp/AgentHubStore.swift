@@ -730,6 +730,7 @@ final class AgentHubStore {
                         : (approve ? .approved : .rejected)
                 )
                 alwaysApproveMarks.remove(record.id)
+                return
             } else {
                 // §245：桥回了结构化失败原因就直出它
                 // （与记录面预检原因同一「原因上卡面」
