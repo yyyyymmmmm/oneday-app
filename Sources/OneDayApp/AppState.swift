@@ -1112,6 +1112,15 @@ final class AppState {
     /// 套存量凭据，有则一并恢复（管理面自动重登要用），
     /// 缺失不挡直登成立——直登连接的管理面 401 时没有
     /// 静默重登兜底、按会话过期报错（performAdmin 口径）。
+    /// 当前设备已签发的短时票据对（Keychain 持久化，内存镜像）
+    private(set) var shortLivedTokenPair: ShortLivedTokenPair?
+    /// 并发换票单飞句柄，避免多请求同时触发 refresh 撞窗
+    private var tokenRefreshTask: Task<ShortLivedTokenPair?, Never>?
+
+    var shortLivedTokenActive: Bool {
+        shortLivedTokenPair != nil
+    }
+
     private func restore() {
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
               let config = ServerConfig(rawInput: base),
@@ -1120,6 +1129,7 @@ final class AppState {
             return
         }
         self.config = config
+        self.shortLivedTokenPair = KeychainStore.readShortLivedTokenPair()
         phase = .connected
     }
 
@@ -1127,6 +1137,97 @@ final class AppState {
         // 演示假值：只会被递给 DemoHermesClient，不出设备
         if isDemo { return "demo-api-key" }
         return KeychainStore.read(account: CredentialKey.apiKey)
+    }
+
+    /// #1 短时票据自动换票入口：优先返回有效的 odt1.* 短时票据；
+    /// 距过期不足 2 小时自动单飞刷新；旧服务端未部署或无票据时无感回退长期钥。
+    func effectiveBearerToken(preferShortLived: Bool = true) async -> String? {
+        if isDemo { return "demo-api-key" }
+        guard preferShortLived, let config else {
+            return apiKey
+        }
+        if let current = shortLivedTokenPair ?? KeychainStore.readShortLivedTokenPair() {
+            if shortLivedTokenPair == nil {
+                shortLivedTokenPair = current
+            }
+            if !ShortLivedTokenLifecycle.needsRefresh(expiresAt: current.accessExpiresAt) {
+                return current.accessToken
+            }
+            if let refreshed = await refreshShortLivedTokenSingleFlight(config: config, pair: current) {
+                return refreshed.accessToken
+            }
+        }
+        return apiKey
+    }
+
+    private func refreshShortLivedTokenSingleFlight(
+        config: ServerConfig,
+        pair: ShortLivedTokenPair
+    ) async -> ShortLivedTokenPair? {
+        if let existing = tokenRefreshTask {
+            return await existing.value
+        }
+        let task = Task<ShortLivedTokenPair?, Never> { @MainActor in
+            do {
+                let next = try await self.client.refreshShortLivedToken(
+                    config: config,
+                    refreshToken: pair.refreshToken
+                )
+                self.shortLivedTokenPair = next
+                KeychainStore.saveShortLivedTokenPair(next)
+                return next
+            } catch let error as HermesError {
+                if case .serverError(_, let status, let code) = error,
+                   status == 401,
+                   (code == "session_revoked" || code == "refresh_token_reused" || code == "refresh_token_expired") {
+                    self.clearShortLivedToken()
+                } else if case .apiKeyRejected = error {
+                    self.clearShortLivedToken()
+                }
+                return nil
+            } catch {
+                return nil
+            }
+        }
+        tokenRefreshTask = task
+        let result = await task.value
+        tokenRefreshTask = nil
+        return result
+    }
+
+    /// 主动以当前长期登录钥换取一对短时票据并持久化到 Keychain
+    @discardableResult
+    func enableShortLivedToken() async throws -> ShortLivedTokenPair {
+        guard let config, let key = apiKey else {
+            throw HermesError.sessionExpired
+        }
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let pair = try await client.exchangeShortLivedToken(
+            config: config,
+            apiKey: key,
+            deviceName: UIDevice.current.name,
+            appVersion: version
+        )
+        if !isDemo {
+            shortLivedTokenPair = pair
+            KeychainStore.saveShortLivedTokenPair(pair)
+        }
+        return pair
+    }
+
+    /// 能力协商自动升级：服务端广告 short_lived_tokens=true 且本机未持票时自动换票
+    func exchangeShortLivedTokenIfSupported() async {
+        guard !isDemo, shortLivedTokenPair == nil, let config, let key = apiKey else { return }
+        guard let caps = try? await client.capabilities(config: config, apiKey: key),
+              caps.shortLivedTokensSupported == true else { return }
+        _ = try? await enableShortLivedToken()
+    }
+
+    func clearShortLivedToken() {
+        shortLivedTokenPair = nil
+        if !isDemo {
+            KeychainStore.deleteShortLivedTokenPair()
+        }
     }
 
     private var password: String? {
@@ -1642,6 +1743,7 @@ final class AppState {
         if let config {
             client.clearCookies(config: config)
         }
+        shortLivedTokenPair = nil
         KeychainStore.clearAll()
         config = nil
         phase = .needsConnection

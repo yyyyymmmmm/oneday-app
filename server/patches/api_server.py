@@ -72,13 +72,7 @@ _CAPABILITY_ENDPOINTS = (
     ("run_stop", ("POST", "/v1/runs/{run_id}/stop")),
     ("crash_reports", ("POST", "/v1/diagnostics/crash-reports")),
     ("crash_reports_list", ("GET", "/v1/diagnostics/crash-reports")),
-    ("push_tokens", ("POST", "/v1/push/tokens", "push_tokens")),
-    ("push_tokens_list", ("GET", "/v1/push/tokens", "push_tokens")),
-    ("push_tokens_delete", ("DELETE", "/v1/push/tokens/{device_token}", "push_tokens")),
-    ("auth_exchange", ("POST", "/v1/auth/token", "short_lived_tokens")),
-    ("auth_refresh", ("POST", "/v1/auth/refresh", "short_lived_tokens")),
-    ("auth_sessions", ("GET", "/v1/auth/sessions", "short_lived_tokens")),
-    ("auth_revoke", ("DELETE", "/v1/auth/sessions/{session_id}", "short_lived_tokens")),
+    # OneDay push & short-lived token endpoints live in api_server_oneday_routes.ONEDAY_CAPABILITY_ENDPOINTS
     ("settings_registry", ("GET", "/v1/settings/registry", "settings_registry")),
     ("settings_write", ("POST", "/v1/settings/entries")),
     ("settings_events", ("GET", "/v1/settings/events")),
@@ -161,6 +155,12 @@ from gateway.platforms import api_server_room_dispatch as _room_dispatch
 from gateway.platforms import api_server_room_grants as _room_grants
 from gateway.platforms import api_server_runs as _api_runs
 from gateway.platforms.api_server_openai_routes import OpenAICompatRoutesMixin
+from gateway.platforms.api_server_oneday_routes import (
+    ONEDAY_CAPABILITY_ENDPOINTS as _ONEDAY_CAPABILITY_ENDPOINTS,
+    OneDayAuthPushRoutesMixin,
+    oneday_http_routes as _oneday_http_routes,
+)
+_CAPABILITY_ENDPOINTS = _CAPABILITY_ENDPOINTS + _ONEDAY_CAPABILITY_ENDPOINTS
 from gateway.platforms.api_server_memory_sessions import ApiServerMemorySessions
 from gateway.platforms.api_server_bot_chat import reset_local_title_owner
 from gateway.platforms.base import (
@@ -1334,7 +1334,7 @@ def _apply_toolset_toggle_api_server(name: str, enabled: bool) -> tuple[int, dic
     return 200, {"ok": True, "name": name, "platform": "api_server", "enabled": bool(enabled)}
 
 
-class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BasePlatformAdapter):
     """aiohttp server routing OpenAI-format requests through hermes-agent's AIAgent."""
 
     # Stateless request/response (``send()`` is a stub): async-delivery tools must not promise
@@ -1730,21 +1730,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
-            if token.startswith("odt1."):
-                try:
-                    from gateway.platforms import auth_tokens as _at
-                    ok, sid, err_code = _at.verify_access_token(token, api_key=expected_key)
-                except Exception:
-                    ok, sid, err_code = False, None, "auth_tokens_unavailable"
-                if ok and sid:
-                    request["auth_session_id"] = sid
-                    return None
-                return _error_response(
-                    "Short-lived access token rejected",
-                    401,
-                    err_type="gateway_auth_error",
-                    code=err_code or "invalid_access_token",
-                )
+            handled, short_err = self._check_short_lived_bearer(token, expected_key, request)
+            if handled:
+                return short_err
             # Compare as bytes: compare_digest raises TypeError on non-ASCII str, and the
             # token is raw client input — a stray byte must 401, not 500.
             if hmac.compare_digest(token.encode(), expected_key.encode()):
@@ -1886,13 +1874,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/v1/grants/revoke", self._handle_revoke_grant),
             ("POST", "/v1/diagnostics/crash-reports", self._handle_post_crash_reports),
             ("GET", "/v1/diagnostics/crash-reports", self._handle_list_crash_reports),
-            ("POST", "/v1/push/tokens", self._handle_post_push_tokens),
-            ("GET", "/v1/push/tokens", self._handle_list_push_tokens),
-            ("DELETE", "/v1/push/tokens/{device_token}", self._handle_delete_push_token),
-            ("POST", "/v1/auth/token", self._handle_auth_exchange),
-            ("POST", "/v1/auth/refresh", self._handle_auth_refresh),
-            ("GET", "/v1/auth/sessions", self._handle_auth_sessions),
-            ("DELETE", "/v1/auth/sessions/{session_id}", self._handle_auth_revoke),
+            *_oneday_http_routes(self),
             ("GET", "/v1/settings/registry", self._handle_settings_registry),
             ("POST", "/v1/settings/entries", self._handle_settings_write),
             ("GET", "/v1/settings/events", self._handle_settings_events),
@@ -3036,158 +3018,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         data = await asyncio.to_thread(_cr.list_reports, limit)
         return web.json_response({"object": "list", "data": data})
 
-    @_require_auth
-    async def _handle_post_push_tokens(self, request: web.Request) -> web.Response:
-        """POST /v1/push/tokens -- upsert one APNs device push token (batch 4b)."""
-        try:
-            from gateway.platforms import push_tokens as _pt
-        except Exception:
-            return _error_response(
-                "push tokens module unavailable", 503,
-                code="push_tokens_unavailable")
-        try:
-            body = await request.json()
-        except Exception:
-            return _error_response(
-                "Invalid JSON in push token registration", 400,
-                code="invalid_json")
-        status, payload = await asyncio.to_thread(_pt.register_token, body)
-        if status != 200:
-            return _error_response(
-                payload.get("error", "push token registration failed"), status,
-                code=payload.get("code", "invalid_request"))
-        return web.json_response(payload, status=200)
-
-    @_require_auth
-    async def _handle_list_push_tokens(self, request: web.Request) -> web.Response:
-        """GET /v1/push/tokens -- list registered APNs device tokens (masked)."""
-        try:
-            from gateway.platforms import push_tokens as _pt
-        except Exception:
-            return _error_response(
-                "push tokens module unavailable", 503,
-                code="push_tokens_unavailable")
-        data = await asyncio.to_thread(_pt.list_tokens)
-        apns_configured = False
-        try:
-            from gateway.platforms import push_sender as _ps
-            apns_configured = bool(_ps.is_configured())
-        except Exception:
-            apns_configured = False
-        return web.json_response({
-            "object": "list",
-            "data": data,
-            "apns_configured": apns_configured,
-        })
-
-    @_require_auth
-    async def _handle_delete_push_token(self, request: web.Request) -> web.Response:
-        """DELETE /v1/push/tokens/{device_token} -- unregister one device token."""
-        try:
-            from gateway.platforms import push_tokens as _pt
-        except Exception:
-            return _error_response(
-                "push tokens module unavailable", 503,
-                code="push_tokens_unavailable")
-        token = request.match_info.get("device_token", "")
-        status, payload = await asyncio.to_thread(_pt.delete_token, token)
-        if status != 200:
-            return _error_response(
-                payload.get("error", "push token delete failed"), status,
-                code=payload.get("code", "invalid_request"))
-        return web.json_response(payload, status=200)
-
-    @_require_auth
-    async def _handle_auth_exchange(self, request: web.Request) -> web.Response:
-        """POST /v1/auth/token -- exchange long-lived API key for short-lived token pair."""
-        try:
-            from gateway.platforms import auth_tokens as _at
-        except Exception:
-            return _error_response(
-                "auth tokens module unavailable", 503,
-                code="auth_tokens_unavailable")
-        try:
-            body = await request.json()
-        except Exception:
-            body = {}
-        if not isinstance(body, dict):
-            body = {}
-        expected_key = self._expected_api_key()
-        if not expected_key:
-            return _error_response(
-                "Gateway API key is not available for this profile", 503,
-                code="auth_key_unavailable")
-        payload = await asyncio.to_thread(
-            _at.exchange_key_for_tokens,
-            api_key=expected_key,
-            device_name=str(body.get("device_name") or ""),
-            app_version=str(body.get("app_version") or ""),
-        )
-        return web.json_response(payload, status=200)
-
-    async def _handle_auth_refresh(self, request: web.Request) -> web.Response:
-        """POST /v1/auth/refresh -- public by design; refresh_token is the credential."""
-        try:
-            from gateway.platforms import auth_tokens as _at
-        except Exception:
-            return _error_response(
-                "auth tokens module unavailable", 503,
-                code="auth_tokens_unavailable")
-        try:
-            body = await request.json()
-        except Exception:
-            return _error_response("Invalid JSON in refresh request", 400, code="invalid_json")
-        if not isinstance(body, dict) or not body.get("refresh_token"):
-            return _error_response("Missing refresh_token", 400, code="invalid_request")
-        expected_key = self._expected_api_key()
-        if not expected_key:
-            return _error_response(
-                "Gateway API key is not available for this profile", 503,
-                code="auth_key_unavailable")
-        status, payload = await asyncio.to_thread(
-            _at.refresh_tokens,
-            refresh_token=str(body.get("refresh_token") or ""),
-            api_key=expected_key,
-            app_version=body.get("app_version"),
-        )
-        if status != 200:
-            return _error_response(
-                payload.get("error", "refresh failed"), status,
-                err_type="gateway_auth_error",
-                code=payload.get("code", "invalid_refresh_token"))
-        return web.json_response(payload, status=200)
-
-    @_require_auth
-    async def _handle_auth_sessions(self, request: web.Request) -> web.Response:
-        """GET /v1/auth/sessions -- list active and recently revoked device sessions."""
-        try:
-            from gateway.platforms import auth_tokens as _at
-        except Exception:
-            return _error_response(
-                "auth tokens module unavailable", 503,
-                code="auth_tokens_unavailable")
-        data = await asyncio.to_thread(_at.list_sessions)
-        return web.json_response({"object": "list", "data": data}, status=200)
-
-    @_require_auth
-    async def _handle_auth_revoke(self, request: web.Request) -> web.Response:
-        """DELETE /v1/auth/sessions/{session_id} -- revoke one device session."""
-        try:
-            from gateway.platforms import auth_tokens as _at
-        except Exception:
-            return _error_response(
-                "auth tokens module unavailable", 503,
-                code="auth_tokens_unavailable")
-        session_id = request.match_info.get("session_id", "")
-        status, payload = await asyncio.to_thread(
-            _at.revoke_session,
-            session_id=session_id,
-        )
-        if status != 200:
-            return _error_response(
-                payload.get("error", "session revoke failed"), status,
-                code=payload.get("code", "invalid_request"))
-        return web.json_response(payload, status=200)
+    # Push & short-lived auth handlers live in OneDayAuthPushRoutesMixin (api_server_oneday_routes.py).
 
     @_require_auth
     async def _handle_settings_registry(self, request: web.Request) -> web.Response:
