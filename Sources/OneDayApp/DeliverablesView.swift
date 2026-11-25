@@ -811,24 +811,42 @@ struct DeliverablesView: View {
     /// 一套按类型适配的动作集（FileActionPolicy 附记
     /// 硬规矩，覆盖 §4.7 的两件旧口径）；点行按类型
     /// 分流打开
+    /// 列表行领先视觉：图片/视频/PDF 出 42×42 紧凑真
+    /// 缩略图（带 0.5pt 描边）；其余保持扁平矢量图标
+    private func listUsesThumbnail(
+        for entry: WorkspaceFileEntry
+    ) -> Bool {
+        if entry.isDirectory { return false }
+        if entry.mediaKind == .image || entry.mediaKind == .video {
+            return true
+        }
+        return (entry.name as NSString).pathExtension.lowercased() == "pdf"
+    }
+
     private func deliverableRow(
         _ entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            // §363（S4，真机矩阵定案）：主区改原生 Button
-            // ＋.odPressable——原「点按手势＋自研按压修饰（§379 已整件退役）」
-            // 的 DragGesture(0) 在 SwiftUI ScrollView 里落
-            // 指即识别、抢走滚动序列，行面全死（§363 四格
-            // 矩阵）；Button 反馈由系统供、与滚动及长按菜
-            // 单共存（目标面与本面影音网格同形态）。0.43.0
-            // 合并按钮元素语义改由真 Button 承载；⋮ 菜单
-            // 仍在按钮外独立可达，几何逐字不变
             Button {
                 openEntry(entry, among: snapshot.sortedItems)
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    FileIconBox(entry: entry)
+                    if listUsesThumbnail(for: entry) {
+                        FileThumbnailView(
+                            entry: entry,
+                            targetPixelSize: 160,
+                            compact: true
+                        )
+                        .frame(width: 42, height: 42)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Palette.hairline, lineWidth: 0.5)
+                        }
+                    } else {
+                        FileIconBox(entry: entry, size: 42)
+                    }
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text(
                             DeliverableFileType.displayTitle(
@@ -891,17 +909,13 @@ struct DeliverablesView: View {
         }
     }
 
-    /// 网格双列（§452 定版④：列距/行距走梯队，
-    /// 与 Muse 资源库两列同构）
+    /// 网格双列：拉开列距至 14pt，消除卡片挤在一起的观感
     private static let cardColumns = [
-        GridItem(.flexible(), spacing: OneDayMetrics.spacingSM),
-        GridItem(.flexible(), spacing: OneDayMetrics.spacingSM),
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14),
     ]
 
-    /// 网格态（§452 定版③/④）：单列表平铺不分组
-    /// （置顶由排序钉顶承载、最近在前由默认排序承
-    /// 载，§4.5 分组退役）；双列、结构对齐 Muse 资
-    /// 源库（卡宽 ≈179、预览区 124、名＋类型签）
+    /// 网格态：双列宽松排版（列距 14、行距 16、外边距 pageGutter）
     private func fileGridView(
         _ snapshot: LibraryListSnapshot
     ) -> some View {
@@ -917,7 +931,7 @@ struct DeliverablesView: View {
                         }
                     }
                     .padding(
-                        .horizontal, OneDayMetrics.spacingM
+                        .horizontal, OneDayMetrics.pageGutter
                     )
                     noticeView
                 }
@@ -938,68 +952,58 @@ struct DeliverablesView: View {
         }
     }
 
-    /// 内容卡（§4.3；§452 定版④对齐 Muse 资源
-    /// 库）：预览区 124（缩略首面/类型面，File-
-    /// ThumbnailStore 分档生成；不可渲类正中扁平
-    /// 图标 28）＋信息条 64（展示标题 semibold 一
-    /// 行＋类型签·来源）；图片卡带 zoom 转场源标
-    /// 记（0.36.4 衔接）。
-    /// §131 翻案：信息条尾加 ⋮ 钮（与行 ⋮/长按同源
-    /// actionItems，§125「卡上无 ⋮」口径作废）——卡
-    /// 本体由 Button 改点按手势＋无障碍按钮语义（行
-    /// 同式），⋮ 才有独立命中、不被整卡点击吞掉
+    /// 网格内容卡（大厂无框宽松卡片）：
+    /// - 预览区 120pt，按三档渲染策略呈现；
+    /// - 信息区：标题拿到全宽、最多 2 行，不再被右侧大按钮挤截断；
+    /// - 副信息行右下角放轻量 ⋯ 菜单（24×24 视觉、44×44 热区），
+    ///   同时整卡支持长按 contextMenu；
+    /// - 去掉 1pt 硬边框，改用 0.5pt 发丝描边 + 轻投影。
     private func fileCard(
         _ entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> some View {
-        // §363（S4，真机矩阵定案）：整卡改原生 Button＋
-        // .odPressable（原因见文件行注与 §363 四格矩阵）。
-        // ⋮ 菜单原在信息栏内、不能嵌进 Button 标签，改同
-        // 位覆盖层：距顶＝缩略图 112＋栏顶距 spacingS、距
-        // 尾＝栏边距 spacingSM，与原布局盒逐值同位；信息
-        // 栏内留 40×40 占位（原菜单净布局盒）保文本列宽。
-        // 已知差：按压缩放只作用卡体、⋮ 不随动（0.97／
-        // 0.25s 级，见 §363 注记）
         Button {
             openEntry(entry, among: snapshot.sortedItems)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 FileThumbnailView(entry: entry, targetPixelSize: 440)
-                    .frame(height: 124)
+                    .frame(height: 120)
                     .frame(maxWidth: .infinity)
                     .clipped()
                     .matchedTransitionSource(
                         id: entry.path, in: viewerNamespace
                     )
                     .accessibilityHidden(true)
-                HStack(alignment: .top, spacing: OneDayMetrics.spacingXS) {
-                    VStack(
-                        alignment: .leading, spacing: OneDayMetrics.spacingMicro
-                    ) {
-                        Text(
-                            DeliverableFileType.displayTitle(
-                                forFileName: entry.name
-                            )
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingXS
+                ) {
+                    Text(
+                        DeliverableFileType.displayTitle(
+                            forFileName: entry.name
                         )
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Spacer(minLength: 0)
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(cardMetaLine(
                             for: entry, snapshot: snapshot
                         ))
-                            .font(.meta)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
+                        .font(.meta)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Color.clear
+                            .frame(width: 24, height: 20)
                     }
-                    Spacer(minLength: 0)
-                    // ⋮ 覆盖层占位（净布局盒 40×40 与原
-                    // 菜单标签同值，文本列宽不变）
-                    Color.clear
-                        .frame(width: 40, height: 40)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM)
-                .padding(.vertical, OneDayMetrics.spacingS)
-                .frame(height: 64, alignment: .top)
+                .padding(.vertical, 10)
+                .frame(height: 76, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(
@@ -1008,7 +1012,7 @@ struct DeliverablesView: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
-                    .strokeBorder(Palette.separator, lineWidth: 1)
+                    .strokeBorder(Palette.hairline, lineWidth: 0.5)
             }
             .overlay {
                 // §131：定位高亮（reveal 消费置位、数秒自清）
@@ -1020,13 +1024,14 @@ struct DeliverablesView: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview))
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
             .contentShape(
                 RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
             )
             .accessibilityElement(children: .combine)
         }
         .buttonStyle(.odPressable)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .bottomTrailing) {
             Menu {
                 actionItems(
                     for: entry, among: snapshot.sortedItems,
@@ -1034,23 +1039,20 @@ struct DeliverablesView: View {
                 )
             } label: {
                 Image(systemName: "ellipsis")
-                    .rotationEffect(.degrees(90))
-                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .regular))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.inkSecondary)
-                    .frame(width: 40, height: 40)
-                    // 第 83 条（命中域收口）：与同文件媒
-                    // 体行同钮对齐——命中域外扩 44；负内
-                    // 边距抵消外扩、文档行布局不动
+                    .frame(width: 24, height: 20)
                     .frame(
                         width: OneDayMetrics.minTapTarget,
                         height: OneDayMetrics.minTapTarget
                     )
                     .contentShape(Rectangle())
-                    .padding(-(OneDayMetrics.minTapTarget - 40) / 2)
+                    .padding(.horizontal, -(OneDayMetrics.minTapTarget - 24) / 2)
+                    .padding(.vertical, -(OneDayMetrics.minTapTarget - 20) / 2)
             }
             .accessibilityLabel("更多操作")
-            .padding(.top, 124 + OneDayMetrics.spacingS)
             .padding(.trailing, OneDayMetrics.spacingSM)
+            .padding(.bottom, 10)
         }
         .id(entry.path)
         // 0.43.0（A11Y-V7）：Rotor 卡标记（网格态）

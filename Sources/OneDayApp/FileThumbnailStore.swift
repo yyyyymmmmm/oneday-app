@@ -339,54 +339,138 @@ actor ThumbnailGate {
     }
 }
 
-/// 类型面（规格 §4.3 回落形态）：FileIconBox 的放大
-/// 版——白砖面＋自制类型图标图居中（§128 路线 A，
-/// 与图标盒同源）；缩略取不到、视频/音频、生成中的
-/// 占位都用它，不许留白、不许拿文件名当占位
-/// （0.36.4 已立此规）
+/// 类型面（规格 §4.3 回落形态）：低饱和度家族色
+/// 淡底＋放大居中扁平图标＋右下角格式徽标；不可渲
+/// 类（代码/Markdown/Office/音频/压缩包/文件夹）与
+/// 缩略取不到时统一走它，深浅色模式均柔和不刺眼
 struct FileTypeFace: View {
     let entry: WorkspaceFileEntry
-    /// 居中图标高（§452.7：资源库预览区 28；成品块
-    /// 占位等大面由宿主放大传入）
-    var iconHeight: CGFloat = 28
+    var iconHeight: CGFloat = 44
+
+    private var slug: String {
+        DeliverableIconStyle.style(
+            forFileName: entry.name,
+            isDirectory: entry.isDirectory
+        ).slug
+    }
+
+    private var badgeText: String? {
+        if entry.isDirectory { return nil }
+        let ext = (entry.name as NSString).pathExtension.uppercased()
+        return ext.isEmpty ? nil : ext
+    }
 
     var body: some View {
-        // §452.4/452.7：白面＋居中扁平图标（Muse 资源
-        // 库同构：不可渲类在预览区正中放类型图标，
-        // 高 ≈ 预览区 1/4.4）；旧全幅黏土图退役
+        let palette = FileTypeIconView.palette(for: slug)
         ZStack {
-            Rectangle().fill(Color.white)
+            Palette.surface
+            palette.base.opacity(0.08)
             FileTypeIconView(
                 fileName: entry.name,
                 isDirectory: entry.isDirectory,
                 height: iconHeight
             )
+            if let badgeText {
+                VStack {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text(badgeText)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(palette.base)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                palette.base.opacity(0.14),
+                                in: Capsule()
+                            )
+                    }
+                }
+                .padding(OneDayMetrics.spacingS)
+            }
         }
         .accessibilityHidden(true)
     }
 }
 
-/// 远程条目缩略视图：有图显图（填充裁切）、无图/未到
-/// 显类型面。宿主只管定框，取图与缓存全在 Store。
+/// 远程条目缩略视图：按大厂三档策略分流——
+/// 1) 图片/视频：变体图或海报帧，scaledToFill 铺满，
+///    视频叠毛玻璃播放角标；
+/// 2) PDF/PPT/HTML：QL 首面，浅灰衬底 + aspectFit
+///    纸张框（不硬裁页边距）；
+/// 3) Markdown/代码/Word/Excel/音频/压缩包/文件夹：
+///    不走重型下载与 QL，直接呈现家族淡底类型面
 struct FileThumbnailView: View {
     @Environment(AppState.self) private var appState
     let entry: WorkspaceFileEntry
     var targetPixelSize: CGFloat = 360
+    var compact: Bool = false
 
     @State private var image: UIImage?
 
+    private var shouldFetchThumbnail: Bool {
+        if entry.isDirectory { return false }
+        if entry.mediaKind == .image || entry.mediaKind == .video {
+            return true
+        }
+        if entry.mediaKind == .audio { return false }
+        let ext = (entry.name as NSString).pathExtension.lowercased()
+        if compact {
+            return ext == "pdf"
+        }
+        return ["pdf", "ppt", "pptx", "key", "html", "htm"].contains(ext)
+    }
+
+    private var isPageDocument: Bool {
+        guard entry.mediaKind == nil else { return false }
+        let ext = (entry.name as NSString).pathExtension.lowercased()
+        return ["pdf", "ppt", "pptx", "key", "html", "htm"].contains(ext)
+    }
+
     var body: some View {
         ZStack {
-            FileTypeFace(entry: entry)
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+                if isPageDocument && !compact {
+                    ZStack {
+                        Palette.fieldFill
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .strokeBorder(Palette.hairline, lineWidth: 0.5)
+                            }
+                            .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                            .padding(OneDayMetrics.spacingS)
+                    }
+                } else {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
+            } else {
+                FileTypeFace(
+                    entry: entry,
+                    iconHeight: compact ? 28 : 44
+                )
+            }
+
+            if entry.mediaKind == .video && image != nil {
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: compact ? 18 : 30, height: compact ? 18 : 30)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: compact ? 8 : 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .offset(x: compact ? 0.5 : 1)
+                }
             }
         }
         .clipped()
         .task(id: entry.path) {
-            guard image == nil else { return }
+            guard shouldFetchThumbnail, image == nil else { return }
             image = await FileThumbnailStore.shared.thumbnail(
                 for: entry, targetPixelSize: targetPixelSize,
                 loader: FileThumbnailStore.originalLoader(

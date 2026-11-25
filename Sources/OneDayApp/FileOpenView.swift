@@ -75,18 +75,21 @@ struct FileOpenContent: View {
         self.onRequestResend = onRequestResend
     }
 
+    private enum NativePreview: Equatable {
+        case markdown(String)
+        case code(String, language: String?)
+        case plainText(String)
+        case quickLook(URL)
+    }
+
     private enum Phase: Equatable {
         case ready
         case downloading
+        case previewing(NativePreview)
         case failed(FileOpenFailure)
     }
 
-    private enum Destination: Hashable {
-        case quickLook
-    }
-
     @State private var phase: Phase = .ready
-    @State private var destination: Destination?
     @State private var previewItem: ChatFilePreviewItem?
     @State private var downloadedData: Data?
     @State private var shareItem: FileShareItem?
@@ -219,17 +222,6 @@ struct FileOpenContent: View {
                 }
             }
         }
-        .navigationDestination(item: $destination) { dest in
-            switch dest {
-            case .quickLook:
-                if let previewItem {
-                    QuickLookHostView(
-                        entry: entry, url: previewItem.url,
-                        data: downloadedData
-                    )
-                }
-            }
-        }
         .sheet(item: $shareItem) { item in
             FileShareSheet(url: item.url)
         }
@@ -265,6 +257,9 @@ struct FileOpenContent: View {
             Text("新名字的扩展名和原来不一样，文件类型会跟着变。确定要改吗？")
         }
         .task {
+            if route == .quickLook, case .ready = phase {
+                startDirectOpen()
+            }
             if target.size == nil {
                 await store.ensureSize(
                     path: target.path, appState: appState
@@ -276,21 +271,94 @@ struct FileOpenContent: View {
 
     // MARK: - 页面构成
 
+    @ViewBuilder
     private var mainBody: some View {
-        ScrollView {
-            VStack(
-                alignment: .leading, spacing: OneDayMetrics.spacingL
-            ) {
-                header
-                actionZone
-                if let notice {
-                    Text(notice)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
+        switch phase {
+        case .previewing(let preview):
+            directPreviewBody(preview)
+        case .downloading where route == .quickLook:
+            VStack(spacing: OneDayMetrics.spacingM) {
+                ProgressView()
+                Text("正在打开「\(target.name)」…")
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                if let resolvedSize {
+                    Text(
+                        ByteCountFormatter.string(
+                            fromByteCount: resolvedSize,
+                            countStyle: .file
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkMuted)
                 }
+                Button("取消") {
+                    downloadTask?.cancel()
+                    dismiss()
+                }
+                .buttonStyle(.odSecondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(OneDayMetrics.pageGutter)
+        default:
+            ScrollView {
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingL
+                ) {
+                    header
+                    actionZone
+                    if let notice {
+                        Text(notice)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(OneDayMetrics.pageGutter)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func directPreviewBody(_ preview: NativePreview) -> some View {
+        switch preview {
+        case .markdown(let text):
+            ScrollView {
+                MarkdownText(text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(OneDayMetrics.pageGutter)
+            }
+            .safeAreaInset(edge: .bottom) { previewNoticeBar }
+        case .code(let text, let language):
+            NativeCodePreviewView(text: text, language: language)
+                .safeAreaInset(edge: .bottom) { previewNoticeBar }
+        case .plainText(let text):
+            ScrollView {
+                Text(text)
+                    .font(.body)
+                    .foregroundStyle(Palette.bodyInk)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(OneDayMetrics.pageGutter)
+            }
+            .safeAreaInset(edge: .bottom) { previewNoticeBar }
+        case .quickLook(let url):
+            QuickLookPreview(url: url)
+                .ignoresSafeArea(edges: .bottom)
+                .safeAreaInset(edge: .bottom) { previewNoticeBar }
+        }
+    }
+
+    @ViewBuilder
+    private var previewNoticeBar: some View {
+        if let notice {
+            Text(notice)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.vertical, OneDayMetrics.spacingS)
+                .background(Palette.pageBG)
         }
     }
 
@@ -543,7 +611,7 @@ struct FileOpenContent: View {
         notice = nil
         switch route {
         case .quickLook:
-            startPreviewDownload()
+            startDirectOpen()
         case .saveOnly:
             downloadAndShare()
         case .imageViewer, .infoOnly, .locked:
@@ -551,12 +619,13 @@ struct FileOpenContent: View {
         }
     }
 
-    /// QL 路：取字节→落临时目录→验资格——可预览进
-    /// 页内 QL 承载，不可预览落失败态 unsupportedType
-    /// （§121 资格门落点升级：旧形态直落分享单，中间
-    /// 页收编后落本页失败态＋failureActions，机制与
-    /// 五分文案不变）
-    private func startPreviewDownload() {
+    /// 直达打开与原生渲染分流（大厂标准）：
+    /// - Markdown (.md/.markdown) -> 原生 MarkdownText
+    /// - 代码 / JSON / YAML / XML / Shell -> 原生高亮代码阅读器
+    /// - 纯文本 (.txt/.log) -> 原生可选文本阅读
+    /// - PDF / Office / CSV / HTML / 音视频 -> 系统原生 QLPreviewController
+    private func startDirectOpen() {
+        downloadTask?.cancel()
         downloadTask = Task {
             phase = .downloading
             do {
@@ -565,13 +634,18 @@ struct FileOpenContent: View {
                     phase = .ready
                     return
                 }
+                if let native = Self.resolveNativeTextPreview(
+                    data: data, fileName: target.name
+                ) {
+                    phase = .previewing(native)
+                    return
+                }
                 let item = try ChatFilePreviewItem.write(
                     data: data, name: target.name
                 )
                 if item.canPreview {
                     previewItem = item
-                    phase = .ready
-                    destination = .quickLook
+                    phase = .previewing(.quickLook(item.url))
                 } else {
                     phase = .failed(.unsupportedType)
                 }
@@ -583,6 +657,36 @@ struct FileOpenContent: View {
                 phase = Task.isCancelled ? .ready : .failed(.other)
             }
         }
+    }
+
+    private static func resolveNativeTextPreview(
+        data: Data, fileName: String
+    ) -> NativePreview? {
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        let codeExts: Set<String> = [
+            "swift", "py", "js", "ts", "tsx", "jsx", "json",
+            "yaml", "yml", "xml", "sh", "bash", "zsh", "css",
+            "sql", "go", "rs", "c", "cpp", "h", "hpp", "java",
+            "kt", "rb", "toml", "ini", "conf", "env"
+        ]
+        guard ext == "md" || ext == "markdown"
+            || ext == "txt" || ext == "text" || ext == "log"
+            || codeExts.contains(ext)
+        else {
+            return nil
+        }
+        guard let text = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .unicode)
+        else {
+            return nil
+        }
+        if ext == "md" || ext == "markdown" {
+            return .markdown(text)
+        }
+        if codeExts.contains(ext) {
+            return .code(text, language: ext)
+        }
+        return .plainText(text)
     }
 
     private func downloadAndShare() {
@@ -1031,5 +1135,75 @@ struct FileOpenDetailsView: View {
                 .textSelection(.enabled)
         }
         .font(.callout)
+    }
+}
+
+/// 原生代码与结构化文本阅读器：语言标签＋一键复制＋
+/// CodeHighlight 五类词法高亮＋等宽字体＋横纵可滚
+private struct NativeCodePreviewView: View {
+    let text: String
+    let language: String?
+
+    @State private var copied = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                HStack {
+                    if let language, !language.isEmpty {
+                        Text(language.uppercased())
+                            .font(.meta.weight(.semibold))
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button {
+                        UIPasteboard.general.string = text
+                        copied = true
+                        Haptics.success()
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            copied = false
+                        }
+                    } label: {
+                        Label(
+                            copied ? "已复制" : "复制代码",
+                            systemImage: copied ? "checkmark" : "doc.on.doc"
+                        )
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Palette.primary)
+                    }
+                    .buttonStyle(.odPressable)
+                }
+                ScrollView(.horizontal, showsIndicators: true) {
+                    Text(highlightedCode)
+                        .textSelection(.enabled)
+                        .padding(.vertical, OneDayMetrics.spacingXS)
+                }
+            }
+            .padding(OneDayMetrics.pageGutter)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var highlightedCode: AttributedString {
+        var result = AttributedString()
+        for token in CodeHighlight.tokens(code: text, language: language) {
+            var piece = AttributedString(token.text)
+            piece.font = .system(.footnote, design: .monospaced)
+            switch token.kind {
+            case .plain:
+                piece.foregroundColor = Palette.bodyInk
+            case .keyword:
+                piece.foregroundColor = Palette.codeKeyword
+            case .string:
+                piece.foregroundColor = Palette.codeString
+            case .comment:
+                piece.foregroundColor = Palette.inkSecondaryOnFill
+            case .number:
+                piece.foregroundColor = Palette.codeNumber
+            }
+            result.append(piece)
+        }
+        return result
     }
 }

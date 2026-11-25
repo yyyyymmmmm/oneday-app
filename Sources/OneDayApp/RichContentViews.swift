@@ -931,25 +931,18 @@ struct FileChip: View {
         store.state(for: path)
     }
 
-    /// ①渲染集合（§452.1）：PDF/Word/图片/视频/
-    /// HTML——视觉位尝试真缩略；其余②类恒图标
+    /// 大厂聊天流收口：只对肉眼可辨认的 图片/视频/PDF
+    /// 出真缩略图；撤掉 Word/HTML 静默后台下载，其余
+    /// 类型统一走清晰扁平矢量图标
     private var isRenderableKind: Bool {
         switch entry.mediaKind {
         case .image, .video: return true
         case .audio: return false
         case nil: break
         }
-        switch FileActionPolicy.category(
+        return FileActionPolicy.category(
             forFileName: name, mediaKind: entry.mediaKind
-        ) {
-        case .pdf, .html:
-            return true
-        case .office:
-            let ext = (name as NSString).pathExtension.lowercased()
-            return ext == "doc" || ext == "docx"
-        default:
-            return false
-        }
+        ) == .pdf
     }
 
     private var subtitle: String {
@@ -1047,11 +1040,12 @@ struct FileChip: View {
         )
     }
 
-    /// 视觉位 40×50：真缩略（圆角 6 裁切）或扁平图
-    /// 标；左下叠状态徽标（TG 状态机呈现，§452.5）
+    /// 视觉位 40×50：真缩略（圆角 6 裁切 + 0.5pt 发丝
+    /// 描边防白底 PDF 融进卡面）或扁平图标；左下叠状态
+    /// 徽标（TG 状态机呈现，§452.5）
     private var visualSlot: some View {
         ZStack(alignment: .bottomLeading) {
-            Group {
+            ZStack {
                 if let thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
@@ -1061,12 +1055,29 @@ struct FileChip: View {
                         fileName: name, height: 46
                     )
                 }
+                if entry.mediaKind == .video && thumbnail != nil {
+                    ZStack {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white)
+                            .offset(x: 0.5)
+                    }
+                }
             }
             .frame(
                 width: FileCardMetrics.visualWidth,
                 height: FileCardMetrics.visualHeight
             )
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if thumbnail != nil {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Palette.hairline, lineWidth: 0.5)
+                }
+            }
             statusBadge
         }
     }
