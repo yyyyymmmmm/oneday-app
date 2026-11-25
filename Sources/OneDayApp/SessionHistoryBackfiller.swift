@@ -18,7 +18,8 @@ enum SessionHistoryInserter {
         messages: [SessionMessage], into thread: ChatThread,
         context: ModelContext
     ) -> Int {
-        insert(
+        DeliveryStore.shared.ingest(messages.flatMap(\.attachments))
+        return insert(
             items: SessionHistoryImport.richItems(from: messages),
             into: thread, context: context
         )

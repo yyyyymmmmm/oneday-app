@@ -35,6 +35,13 @@ final class DeliveryStore {
         metaResults[id]
     }
 
+    /// 预灌服务端消息投影内联下发的交付元数据，避免回补后二次查询
+    func ingest(_ deliveries: [BridgeDelivery]) {
+        for delivery in deliveries {
+            metaResults[delivery.id] = .loaded(delivery)
+        }
+    }
+
     /// 同步 peek（§329 行高合成用）：某档快照字节
     /// 是否已在进程缓存——只读不取数、不触发网络；
     /// 合成器据此判交付文件卡的封面形态（字节在
@@ -82,6 +89,34 @@ final class DeliveryStore {
         do {
             let data = try await client.deliveryImage(
                 config: config, id: id, variant: variant
+            )
+            imageBytes[key] = data
+            return data
+        } catch let error as HermesError
+            where error.isMissingSnapshot {
+            imageMisses.insert(key)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    /// 原文件/原图字节（GET /deliveries/{id}/content）：
+    /// 快照缺失或需要原文件时优先走桥鉴权通道获取
+    func content(
+        id: String, client: OneDayBridgeClient, appState: AppState
+    ) async -> Data? {
+        let key = "\(id)/content"
+        if let hit = imageBytes[key] { return hit }
+        if imageMisses.contains(key) { return nil }
+        guard !imageInFlight.contains(key),
+              let config = appState.config
+        else { return nil }
+        imageInFlight.insert(key)
+        defer { imageInFlight.remove(key) }
+        do {
+            let data = try await client.deliveryContent(
+                config: config, id: id
             )
             imageBytes[key] = data
             return data

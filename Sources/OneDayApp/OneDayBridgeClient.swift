@@ -494,6 +494,28 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return data
     }
 
+    /// GET /deliveries/{id}/content：原文件/原图字节（走桥鉴权，
+    /// 不依赖 Admin 会话登录态）
+    func deliveryContent(
+        config: ServerConfig, id: String
+    ) async throws -> Data {
+        let request = try makeRequest(
+            config: config,
+            path: "/deliveries/\(id)/content",
+            method: "GET"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("交付内容")
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("交付内容"),
+                status: http.statusCode
+            )
+        }
+        return data
+    }
+
     // MARK: - 文件库聚合（A-06，伴生 1.0.66）
 
     /// GET /file-library：文件页聚合读面——产出根走查、

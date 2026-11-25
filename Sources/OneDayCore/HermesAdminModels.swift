@@ -1197,6 +1197,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     /// 行可带；解码全坏或空项判 nil（见 Message-
     /// Options 宽容口径）
     public let options: MessageOptions?
+    /// 服务端直出交付附件（2.6.1+：消息投影内联，
+    /// 缺键＝[] 兼容旧版服务端）
+    public let attachments: [BridgeDelivery]
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp
@@ -1209,6 +1212,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         case displayKind = "display_kind"
         case reactions
         case options
+        case attachments
     }
 
     public init(from decoder: Decoder) throws {
@@ -1243,6 +1247,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         )) ?? nil
         options = (rawOptions?.options.isEmpty == false)
             ? rawOptions : nil
+        attachments = (try? container.decodeIfPresent(
+            [BridgeDelivery].self, forKey: .attachments
+        )) ?? []
     }
 
     /// 测试与拼装用直构（解码路径外）
@@ -1254,7 +1261,8 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         reasoningContent: String? = nil, reasoning: String? = nil,
         displayKind: String? = nil,
         reactions: [MessageReaction] = [],
-        options: MessageOptions? = nil
+        options: MessageOptions? = nil,
+        attachments: [BridgeDelivery] = []
     ) {
         self.id = id
         self.role = role
@@ -1269,6 +1277,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         self.displayKind = displayKind
         self.reactions = reactions
         self.options = options
+        self.attachments = attachments
     }
 
     public var date: Date? {

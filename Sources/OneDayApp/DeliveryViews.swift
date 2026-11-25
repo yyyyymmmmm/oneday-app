@@ -164,18 +164,25 @@ struct DeliveryImageView: View {
     }
 
     private func loadSnapshots() async {
-        guard hasSnapshots else { return }
-        if meta.cover.thumb, thumb == nil,
-           let data = await DeliveryStore.shared.image(
-               id: meta.id, variant: .thumb,
-               client: client, appState: appState
-           ) {
-            thumb = UIImage(data: data)
+        if hasSnapshots {
+            if meta.cover.thumb, thumb == nil,
+               let data = await DeliveryStore.shared.image(
+                   id: meta.id, variant: .thumb,
+                   client: client, appState: appState
+               ) {
+                thumb = UIImage(data: data)
+            }
+            if meta.cover.cover, cover == nil,
+               let data = await DeliveryStore.shared.image(
+                   id: meta.id, variant: .cover,
+                   client: client, appState: appState
+               ) {
+                cover = UIImage(data: data)
+            }
         }
-        if meta.cover.cover, cover == nil,
-           let data = await DeliveryStore.shared.image(
-               id: meta.id, variant: .cover,
-               client: client, appState: appState
+        if thumb == nil, cover == nil,
+           let data = await DeliveryStore.shared.content(
+               id: meta.id, client: client, appState: appState
            ) {
             cover = UIImage(data: data)
         }
@@ -364,9 +371,17 @@ struct DeliveryFileCard: View {
             coverImage = image
             return
         }
-        // 登记快照取不到：§32 客户端管线回落填同
-        // 一预留区（QL 首面/降采样）；再无则占位
-        // 面落类型图标、形态不变
+        // 登记快照取不到：优先走桥 /deliveries/{id}/content，
+        // 再回落 Admin fileData 填同一预留区
+        if let bytes = await DeliveryStore.shared.content(
+            id: meta.id, client: client, appState: appState
+        ) {
+            coverImage = await FileThumbnailStore.shared.thumbnail(
+                for: entry, targetPixelSize: 720
+            ) { bytes }
+            coverSettled = true
+            return
+        }
         coverImage = await FileThumbnailStore.shared.thumbnail(
             for: entry, targetPixelSize: 720
         ) {
