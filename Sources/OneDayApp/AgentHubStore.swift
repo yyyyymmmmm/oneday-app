@@ -169,6 +169,12 @@ final class AgentHubStore {
     /// 据此把结果行标成 approvedAlways，decide 成功分
     /// 支消费后即除名）
     private var alwaysApproveMarks: Set<String> = []
+    /// 裁决墓碑保护（2026-11-26 闪退修复）：记录 id →
+    /// (裁决时刻, 连续未见轮数)——轮询刷新时过滤保护窗口
+    /// 内的记录，防滞后快照把已决记录带回 approvalState
+    private var recentDecisionTombstones: [String: (decidedAt: Date, missCount: Int)] = [:]
+    /// 墓碑时钟提供者（测试注入点）：默认取当前时间，测试可注入固定/可控时钟
+    var nowProvider: () -> Date = Date.init
 
     /// 「总是允许」一次点按后的轻量撤销通知（5 秒自动收起）
     struct AlwaysAllowToast: Identifiable, Equatable {
@@ -433,6 +439,44 @@ final class AgentHubStore {
 
     // MARK: - 审核段（懒加载＋裁决）
 
+    /// 墓碑过滤共用逻辑：过滤保护窗口内的记录，更新墓碑状态
+    /// - Parameter records: 待过滤的原始记录列表
+    /// - Returns: 过滤后的记录列表
+    private func applyTombstoneFilter(to records: [WriteGateRecord]) -> [WriteGateRecord] {
+        let now = nowProvider()
+        let filtered = records.filter { record in
+            guard let tombstone = recentDecisionTombstones[record.id] else {
+                return true  // 无墓碑，正常通过
+            }
+            let elapsed = now.timeIntervalSince(tombstone.decidedAt)
+            // 超时 60 秒：解除墓碑，记录通过
+            if elapsed > 60.0 {
+                recentDecisionTombstones.removeValue(forKey: record.id)
+                return true
+            }
+            // 本轮又出现：重置未见计数（桥侧数据未一致）
+            recentDecisionTombstones[record.id] = (tombstone.decidedAt, 0)
+            return false  // 保护窗口内，过滤掉
+        }
+
+        // 更新墓碑：本轮未出现的记录增加未见计数
+        let currentIDs = Set(records.map(\.id))
+        for (id, tombstone) in recentDecisionTombstones {
+            if !currentIDs.contains(id) {
+                let newMissCount = tombstone.missCount + 1
+                let elapsed = now.timeIntervalSince(tombstone.decidedAt)
+                // 连续两次不含或超时 60 秒：解除墓碑
+                if newMissCount >= 2 || elapsed > 60.0 {
+                    recentDecisionTombstones.removeValue(forKey: id)
+                } else {
+                    recentDecisionTombstones[id] = (tombstone.decidedAt, newMissCount)
+                }
+            }
+        }
+
+        return filtered
+    }
+
     func loadApproval(force: Bool = false) async {
         if case .loading = approvalState, !force {
             // 首次进入即处于 loading，直接走加载
@@ -465,7 +509,8 @@ final class AgentHubStore {
         let previousPending = currentPendingRecords()
         do {
             let list = try await gateClient.pendingList(config: config)
-            approvalState = .ready(list.records)
+            let filtered = applyTombstoneFilter(to: list.records)
+            approvalState = .ready(filtered)
         } catch let error as WriteGateError {
             approvalState = mapGateError(error)
             return
@@ -655,6 +700,11 @@ final class AgentHubStore {
                 )
             if response.success {
                 removeRecord(record.id)
+                decidingIDs.remove(record.id)
+                // 裁决墓碑保护（2026-11-26）：记录裁决时刻，
+                // 防轮询刷新在桥侧数据一致性窗口内把已决记录
+                // 带回 approvalState（闪退根因）
+                recentDecisionTombstones[record.id] = (nowProvider(), 0)
                 // 0.36.5（联动 C 部）：记本人裁决——
                 // 本条的回执通知生成后由总览桥状态层
                 // 按 id 自动消账，不再回头占角标
@@ -859,8 +909,13 @@ final class AgentHubStore {
         else { return }
         let previous = currentPendingRecords()
         await refreshDecisionHistory()
-        approvalState = .ready(list.records)
-        reconcileResolvedLines(previous: previous, current: list.records)
+
+        // 裁决墓碑保护（2026-11-26 闪退修复）：过滤保护窗口
+        // 内的记录——连续两次轮询不含该记录或超时 60 秒才解除
+        let filtered = applyTombstoneFilter(to: list.records)
+
+        approvalState = .ready(filtered)
+        reconcileResolvedLines(previous: previous, current: filtered)
         await loadRules()
         await refreshAnchorDecisionsIfStale()
         notifyAnchorDataRefreshed()

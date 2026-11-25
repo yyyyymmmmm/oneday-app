@@ -81,8 +81,15 @@ struct ChatApprovalZone: View {
                 anchoredIDs: anchoredRecordIDs,
                 currentServerSessionID: currentServerSessionID
             )
+            // 渲染层防护（2026-11-26 闪退修复 C）：过滤已在
+            // resolvedLines 中的记录——即使轮询刷新把已决记录
+            // 带回 approvalState，渲染层也不让它复活成卡
+            let resolvedIDs = Set(store.resolvedLines.map(\.id))
+            let pendingNotResolved = split.current.filter { record in
+                !resolvedIDs.contains(record.id)
+            }
             let queue = ApprovalZoneQueue.derive(
-                recordIDs: split.current.map(\.id),
+                recordIDs: pendingNotResolved.map(\.id),
                 anchoredIDs: []
             )
             let unanchoredResolved = store.resolvedLines.filter {
@@ -93,7 +100,7 @@ struct ChatApprovalZone: View {
                     alwaysAllowToastRow(toast)
                 }
                 if let activeID = queue.activeRecordID,
-                   let record = split.current.first(
+                   let record = pendingNotResolved.first(
                        where: { $0.id == activeID }
                    ) {
                     let progressText: String? = queue.queuedCount > 0
