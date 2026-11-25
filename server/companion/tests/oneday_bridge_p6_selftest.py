@@ -290,21 +290,21 @@ def phase_c():
     spec.loader.exec_module(mod)
     mod._load()
     anchors = {"S1": {"kind": "S", "objectId": "sess_x",
-                      "title": "聊了年会主持稿定稿"}}
+                      "title": "聊了婚礼发言定稿"}}
     output = json.dumps([{
-        "title": "我可以把定稿主持稿存成文件",
+        "title": "我可以把定稿发言存成文件",
         # detail carries the anchor in its first half (G1,
         # 1.0.16): the pre-G fixture body was generic-with-the-
         # fact-only-in-evidence, exactly what the new gate drops.
-        "detail": "把 10 月 29 日定稿的主持稿原文存成一份文件，"
-                  "11 月 16 日年会当天直接打开就能念，"
+        "detail": "把 10 月 29 日定稿的发言原文存成一份文件，"
+                  "11 月 16 日婚礼当天直接打开就能念，"
                   "不用再翻聊天记录找版本。",
-        "evidence": "10月29日定稿的主持稿还没落盘",
+        "evidence": "10月29日定稿的发言还没落盘",
         "evidenceRef": "S1",
         "goalId": None,
         "emoji": "💍",
         "deliverables": [
-            {"name": "年会主持稿稿文档",
+            {"name": "婚礼发言稿文档",
              "summary": "可直接念的完整发言稿"},
             {"name": "", "summary": "无名条目应丢"},
             "not-a-dict",
@@ -317,7 +317,7 @@ def phase_c():
           f"{cards} err={perr}")
     check("C deliverables cleaned (§117)",
           len(cards) == 1 and cards[0]["deliverables"] == [
-              {"name": "年会主持稿稿文档",
+              {"name": "婚礼发言稿文档",
                "summary": "可直接念的完整发言稿"}],
           f"{cards}")
     check("C bad emoji collapses (§117)",
@@ -456,48 +456,48 @@ def phase_e():
 
     anchors = {
         "S1": {"kind": "S", "objectId": "sess_wed",
-               "title": "聊了年会主持稿定稿"},
+               "title": "聊了婚礼发言定稿"},
         "R1": {"kind": "R", "objectId": "mem_xdun",
-               "title": "产品博客口径"},
+               "title": "x-dun 口径"},
         "G1": {"kind": "G", "objectId": "g_wed",
-               "title": "把年会办好"},
+               "title": "把婚礼办好"},
     }
     lines = {
-        "S1": ("S1. 10-29 《聊了年会主持稿定稿》（12 条消息）\n"
+        "S1": ("S1. 10-29 《聊了婚礼发言定稿》（12 条消息）\n"
                "    摘要：10月29日确认发言定稿，11月16日13时在"
-               "青云镇白杨村举行年会，主持稿还没落盘成文件"),
-        "R1": ("R1. [长期记忆] 产品博客口径：会员方案已于"
-               "10 月 29 日改为新版口径，旧文仍有旧说法待清"),
-        "G1": ("G1. 《把年会办好》 id=g_wed（里程碑 2/5）\n"
+               "土基镇西故现村举行婚礼，发言还没落盘成文件"),
+        "R1": ("R1. [长期记忆] x-dun 口径：ChatGPT Pro 已于"
+               "10 月 29 日改为翻倍口径，旧文仍有砍半说法待清"),
+        "G1": ("G1. 《把婚礼办好》 id=g_wed（里程碑 2/5）\n"
                "    进展 11-02：发言稿已定稿，11月16日13时"
-               "青云镇白杨村"),
+               "土基镇西故现村"),
     }
     toks = mod._anchor_tokens(lines["S1"], anchors["S1"])
     check("E tokens carry date + prose proper noun (G1)",
           "10月29日" in toks and "11月16日" in toks
-          and "青云镇白" in toks, f"{sorted(toks)[:12]}")
+          and "土基镇西" in toks, f"{sorted(toks)[:12]}")
 
     good = {
-        "title": "我可以把定稿主持稿存成文件",
-        "detail": "把 10 月 29 日定稿的主持稿原文存成一份文件，"
-                  "11 月 16 日年会当天直接打开就能念，"
+        "title": "我可以把定稿发言存成文件",
+        "detail": "把 10 月 29 日定稿的发言原文存成一份文件，"
+                  "11 月 16 日婚礼当天直接打开就能念，"
                   "不用再翻聊天记录找版本。",
-        "evidence": "10月29日定稿的主持稿还没落盘",
+        "evidence": "10月29日定稿的发言还没落盘",
         "evidenceRef": "S1", "goalId": None,
     }
     generic = {
         "title": "我可以清掉站里的旧说法",
         "detail": "我把站里的旧文章逐篇检查一遍，该改的地方"
                   "都改过来，改完给你一份清单确认。",
-        "evidence": "10月29日新版口径已定，旧文旧说法还没清",
+        "evidence": "10月29日翻倍口径已定，旧文砍半说法还没清",
         "evidenceRef": "R1", "goalId": None,
     }
     late_anchor = {
-        "title": "我可以核对年会当天安排",
+        "title": "我可以核对婚礼当天安排",
         "detail": "先把流程和名单都核对一遍，确认每桌安排"
                   "都没有遗漏，最后再把 11 月 16 日的时间"
                   "写进提醒里。",
-        "evidence": "进展记 11月16日13时举行年会",
+        "evidence": "进展记 11月16日13时举行婚礼",
         "evidenceRef": "G1", "goalId": "g_wed",
     }
     out = json.dumps([good, generic, late_anchor],
@@ -514,11 +514,11 @@ def phase_e():
 
     # --- G2: check sees the material line; failure -> rewrite
     card_b = {
-        "title": "我可以扫清 产品博客残留的旧说法",
-        "detail": "按 10 月 29 日新版口径逐篇改写旧文；另据"
+        "title": "我可以扫清 x-dun 残留的砍半说法",
+        "detail": "按 10 月 29 日翻倍口径逐篇改写旧文；另据"
                   "消息，Pro 将在 12 月 1 日再次调整额度，"
                   "我一并把说明补上。",
-        "evidence": "10月29日新版口径已定，旧文仍有旧说法",
+        "evidence": "10月29日翻倍口径已定，旧文仍有砍半说法",
         "evidenceRef": "R1", "anchorId": "R:mem_xdun",
         "goalId": None, "emoji": None, "deliverables": [],
     }
@@ -549,16 +549,16 @@ def phase_e():
           and "12 月 1 日" in failed[0][1],
           f"kept={kept} failed={failed} note={note}")
     check("E check prompt carries the material line (G2)",
-          any("旧文仍有旧说法待清" in p
+          any("旧文仍有砍半说法待清" in p
               for _k, p in prompts),
           f"{[k for k, _p in prompts]}")
 
     fixed_b = {
         "title": card_b["title"],
-        "detail": "按 10 月 29 日新版口径，逐篇改写 产品博客"
-                  "旧文里残留的旧说法，改完列一份清单给你"
+        "detail": "按 10 月 29 日翻倍口径，逐篇改写 x-dun "
+                  "旧文里残留的砍半说法，改完列一份清单给你"
                   "确认，不动其他文章。",
-        "evidence": "10月29日新版口径已定，旧文仍有旧说法",
+        "evidence": "10月29日翻倍口径已定，旧文仍有砍半说法",
         "evidenceRef": "R1", "goalId": None,
     }
     canned[("run", "ideas-rewrite-e1")] = "run-rw1"
@@ -583,7 +583,7 @@ def phase_e():
     # A rewrite that STILL invents facts fails the recheck and
     # stays failed (the round books it as unsupported).
     still_bad = dict(fixed_b)
-    still_bad["detail"] = ("按 10 月 29 日新版口径改写旧文；"
+    still_bad["detail"] = ("按 10 月 29 日翻倍口径改写旧文；"
                            "顺带把 12 月 1 日的新额度说明也"
                            "写进去，免得再改一遍。")
     canned[("run", "ideas-rewrite-e2")] = "run-rw2"

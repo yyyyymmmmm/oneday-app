@@ -34,7 +34,7 @@
 # (~/workspace/hermes-deploy/oneday_bridge.py, IDEAS_GEN_PROMPT).
 
 HERMES_BASE_URL = os.environ.get(
-    "HERMES_BASE_URL", "https://hermes.example.com").rstrip("/")
+    "HERMES_BASE_URL", "https://hermes.didichou.site").rstrip("/")
 #: Dashboard (9119) channel base (batch 3): the cookie-login
 #: surfaces (/auth/*, /api/cron/*, /api/plugins/*) are a different
 #: process than the gateway (8642) surfaces (/v1/*, /api/sessions).
@@ -94,15 +94,15 @@ IDEAS_GEN_PROMPT = """你是 OneDay 的点子生成器。OneDay 是用户自托�
 - goalId：如果这个点子明显服务于素材中某个目标，填该目标的 id（素材里给出），否则填 null。
 - category：这张卡归哪一类，必填，只能取七个值之一：health（健康）、relationships（人际关系）、finance（财务）、career（事业）、interest（兴趣）、efficiency（效率提升）、other（其他）。按卡的主题选最贴切的一类，实在归不进前六类才填 other。
 - domain：这张卡所属领域，必填，只能取十二个值之一：personal_productivity（个人效率）、entertainment（娱乐）、shopping（购物）、finance（财务）、relationships（人际关系）、health（健康）、career（事业）、home_automation（智能家居）、connect_devices（设备连接）、creation_media（创作媒体）、family（家庭）、goal_scoped（目标相关）。按卡的主题选最贴切的一个；与某个目标直接相关的选 goal_scoped。
-- categoryLabel：这张卡的自由分类标签，必填，用一个简短中文短语概括它具体是哪一摊事（如「年会」「服务器运维」「Ai 培训」「订阅选购」），不超过 12 个字。不要填 domain 的中文名，要填这张卡自己的主题。
+- categoryLabel：这张卡的自由分类标签，必填，用一个简短中文短语概括它具体是哪一摊事（如「婚礼」「服务器运维」「Ai 培训」「订阅选购」），不超过 12 个字。不要填 domain 的中文名，要填这张卡自己的主题。
 - kind：这张卡的落点形态，必填，只能取三个值之一：chat（点开就是一次对话，我在对话里把事办了）、routine（点开建成一条定时例行，适合每天/每周重复发生的事）、goal（点开立为一个长期目标，适合要持续推进数周以上的事）。按这件事的真实形态选；一轮里以 chat 为主，routine 至多一张、goal 至多一张。
-- emoji：按这个点子的内容选一个最贴切的 emoji（只给一个，如 📄、🎤、🛒、🏠），不要给文字或多个。
-- deliverables：点开这张卡后「包含哪些内容」的交付物清单，1 到 3 项，每项 {"name": "交付物名（如 年会主持稿文档）", "summary": "一句话说明（如 可直接念的完整主持稿）"}；产出物说不清的卡不要输出。
+- emoji：按这个点子的内容选一个最贴切的 emoji（只给一个，如 📄、💍、🛒、🏠），不要给文字或多个。
+- deliverables：点开这张卡后「包含哪些内容」的交付物清单，1 到 3 项，每项 {"name": "交付物名（如 婚礼发言稿文档）", "summary": "一句话说明（如 可直接念的完整发言稿）"}；产出物说不清的卡不要输出。
 - quality：你对这张卡的质量自评 {"relevance": 相关度, "novelty": 新颖度, "feasibility": 可行性}，各填 0 到 100 的整数。相关度看与用户近况的贴合、新颖度看是不是老调重弹、可行性看我能不能凭现有素材与工具真做成。照实打分，评分只影响排序、不决定卡的生死。
 
 质量标杆（达不到这个具体程度的卡不要输出）：
-1. 「把定稿主持稿做成年会当天包」——依据点名 10 月 29 日确认的主持稿原稿、12 月 18 日 14 时、阳光会议中心，产出物明确（一份当天包）。
-2. 「扫清产品博客残留的旧版定价说法」——按 10 月 29 日新版口径逐篇改写旧文、补每月额度说明，边界明确。
+1. 「把定稿发言做成婚礼当天包」——依据点名 10 月 29 日确认的发言原稿、11 月 16 日 13 时、土基镇西故现村，产出物明确（一份当天包）。
+2. 「扫清 x-dun 残留的 ChatGPT Pro 砍半说法」——按 10 月 29 日翻倍口径逐篇改写旧文、补每月 API 额度说明，边界明确。
 
 硬规则：
 - 只输出一个 JSON 数组，不要任何解释文字、不要 Markdown 代码围栏。
@@ -152,8 +152,8 @@ IDEAS_CHECK_PROMPT = """你是 OneDay 点子页的质检员。下面给出候选
 2. 具体程度判断：标题是「我可以为你做 X」式的可执行提议（有明确产出物或动作边界），正文写清做什么、产出什么、边界是什么。资讯转述、感想、放之四海皆准的泛泛建议（如「建议你整理一下任务清单」）一律不合格。
 
 标杆卡：
-1. 《把定稿主持稿做成年会当天包》——依据点名 10 月 29 日确认的主持稿原稿、12 月 18 日 14 时、阳光会议中心，产出物是一份当天包。
-2. 《扫清产品博客残留的旧版定价说法》——按 10 月 29 日新版口径逐篇改写旧文、补每月额度说明，边界明确。
+1. 《把定稿发言做成婚礼当天包》——依据点名 10 月 29 日确认的发言原稿、11 月 16 日 13 时、土基镇西故现村，产出物是一份当天包。
+2. 《扫清 x-dun 残留的 ChatGPT Pro 砍半说法》——按 10 月 29 日翻倍口径逐篇改写旧文、补每月 API 额度说明，边界明确。
 
 只输出一个 JSON 数组：[{"title":"候选卡的原样标题","ok":true,"issues":""}]；不合格的 ok 填 false，issues 逐条写明问题——无支撑的断言把原句引出来（如：断言「11月20日发布」在素材行中无支撑），泛的指出泛在哪。不要任何解释文字、不要 Markdown 代码围栏。
 

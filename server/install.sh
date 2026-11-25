@@ -90,7 +90,7 @@ MODULES=(
   "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
-  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|ebd3e8c05934ea72abc0d424dd0275b07e038b011c254cd3801aae058b7dac79"
+  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|98e8c2a59166ed668927e63b60111d70ed85d13641f6240447d96a42d093e880"
   "oneday_memory.py|patches/oneday_memory.py|/opt/hermes/gateway/platforms/oneday_memory.py|43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44"
   "system_prompt.py|patches/system_prompt.py|/opt/hermes/agent/system_prompt.py|7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f"
   "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|3f73efaef6aafd08f7f7a3fccc750e757257cc5c61405a1e7e29769301b537ef"
@@ -106,7 +106,7 @@ MODULES=(
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
   "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440"
   "oneday_seg_cron.py|patches/oneday_seg_cron.py|/opt/hermes/gateway/platforms/oneday_seg_cron.py|1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7"
-  "oneday_seg_delivery.py|patches/oneday_seg_delivery.py|/opt/hermes/gateway/platforms/oneday_seg_delivery.py|ea74f1fe8f686e0dccf8113a9005ec40237a7e714e9d9a7bf64420f33966bac6"
+  "oneday_seg_delivery.py|patches/oneday_seg_delivery.py|/opt/hermes/gateway/platforms/oneday_seg_delivery.py|1ec7bd11c4ee5585658ebe628fb3c9b54654d34d6668812a546147f518895820"
   "oneday_seg_feed.py|patches/oneday_seg_feed.py|/opt/hermes/gateway/platforms/oneday_seg_feed.py|8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f"
   "oneday_seg_filelibrary.py|patches/oneday_seg_filelibrary.py|/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py|77d747bd95bb182c68b20d4fe2ce3131b932f0ba28d5b80513abaa5c63c4adc1"
   "oneday_seg_goals.py|patches/oneday_seg_goals.py|/opt/hermes/gateway/platforms/oneday_seg_goals.py|59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a"
@@ -124,6 +124,11 @@ MODULES=(
   "web_routers_ops.py|patches/web_routers_ops.py|/opt/hermes/hermes_cli/web_routers/ops.py|ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481"
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b"
+  "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
+  "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
+  "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
+  "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
@@ -255,6 +260,11 @@ grep -q "web_routers_ops.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_M
 grep -q "options_pending.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "present_options_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "api_server_oneday_routes.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "auth_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "push_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "push_sender.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "db_schema_guard.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 [ "$COMPOSE_NEEDS_MOUNT" = "0" ] || log "compose 待加模块挂载行"
@@ -500,6 +510,21 @@ specs = [
     ("front_gateway.py",
      "      - ./patches/front_gateway.py:/opt/hermes/gateway/platforms/front_gateway.py:ro",
      "./patches/identity_gateway.py:/opt/hermes/gateway/platforms/identity_gateway.py:ro"),
+    ("api_server_oneday_routes.py",
+     "      - ./patches/api_server_oneday_routes.py:/opt/hermes/gateway/platforms/api_server_oneday_routes.py:ro",
+     "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
+    ("auth_tokens.py",
+     "      - ./patches/auth_tokens.py:/opt/hermes/gateway/platforms/auth_tokens.py:ro",
+     "./patches/api_server_oneday_routes.py:/opt/hermes/gateway/platforms/api_server_oneday_routes.py:ro"),
+    ("push_tokens.py",
+     "      - ./patches/push_tokens.py:/opt/hermes/gateway/platforms/push_tokens.py:ro",
+     "./patches/auth_tokens.py:/opt/hermes/gateway/platforms/auth_tokens.py:ro"),
+    ("push_sender.py",
+     "      - ./patches/push_sender.py:/opt/hermes/gateway/platforms/push_sender.py:ro",
+     "./patches/push_tokens.py:/opt/hermes/gateway/platforms/push_tokens.py:ro"),
+    ("db_schema_guard.py",
+     "      - ./patches/db_schema_guard.py:/opt/hermes/gateway/platforms/db_schema_guard.py:ro",
+     "./patches/push_sender.py:/opt/hermes/gateway/platforms/push_sender.py:ro"),
 ]
 lines = open(path).read().split("\n")
 for fname, line, anchor in specs:

@@ -72,8 +72,8 @@ WORK_V1 = (
     "src=user, status=active -->\n")
 
 PEOPLE_V1 = (
-    "## 王小明的饮食禁忌\n"
-    "王小明不吃香菜，点菜时要避开。\n"
+    "## 秦源一的饮食禁忌\n"
+    "秦源一不吃香菜，点菜时要避开。\n"
     "<!-- odmem: id=people/qinyuanyi#1, first=2026-11-16, "
     "last=2026-11-16, src=user, status=active -->\n\n"
     "## 口味偏好\n"

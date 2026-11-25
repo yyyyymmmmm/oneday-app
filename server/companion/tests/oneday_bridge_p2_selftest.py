@@ -185,7 +185,7 @@ def phase_b():
     sys.path.insert(0, os.path.dirname(BRIDGE))
     import oneday_bridge as ob
     ob._load()
-    ob.HERMES_API_KEY = "test-api-key"
+    ob.HERMES_API_KEY = "stub-key"
     prompts = []
 
     def fake_submit(prompt, idem):

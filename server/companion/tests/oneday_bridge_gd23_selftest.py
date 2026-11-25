@@ -239,7 +239,7 @@ def phase_b():
     sys.path.insert(0, os.path.dirname(BRIDGE))
     import oneday_bridge as ob
     ob._load()
-    ob.HERMES_API_KEY = "test-api-key"
+    ob.HERMES_API_KEY = "gd23-stub-key"
 
     # note assembly: fixed template, zero classes omitted
     check("B note all zero is None", ob._briefing_note(

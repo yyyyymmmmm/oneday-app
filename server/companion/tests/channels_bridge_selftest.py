@@ -51,8 +51,8 @@ DASH_PORT = 18751
 PLAT_PORT = 18752
 DASH_TOKEN = "dash-selftest-token"
 BASE = f"http://127.0.0.1:{PORT}"
-GOOD_TOKEN = "test-good-token" + "x" * 30
-BAD_TOKEN = "test-bad-token" + "y" * 30
+GOOD_TOKEN = "123456789:AAE" + "x" * 30
+BAD_TOKEN = "123456789:ZZZ" + "y" * 30
 
 passed = failed = 0
 
@@ -430,7 +430,7 @@ def main():
                      "QQ_APP_ID=qq-good\n"
                      "QQ_CLIENT_SECRET=qq-secret\n"
                      "QQ_ALLOWED_USERS=openid-abc\n"
-                     "DISCORD_BOT_TOKEN=test-discord-token"
+                     "DISCORD_BOT_TOKEN=discord-good-token\n"
                      "DISCORD_ALLOWED_USERS=123456789012345678\n"
                      "SLACK_BOT_TOKEN=xoxb-good\n"
                      "SLACK_APP_TOKEN=xapp-good\n"
@@ -447,7 +447,7 @@ def main():
               and "QQ_APP_ID=qq-good" in env_batch
               and "QQ_CLIENT_SECRET=qq-secret" in env_batch
               and "QQ_ALLOWED_USERS=openid-abc" in env_batch
-              and "DISCORD_BOT_TOKEN=test-discord-token" in env_batch
+              and "DISCORD_BOT_TOKEN=discord-good-token" in env_batch
               and "DISCORD_ALLOWED_USERS=123456789012345678"
                   in env_batch
               and "SLACK_BOT_TOKEN=xoxb-good" in env_batch
