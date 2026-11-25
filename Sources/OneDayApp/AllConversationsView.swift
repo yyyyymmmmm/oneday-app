@@ -198,6 +198,7 @@ struct AllConversationsView: View {
                         label: "完成"
                     ) { onClose() }
                 }
+                .sharedBackgroundVisibility(.hidden)
                 // 结构归位第二批：原「选择」（多选批
                 // 量）钮随维护层下沉退役，本页工具栏
                 // 只剩「维护」一个出口（进维护子页）
@@ -630,7 +631,6 @@ struct AllConversationsView: View {
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(label)
-        .sharedBackgroundVisibility(.hidden)
     }
 
     /// 会话行（浏览态）：共用组件（点按打开＋长按

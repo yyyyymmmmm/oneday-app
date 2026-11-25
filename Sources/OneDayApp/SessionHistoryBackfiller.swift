@@ -437,10 +437,10 @@ final class SessionHistoryBackfiller {
                 || (isUnverified && item.content != existing.content)) {
                 existing.content = item.content
                 if !item.imagePaths.isEmpty && existing.remoteImagePaths.isEmpty {
-                    existing.remoteImagePaths = item.imagePaths
+                    existing.remoteImagePathsData = try? JSONEncoder().encode(item.imagePaths)
                 }
                 if !item.fileRefs.isEmpty && existing.remoteFilePaths.isEmpty {
-                    existing.remoteFilePaths = item.fileRefs
+                    existing.remoteFilePathsData = try? JSONEncoder().encode(item.fileRefs)
                 }
                 existing.applyReactions(item.reactions)
                 healedCount += 1
@@ -485,10 +485,10 @@ final class SessionHistoryBackfiller {
                         candidate.content = item.content
                     }
                     if !item.imagePaths.isEmpty && candidate.remoteImagePaths.isEmpty {
-                        candidate.remoteImagePaths = item.imagePaths
+                        candidate.remoteImagePathsData = try? JSONEncoder().encode(item.imagePaths)
                     }
                     if !item.fileRefs.isEmpty && candidate.remoteFilePaths.isEmpty {
-                        candidate.remoteFilePaths = item.fileRefs
+                        candidate.remoteFilePathsData = try? JSONEncoder().encode(item.fileRefs)
                     }
                     candidate.applyReactions(item.reactions)
                     unverifiedStore.clear(candidate.id)
