@@ -87,26 +87,11 @@ public struct StarterContext: Equatable, Sendable {
         }
     }
 
-    /// 资源库最近交付物（48 小时内）：newestName 是最
-    /// 新一份的文件名，extraCount 是其余份数；token
-    /// 是状态指纹（最新一份路径＋mtime），新交付即换。
-    public struct RecentDelivery: Equatable, Sendable {
-        public let newestName: String
-        public let extraCount: Int
-        public let token: String
-
-        public init(newestName: String, extraCount: Int, token: String) {
-            self.newestName = newestName
-            self.extraCount = extraCount
-            self.token = token
-        }
-    }
 
     public var pendingApprovals: PendingApprovals?
     public var failedCronJob: FailedCronJob?
     public var blockedGoal: BlockedGoal?
     public var activeGoal: ActiveGoal?
-    public var recentDelivery: RecentDelivery?
     /// 未来 24 小时内有定时任务要跑的个数，0＝无
     public var upcomingCronCount: Int
     /// 本地小时（0–23）；nil＝上下文整体未就绪（冷启
@@ -122,7 +107,6 @@ public struct StarterContext: Equatable, Sendable {
         failedCronJob: FailedCronJob? = nil,
         blockedGoal: BlockedGoal? = nil,
         activeGoal: ActiveGoal? = nil,
-        recentDelivery: RecentDelivery? = nil,
         upcomingCronCount: Int = 0,
         hour: Int? = nil,
         suppressedKeys: Set<String> = []
@@ -131,7 +115,6 @@ public struct StarterContext: Equatable, Sendable {
         self.failedCronJob = failedCronJob
         self.blockedGoal = blockedGoal
         self.activeGoal = activeGoal
-        self.recentDelivery = recentDelivery
         self.upcomingCronCount = upcomingCronCount
         self.hour = hour
         self.suppressedKeys = suppressedKeys
@@ -185,23 +168,12 @@ public enum StarterSuggestionsEngine {
             ))
         }
 
-        // 二级：未完事项（在办目标 > 新交付 > 将跑的定时）
+        // 二级：未完事项（在办目标 > 将跑的定时）
         if let goal = context.activeGoal {
             offer(StarterSuggestion(
                 key: "goalActive/\(goal.id)",
                 text: "目标「\(goal.title)」现在进展到哪了？",
                 symbol: "target",
-                tier: .unfinished
-            ))
-        }
-        if let delivery = context.recentDelivery {
-            let text = delivery.extraCount > 0
-                ? "资源库最近新到了 \(delivery.extraCount + 1) 份交付物，帮我列一下都是什么"
-                : "资源库里刚到的「\(delivery.newestName)」是什么？帮我看看"
-            offer(StarterSuggestion(
-                key: "delivery/\(delivery.token)",
-                text: text,
-                symbol: "tray.full",
                 tier: .unfinished
             ))
         }
