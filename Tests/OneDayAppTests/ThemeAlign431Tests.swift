@@ -78,7 +78,9 @@ final class ThemeAlign431Tests: XCTestCase {
         // 2026-11-25 合并改钉（归因亲验）：all-8-issues 波次
         // 改版四面收编直写行——外观页 −2、CronViews −2、
         // CronBlueprintViews −1、EnvVarsView −1，45→39
-        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 39)
+        // 2026-11-25 二轮合并改钉（归因亲验）：e66acd1d 设置
+        // 大改版再收两处——GatewayView −1、ServerDetailView −1，39→37
+        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 37)
     }
 
     /// 外观页触点逐点在位（§503 后：主题/模式/形象
