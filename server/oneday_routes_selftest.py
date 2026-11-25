@@ -88,10 +88,19 @@ async def run() -> None:
 
         adapter = _DummyAdapter()
 
-        # 1. Route table exposes all 7 endpoints
+        # 1. Route table exposes auth, push, and vault endpoints
         table = routes_mod.oneday_http_routes(adapter)
-        assert len(table) == 7, f"expected 7 routes, got {len(table)}"
-        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 7
+        assert len(table) == 14, f"expected 14 routes, got {len(table)}"
+        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 14
+        assert {(method, path) for method, path, _ in table[-7:]} == {
+            ("GET", "/v1/vault/entries"),
+            ("GET", "/v1/vault/entries/{entry_id}"),
+            ("POST", "/v1/vault/entries"),
+            ("PUT", "/v1/vault/entries/{entry_id}"),
+            ("DELETE", "/v1/vault/entries/{entry_id}"),
+            ("GET", "/v1/vault/requests/{request_id}"),
+            ("POST", "/v1/vault/requests/{request_id}/fulfill"),
+        }
 
         # 2. Exchange long-lived key -> short-lived pair
         r = await adapter._handle_auth_exchange(_FakeRequest(

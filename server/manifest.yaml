@@ -16,10 +16,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server.py
       mount_mode: ro
-      sha256: 9c154fff4fad2f06f87010215a5dbdc574a03751aa41cd81df2381897e291e8b
+      sha256: 0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f
       upstream_baseline_sha256: 73175d668c0c683209ad047191921fe899e84b8a429470081a718ae7d163d3f6   # 部署目录 patches/api_server.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 1576
-      provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes]
+      provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes]
       summary: 网关面（8642）补丁：设备配对认领（POST /v1/enrollment/codes 出码、/claim 一次性认领，码哈希+设备指纹存储）、消息反应写入（PUT/DELETE /v1/reactions/{session_id}/{row_id}）、网关面消息的 reactions 投影（_reactions_from_display_metadata）；1.2.0 新增待批聚合（批 2，2026-11-22）：GET /v1/approvals 跨会话聚合＋POST /v1/approvals/{request_id} 按 request_id 全局回执寻址，行为本体在 approval_projection 模块，本文件只挂路由与启动钩子。1.3.0 新增授权账本（批 5，2026-11-22）：GET /v1/grants 统一授权清单＋POST /v1/grants/revoke exec 授权撤销，行为本体在 grant_projection 模块，本文件只挂路由与启动钩子。1.4.0 新增工具集启停（批 34-S，2026-11-22）：PUT /v1/toolsets/{name} 复用上游 tools_config 机器写 api_server 平台启停（上游 9119 写口只写 cli 平台、对手机会话不生效），config-only 集（stt）镜像写自家 config 节 enabled，未知集 400 unknown_toolset；行为本体即本文件内 _apply_toolset_toggle_api_server（无独立模块）。1.7.0 新增崩溃上报端点（总表 131，2026-11-23）：POST /v1/diagnostics/crash-reports 收已过 App 隐私门的白名单崩溃记录、GET /v1/diagnostics/crash-reports 回读，行为本体在 crash_reports 模块，本文件只挂路由与 handler。1.8.0 新增 capabilities 探知位（总表 202，2026-11-24）：features.self_reactions=true（补丁在位即声明；是否产反应由 instance config 的 display.agent_self_reactions 闸另控，默认关），行为本体在 react_to_message_tool 补丁与 api_server_runs 的终态 attach，本文件只加该一位。1.9.0 新增文件加工两端点（断桥批一，2026-11-24）：GET /v1/files/spreadsheet 与 GET /v1/media/rendition（行为本体在 fileproc_gateway 模块）＋同 handler 的 /api/fileproc-bridge/* 保形挂载（已发货 App 零改动），本文件只挂路由与 handler；本文件 1.9.0 件为 1.8.0 件与批一变更集的三方并集合并（两线改动零交叠：自反应 +7 行、批一 +78 行，merged 哈希即本条登记值）。1.10.0 新增写闸网关挂载（断桥批二，2026-11-24）：12 条 /v1/write-gate 路由（status/pending/decide/decisions/rules）＋3 条 /v1/memories 路由（行为本体在 write_gate_gateway 模块）＋同 handler 的 /api/write-gate/* 保形挂载 12 条（迁移期路径保形，已发货 App 零改动），connect() 增 write_gate_gateway.start() 启动钩子（对位本体 1.9.0 锚点手工接），_handle_revoke_grant 注释更新写闸授权单一写者自桥改为本模块；本文件 1.10.0 件为 1.9.0 件与批二变更集的增量叠加（新增 220 行、删 2 行；批二副本 api_server_runs.py 为旧基线未带回，runs 文件零改动）。1.11.0 新增 OneDay 记忆机制服务面（§439，2026-11-24）：4 条 /v1/memory/* 路由（layers/search/insights/reconcile-check）＋能力端点表 4 行＋features.oneday_memory 位，行为本体在 oneday_memory 模块，本文件只挂路由与 handler；本件为 1.10.0 件之上的纯增量（新增 112 行、删 0 行，与自设一期（顺延 1.12.0）的 +29 行落点不重叠，本件即以 1.10.0 本体为底叠加、哈希按合并结果重算）。1.13.0 新增设置注册表只读下发（AI 自主设置权一期，DESIGN §435，2026-11-24）：GET /v1/settings/registry 只读端点＋capabilities 位 features.settings_registry=true（补丁在位即声明；端点纯只读、无任何写路径，AI 写面属二期另行翻闸），行为本体在 settings_registry 模块，本文件只挂路由、能力位与 handler；本文件 1.13.0 件为 1.12.0 件＋29 行纯增（路由 1＋能力端点表 1＋features 位与注记 6＋handler 21），零删改（剥离四处增量后哈希回 1.12.0 登记值 e2e786d6 已验）。1.14.0 新增记忆语义检索分发（§445，2026-11-24）：_handle_memory_search 读 mode 查询参数，mode=semantic|hybrid 时分发 oneday_semantic 模块（hybrid_search/semantic_search），其余维持 keyword 缺省路；模块不可用回 503 oneday_semantic_unavailable（与 §439 同形）；本件为 1.13.0 件＋21 行纯增（handler docstring +3、mode 分发 +18），零删改。 1.19.0 新增断桥批三挂载（2026-11-24）：/api/oneday-bridge/* 66 路由与 /api/overview-bridge/* 保形面（行为本体在 oneday_gateway / overview_gateway 模块）＋能力端点表 8 行＋features.oneday_bridge / features.overview_bridge 两位＋connect() 双启动钩子；本件为 1.18.0 件＋117 行纯增、零删改（重基时对生产件全量增量重放，含批三副本缺失的 library_mcp 分发支承接 #26）。2.0.0 新增断桥批五挂载（2026-11-25）：GET/POST /api/device-bridge/{tail} 与 POST /api/device-mcp（行为本体在 device_gateway 模块，引擎在工作线程执行、应答保桥的扁平 JSON 形）＋能力端点表与 features.device_bridge 位；路由故意不挂 @_require_auth——模块自验单钥且 /health 免钥（同桥口径），本件为 1.23.0 件之上的设备面增量，哈希按合并结果重算。2.2.0 新增选择框投影与能力位（§441 潜伏，2026-11-25）：消息投影增 options 字段（_options_from_display_metadata 读 display_metadata 的 options 键、形状校验后投影，与 reactions 同点位同口径、投影前捕获防 hidden 降级丢字段）＋features.options_card=true（补丁在位即声明；是否产卡由 instance config 的 display.options_card 闸另控，默认关＝潜伏），行为本体在 present_options_tool／options_pending 两模块与 api_server_runs 的终态 attach；本件自 1.23.0 预制件三方合并入 2.1.0（features 字典与 2.0.0 device_bridge 位并集消解、两旗并存），相对 2.1.0 件纯增 56 行、零删改。 2.3.0 新增断桥批四挂载（2026-11-25）：GET/POST /api/identity-bridge/{tail} 通配挂载（正口 /v1/identity/name、/v1/identity/avatar）＋保形口五方法＋POST /mcp/identity（MCP JSON-RPC 门面、模块进程内直调、进程内密钥永不出关）＋front 只读两面（/v1/front/connections、/v1/front/gateway-channels）＋features.identity_bridge／front 面两位＋connect() 双 start 钩子，行为本体在 identity_gateway／front_gateway 两模块；本件为 2.2.0 件＋126 行纯增、零删改。 2.5.0 新增设置写面挂载（§435 二期，2026-11-25）：POST /v1/settings/entries、GET /v1/settings/events、POST /v1/settings/revoke 三路由＋features.settings_admin 位（随 instance config 的 settings.agent_admin 总闸取值、非补丁在位即声明）＋能力端点表三行，行为本体在 settings_admin 模块，本文件只挂路由、能力位与 handler。
     - name: api_server_runs.py
       source: patches/api_server_runs.py
@@ -358,10 +358,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server_oneday_routes.py
       mount_mode: ro
-      sha256: c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b
+      sha256: 4c83545cbab057aa1c473c503f0a296f7c7918b9d53b96e51e4959fd0a3563b1
       upstream_baseline_sha256: null
-      provides: [auth-token-exchange, auth-token-refresh, auth-sessions-list, auth-session-revoke, push-tokens-registry]
-      summary: OneDay auth/push route mixin and route table.
+      provides: [auth-token-exchange, auth-token-refresh, auth-sessions-list, auth-session-revoke, push-tokens-registry, credential-vault-routes]
+      summary: OneDay auth/push/vault route mixin and route table.
     - name: auth_tokens.py
       kind: module
       source: patches/auth_tokens.py
@@ -395,6 +395,28 @@ components:
       upstream_baseline_sha256: null
       provides: [apns-send]
       summary: APNs sender; reports unconfigured until credentials are supplied.
+    - name: credential_vault.py
+      kind: module
+      source: patches/credential_vault.py
+      host_path: patches/credential_vault.py
+      container: hermes
+      container_path: /opt/hermes/gateway/platforms/credential_vault.py
+      mount_mode: ro
+      sha256: a3cbe293dfee90a6c2dec561ce9a65a217b8070337b97dfcf16038174a103d62
+      upstream_baseline_sha256: null
+      provides: [credential-vault-store, credential-vault-request]
+      summary: AES-GCM encrypted credential metadata store, one-time request fulfillment, and audited server-side use; operation allowlist remains empty.
+    - name: credential_vault_tool.py
+      kind: module
+      source: patches/credential_vault_tool.py
+      host_path: patches/credential_vault_tool.py
+      container: hermes
+      container_path: /opt/hermes/tools/credential_vault_tool.py
+      mount_mode: ro
+      sha256: 61f95b0485c86cf0327a9f9fe529b0456882c2bb73492f11cf438792f2eb0531
+      upstream_baseline_sha256: null
+      provides: [credential-vault-ai-tools]
+      summary: Registry-only credential_vault tools; no plaintext secret read tool.
     - name: oneday_seg_automation.py
       kind: module
       source: patches/oneday_seg_automation.py

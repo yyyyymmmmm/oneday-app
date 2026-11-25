@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=9c154fff4fad2f06f87010215a5dbdc574a03751aa41cd81df2381897e291e8b
+  [api_server.py]=0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -49,10 +49,12 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
   [cron_projection.py]=4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
-  [api_server_oneday_routes.py]=c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b
+  [api_server_oneday_routes.py]=4c83545cbab057aa1c473c503f0a296f7c7918b9d53b96e51e4959fd0a3563b1
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
+  [credential_vault.py]=a3cbe293dfee90a6c2dec561ce9a65a217b8070337b97dfcf16038174a103d62
+  [credential_vault_tool.py]=61f95b0485c86cf0327a9f9fe529b0456882c2bb73492f11cf438792f2eb0531
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
@@ -108,6 +110,8 @@ declare -A CPATH=(
   [auth_tokens.py]=/opt/hermes/gateway/platforms/auth_tokens.py
   [push_tokens.py]=/opt/hermes/gateway/platforms/push_tokens.py
   [push_sender.py]=/opt/hermes/gateway/platforms/push_sender.py
+  [credential_vault.py]=/opt/hermes/gateway/platforms/credential_vault.py
+  [credential_vault_tool.py]=/opt/hermes/tools/credential_vault_tool.py
   [oneday_seg_automation.py]=/opt/hermes/gateway/platforms/oneday_seg_automation.py
   [oneday_seg_briefings.py]=/opt/hermes/gateway/platforms/oneday_seg_briefings.py
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
@@ -139,7 +143,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py credential_vault.py credential_vault_tool.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -765,3 +769,10 @@ if docker exec hermes grep -q 'idem = f"ideas-sum-{int(_now())}"' /opt/hermes/ga
 GENM=$(docker exec hermes env 2>/dev/null | grep '^ONEDAY_GEN_MODEL=' | cut -d= -f2)
 if [ "$GENM" = "deepseek-v4-pro" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=deepseek-v4-pro（DeepSeek 官方通道，包 2.5.1）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL=$GENM（期望 deepseek-v4-pro；laogou8 通道余额枯竭，见 genkey-fix-20261125.md）"; fi
 unk "settings-admin-write-deep" "设置写型验收（一次性测试键 register→set→delete→revoke 全程对账＋白名单外写入被拒）默认不跑; 应用步人工执行并记入 batch3plus-rollout-20261125.md"
+
+# ---- 30. Credential Vault (2.8.0): read-only route/capability probes ----
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/entries" || true)
+if [ "$code" = "401" ]; then ok "vault-route-auth" "无钥 GET /v1/vault/entries → 401"; else bad "vault-route-auth" "应答 $code（期望 401）"; fi
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"credential_vault": true'*) ok "vault-capability-flag" "features.credential_vault=true" ;; *) bad "vault-capability-flag" "capabilities 未见 credential_vault 位" ;; esac
+unk "vault-behavior" "python3 credential_vault_selftest.py 在包内运行；真实 TLS/客户端安全卡联调、日志与备份审查仅部署验收时执行"

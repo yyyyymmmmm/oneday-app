@@ -3658,6 +3658,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "options_card": True,
             "push_tokens": True,
             "short_lived_tokens": True,
+            "credential_vault": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}

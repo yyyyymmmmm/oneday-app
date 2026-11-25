@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|9c154fff4fad2f06f87010215a5dbdc574a03751aa41cd81df2381897e291e8b"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|0f36bb970d63cfffcae229bf0f06bbedd9d0f8fc6436694bf7f9a0aa2eed2a6f"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -125,10 +125,12 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|4c83545cbab057aa1c473c503f0a296f7c7918b9d53b96e51e4959fd0a3563b1"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|a3cbe293dfee90a6c2dec561ce9a65a217b8070337b97dfcf16038174a103d62"
+  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|61f95b0485c86cf0327a9f9fe529b0456882c2bb73492f11cf438792f2eb0531"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
@@ -264,6 +266,8 @@ grep -q "api_server_oneday_routes.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOS
 grep -q "auth_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "push_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "push_sender.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "credential_vault.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "credential_vault_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -519,6 +523,12 @@ specs = [
     ("push_sender.py",
      "      - ./patches/push_sender.py:/opt/hermes/gateway/platforms/push_sender.py:ro",
      "./patches/push_tokens.py:/opt/hermes/gateway/platforms/push_tokens.py:ro"),
+    ("credential_vault.py",
+     "      - ./patches/credential_vault.py:/opt/hermes/gateway/platforms/credential_vault.py:ro",
+     "./patches/api_server_oneday_routes.py:/opt/hermes/gateway/platforms/api_server_oneday_routes.py:ro"),
+    ("credential_vault_tool.py",
+     "      - ./patches/credential_vault_tool.py:/opt/hermes/tools/credential_vault_tool.py:ro",
+     "./patches/credential_vault.py:/opt/hermes/gateway/platforms/credential_vault.py:ro"),
     ("identity_gateway.py",
      "      - ./patches/identity_gateway.py:/opt/hermes/gateway/platforms/identity_gateway.py:ro",
      "./patches/present_options_tool.py:/opt/hermes/tools/present_options_tool.py:ro"),

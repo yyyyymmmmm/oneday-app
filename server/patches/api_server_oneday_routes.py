@@ -24,6 +24,13 @@ ONEDAY_CAPABILITY_ENDPOINTS = (
     ("auth_refresh", ("POST", "/v1/auth/refresh", "short_lived_tokens")),
     ("auth_sessions", ("GET", "/v1/auth/sessions", "short_lived_tokens")),
     ("auth_revoke", ("DELETE", "/v1/auth/sessions/{session_id}", "short_lived_tokens")),
+    ("vault_entries", ("GET", "/v1/vault/entries", "credential_vault")),
+    ("vault_entry", ("GET", "/v1/vault/entries/{entry_id}", "credential_vault")),
+    ("vault_create", ("POST", "/v1/vault/entries", "credential_vault")),
+    ("vault_replace", ("PUT", "/v1/vault/entries/{entry_id}", "credential_vault")),
+    ("vault_revoke", ("DELETE", "/v1/vault/entries/{entry_id}", "credential_vault")),
+    ("vault_request_status", ("GET", "/v1/vault/requests/{request_id}", "credential_vault")),
+    ("vault_fulfill", ("POST", "/v1/vault/requests/{request_id}/fulfill", "credential_vault")),
 )
 
 
@@ -55,6 +62,13 @@ def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
         ("POST", "/v1/auth/refresh", adapter._handle_auth_refresh),
         ("GET", "/v1/auth/sessions", adapter._handle_auth_sessions),
         ("DELETE", "/v1/auth/sessions/{session_id}", adapter._handle_auth_revoke),
+        ("GET", "/v1/vault/entries", adapter._handle_vault_list),
+        ("GET", "/v1/vault/entries/{entry_id}", adapter._handle_vault_get),
+        ("POST", "/v1/vault/entries", adapter._handle_vault_create),
+        ("PUT", "/v1/vault/entries/{entry_id}", adapter._handle_vault_replace),
+        ("DELETE", "/v1/vault/entries/{entry_id}", adapter._handle_vault_delete),
+        ("GET", "/v1/vault/requests/{request_id}", adapter._handle_vault_request_status),
+        ("POST", "/v1/vault/requests/{request_id}/fulfill", adapter._handle_vault_fulfill),
     ]
 
 
@@ -86,6 +100,94 @@ class OneDayAuthPushRoutesMixin:
             err_type="gateway_auth_error",
             code=err_code or "invalid_access_token",
         )
+
+    def _vault_module(self):
+        from gateway.platforms import credential_vault
+        return credential_vault
+
+    @staticmethod
+    def _vault_session(request):
+        return request.get("auth_session_id") or ""
+
+    @staticmethod
+    def _vault_scope():
+        from gateway.platforms.api_server import _api_request_profile
+        return _api_request_profile.get() or "default"
+
+    async def _handle_vault_list(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            return web.json_response({"object": "list", "data": self._vault_module().list_entries(self._vault_scope())})
+        except Exception:
+            return _err("Credential vault unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_get(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            row = self._vault_module().get_entry(request.match_info.get("entry_id", ""), self._vault_scope())
+            return web.json_response(row if row else {"status": "not_found"}, status=200 if row else 404)
+        except Exception:
+            return _err("Credential vault unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_create(self, request):
+        return await self._vault_write(request, None)
+
+    async def _handle_vault_replace(self, request):
+        return await self._vault_write(request, request.match_info.get("entry_id", ""))
+
+    async def _vault_write(self, request, entry_id):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            status, payload = await asyncio.to_thread(
+                self._vault_module().write_entry, body, self._expected_api_key(), entry_id, self._vault_scope())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Credential vault unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_delete(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            status, payload = await asyncio.to_thread(self._vault_module().delete_entry, request.match_info.get("entry_id", ""), self._vault_scope())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Credential vault unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_request_status(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        if not self._vault_session(request):
+            return web.json_response({"status": "not_found"}, status=404)
+        try:
+            payload = self._vault_module().request_status(request.match_info.get("request_id", ""), self._vault_session(request), self._vault_scope())
+            return web.json_response(payload if payload else {"status": "not_found"}, status=200 if payload else 404)
+        except Exception:
+            return _err("Credential request unavailable", 503, code="vault_unavailable")
+
+    async def _handle_vault_fulfill(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        if not self._vault_session(request):
+            return web.json_response({"status": "not_found"}, status=404)
+        try:
+            body = await request.json()
+            status, payload = await asyncio.to_thread(
+                self._vault_module().fulfill_request,
+                request.match_info.get("request_id", ""), body,
+                self._expected_api_key(), self._vault_session(request), self._vault_scope())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Credential request unavailable", 503, code="vault_unavailable")
 
     async def _handle_post_push_tokens(self, request: Any) -> Any:
         """POST /v1/push/tokens -- upsert one APNs device push token (batch 4b)."""
