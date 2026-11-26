@@ -425,7 +425,7 @@ struct AgentHubView: View {
             .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(maxWidth: .infinity)
             .frame(height: OneDayMetrics.minTapTarget)
-            .background(Palette.fillSecondary, in: Capsule())
+            .glassEffect(.regular, in: Capsule())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.hubGutter)
@@ -647,8 +647,6 @@ struct AgentHubView: View {
                     }
 
                 ZStack {
-                    Circle().fill(Palette.surface)
-                    Circle().stroke(Palette.hairline, lineWidth: 0.5)
                     Image(systemName: "pencil")
                         .font(.system(
                             size: FrameworkIcon.badgeGlyphSize + 4,
@@ -657,6 +655,7 @@ struct AgentHubView: View {
                         .foregroundStyle(Palette.ink)
                 }
                 .frame(width: 26, height: 26)
+                .glassEffect(.regular, in: Circle())
                 // §247.3 档 F 浮件档（阴影两档之一）
                 .shadow(
                     color: Palette.shadowBase.opacity(
@@ -732,10 +731,7 @@ struct AgentHubView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingXS)
         .frame(height: OneDayMetrics.hubSegBarHeight)
-        .background(Palette.surface, in: Capsule())
-        .overlay {
-            Capsule().stroke(Palette.hairline, lineWidth: 0.5)
-        }
+        .glassEffect(.regular, in: Capsule())
         .padding(.horizontal, OneDayMetrics.hubGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingSM)
