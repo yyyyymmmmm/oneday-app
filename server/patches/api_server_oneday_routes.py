@@ -49,6 +49,11 @@ ONEDAY_CAPABILITY_ENDPOINTS = (
     ("vault_fulfill", ("POST", "/v1/vault/requests/{request_id}/fulfill", "credential_vault")),
     ("web_login", ("POST", "/api/companion/web-login", "panel_web_login")),
     ("env_reveal", ("POST", "/api/env/reveal", "panel_web_login")),
+    ("vault_bitwarden_status", ("GET", "/v1/vault/bitwarden/status", "bitwarden_link")),
+    ("vault_bitwarden_connect", ("POST", "/v1/vault/bitwarden/connect", "bitwarden_link")),
+    ("vault_bitwarden_unlock", ("POST", "/v1/vault/bitwarden/unlock", "bitwarden_link")),
+    ("vault_bitwarden_lock", ("POST", "/v1/vault/bitwarden/lock", "bitwarden_link")),
+    ("vault_bitwarden_disconnect", ("POST", "/v1/vault/bitwarden/disconnect", "bitwarden_link")),
     ("mail_test_connection", ("POST", "/v1/mail/test-connection", "mail_gateway")),
     ("mail_accounts", ("GET", "/v1/mail/accounts", "mail_gateway")),
     ("mail_account_create", ("POST", "/v1/mail/accounts", "mail_gateway")),
@@ -207,6 +212,11 @@ def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
         ("POST", "/v1/vault/requests/{request_id}/fulfill", adapter._handle_vault_fulfill),
         ("POST", "/api/companion/web-login", adapter._handle_web_login),
         ("POST", "/api/env/reveal", adapter._handle_env_reveal),
+        ("GET", "/v1/vault/bitwarden/status", adapter._handle_vault_bitwarden_status),
+        ("POST", "/v1/vault/bitwarden/connect", adapter._handle_vault_bitwarden_connect),
+        ("POST", "/v1/vault/bitwarden/unlock", adapter._handle_vault_bitwarden_unlock),
+        ("POST", "/v1/vault/bitwarden/lock", adapter._handle_vault_bitwarden_lock),
+        ("POST", "/v1/vault/bitwarden/disconnect", adapter._handle_vault_bitwarden_disconnect),
         ("POST", "/v1/mail/test-connection", adapter._handle_mail_test_connection),
         ("GET", "/v1/mail/accounts", adapter._handle_mail_accounts_list),
         ("POST", "/v1/mail/accounts", adapter._handle_mail_account_create),
@@ -323,6 +333,67 @@ class OneDayAuthPushRoutesMixin:
             return web.json_response(payload if payload else {"status": "not_found"}, status=200 if payload else 404)
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")
+
+    def _bitwarden_module(self):
+        from gateway.platforms import bitwarden_link
+        return bitwarden_link
+
+    async def _handle_vault_bitwarden_status(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            return web.json_response(
+                await asyncio.to_thread(self._bitwarden_module().link_status))
+        except Exception:
+            return _err("Bitwarden link unavailable", 503, code="bitwarden_unavailable")
+
+    async def _handle_vault_bitwarden_connect(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            status, payload = await asyncio.to_thread(
+                self._bitwarden_module().connect_link, body, self._expected_api_key())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Bitwarden link unavailable", 503, code="bitwarden_unavailable")
+
+    async def _handle_vault_bitwarden_unlock(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            status, payload = await asyncio.to_thread(
+                self._bitwarden_module().unlock,
+                body.get("master_password") if isinstance(body, dict) else None,
+                self._expected_api_key())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Bitwarden link unavailable", 503, code="bitwarden_unavailable")
+
+    async def _handle_vault_bitwarden_lock(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            status, payload = await asyncio.to_thread(self._bitwarden_module().lock)
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Bitwarden link unavailable", 503, code="bitwarden_unavailable")
+
+    async def _handle_vault_bitwarden_disconnect(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            status, payload = await asyncio.to_thread(
+                self._bitwarden_module().disconnect, self._expected_api_key())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Bitwarden link unavailable", 503, code="bitwarden_unavailable")
 
     async def _handle_vault_requests_list(self, request):
         auth_err = self._check_auth(request)

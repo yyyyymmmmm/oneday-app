@@ -3821,6 +3821,12 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # patch is applied; the [[vreq:...]] body marker remains
             # only as the archive fallback.
             "vault_request_block": True,
+            # Local patch (vault two-step bar 1, queue 195): the
+            # Bitwarden link (bitwarden_link module) is part of this
+            # listener's code -- the user's own Bitwarden as the
+            # read-only first credential source, built-in vault as
+            # second. Advertised once the patch is applied.
+            "bitwarden_link": True,
             # Local patch (mail bar 1, queue 181): the hub mail data
             # source (mail_gateway module) is part of this listener's
             # code -- IMAP/SMTP accounts whose passwords live only in
