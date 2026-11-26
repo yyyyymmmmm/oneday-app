@@ -2406,7 +2406,8 @@ async def _handle_run_approval(self, request: web.Request, *, _api_server) -> we
             approval_session_key, choice, resolve_all=resolve_all, request_id=request_id or None)
     except Exception as exc:
         logger.exception("[api_server] approval resolution failed for run %s", run_id)
-        return _json_error(_openai_error, str(exc), status=500)
+        status, body = error_response(exc)
+        return web.json_response(body, status=status)
     if resolved <= 0:
         return _json_error(
             _openai_error, f"Run has no pending approval: {run_id}", code="approval_not_pending", status=409)
