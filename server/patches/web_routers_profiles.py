@@ -48,7 +48,7 @@ from hermes_cli.web_models import (
     ProfileSoulUpdate, ProfileDescriptionUpdate, ProfileModelUpdate, ProfileDescribeAuto,
     SessionPrScanBody)
 from hermes_cli.web_server_profiles import _config_profile_scope, _hermes_home_scope
-from .error_boundary import error_response, not_found as boundary_not_found
+from gateway.platforms.error_boundary import error_response, not_found as boundary_not_found
 
 # Same logger the handlers used before extraction (identical logger object).
 _log = logging.getLogger("hermes_cli.web_server")

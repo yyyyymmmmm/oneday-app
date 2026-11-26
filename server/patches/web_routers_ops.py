@@ -34,7 +34,7 @@ from hermes_cli.web_routers._common import (
     spawn_profile_action,
 )
 from hermes_cli.web_routers.files import stream_upload_to_path
-from .error_boundary import error_response
+from gateway.platforms.error_boundary import error_response
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
