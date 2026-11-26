@@ -771,6 +771,8 @@ struct ChatView: View {
     /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
     @State private var fileMetadataStore = FileMetadataStore.shared
     @State private var deliveryStore = DeliveryStore.shared
+    /// 凭据库 Store（补件 C 客户端半边）
+    @State private var vaultStore = VaultStore()
     @State private var unreadAnchorEntryID: UUID?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
@@ -6293,6 +6295,37 @@ struct ChatView: View {
                     )
                     .modifier(messageMenu(for: entry))
                 }
+                // 凭据请求卡（补件 C 客户端半边）：标记
+                // 摘行后原地渲染 VaultRequestCard——按号
+                // 向 /v1/vault/requests 取 meta 喂卡，
+                // 匹配不到按卡组件既有失效态呈现
+                ForEach(
+                    scans.vaultRequest.requestIDs, id: \.self
+                ) { requestID in
+                    if let meta = vaultRequestMeta(for: requestID) {
+                        VaultRequestCard(
+                            requestId: meta.requestId,
+                            service: meta.service,
+                            domain: meta.domain,
+                            reason: meta.reason,
+                            fields: meta.fields
+                        )
+                        .modifier(messageMenu(for: entry))
+                    } else if vaultStore.requestsLoaded {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.shield")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text("凭据请求已处理或已过期")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .modifier(messageMenu(for: entry))
+                    }
+                }
+                .task(id: scans.vaultRequest.requestIDs) {
+                    await vaultStore.refreshRequests(appState: appState)
+                }
                 // 聊天可靠性包：整条裸路径的附件区——
                 // 呈现与 remoteImagePaths 行同口径（图
                 // 片 ServerRemoteImage 定高卡＋点开查
@@ -6781,6 +6814,12 @@ struct ChatView: View {
                 chatFallbackTarget = target
             }
         }
+    }
+
+    /// 凭据请求元数据查找（补件 C 客户端半边）：
+    /// 从 VaultStore pending 列表按 request_id 匹配
+    private func vaultRequestMeta(for requestID: String) -> VaultRequestMeta? {
+        vaultStore.requests.first { $0.requestId == requestID }
     }
 
     /// 路由呈示（§452.6）：FileOpenRoute 单源判定；

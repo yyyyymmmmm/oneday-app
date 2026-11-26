@@ -106,6 +106,8 @@ enum SettingsRoute: Hashable {
     /// 崩溃报告（G-14，DESIGN §384）：入口在关于页
     /// 内部实验节（Core 目录 crashReports 条目仅搜索可达）
     case crashReports
+    /// 凭据库（sj-07）：密码与安全凭证管理
+    case vault
 }
 
 /// 目的地 → 设置路由映射（原 SettingsView 内私有，
