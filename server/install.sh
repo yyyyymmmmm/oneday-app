@@ -89,7 +89,7 @@ PATCHES=(
 MODULES=(
   "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
   "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|aa503b2a0ffaec4d6806d22ef8a9e7b5cf156d6396cdfc45d64c790eedd6e884"
-  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|3a011c53d7a63549d59afe7e936851e832e0e49c1d5511e055be38672d003cd2"
+  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|94a8b835e5fd6d763ab7c20b3b9a9dd0ceadade945fde158979dd9b5f4ca1404"
   "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
