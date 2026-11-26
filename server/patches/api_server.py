@@ -5138,7 +5138,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         if not self._JOB_ID_RE.fullmatch(job_id):
             logger.warning(
                 "Cron jobs API rejected invalid job_id %r: %s", job_id, self._request_audit_log_suffix(request))
-            return job_id, web.json_response({"error": "Invalid job ID format"}, status=400)
+            return job_id, web.json_response({"error": "任务 ID 格式无效", "code": "invalid_job_id"}, status=400)
         return job_id, None
 
     @staticmethod
@@ -5148,11 +5148,11 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
     def _validate_cron_prompt(self, prompt: str) -> Optional[web.Response]:
         """Length cap + injection scan shared by create/update/run."""
         if len(prompt) > self._MAX_PROMPT_LENGTH:
-            return web.json_response({"error": f"Prompt must be ≤ {self._MAX_PROMPT_LENGTH} characters"}, status=400)
+            return web.json_response({"error": f"提示词不能超过 {self._MAX_PROMPT_LENGTH} 个字符", "code": "prompt_too_long", "param": "prompt"}, status=400)
         if prompt and _scan_cron_prompt is not None:
             scan_error = _scan_cron_prompt(prompt)
             if scan_error:
-                return web.json_response({"error": scan_error}, status=400)
+                return web.json_response({"error": scan_error, "code": "prompt_invalid", "param": "prompt"}, status=400)
         return None
 
     def _job_response(self, fn, job_id: str, *, notify: bool) -> web.Response:
@@ -5160,7 +5160,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         try:
             job = fn(job_id)
             if not job:
-                return web.json_response({"error": "Job not found"}, status=404)
+                return web.json_response({"error": "未找到该任务", "code": "job_not_found"}, status=404)
             if notify:
                 _notify_cron_provider_jobs_changed()
             return web.json_response({"job": job})
@@ -5197,16 +5197,16 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             skills = body.get("skills")
             repeat = body.get("repeat")
             if not name:
-                return web.json_response({"error": "Name is required"}, status=400)
+                return web.json_response({"error": "任务名称不能为空", "code": "name_required", "param": "name"}, status=400)
             if len(name) > self._MAX_NAME_LENGTH:
-                return web.json_response({"error": f"Name must be ≤ {self._MAX_NAME_LENGTH} characters"}, status=400)
+                return web.json_response({"error": f"任务名称不能超过 {self._MAX_NAME_LENGTH} 个字符", "code": "name_too_long", "param": "name"}, status=400)
             if not schedule:
-                return web.json_response({"error": "Schedule is required"}, status=400)
+                return web.json_response({"error": "执行计划不能为空", "code": "schedule_required", "param": "schedule"}, status=400)
             prompt_err = self._validate_cron_prompt(prompt)
             if prompt_err:
                 return prompt_err
             if repeat is not None and (not isinstance(repeat, int) or repeat < 1):
-                return web.json_response({"error": "Repeat must be a positive integer"}, status=400)
+                return web.json_response({"error": "重复次数必须是正整数", "code": "repeat_invalid", "param": "repeat"}, status=400)
             kwargs = {
                 "prompt": prompt, "schedule": schedule, "name": name,
                 "deliver": body.get("deliver", "local"),
@@ -5240,9 +5240,9 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # Whitelist allowed fields to prevent arbitrary key injection
             sanitized = {k: v for k, v in body.items() if k in self._UPDATE_ALLOWED_FIELDS}
             if not sanitized:
-                return web.json_response({"error": "No valid fields to update"}, status=400)
+                return web.json_response({"error": "没有可更新的有效字段", "code": "no_valid_fields"}, status=400)
             if "name" in sanitized and len(sanitized["name"]) > self._MAX_NAME_LENGTH:
-                return web.json_response({"error": f"Name must be ≤ {self._MAX_NAME_LENGTH} characters"}, status=400)
+                return web.json_response({"error": f"任务名称不能超过 {self._MAX_NAME_LENGTH} 个字符", "code": "name_too_long", "param": "name"}, status=400)
             if "prompt" in sanitized:
                 prompt_err = self._validate_cron_prompt(sanitized["prompt"])
                 if prompt_err:
@@ -5258,7 +5258,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             return err
         try:
             if not _cron_remove(job_id):
-                return web.json_response({"error": "Job not found"}, status=404)
+                return web.json_response({"error": "未找到该任务", "code": "job_not_found"}, status=404)
             _notify_cron_provider_jobs_changed()
             return web.json_response({"ok": True})
         except Exception as e:

@@ -3,3 +3,4 @@ write_gate_parameter_errors
 runs_botchat_redaction
 oneday_health_redaction
 oneday_monitors_briefings_redaction
+cron_jobs_error_codes
