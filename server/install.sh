@@ -87,6 +87,7 @@ PATCHES=(
 # 即时拒绝与守卫放行命中以 guard_event 入同一本账；shim 只观察、
 # 不在判定链，HERMES_APPROVAL_GUARD_EVENTS=off 即不装）。
 MODULES=(
+  "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|4e56261a10e84bd96f1c63c39ee77bce2ec18ffc74cde929b07ae0b4f8c46518"
   "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|3fe00080bbd02c0edfc72cd7437ae6375874418a6e840665eb499d9ef60c480d"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"

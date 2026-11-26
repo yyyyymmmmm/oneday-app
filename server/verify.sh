@@ -1132,3 +1132,8 @@ if grep -q 'device_gateway_catalog' "$DEPLOY_DIR/patches/device_gateway.py" && !
 if grep -q 'api_server_enrollment' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _EnrollmentStore' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class ThreadSafeAsyncQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-enrollment-seam" "api_server 接 enrollment 且无残留类"; else bad "split-enrollment-seam" "api_server 接缝异常"; fi
 if grep -q 'oneday_feed_helpers' "$DEPLOY_DIR/patches/oneday_seg_feed.py" && ! grep -q '^def _feed_usefulness' "$DEPLOY_DIR/patches/oneday_seg_feed.py"; then ok "split-feed-seam" "seg_feed 接 helpers 且无内嵌函数"; else bad "split-feed-seam" "seg_feed 接缝异常"; fi
 if docker exec hermes python3 -c 'from gateway.platforms import device_gateway_catalog as c, api_server_enrollment as e, oneday_feed_helpers as f; assert len(c.TOOLS) >= 50; assert e._enrollment_store is not None and e.ThreadSafeAsyncQueue; assert f._feed_category_for("x") is not None' >/dev/null 2>&1; then ok "split-import-smoke" "容器内三模块 import 与最小行为探针通过"; else bad "split-import-smoke" "容器内三模块 import/行为探针失败"; fi
+
+# ---- 53. 统一错误边界（2.18.16，队列 230 / dp-271） ----
+EB="$DEPLOY_DIR/patches/error_boundary.py"
+[ -f "$EB" ] && ok "error-boundary-present" "统一错误边界模块在位" || bad "error-boundary-present" "统一错误边界模块缺失"
+if [ -f "$EB" ] && python3 "$DEPLOY_DIR/patches/error_boundary_selftest.py"; then ok "error-boundary-selftest" "分类/脱敏/码稳定自测通过"; else bad "error-boundary-selftest" "统一错误边界自测失败"; fi
