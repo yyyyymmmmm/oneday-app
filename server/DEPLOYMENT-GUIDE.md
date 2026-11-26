@@ -1,4 +1,4 @@
-# OneDay ＋ Hermes 自部署完整指南（单容器终局，包 2.5.0）
+# OneDay ＋ Hermes 自部署完整指南（单容器终局，包 2.16.0）
 
 > 读者：拿到 OneDay 的自部署用户，以及部署者本人重装/迁移时照单执行。
 > 口径：本文所有步骤与事实均出自部署包的部署档案与实测记录（出处见文末），按双容器收口后的定版形态编写。档案里查不到的一律写「未记录」，不补想象。标注「窗口回填」的条目是尚未实测的步骤——回填实测结论之前不要把它们当成已验证事实。
@@ -8,6 +8,16 @@
 > **2.3.1 注记（2026-11-25）**：§441 选项卡时序修复——翻闸后真实流量下选项卡不落（终态行由交付提交才落库、attach 首查无行静默丢卡），api_server_runs.py 单文件改首试同步＋守护线程限时重试补贴、丢卡路径全量 warning 留痕；翻闸状态（display.options_card＋工具集 options_card）不回退。应用与回滚见 options441-timingfix-20261125.md。2.3.1 修订一（应用当日）：真实复验又抓获 run_key 绑定断链（handler 登记完整会话键、attach 等值比对裸 run_id 恒不符，1.15.0 自反应同款），改自验事实绑定，同版号重应用。
 > **2.4.0 注记（2026-11-25）**：G1 任务侧失败覆盖——overview_gateway.py 增 cron_failed／kanban_failed 两读时聚合源（cron 按 cron_incidents 开放事故一条、kanban 按任务最新终态 run 一条；born unread 计入未读；error 一行去敏；cron_since/kanban_since 基线防回灌）。应用与回滚见 g1-rollout-20261125.md。
 > **2.5.0 注记（2026-11-25）**：服务端三件＋点子 409——①§435 二期服务端半边：新增 settings_admin／settings_admin_tool 两模块与 settings-admin-config-patch.py（工具集登记＋总闸 settings.agent_admin 应用即翻 true，非潜伏），api_server 增设置写/审计/撤销三路由；②点子摘要轮幂等键改轮次 epoch；③C-3 终局：instance compose 摘 HERMES_DASH_USER／HERMES_DASH_PASSWORD（内部通道只剩会话令牌服务凭据）＋全机明文真钥 scrub；唯一真钥轮换经安全门拦截未执行（原因见应用记录）。应用与回滚见 batch3plus-rollout-20261125.md。
+> **2.16.0 注记（2026-11-26）**：网页端棒 4 管理五面（插件 oneday-console 0.5.0）——记忆（分层清单/洞察账本/学习图谱节点全文可编辑删除）、文件库（交付物库＋预览＋本机置顶与打开历史）、监控（监测列表/新建/检查/暂停/恢复/删除/变化记录）、连接器（MCP 开关/测试＋目录安装，密钥只进请求体）、委派（后端切换/模型与档案路线，api_key 只回脱敏预览）；verify 第 38 节探针。同批：verify library-mcp-tools 探针期望按 2.11.0 上线实测修正为 [library_list, deliver_file]（见 §13 FAQ-8）；台账字体 NotoSansSC-subset.ttf 正式入包（取消 .gitignore 排除＋OFL 注记 patches/NotoSansSC-subset.OFL.txt）。
+> **2.15.0 注记（2026-11-26）**：网页端棒 3（插件 0.4.0）——枢纽工作台账/审计、授权管理全量面、定时任务用户可见面；配套 nginx 精确接线 `= /api/jobs` → 8642（模板 services/nginx-batch6-apijobs-shape.conf，见 §4）；verify 第 37 节探针。
+> **2.14.0 注记（2026-11-26）**：网页端棒 2（插件 0.3.0）——动态（写闸任务流水＋动态帖）/想法/目标三面，页面底部棒次标改真导航锚点；verify 第 36 节探针。同批修复 install 早退跳过插件同步（WEBPLUG_PENDING 闸，纯插件版必须能走到 3f）。
+> **2.13.0 注记（2026-11-26）**：网页端棒 1（插件 0.2.0）——批准裁决面（按记录 choices 渲染、一次点按、总是允许带可撤销通知、已决收成汇总行）＋凭据库只读面＋凭据请求独立待办面（值只进请求体不回显）；服务端配套：credential_vault 主人模式（长钥调用按 scope 全量办请求，短票过滤不变）；verify 第 35 节探针。
+> **2.12.1 注记（2026-11-26）**：网页端 CORS 来源修复——网关上游 cors_middleware 对带 Origin 的请求先查 API_SERVER_CORS_ORIGINS 白名单，未登记直接回空体 403（在任何 handler 之前），插件在真实浏览器内 reveal 被拦；修法：compose 模板与 install 3g 幂等登记本站来源至 hermes environment，verify 第 34 节行为探针（本站 Origin 无会话→401、外部 Origin→403）；reveal 自身两道闸（key 白名单＋dashboard 会话回验）不动。
+> **2.12.0 注记（2026-11-26）**：网页端插件地基——新增 web-plugins/oneday-console（dashboard 官方插件路线 A）：名册接口 /api/dashboard/plugins、数据卷插件目录、reveal 凭据链三闸实测全过；插件住数据卷 plugins/ 不在镜像内，install 3f 幂等同步资产＋plugins.enabled 文本级确保，verify 第 33 节探针。差集 #14 选项卡与 #2 聊天凭据请求卡在网页端记「功能对齐、形态差异」（dashboard 聊天是 xterm 终端面、嵌不进卡片，两件以独立待办面落地）。
+> **2.11.0 注记（2026-11-26）**：双线收口——本线 2.8.0（web-login 桥＋凭据库 A+C＋2.7.1 三件回填）与对方线 2.8.0/2.9.0/2.10.0/2.10.1（台账标题与 cron 投影、批准卡多卡、消息附件同体）全量合并取并集；version_gate 与 db_schema_guard 网关接线自 2.7.1 线移回（审计 T-1/T-2）；全表哈希按收口实物复算、manifest/install/verify 三处对平；脱敏五件回填清单见 BACKFILL.md，未回填不许上生产。版本口径分叉的成因与处置见 §13 FAQ-6。
+> **2.8.0 注记（2026-11-26）**：面板密码登录桥入关——网关 api_server_oneday_routes 原生实现 POST /api/companion/web-login（scrypt 验 password.json，连错 5 次/300 秒限速）与 POST /api/env/reveal（dashboard 会话回验＋key 白名单）两端点，nginx 增两条 exact location 转 8642；install 3b-2 确保 password.json 挂载（/opt/companion-state/password.json）与属主；同批 2.7.1 线三件（db_schema_guard、platform_hints 配置补丁、提示词刷新看守）回填登记。改密须三落点对齐，见 §13 FAQ-5。
+> **2.7.0 注记（2026-11-26）**：凭据库 A+C 服务端上线——凭据请求列表端点＋聊天 marker：请求创建/兑现/拒绝全生命周期、一次性兑现、会话/scope 隔离、审计只记元数据不记值；短票（odt1.）认证与推送登记接线随同批在役（见 manifest api_server 件 2.7.0 段）。
+> **2.6.0 注记（2026-11-25）**：动态配图自托管＋搜图兜底（能力 #44）——生成时把候选配图下载落 data/oneday/media/feed（sha256 内容寻址、过形状门），帖子改引公网自家地址且 sourceUrl 置空（解开 App 列表封面抑制）；候选页无图时以标题搜图兜底（过探活＋形状双门）；存量帖一次性迁移回填。应用与回滚见 feed-images-rollout-20261125.md。
 > **2.3.0 注记（2026-11-25）**：断桥批四·identity/front 入关——identity 桥（8648）与 front 桥（8650）拆壳为网关模块 identity_gateway／front_gateway，8648/8650 两面经 nginx 改指 8642 恢复；identity 数据家 data/identity/、front 登记 data/front/；改名写口保持关停（仅 MCP identity_set_name 进程内直调）；NEWAPI 管理三件未配时 gateway-channels 回诚实 503。预制的 companion 半边（升版/摘面/面板退役）因 companion 已于 2.0.0 整容器退役而整体作废，本版只做网关半边。应用与回滚见 batch4-rollout-20261125.md。2.3.0 修订一（应用当日）：identity 适配器路径重建修复（正口/保形口 name/avatar 面初版落 404），同版号重应用。
 > **2.2.0 注记（2026-11-25）**：§441 选择框服务端潜伏（总表 203）——选择框机器全量入关：api_server 投影＋能力位、api_server_runs 终态 attach、历史投影平齐，及 options_pending／present_options_tool 两新模块；但 display.options_card 闸默认关、options_card 工具集未启用，行为与 2.1.0 逐字一致。翻闸（设 display.options_card=true＋platform_toolsets.api_server 增 options_card＋重启）是独立一步，届时才真正产卡。应用与回滚见 options441-rollout-20261125.md。
 > **凭据单源（终局已达成）**：全栈只剩一把钥——Hermes 本体的 `API_SERVER_KEY`：网关全部端点（含 device 面）都验这把钥，包内任何新面不另设钥；`verify.sh`/`install.sh` 亦从 hermes 容器环境回读同一把钥。各桥钥（WRITE_GATE/OVERVIEW/BOX/ONEDAY/DEVICE_BRIDGE_KEY）与 companion.env 已随各批作废。第三方服务钥（搜索/模型等）与 Dashboard 登录口令属外部/上游面，不在此列。
@@ -71,6 +81,14 @@ bash install.sh <部署目录>                   # 补丁/模块/挂载幂等应
 docker compose up -d hermes                  # 只许服务级 up（compose 内 legacy 桥服务定义勿整表拉起）
 ```
 
+现行部署流程（写实，2026-11-26 收口后口径）：
+
+1. **组包到暂存副本**：只从仓库 main 的 `server/` 组包，在服务器上落一份暂存副本（如 `/root/deploypkg-<版本>-<日期>`）；不在部署目录里直接改包文件（取错树部署是 §13 FAQ-1 的事故源）。
+2. **暂存副本回填对平**：按 BACKFILL.md 五件在暂存副本里回填真值，重算这几件 sha256 并同步暂存副本的 manifest/install/verify 三处登记，未对平不许装（见 §13 FAQ-2/FAQ-7）。
+3. **留回滚基线**：动生产前把部署目录现状整份备份为回滚基线（命名 `/root/pre-<事项>-backup-<日期>`）；回滚只由「部署引入的回归」触发，探针自身缺陷不触发回滚、但必须当场举证上报。
+4. **应用与验活**：在暂存副本内跑 `LC_ALL=zh_CN.utf8 bash install.sh <部署目录>`（语言环境见 §13 FAQ-4），随后跑 verify.sh 全量探针；健康判据以 §10 与 verify 输出为准，不以「install 退出码 0」代替。
+5. **包文件回拷部署目录**：部署完成后把包文件（manifest.yaml、install.sh、verify.sh、CAPABILITIES.md）回拷进部署目录，使部署目录与在役包逐字一致——防下一棒从部署目录读到旧版包文件（2026-11-26 队列 98 对账实证：部署目录四件一度停在 2.11.0 旧版，已按此口径同步）。
+
 | 组件 | 作用 | 端口（回环） | 部署形态 | 健康检查 | 缺失症状 |
 |---|---|---|---|---|---|
 | hermes（网关＋Dashboard） | 对话、会话、模型锁、文件面、配置面、MCP 客户端宿主 | 8642（API）＋9119（Dashboard） | compose 服务，镜像 v0.23.0，`gateway run`，mem 2 GB | `GET /health`（公开）→200；带登录密钥 `GET /v1/models`→200 | 全部功能不可用 |
@@ -104,6 +122,7 @@ docker compose up -d hermes                  # 只许服务级 up（compose 内 
 | `/api/oneday-bridge/` | 8642 网关保形口（透传单钥，批三入关） | 目标点子模块入口 | 动态/点子/目标失效 |
 | `/api/device-bridge/` | 8642 网关保形口（透传单钥、摘 auth_request；read_timeout 120 s、关 buffering；批五入关，模板 services/nginx-batch5-device-shape.conf） | 设备模块 App 通道（长轮询一轮最长 25 s，超时必须大于它） | 设备会话连不上、智能体调用到不了手机 |
 | `= /api/device-mcp` | 8642/api/device-mcp（批五改指） | 设备 MCP 门面的公网入口（Hermes 侧现行走 127.0.0.1:8642 回环直连，见 §7；本公网面供 App/外部） | 智能体调不了设备工具（App 侧目录会如实标注） |
+| `= /api/jobs`（精确匹配，包 2.15.0 新增） | 8642 | 定时任务用户可见面（cron 投影 is_system）；此前该路径落穿 Dashboard 9119 回 404，模板 services/nginx-batch6-apijobs-shape.conf | 网页端定时任务面 404 |
 | `/companion/` | **已退役**（包 2.0.0：front 随 companion 下线，待批四入关后另定形态） | — | — |
 | `/api/companion/` | **已退役**（同上；App 的伴生探测在此期间无应答属预期，见 §9） | — | — |
 
@@ -124,7 +143,7 @@ companion 两条路由已随批五退役，本节旧注记（M1 不挂门定版�
 | 五把模块服务钥（WRITE_GATE_BRIDGE_KEY / OVERVIEW_BRIDGE_KEY / BOX_BRIDGE_KEY / ONEDAY_BRIDGE_KEY / DEVICE_BRIDGE_KEY） | **全部作废**（断桥各批逐个退役、批五收官）：companion.env 已删、nginx 注入副本已摘，全栈只剩 API_SERVER_KEY 一把钥 | — | 不再轮换；回滚场景按各批 rollout 记录从基线恢复 |
 | COMPANION_SERVICE_KEY（伴生内部服务钥） | **已作废**（包 2.0.0，front 随 companion 退役） | — | — |
 | 登录密钥的服务端副本（HERMES_API_KEY） | hermes 服务 compose 环境（与 API_SERVER_KEY 同值同源，包 1.21.0 定版）；网关内各模块直读，无 companion 副本（旧 companion.env [global] 副本已随批五作废） | 仅服务器 | 随登录密钥轮换时同步更新 compose 两处同值 |
-| 面板密码哈希（scrypt） | **随 front 退役冻结**（状态卷 companion-state 留盘未删，批四入关时再定去留） | — | — |
+| 面板密码哈希（scrypt） | `password.json`（部署目录状态卷，挂载至容器 `/opt/companion-state/password.json`；install 3b-2 确保挂载与属主，见 §13 FAQ-9） | 部署者（面板密码登录用，包 2.8.0 起由网关 web-login 桥校验） | 改密须**三落点对齐**：password.json 哈希、网关 web-login 桥校验路径、登录方实际输入，逐面验活（见 §13 FAQ-5）；写回必须原地保 inode（见 §13 FAQ-3） |
 | MCP_BOX_API_KEY（Simular Box 个人密钥） | `/opt/data/.env`（Hermes 侧 MCP 注册用；旧 companion.env [box] 副本已作废） | 仅服务器 | 在 Box 平台换钥后替换 .env、重启 Hermes 装载 |
 | GITHUB_MCP_TOKEN（GitHub 细粒度 PAT 的插值变量） | `/opt/data/.env`（0600），config 只写 `${GITHUB_MCP_TOKEN}` 占位 | 仅服务器；令牌本体由用户在保险库交付 | github.com 令牌页吊销旧令牌→新令牌经保险库交付→改 .env 一行→`hermes mcp test github` 验活 |
 | Notion OAuth 令牌组 | `/opt/data/mcp-tokens/`（0600 文件组） | 仅服务器（Hermes 本体托管刷新） | `hermes mcp reauth notion` 重新授权；全清删该目录下 notion* 文件 |
@@ -269,6 +288,72 @@ companion.env **不在部署档案里留填好值的副本**：模板只有 `com
 - **首次部署设密码流程**：初始状态没有密码（哈希为空）→ 先用**密钥登录**进面板 → 在页内设置密码（哈希写入状态卷 `companion-state/password.json`，0600，此后以它为准）→ 退出后用密码登录复验一遍。够不到面板时（或密码遗忘）用服务器侧重置：在伴生工程内跑 `python3 front/front.py --set-password '<新密码>'`（与面板改密同源逻辑、写同一文件）；只想生成哈希填进 companion.env 的部署者用 `--hash-password`。测试/临时密码用完必须清除回未设状态，不许留弱口令在生产（M1 即按此纪律收尾）。
 - **五页导览**：**状态总览**（伴生版本＋聚合健康一句话、Hermes 连通、五模块状态点/运行时长/重启计数/内存、资源行、最近自检摘要）；**配置自检**（只读档默认全跑＝§10 第 4 组的程序化版；探针档手动勾选、会真建会话再删并留痕；人工档只给指引不代跑）；**连接管理**（外部连接的凭据自助：清单/创建/验活/断开，与 App 凭据自助共用同一套 `/api/companion/connections` 接口；写凭据走备份→只改目标一行→验活→不过自动回滚）；**模块开关**（经监督者控制通道真开关模块，期望状态落盘、重启不丢；关「审批」模块须二次确认并写明后果——关停期间智能体写记忆/技能无闸门）；**版本对齐**（只两行：Hermes 本体与伴生服务；App 兼容只作伴生行下一句注记。Hermes 实际版本取不到时如实显示「未能自动检测」，不假报）。
 - **升级与回滚**：换镜像标签→`docker compose up -d companion`（数据目录与 companion.env 不动，Hermes 不受影响，桥功能在重建的数十秒内暂停）；升级前把旧标签记入 companion-state（last-known-good），回滚改回旧标签再 up。迁移级回滚（如整套退回五容器形态）不在面板内：按部署档案的 M1 备份基线还原（compose/env 归档＋nginx conf 备份→起旧桥→reload→复验，M1 报告 §3 有全录；本机该基线在服务器 `/root/m1-20261110/`）。
+
+---
+
+## 13. 故障排查（FAQ）
+
+以下十案均为实测踩过的坑，按「症状／根因／处置／证据」写。先对症状定位，再动生产。
+
+**FAQ-1 取错树部署**
+- 症状：部署「成功」后部分端点 404（如 auth/push）、预设或功能回退到旧形态。
+- 根因：从未收口的旁线工地树组包部署——那棵树里缺已合入 main 的功能件，装上去等于把在役功能整片换旧。
+- 处置：部署只认仓库 main 的 `server/` 组包（暂存副本流程见 §3）；出事先按部署前回滚基线整份回滚，再从正本树重装，不在错树上打补丁找补。
+- 证据：2026-11-26 取错树部署事故与正本树并包重装修复记录，回滚基线 /root/pre-srvmerge-backup-20261126 等。
+
+**FAQ-2 脱敏件未回填**
+- 症状：新生成帖的图片地址指向不存在的域名、feed-media 静态面 404、配置补丁缺省调用落到不存在的目录。
+- 根因：仓内 `server/` 是脱敏分发副本（占位域名/路径），未按 BACKFILL.md 五件在暂存副本回填真值就直接安装。
+- 处置：回填五件 → 按暂存副本实物重算这几件 sha256 → 同步暂存副本 manifest/install/verify 三处登记 → 再跑 install。
+- 证据：BACKFILL.md B-1～B-5（B-1 为活雷：不回填则新帖图片地址全错）。
+
+**FAQ-3 单文件 bind mount 的 inode 钉死**
+- 症状：宿主机上改了被单文件挂载进容器的文件，部署显示成功，但进程仍读旧值、行为毫无变化。
+- 根因：编辑器保存时换了新 inode，运行中容器仍钉住旧 inode 的文件句柄。
+- 处置：原地改写保 inode（install.sh 的补丁应用即此口径），或改后重启对应容器；验收必须查到最里层——进程实际 environ 与接口回执，只查宿主机文件或容器 env 都不算数。
+- 证据：2026-11-12 companion.env 伴生事故（改文件换 inode、容器读旧值，部署「成功」实未生效）。
+
+**FAQ-4 install 语言环境**
+- 症状：install.sh 中途因中文内容处理异常报错或校验不过，英文环境下同包正常。
+- 根因：未带中文 locale 时脚本按 C/POSIX 口径处理中文文本。
+- 处置：`LC_ALL=zh_CN.utf8 bash install.sh <部署目录>`，写死在部署流程里（§3 第 4 步）。
+- 证据：部署包 2.7.0 上线应用记录（install 须带 LC_ALL=zh_CN.utf8）。
+
+**FAQ-5 密码三落点不对齐（及登录桥整链断裂）**
+- 症状：面板/App 报密码错；或改密后一面能登、另一面不能；极端形态是任何密码都登不上。
+- 根因：面板密码有三处落点——password.json 的 scrypt 哈希、网关 web-login 桥的校验路径、登录方实际输入——只改一处即不对齐；整链断裂形态则是登录桥端点压根不在网关实现内（端点缺失与密码对错无关，改多少次密码都没用）。
+- 处置：先分清是哪一类：端点 404＝桥不在，先补桥（2.8.0 已入关）；端点在位才查密码。改密一次写齐三落点，并逐面验活：新密码 web-login 200 → reveal 取钥 200 → /v1/models 200；错密码应 401、无会话应 401、伪造会话应 403、连错 5 次应 429。
+- 证据：2026-11-26 登录桥修复记录（根因为端点只存在于已退役伴生实现内；修复＝端点入关＋哈希换新＋nginx 两条 exact location，备份 /root/pre-weblogin-backup-20261126）。
+
+**FAQ-6 版本口径分叉**
+- 症状：仓库清单写一个版本号、服务器暂存副本是另一个版本号，且两边各有对方没有的功能。
+- 根因：两条线并行演进、各编各号，从未收口对账。
+- 处置：以仓库 main 为唯一正本做收口合并、统一一个版本号；逐件对账（一致/新增/仓新线旧三类分清），全表哈希复算、manifest/install/verify 三处对平；服务器 /root 旧暂存只盘点造册，不凭版本号新旧直接删。
+- 证据：2026-11-26 收口 2.11.0——对账 57 件：48 件一致、7 件收口新增、2 件仓新线旧（BACKFILL.md 关账状态段）。
+
+**FAQ-7 登记哈希漂移**
+- 症状：install 在某件上因 sha256 与登记对不上直接卡住。
+- 根因：文件已改（或已在暂存副本回填）但登记未同步重算——登记停在实物值一侧、文件停在脱敏/旧值一侧。
+- 处置：按当前实物重算 sha256，manifest/install/verify 三处登记一并对平后再装；部署完成后按 §3 第 5 步把包文件回拷部署目录，防部署目录里的旧登记成为下一棒的漂移源。
+- 证据：BACKFILL.md 登记口径段；2026-11-26 登记对平记录（登记值/仓库/线上宿主机/容器内在役四方逐字一致为终局形态，全量 57 个带哈希登记点不一致 0）。
+
+**FAQ-8 verify 期望滞后**
+- 症状：部署本身正常、功能实测可用，但 verify 固定有一项判「缺」。
+- 根因：verify 探针的期望值停在旧口径（如某工具集探针期望旧工具名清单），功能已变更而探针没跟上。
+- 处置：先以线上实测确认功能真值，再把探针期望改到真值、入包升版；不许反过来改功能迁就探针，也不许把探针判缺当部署失败回滚（回滚口径见 §3 第 3 步）。
+- 证据：2.11.0 首次真部署 verify 剩 library-mcp-tools 一项期望过期；2.16.0 按上线实测修正为 [library_list, deliver_file] 关账。
+
+**FAQ-9 密码文件属主导致网关读不到**
+- 症状：web-login 恒失败，password.json 在位、哈希也对。
+- 根因：password.json 属主是 root，网关进程以容器内 hermes 用户运行，读不到该文件。
+- 处置：把属主改回容器内 hermes 用户；install 3b-2 已含挂载与属主确保，重跑 install 即自愈。
+- 证据：install.sh 3b-2「面板密码文件挂载确保」（包 2.8.0，#46）。
+
+**FAQ-10 两桥被 compose 全量 up 拉起**
+- 症状：已退役的 write-gate-bridge（8643）/overview-bridge（8644）又在监听，`docker ps` 里多出桥容器。
+- 根因：在部署目录跑了整表 `docker compose up -d`，把 compose 里的 legacy 桥服务定义一并拉起。
+- 处置：只许服务级 `docker compose up -d hermes`（§3）；桥服务定义已在包内 compose 模板收口摘除，线上若仍有残段一并摘净后复查无监听。
+- 证据：2026-11-26 两桥停回复核（8643/8644 无监听、hermes 健康 200，部署包 2.11.0 模板已摘除残段）。
 
 ---
 
