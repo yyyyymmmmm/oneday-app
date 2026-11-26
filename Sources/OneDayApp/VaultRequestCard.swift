@@ -60,9 +60,14 @@ struct VaultRequestCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
             HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Palette.primary)
+                ZStack {
+                    Circle()
+                        .fill(Palette.primary.opacity(0.12))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.primary)
+                }
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text("凭据请求")
@@ -108,8 +113,11 @@ struct VaultRequestCard: View {
             }
         }
         .padding(OneDayMetrics.spacingM)
-        .background(Palette.surface)
-        .cornerRadius(OneDayMetrics.radiusCard)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 0.75)
+        )
         .alert("操作失败", isPresented: Binding(
             get: { submitError != nil },
             set: { if !$0 { submitError = nil } }
