@@ -402,7 +402,7 @@ struct SettingsView: View {
             }
             navRow(icon: "bell", title: L10n.string("通知"), route: .notifications)
             navRow(icon: "face.smiling", title: L10n.string("互动"), route: .interaction)
-            if VaultStore().isAvailable {
+            if appState.phase == .connected {
                 navRow(icon: "lock.shield", title: L10n.string("密码与安全凭证"), route: .vault)
             }
             Toggle(isOn: Binding(

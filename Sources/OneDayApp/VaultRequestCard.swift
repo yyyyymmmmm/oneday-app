@@ -70,7 +70,7 @@ struct VaultRequestCard: View {
         }
         .padding(OneDayMetrics.spacingM)
         .background(Palette.surface)
-        .cornerRadius(OneDayMetrics.radiusM)
+        .cornerRadius(OneDayMetrics.radiusCard)
         .alert("操作失败", isPresented: Binding(
             get: { submitError != nil },
             set: { if !$0 { submitError = nil } }
@@ -120,7 +120,7 @@ struct VaultRequestCard: View {
                         .padding(.vertical, OneDayMetrics.spacingS)
                         .background(Palette.surface)
                         .overlay(
-                            RoundedRectangle(cornerRadius: OneDayMetrics.radiusS)
+                            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
                                 .stroke(Palette.danger, lineWidth: 1)
                         )
                 }
@@ -146,7 +146,7 @@ struct VaultRequestCard: View {
                     }
                 }
                 .background(Palette.primary)
-                .cornerRadius(OneDayMetrics.radiusS)
+                .cornerRadius(OneDayMetrics.radiusTile)
                 .disabled(submitting || !canFulfill)
             }
         }

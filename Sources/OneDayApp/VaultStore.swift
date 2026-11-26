@@ -14,11 +14,18 @@ final class VaultStore {
 
     private let client = VaultBridgeClient()
 
-    func isAvailable(appState: AppState) -> Bool {
-        guard let capabilities = appState.capabilities else {
-            return false
-        }
-        return capabilities.credentialVaultSupported == true
+    /// 能力位现查（与 AppState 同口径：/v1/capabilities
+    /// 的 features.credential_vault）；查不到或未广告
+    /// 即按不可用处理，列表保持空、不冒充有数据
+    private func vaultSupported(
+        appState: AppState, config: ServerConfig
+    ) async -> Bool {
+        guard let apiKey = appState.apiKey,
+              let caps = try? await HermesClient().capabilities(
+                config: config, apiKey: apiKey
+              )
+        else { return false }
+        return caps.credentialVaultSupported == true
     }
 
     func refresh(appState: AppState) async {
@@ -27,7 +34,7 @@ final class VaultStore {
             entries = []
             return
         }
-        guard isAvailable(appState: appState) else {
+        guard await vaultSupported(appState: appState, config: config) else {
             entries = []
             return
         }
@@ -58,7 +65,7 @@ final class VaultStore {
         guard appState.phase == .connected, let config = appState.config else {
             return
         }
-        guard isAvailable(appState: appState) else {
+        guard await vaultSupported(appState: appState, config: config) else {
             return
         }
         if appState.isDemo {
