@@ -1068,7 +1068,7 @@ else
   unk "approval-history-capability" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "guard-event-live" "守卫事件真链（cron 真跑一次危险命令被即时拒绝后账本新增 guard_event 行）属部署验收回读；verify 只锁分类/记录/对账行为与出口对账式"
-# ---- 49. 云电脑接管（包 2.18.11, #69；队列 164 合入、队列 205 构建关）: vault 执行器注册 + reverse_node 回连面（静态探针：部署目录包文件 grep）+ 脚本下发鉴权（行为探针） ----
+# ---- 50. 云电脑接管（包 2.18.11, #70；队列 164 合入、队列 205 构建关）: vault 执行器注册 + reverse_node 回连面（静态探针：部署目录包文件 grep）+ 脚本下发鉴权（行为探针） ----
 CVF="$DEPLOY_DIR/patches/credential_vault.py"; FGF="$DEPLOY_DIR/patches/front_gateway.py"; ASF="$DEPLOY_DIR/patches/api_server.py"
 if grep -qF 'OPERATIONS[("cloud_computer", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("browser_login", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("cloud_computer", "type_password")]' "$CVF"; then ok "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器在册（cloud_computer/browser_login fill_credential + cloud_computer type_password，保险库零知识填密链通）"; else bad "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器不全（vault_use 恒 denied，填密链断）"; fi
 if grep -q 'def node_checkin' "$FGF" && grep -q 'def get_agent_install_script' "$FGF"; then ok "cloudpc-node-face" "front_gateway 节点回连面在位（node_checkin 落状态 + get_agent_install_script 按令牌下发）"; else bad "cloudpc-node-face" "front_gateway 缺节点回连面（reverse_node 装不上、永远停在待回连）"; fi
