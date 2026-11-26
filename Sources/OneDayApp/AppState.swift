@@ -1030,13 +1030,19 @@ final class AppState {
         networkPathEpoch += 1
     }
 
-    init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
+    init(
+        client: HermesClientProtocol = HermesClient(),
+        demoMode: DemoMode = .off,
+        outboxRetryStorage: OutboxRetryStore? = nil,
+        sessionLedgerStorage: SessionLedger? = nil,
+        runLedgerStorage: RunLedgerStore? = nil
+    ) {
         self.client = client
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
-        sessionLedger = SessionLedger(persisted: !demoMode.isDemo)
-        runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
-        outboxRetry = OutboxRetryStore(persisted: !demoMode.isDemo)
+        sessionLedger = sessionLedgerStorage ?? SessionLedger(persisted: !demoMode.isDemo)
+        runLedger = runLedgerStorage ?? RunLedgerStore(persisted: !demoMode.isDemo)
+        outboxRetry = outboxRetryStorage ?? OutboxRetryStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
