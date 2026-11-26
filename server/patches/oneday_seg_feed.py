@@ -1426,7 +1426,7 @@ FEED_MEDIA_DIR = os.environ.get(
     "ONEDAY_FEED_MEDIA_DIR", "/opt/data/oneday/media/feed")
 FEED_MEDIA_BASE = os.environ.get(
     "ONEDAY_FEED_MEDIA_BASE",
-    "https://hermes.example.com/feed-media/")
+    "https://hermes.didichou.site/feed-media/")
 FEED_MEDIA_MAX_BYTES = 10 * 1024 * 1024
 _FEED_MEDIA_EXT = {"image/jpeg": ".jpg", "image/png": ".png",
                    "image/webp": ".webp", "image/gif": ".gif"}

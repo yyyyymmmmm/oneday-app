@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=80c3e5dfb5f52d56f4a3d22a7b40ecb12bed063651e01a7cd5036e4e62afee0d
+  [api_server.py]=dcb67c352f45e0b96f96a1dc45ca9d5400682a38cff828bafd46e644c40bf7cf
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
@@ -29,6 +29,7 @@ declare -A WANT_SHA_EXTRA=(
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
   [api_server_runs.py]=3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
+  [mail_gateway.py]=c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
@@ -49,7 +50,7 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
-  [api_server_oneday_routes.py]=bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed
+  [api_server_oneday_routes.py]=40160a843349de9915fb720b085acae8f3671f25eea0945ce977bab294c71d6d
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
@@ -60,7 +61,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
   [oneday_seg_delivery.py]=08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
-  [oneday_seg_feed.py]=b305c244437ff0e061c4a76a24a8be32e0da9831b9ebb7eaa55dd8d50956f39a
+  [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
   [oneday_seg_filelibrary.py]=f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
   [oneday_seg_goals_activity.py]=f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb
@@ -90,6 +91,7 @@ declare -A CPATH=(
   [web_routers_sessions.py]=/opt/hermes/hermes_cli/web_routers/sessions.py
   [api_server_runs.py]=/opt/hermes/gateway/platforms/api_server_runs.py
   [crash_reports.py]=/opt/hermes/gateway/platforms/crash_reports.py
+  [mail_gateway.py]=/opt/hermes/gateway/platforms/mail_gateway.py
   [fileproc_gateway.py]=/opt/hermes/gateway/platforms/fileproc_gateway.py
   [device_sync.py]=/opt/hermes/gateway/platforms/device_sync.py
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
@@ -151,7 +153,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py mail_gateway.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -990,20 +992,34 @@ else
   unk "activity-list-filtered" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 
-# ---- 46. 活动流标题引擎（包 2.18.7, #66；队列 193）: 引擎模块行为 + 胶水标记 + 计数面/线程出口回读 ----
-if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import title_engine as t; p=t.build_prompt("查内存", ["terminal：free -m"], "成功完成"); assert "三条硬约束" in p and "反例" in p; assert t.parse_summary_output("检查服务器内存\n占用 52%，正常")==("检查服务器内存","占用 52%，正常"); assert t.parse_summary_output("你是 OneDay 的点子生成器\n生成了卡") is None; assert t.parse_summary_output("处理了 run 任务\n跑完了") is None; th={"threadId":"thread:run:r1","itemIds":["run:r1"],"endedAt":200,"status":"completed"}; assert t.fingerprint(th)==t.fingerprint(dict(th)); assert t.fingerprint(dict(th, endedAt=201))!=t.fingerprint(th); st=t.new_state(1000); assert t.enqueue(st,"thread:run:r1","fp1",1000) and not t.enqueue(st,"thread:run:r1","fp1",1001); assert t.pick_next(st)["threadId"]=="thread:run:r1"' 2>/dev/null; then ok "title-engine-behavior" "title_engine 行为自检通过（提示词三关＋输出门＋指纹＋队列幂等，队列 193）"; else bad "title-engine-behavior" "title_engine 行为自检失败（2.18.7 未应用）"; fi
-if docker exec hermes grep -q "_title_enqueue_reconcile" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null && docker exec hermes grep -q "title_engine" /opt/hermes/gateway/platforms/oneday_gateway.py 2>/dev/null; then ok "title-engine-marks" "入队 pass 与引擎导入标记在位（队列 193）"; else bad "title-engine-marks" "入队 pass 或引擎导入标记缺失（2.18.7 未应用）"; fi
+# ---- 46. 中枢邮箱页服务端数据源（邮箱棒 1, 队列 181；并集 2.18.7 定版 #66, 队列 184）: 能力位 + 模块在位 + 账号面只读探针 ----
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"mail_gateway": true'*) ok "mail-capability-flag" "features.mail_gateway=true（邮箱数据源在位）" ;; *) bad "mail-capability-flag" "capabilities 未见 mail_gateway 位" ;; esac
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import mail_gateway as m; from gateway.platforms import credential_vault as v; assert ("mail_account", "sync") in v.OPERATIONS; assert m.MAX_AUTH_ATTEMPTS == 1' 2>/dev/null; then ok "mail-module" "容器内 mail_gateway 可导入、vault sync 执行器已注册、声明性不变量 MAX_AUTH_ATTEMPTS=1 在位（单次试登靠结构：每路径一次 login、无重试循环）"; else bad "mail-module" "容器内 mail_gateway 导入或执行器注册失败"; fi
 if [ -n "$API_KEY" ]; then
-  TE46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/summary" | python3 -c 'import json,sys; d=json.load(sys.stdin); te=d.get("titleEngine") or {}; print("%s:%s" % (te.get("model"), te.get("awaiting")))' 2>/dev/null || echo -1)
-  if [ "$TE46" = "-1" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/mail/accounts" || true)
+  if [ "$code" = "200" ]; then ok "mail-accounts-list" "GET /v1/mail/accounts → 200（账号面数据源）"; else bad "mail-accounts-list" "mail accounts 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8642/v1/mail/accounts" || true)
+  if [ "$code" = "401" ]; then ok "mail-accounts-auth" "无钥 GET /v1/mail/accounts → 401（鉴权在位）"; else bad "mail-accounts-auth" "无钥 mail accounts 应答 $code（期望 401）"; fi
+else
+  unk "mail-accounts-list" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+
+# ---- 47. 活动流标题引擎（包 2.18.8, #67；队列 193）: 引擎模块行为 + 胶水标记 + 计数面/线程出口回读 ----
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import title_engine as t; p=t.build_prompt("查内存", ["terminal：free -m"], "成功完成"); assert "三条硬约束" in p and "反例" in p; assert t.parse_summary_output("检查服务器内存\n占用 52%，正常")==("检查服务器内存","占用 52%，正常"); assert t.parse_summary_output("你是 OneDay 的点子生成器\n生成了卡") is None; assert t.parse_summary_output("处理了 run 任务\n跑完了") is None; th={"threadId":"thread:run:r1","itemIds":["run:r1"],"endedAt":200,"status":"completed"}; assert t.fingerprint(th)==t.fingerprint(dict(th)); assert t.fingerprint(dict(th, endedAt=201))!=t.fingerprint(th); st=t.new_state(1000); assert t.enqueue(st,"thread:run:r1","fp1",1000) and not t.enqueue(st,"thread:run:r1","fp1",1001); assert t.pick_next(st)["threadId"]=="thread:run:r1"' 2>/dev/null; then ok "title-engine-behavior" "title_engine 行为自检通过（提示词三关＋输出门＋指纹＋队列幂等，队列 193）"; else bad "title-engine-behavior" "title_engine 行为自检失败（2.18.8 未应用）"; fi
+if docker exec hermes grep -q "_title_enqueue_reconcile" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null && docker exec hermes grep -q "title_engine" /opt/hermes/gateway/platforms/oneday_gateway.py 2>/dev/null; then ok "title-engine-marks" "入队 pass 与引擎导入标记在位（队列 193）"; else bad "title-engine-marks" "入队 pass 或引擎导入标记缺失（2.18.8 未应用）"; fi
+if [ -n "$API_KEY" ]; then
+  TE47=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/summary" | python3 -c 'import json,sys; d=json.load(sys.stdin); te=d.get("titleEngine") or {}; print("%s:%s" % (te.get("model"), te.get("awaiting")))' 2>/dev/null || echo -1)
+  if [ "$TE47" = "-1" ]; then
     bad "title-engine-stats" "标题引擎计数探针异常（值 -1）"
   else
-    TEM=$(echo "$TE46" | cut -d: -f1)
-    if [ -n "$TEM" ] && [ "$TEM" != "None" ]; then ok "title-engine-stats" "计数面 titleEngine 在位：模型 $TEM、待补 $($TE46 | cut -d: -f2)（队列 193）"; else bad "title-engine-stats" "计数面 titleEngine 异常（值 $TE46）"; fi
+    TEM=$(echo "$TE47" | cut -d: -f1)
+    if [ -n "$TEM" ] && [ "$TEM" != "None" ]; then ok "title-engine-stats" "计数面 titleEngine 在位：模型 $TEM（随实例默认配置）、待补 $(echo $TE47 | cut -d: -f2)（队列 193）"; else bad "title-engine-stats" "计数面 titleEngine 异常（值 $TE47）"; fi
   fi
-  TS46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/threads?limit=200" | python3 -c 'import json,sys; d=json.load(sys.stdin); th=d.get("threads") or []; print(sum(1 for t in th if "titleSource" not in t))' 2>/dev/null || echo -1)
-  if [ "$TS46" = "0" ]; then ok "title-source-field" "线程出口 titleSource 字段全覆盖（队列 193）"; else bad "title-source-field" "线程出口缺 titleSource 的线程数 $TS46（期望 0；探针异常时值为 -1）"; fi
+  TS47=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/threads?limit=200" | python3 -c 'import json,sys; d=json.load(sys.stdin); th=d.get("threads") or []; print(sum(1 for t in th if "titleSource" not in t))' 2>/dev/null || echo -1)
+  if [ "$TS47" = "0" ]; then ok "title-source-field" "线程出口 titleSource 字段全覆盖（队列 193）"; else bad "title-source-field" "线程出口缺 titleSource 的线程数 $TS47（期望 0；探针异常时值为 -1）"; fi
 else
   unk "title-engine-stats" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
   unk "title-source-field" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
+unk "mail-behavior" "真邮箱全链（手动添加→测试→入库→首同步→统一收件箱回读→换密→删账号吊销凭据）与真实服务器 wire/TLS 互通属部署验收真链：包内自测以注入式假服务器整圈代跑（mail_gateway_selftest.py 61 项），verify 只读探针不代跑；验收主账号须用自建/测试邮箱（拟案口径）"
