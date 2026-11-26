@@ -39,14 +39,16 @@ enum MacSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// 三栏主窗空壳（地基棒）：NavigationSplitView 三栏
-/// 骨架——侧边栏（一级项＋频道/旁聊分组占位＋连接状
-/// 态卡）、中栏（当前一级项的列表占位）、详情区（连
-/// 接摘要）。只到壳：各面功能按对位表在后续棒逐面接
-/// 入，占位处明示棒次，不冒充已实现。
+/// 三栏主窗（棒 1 做实聊天列）：NavigationSplitView
+/// 三栏——侧边栏（一级项＋连接状态卡）、中栏（聊天
+/// 时为会话列表，其余面占位明示棒次）、详情区（聊
+/// 天面）。会话选中经列表店/会话店驱动聊天面打开。
 struct MainShellView: View {
     @Environment(SessionStore.self) private var session
     @State private var section: MacSection? = .chat
+    @State private var listStore = MacSessionListStore()
+    @State private var conversation = MacConversationStore()
+    @State private var selectedSessionID: String?
 
     var body: some View {
         NavigationSplitView {
@@ -57,6 +59,23 @@ struct MainShellView: View {
             detailColumn
         }
         .frame(minWidth: 980, minHeight: 620)
+        .onChange(of: selectedSessionID) { _, newID in
+            guard let newID,
+                  let target = (listStore.sessions
+                      + listStore.archivedSessions)
+                      .first(where: { $0.id == newID })
+            else { return }
+            Task {
+                await conversation.open(
+                    target, from: session, listStore: listStore
+                )
+            }
+        }
+        .onChange(of: section) { _, newSection in
+            if newSection != .chat {
+                conversation.saveDraft()
+            }
+        }
     }
 
     // MARK: - 栏 1：侧边栏
@@ -67,8 +86,21 @@ struct MainShellView: View {
                 ForEach(
                     [MacSection.chat, .feed, .ideas, .goals, .files, .vault]
                 ) { item in
-                    Label(item.title, systemImage: item.symbol)
-                        .tag(item)
+                    HStack {
+                        Label(item.title, systemImage: item.symbol)
+                        if item == .chat, listStore.totalUnread > 0 {
+                            Spacer()
+                            Text("\(listStore.totalUnread)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Palette.primary, in: Capsule()
+                                )
+                        }
+                    }
+                    .tag(item)
                 }
             }
             Section("频道") {
@@ -112,16 +144,23 @@ struct MainShellView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - 栏 2：列表占位
+    // MARK: - 栏 2：列表列
 
     @ViewBuilder
     private var contentColumn: some View {
         switch section ?? .chat {
         case .chat:
-            ContentUnavailableView(
-                "暂无会话",
-                systemImage: "bubble.left.and.bubble.right",
-                description: Text("会话列表在聊天主链棒接入。")
+            MacSessionListView(
+                listStore: listStore,
+                selectedSessionID: $selectedSessionID,
+                onSelect: { _ in },
+                onNew: {
+                    selectedSessionID = nil
+                    conversation.startNew()
+                }
+            )
+            .navigationSplitViewColumnWidth(
+                min: 240, ideal: 300, max: 380
             )
         case .hub:
             ContentUnavailableView(
@@ -138,12 +177,14 @@ struct MainShellView: View {
         }
     }
 
-    // MARK: - 栏 3：详情占位（连接摘要证明地基链路）
+    // MARK: - 栏 3：详情区
 
     @ViewBuilder
     private var detailColumn: some View {
         if section == .chat {
-            connectionSummary
+            MacChatView(
+                conversation: conversation, listStore: listStore
+            )
         } else {
             ContentUnavailableView(
                 (section ?? .chat).title,
@@ -153,49 +194,4 @@ struct MainShellView: View {
         }
     }
 
-    private var connectionSummary: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("已连接到你的服务器")
-                .font(.title2.bold())
-            VStack(alignment: .leading, spacing: 8) {
-                summaryRow("服务器", session.config?.baseString ?? "—")
-                summaryRow("Hermes 版本", session.hermesVersion ?? "—")
-                summaryRow(
-                    "当前模型", session.modelID ?? "—"
-                )
-                summaryRow(
-                    "可用模型", "\(session.modelCount) 个"
-                )
-                summaryRow(
-                    "服务端能力", session.capabilitySummary ?? "—"
-                )
-            }
-            .padding(14)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(cornerRadius: 10)
-            )
-            Text("登录链（健康检查 → 面板密码验证 → 换取登录密钥 → 模型与能力读取）已全链走通。聊天面在下一棒接入。")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.pageBG)
-    }
-
-    private func summaryRow(_ title: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(title)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(width: 76, alignment: .leading)
-            Text(value)
-                .font(.callout)
-                .textSelection(.enabled)
-                .lineLimit(2)
-        }
-    }
 }
