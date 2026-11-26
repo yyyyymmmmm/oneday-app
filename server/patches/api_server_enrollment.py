@@ -162,14 +162,24 @@ class _EnrollmentStore:
 
 
 _enrollment_store = _EnrollmentStore()
-# Send a comment before remote API clients' common 20-second idle deadline.
-# This constant is shared by OpenAI chat/Responses and native session SSE.
-CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS = 10.0
-API_SERVER_HEARTBEAT_SECONDS = 30.0
-API_SERVER_LATENCY_SAMPLE_LIMIT = 512
-MAX_NORMALIZED_TEXT_LENGTH = 65_536  # 64 KB cap for normalized content parts
-MAX_CONTENT_LIST_SIZE = 1_000  # Max items when content is an array
-RESPONSES_AUTO_TRUNCATION_HISTORY_LIMIT = 100
+
+
+def __getattr__(name: str):
+    """Resolve shared SSE limits from api_server after its initialization completes."""
+    if name in {
+        "API_SERVER_HEARTBEAT_SECONDS",
+        "API_SERVER_LATENCY_SAMPLE_LIMIT",
+        "CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS",
+        "MAX_CONTENT_LIST_SIZE",
+        "MAX_NORMALIZED_TEXT_LENGTH",
+        "RESPONSES_AUTO_TRUNCATION_HISTORY_LIMIT",
+    }:
+        try:
+            from gateway.platforms import api_server
+        except ImportError:
+            import api_server
+        return getattr(api_server, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class ThreadSafeAsyncQueue(asyncio.Queue):

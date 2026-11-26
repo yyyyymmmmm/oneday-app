@@ -20,12 +20,13 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=8c81f0c3da1594df8cc88e3896e4c2d8d9f695c217420572957e590f15eb01d7
+  [api_server.py]=b3655fec226999a7fcdb37ec1a5fbadc0418a190a9a5be805688cf58a435d047
   [bitwarden_link.py]=d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
 declare -A WANT_SHA_EXTRA=(
+  [api_server_support.py]=8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02
   [approval_projection.py]=e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
   [approval_history.py]=00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d
@@ -36,7 +37,7 @@ declare -A WANT_SHA_EXTRA=(
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=5f1ddcc288942c33d6c0c62036e30dc3b29455e99fa8217300d923c135f204a4
   [device_gateway_catalog.py]=122d38d485e2fe9bcb81542d226dc89d0aa45070e6290ab2579420ab3dad278c
-  [api_server_enrollment.py]=3fe00080bbd02c0edfc72cd7437ae6375874418a6e840665eb499d9ef60c480d
+  [api_server_enrollment.py]=4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
   [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
@@ -104,6 +105,7 @@ declare -A CPATH=(
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
   [device_gateway_catalog.py]=/opt/hermes/gateway/platforms/device_gateway_catalog.py
   [api_server_enrollment.py]=/opt/hermes/gateway/platforms/api_server_enrollment.py
+  [api_server_support.py]=/opt/hermes/gateway/platforms/api_server_support.py
   [identity_gateway.py]=/opt/hermes/gateway/platforms/identity_gateway.py
   [front_gateway.py]=/opt/hermes/gateway/platforms/front_gateway.py
   [react_to_message_tool.py]=/opt/hermes/tools/react_to_message_tool.py
@@ -1132,3 +1134,9 @@ if grep -q 'device_gateway_catalog' "$DEPLOY_DIR/patches/device_gateway.py" && !
 if grep -q 'api_server_enrollment' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _EnrollmentStore' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class ThreadSafeAsyncQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-enrollment-seam" "api_server 接 enrollment 且无残留类"; else bad "split-enrollment-seam" "api_server 接缝异常"; fi
 if grep -q 'oneday_feed_helpers' "$DEPLOY_DIR/patches/oneday_seg_feed.py" && ! grep -q '^def _feed_usefulness' "$DEPLOY_DIR/patches/oneday_seg_feed.py"; then ok "split-feed-seam" "seg_feed 接 helpers 且无内嵌函数"; else bad "split-feed-seam" "seg_feed 接缝异常"; fi
 if docker exec hermes python3 -c 'from gateway.platforms import device_gateway_catalog as c, api_server_enrollment as e, oneday_feed_helpers as f; assert len(c.TOOLS) >= 50; assert e._enrollment_store is not None and e.ThreadSafeAsyncQueue; assert f._feed_category_for("x") is not None' >/dev/null 2>&1; then ok "split-import-smoke" "容器内三模块 import 与最小行为探针通过"; else bad "split-import-smoke" "容器内三模块 import/行为探针失败"; fi
+
+# ---- 53. api_server 并发/幂等 support 拆分（2.18.14 占位，队列 222） ----
+SUPPORT="$DEPLOY_DIR/patches/api_server_support.py"
+if [ -f "$SUPPORT" ] && grep -q '^class _IdempotencyCache' "$SUPPORT" && grep -q '^class _ProviderAuthResolutionError' "$SUPPORT" && grep -q '^class _SessionEventQueue' "$SUPPORT"; then ok "split-support-module" "support 三原语在位"; else bad "split-support-module" "support 模块或原语缺失"; fi
+if grep -q 'api_server_support' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _IdempotencyCache' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _ProviderAuthResolutionError' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _SessionEventQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-support-seam" "api_server 接 support 且无原语残留"; else bad "split-support-seam" "api_server support 接缝异常"; fi
+if docker exec hermes python3 -c 'from gateway.platforms import api_server as a, api_server_support as s; assert isinstance(a._idem_cache, s._IdempotencyCache); assert a._ProviderAuthResolutionError is s._ProviderAuthResolutionError; assert a._SessionEventQueue is s._SessionEventQueue; from gateway.platforms import api_server_enrollment as e; assert e.CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS == a.CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS and e.API_SERVER_HEARTBEAT_SECONDS == a.API_SERVER_HEARTBEAT_SECONDS' >/dev/null 2>&1; then ok "split-support-import-smoke" "support 导入、api_server 接线及 enrollment 常量单源冒烟通过"; else bad "split-support-import-smoke" "support/enrollment 接缝冒烟失败"; fi

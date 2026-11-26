@@ -170,6 +170,18 @@ from gateway.platforms.base import (
     validate_media_delivery_path)
 from gateway.platforms.api_server_run_idempotency import RunIdempotencyStore
 from gateway.platforms.api_server_response_store import ResponseStore
+try:
+    from gateway.platforms.api_server_support import (
+        _IdempotencyCache,
+        _ProviderAuthResolutionError,
+        _SessionEventQueue,
+    )
+except ImportError:
+    from api_server_support import (
+        _IdempotencyCache,
+        _ProviderAuthResolutionError,
+        _SessionEventQueue,
+    )
 from agent.i18n import t
 from agent.redact import redact_sensitive_text
 from agent.interrupt_compat import request_hard_interrupt
@@ -1017,46 +1029,6 @@ def _reserve_pending_api_work(adapter):
             _release_pending_api_work(adapter, reservation)
 
 
-class _IdempotencyCache:
-    """In-memory idempotency cache with TTL and basic LRU semantics."""
-    def __init__(self, max_items: int = 1000, ttl_seconds: int = 300):
-        from collections import OrderedDict
-        self._store = OrderedDict()
-        self._inflight: dict[tuple[str, str], asyncio.Task[Any]] = {}
-        self._ttl = ttl_seconds
-        self._max = max_items
-
-    def _purge(self):
-        now = time.time()
-        expired = [k for k, v in self._store.items() if now - v["ts"] > self._ttl]
-        for k in expired:
-            self._store.pop(k, None)
-        while len(self._store) > self._max:
-            self._store.popitem(last=False)
-
-    async def get_or_set(self, key: str, fingerprint: str, compute_coro):
-        self._purge()
-        item = self._store.get(key)
-        if item and item["fp"] == fingerprint:
-            return item["resp"]
-        inflight_key = (key, fingerprint)
-        task = self._inflight.get(inflight_key)
-        if task is None:
-            async def _compute_and_store():
-                resp = await compute_coro()
-                self._store[key] = {"resp": resp, "fp": fingerprint, "ts": time.time()}
-                self._purge()
-                return resp
-            task = asyncio.create_task(_compute_and_store())
-            self._inflight[inflight_key] = task
-
-            def _clear_inflight(done_task: asyncio.Task[Any]) -> None:
-                if self._inflight.get(inflight_key) is done_task:
-                    self._inflight.pop(inflight_key, None)
-            task.add_done_callback(_clear_inflight)
-        return await asyncio.shield(task)
-
-
 _idem_cache = _IdempotencyCache()
 
 
@@ -1130,86 +1102,6 @@ except Exception:  # pragma: no cover - scanner is optional hardening
 # display language. ``user_text()`` renders the human-facing line through ``t()``.
 PROVIDER_AUTH_FAILED_LABEL = "Provider authentication failed"
 PROVIDER_RATE_LIMITED_LABEL = "Provider rate-limited"
-
-
-class _ProviderAuthResolutionError(RuntimeError):
-    """Provider credential resolution failed. Typed so callers never mislabel other
-    RuntimeErrors from run_conversation() (e.g. a closed OpenAI client) as auth failures."""
-
-    def is_rate_limited(self) -> bool:
-        """A quota/429 cap with valid credentials must not be labelled an authentication
-        failure — the cause chain (RuntimeError -> AuthError) tells them apart (#89401)."""
-        from hermes_cli.auth import is_rate_limited_auth_error
-
-        cause = self.__cause__
-        cause = getattr(cause, "__cause__", None) if isinstance(cause, RuntimeError) else cause
-        return bool(is_rate_limited_auth_error(cause))
-
-    def user_text(self) -> str:
-        """Raw-surface failure line shown as the assistant reply in API-backed chat UIs."""
-        label = t("platform.api_server.provider_rate_limited" if self.is_rate_limited()
-                  else "platform.api_server.provider_auth_failed")
-        return t("platform.api_server.provider_error_line", label=label, error=self)
-
-
-class _SessionEventQueue:
-    """Ordered SSE event queue for one /api/sessions/{id}/chat/stream run. ``payload`` stamps
-    session_id/run_id/seq/ts; ``enqueue`` is executor-thread safe (hops onto the owning loop)."""
-
-    def __init__(self, session_id: str, run_id: str):
-        self.loop = asyncio.get_running_loop()
-        self.queue: asyncio.Queue[Optional[tuple[str, dict[str, Any]]]] = asyncio.Queue()
-        self.session_id = session_id
-        self.run_id = run_id
-        self.seq = 0
-        # Cross-thread puts handed to the loop and not yet applied. The loop does not order them
-        # against the worker future's completion, so the turn's terminal frames wait on flush().
-        self._inflight = 0
-        self._inflight_lock = threading.Lock()
-
-    def payload(self, name: str, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        self.seq += 1
-        payload.setdefault("session_id", self.session_id)
-        payload.setdefault("run_id", self.run_id)
-        payload.setdefault("seq", self.seq)
-        payload.setdefault("ts", time.time())
-        return name, payload
-
-    def enqueue(self, name: str, payload: dict[str, Any]) -> None:
-        event = self.payload(name, payload)
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-        if running_loop is self.loop:
-            self.queue.put_nowait(event)
-            return
-        with self._inflight_lock:
-            self._inflight += 1
-
-        def _apply() -> None:
-            try:
-                self.queue.put_nowait(event)
-            finally:
-                self._settle_one()
-        try:
-            self.loop.call_soon_threadsafe(_apply)
-        except RuntimeError:  # loop closed: the stream is gone, nothing left to deliver to
-            self._settle_one()
-
-    def _settle_one(self) -> None:
-        with self._inflight_lock:
-            self._inflight -= 1
-
-    async def flush(self) -> None:
-        """Wait until every event a worker thread enqueued has reached the queue. Call it before
-        the terminal frames: a commentary/delta/approval handed over before the worker returned
-        otherwise lands after ``done``/``None`` and the reader never sees it."""
-        while True:
-            with self._inflight_lock:
-                if not self._inflight:
-                    return
-            await asyncio.sleep(0)
 
 
 def _room_grant_delegate(name: str):

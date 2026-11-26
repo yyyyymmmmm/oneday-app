@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|8c81f0c3da1594df8cc88e3896e4c2d8d9f695c217420572957e590f15eb01d7"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|b3655fec226999a7fcdb37ec1a5fbadc0418a190a9a5be805688cf58a435d047"
   "bitwarden_link.py|patches/bitwarden_link.py|/opt/hermes/gateway/platforms/bitwarden_link.py|d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
@@ -87,7 +87,8 @@ PATCHES=(
 # 即时拒绝与守卫放行命中以 guard_event 入同一本账；shim 只观察、
 # 不在判定链，HERMES_APPROVAL_GUARD_EVENTS=off 即不装）。
 MODULES=(
-  "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|3fe00080bbd02c0edfc72cd7437ae6375874418a6e840665eb499d9ef60c480d"
+  "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
+  "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
   "approval_history.py|patches/approval_history.py|/opt/hermes/gateway/platforms/approval_history.py|00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d"
@@ -263,6 +264,7 @@ grep -q "device_sync.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT
 grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_gateway_catalog.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_enrollment.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "api_server_support.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_feed_helpers.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "identity_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "front_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -456,6 +458,9 @@ specs = [
     ("api_server_enrollment.py",
      "      - ./patches/api_server_enrollment.py:/opt/hermes/gateway/platforms/api_server_enrollment.py:ro",
      "./patches/api_server_runs.py:/opt/hermes/gateway/platforms/api_server_runs.py:ro"),
+    ("api_server_support.py",
+     "      - ./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro",
+     "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
     ("react_to_message_tool.py",
      "      - ./patches/react_to_message_tool.py:/opt/hermes/tools/react_to_message_tool.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
@@ -714,6 +719,7 @@ PYEOF
   grep -q "device_gateway.py" "$compose_file" || die "compose device_gateway mount line write failed"
   grep -q "device_gateway_catalog.py" "$compose_file" || die "compose device_gateway_catalog mount line write failed"
   grep -q "api_server_enrollment.py" "$compose_file" || die "compose api_server_enrollment mount line write failed"
+  grep -q "api_server_support.py" "$compose_file" || die "compose api_server_support mount line write failed"
   grep -q "oneday_feed_helpers.py" "$compose_file" || die "compose oneday_feed_helpers mount line write failed"
   grep -q "identity_gateway.py" "$compose_file" || die "compose identity_gateway mount line write failed"
   grep -q "front_gateway.py" "$compose_file" || die "compose front_gateway mount line write failed"
