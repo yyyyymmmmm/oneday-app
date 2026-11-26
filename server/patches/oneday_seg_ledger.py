@@ -868,11 +868,14 @@ def _ledger_threads_view(cursor, limit) -> dict:
 # -- title engine: model headlines at thread close (queue 193) --
 #
 # Bar 2 of the activity-feed rework (proposal sec.3). When a
-# thread closes, its on-record material is queued and a cheap-
-# tier model -- configured SEPARATELY from the generation rounds
-# (ONEDAY_TITLE_MODEL, default claude-sonnet-4-6; the rounds'
-# deepseek pool is not this engine's channel) -- writes the
-# thread's headline asynchronously. The exits never wait: the
+# thread closes, its on-record material is queued and the
+# instance's default model writes the thread's headline
+# asynchronously. The model is NEVER named in this code and the
+# engine has no model key of its own (user-ruled 2026-11-26
+# 19:38): submissions carry GEN_MODEL, the generation chain's
+# own variable, read from the instance configuration
+# (ONEDAY_GEN_MODEL) exactly as the rounds read it -- retune
+# the instance and the engine follows. The exits never wait: the
 # thread shelves with its rule-derived headline (173/183, now
 # the standing fallback) and is renamed in place when the
 # summary lands (titleHumanSource="model" on the written member;
@@ -890,8 +893,6 @@ def _ledger_threads_view(cursor, limit) -> dict:
 # a blocked exit. Submissions/successes/failures are cumulative
 # counters in the queue file and surface on the counts view.
 
-TITLE_MODEL = os.environ.get(
-    "ONEDAY_TITLE_MODEL", "claude-sonnet-4-6")
 TITLE_SESSION_ID = "oneday-title-summary"
 TITLE_QUEUE_PATH = Path(os.environ.get(
     "TITLE_QUEUE_PATH",
@@ -1068,8 +1069,9 @@ def _title_thread_material(thread, store):
 
 def _title_submit_run(prompt: str, idem_key: str) -> tuple:
     """(run_id, error): submit one title summary run on the
-    generation rounds' own route (/v1/runs), with the title
-    model -- never GEN_MODEL. Stateless first; if the gateway
+    generation rounds' own route (/v1/runs), carrying the
+    instance default model (GEN_MODEL, the rounds' own source).
+    Stateless first; if the gateway
     insists on a session, the dedicated title session is ensured
     and the submit retried bound to it (that session is in
     LEDGER_SKIP_SESSIONS, so its own ledger record classifies
@@ -1078,7 +1080,7 @@ def _title_submit_run(prompt: str, idem_key: str) -> tuple:
                "Idempotency-Key": idem_key}
     status, payload, raw = _http_json(
         HERMES_BASE_URL + "/v1/runs", method="POST",
-        body={"input": prompt, "model": TITLE_MODEL},
+        body={"input": prompt, "model": GEN_MODEL},
         headers=headers, timeout=60)
     if status in (200, 201, 202) and isinstance(payload, dict) \
             and payload.get("run_id"):
@@ -1092,7 +1094,7 @@ def _title_submit_run(prompt: str, idem_key: str) -> tuple:
             timeout=30)
         status, payload, raw = _http_json(
             HERMES_BASE_URL + "/v1/runs", method="POST",
-            body={"input": prompt, "model": TITLE_MODEL,
+            body={"input": prompt, "model": GEN_MODEL,
                   "session_id": TITLE_SESSION_ID},
             headers=headers, timeout=60)
         if status in (200, 201, 202) \
@@ -1244,7 +1246,7 @@ def _title_worker_loop() -> None:
                 {"title_human": title, "summary": summary,
                  "titleHumanSource": "model",
                  "titleFingerprint": entry["fingerprint"],
-                 "titleModel": TITLE_MODEL,
+                 "titleModel": GEN_MODEL,
                  "titleSummarizedAt": _now()},
                 by="title-engine")
             with _title_queue_lock:
@@ -1275,7 +1277,7 @@ def _title_engine_stats() -> dict:
     except Exception:
         out = {"submitted": 0, "succeeded": 0, "failedAttempts": 0,
                "pending": 0, "done": 0, "failed": 0, "awaiting": 0}
-    out["model"] = TITLE_MODEL
+    out["model"] = GEN_MODEL
     return out
 
 

@@ -601,7 +601,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ledger.py
       mount_mode: ro
-      sha256: 61c29fb80e62e4c1c58615ee4214f1790a9a8c7aa1a0595593e446addb251a84
+      sha256: f74ce763301a60e4331eb4e467637086c30f73095b89857dbf643afbf930c278
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
