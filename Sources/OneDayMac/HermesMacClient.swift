@@ -729,4 +729,417 @@ struct HermesMacClient: Sendable {
             endpoint: "档案人设"
         )
     }
+
+    // MARK: - 批准与授权（棒 2，对位 #18/#19）
+
+    /// 任意 Encodable 请求体转 sendRaw 的 JSONValue 字典
+    private func encodeBody<T: Encodable>(
+        _ value: T
+    ) throws -> [String: JSONValue] {
+        let data = try JSONEncoder().encode(value)
+        let decoded = try JSONDecoder().decode(
+            JSONValue.self, from: data
+        )
+        guard case .object(let dict) = decoded else {
+            throw HermesError.decodingFailed(endpoint: "请求组装")
+        }
+        return dict
+    }
+
+    /// GET /v1/approvals（Bearer）：跨会话批准聚合
+    /// 逐条记录（执行批准：命令/说明/可选裁决/状态）
+    func approvalsList(
+        config: ServerConfig, apiKey: String
+    ) async throws -> MacApprovalsResponse {
+        try await sessionGet(
+            config: config, apiKey: apiKey, path: "/v1/approvals",
+            endpoint: "待批接口"
+        )
+    }
+
+    /// POST /v1/approvals/{request_id} {choice, reason?}：
+    /// 执行批准裁决（choice 取记录 choices 内的值；
+    /// 409＝已被处理/无活等待者，状态原样上抛供呈现
+    /// 层分型，不盲重试）
+    func resolveApproval(
+        config: ServerConfig, apiKey: String, requestID: String,
+        choice: String, reason: String?
+    ) async throws {
+        var body: [String: JSONValue] = ["choice": .string(choice)]
+        if let reason, !reason.isEmpty {
+            body["reason"] = .string(reason)
+        }
+        let (status, _) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/approvals/\(requestID)", method: "POST",
+            body: body
+        )
+        switch status {
+        case 200...299:
+            return
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "批准裁决", status: status
+            )
+        }
+    }
+
+    /// GET /v1/grants（Bearer）：统一授权清单（Core
+    /// GrantsListResponse；双源皆败服务端回 503，如
+    /// 实上抛、不回假空清单）
+    func grants(
+        config: ServerConfig, apiKey: String
+    ) async throws -> GrantsListResponse {
+        try await sessionGet(
+            config: config, apiKey: apiKey, path: "/v1/grants",
+            endpoint: "授权清单"
+        )
+    }
+
+    /// POST /v1/grants/revoke {source:"exec",
+    /// pattern_key}：撤销一条命令授权；回执不作终局
+    /// （成败以事后清单回读为准），状态＋服务端错误
+    /// 码原样带回供 GrantRevokeDirective 分型
+    func revokeGrant(
+        config: ServerConfig, apiKey: String, patternKey: String
+    ) async throws -> (status: Int, serverCode: String?) {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey, path: "/v1/grants/revoke",
+            method: "POST",
+            body: try encodeBody(GrantRevokeRequest.exec(
+                patternKey: patternKey
+            ))
+        )
+        return (status, HermesServerErrorCode.parse(data))
+    }
+
+    // MARK: - 写闸批准（棒 2，对位 #18/#19；网关原生面）
+
+    /// GET /v1/write-gate/status：闸门判定源（桥退役
+    /// 后由网关 write_gate_gateway 同形提供，Bearer
+    /// 同一把登录密钥）
+    func writeGateStatus(
+        config: ServerConfig, apiKey: String
+    ) async throws -> WriteGateStatus {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/status", endpoint: "审批状态"
+        )
+    }
+
+    /// GET /v1/write-gate/pending：待批记录（桥序＝
+    /// created_at 升序，先进先审）
+    func writeGatePending(
+        config: ServerConfig, apiKey: String
+    ) async throws -> WriteGatePendingList {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/pending", endpoint: "待批列表"
+        )
+    }
+
+    /// GET /v1/write-gate/pending/{subsystem}/{id}：
+    /// 记录＋改动对照（review）一次返回
+    func writeGateDetail(
+        config: ServerConfig, apiKey: String,
+        subsystem: WriteGateSubsystem, id: String
+    ) async throws -> WriteGateDetail {
+        guard let segment = subsystem.pathSegment else {
+            throw MacWriteGateError.failed(
+                "这类审批 App 里还处理不了，请在 Hermes 网页端处理。"
+            )
+        }
+        do {
+            return try await sessionGet(
+                config: config, apiKey: apiKey,
+                path: "/v1/write-gate/pending/\(segment)/\(id)",
+                endpoint: "待批详情"
+            )
+        } catch let error as HermesError {
+            if case .unexpectedStatus(_, let status) = error {
+                switch status {
+                case 401, 403: throw MacWriteGateError.unauthorized
+                case 404: throw MacWriteGateError.recordGone
+                case 409: throw MacWriteGateError.conflict
+                default: break
+                }
+            }
+            throw error
+        }
+    }
+
+    /// POST /v1/write-gate/pending/{subsystem}/{id}/
+    /// approve|reject：裁决（回执 success=false 一律
+    /// 按失败处理，与 iOS 同口径）
+    func writeGateDecide(
+        config: ServerConfig, apiKey: String,
+        subsystem: WriteGateSubsystem, id: String, approve: Bool
+    ) async throws -> WriteGateDecisionResponse {
+        guard let segment = subsystem.pathSegment else {
+            throw MacWriteGateError.failed(
+                "这类审批 App 里还处理不了，请在 Hermes 网页端处理。"
+            )
+        }
+        let action = approve ? "approve" : "reject"
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/pending/\(segment)/\(id)/\(action)",
+            method: "POST", body: [:]
+        )
+        switch status {
+        case 200...299:
+            do {
+                return try decoder.decode(
+                    WriteGateDecisionResponse.self, from: data
+                )
+            } catch {
+                throw MacWriteGateError.failed("裁决回执格式无法识别")
+            }
+        case 401, 403:
+            throw MacWriteGateError.unauthorized
+        case 404:
+            throw MacWriteGateError.recordGone
+        case 409:
+            throw MacWriteGateError.conflict
+        default:
+            throw MacWriteGateError.failed("裁决返回 \(status)")
+        }
+    }
+
+    /// GET /v1/write-gate/decisions?limit=：已决历史
+    func writeGateDecisions(
+        config: ServerConfig, apiKey: String, limit: Int = 50
+    ) async throws -> [WriteGateDecisionRecord] {
+        let response: WriteGateDecisionsResponse = try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/decisions",
+            query: [URLQueryItem(name: "limit", value: String(limit))],
+            endpoint: "已决记录"
+        )
+        return response.decisions
+    }
+
+    /// GET /v1/write-gate/rules：「总是允许」规则全集
+    /// （规则只存服务端，端侧不落本地）
+    func writeGateRules(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [WriteGateRule] {
+        let response: WriteGateRulesResponse = try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/rules", endpoint: "审批规则"
+        )
+        return response.rules
+    }
+
+    /// POST /v1/write-gate/rules {subsystem, origin}：
+    /// 建一条「总是允许」规则（服务端同键幂等）
+    func createWriteGateRule(
+        config: ServerConfig, apiKey: String,
+        subsystem: WriteGateSubsystem, origin: String
+    ) async throws -> WriteGateRule {
+        guard let segment = subsystem.pathSegment else {
+            throw MacWriteGateError.failed(
+                "这类审批 App 里还处理不了，请在 Hermes 网页端处理。"
+            )
+        }
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/rules", method: "POST",
+            body: [
+                "subsystem": .string(segment),
+                "origin": .string(origin),
+            ]
+        )
+        switch status {
+        case 200...299:
+            do {
+                return try decoder.decode(
+                    WriteGateRuleResponse.self, from: data
+                ).rule
+            } catch {
+                throw MacWriteGateError.failed("建立规则回执格式无法识别")
+            }
+        case 401, 403:
+            throw MacWriteGateError.unauthorized
+        case 409:
+            throw MacWriteGateError.conflict
+        default:
+            throw MacWriteGateError.failed("建立规则返回 \(status)")
+        }
+    }
+
+    /// DELETE /v1/write-gate/rules/{id}：撤销一条规则
+    /// （404＝已不存在，如实上抛、不假装撤成）
+    func deleteWriteGateRule(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let (status, _) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/write-gate/rules/\(id)", method: "DELETE"
+        )
+        switch status {
+        case 200...299:
+            return
+        case 401, 403:
+            throw MacWriteGateError.unauthorized
+        case 404:
+            throw MacWriteGateError.failed(
+                "这条规则已不存在，可能已被撤销。"
+            )
+        default:
+            throw MacWriteGateError.failed("撤销规则返回 \(status)")
+        }
+    }
+
+    // MARK: - 凭据库（棒 2，对位 #71/#20）
+
+    /// GET /v1/vault/entries：条目元数据全集（值不回
+    /// 客户端，只有字段名与 has_secret）
+    func vaultEntries(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MacVaultEntry] {
+        let response: MacVaultEntryListResponse = try await sessionGet(
+            config: config, apiKey: apiKey, path: "/v1/vault/entries",
+            endpoint: "凭据库"
+        )
+        return response.data
+    }
+
+    /// GET /v1/vault/entries/{id}：单条元数据
+    func vaultEntry(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> MacVaultEntry {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/vault/entries/\(id)", endpoint: "凭据条目"
+        )
+    }
+
+    /// POST /v1/vault/entries：新建条目（值由用户在端
+    /// 上输入、直送服务端，本地不落盘）
+    func createVaultEntry(
+        config: ServerConfig, apiKey: String,
+        request: MacVaultWriteRequest
+    ) async throws -> MacVaultWriteResponse {
+        try await vaultWrite(
+            config: config, apiKey: apiKey, path: "/v1/vault/entries",
+            method: "POST", request: request, endpoint: "凭据库"
+        )
+    }
+
+    /// PUT /v1/vault/entries/{id}：整条替换
+    func replaceVaultEntry(
+        config: ServerConfig, apiKey: String, id: String,
+        request: MacVaultWriteRequest
+    ) async throws -> MacVaultWriteResponse {
+        try await vaultWrite(
+            config: config, apiKey: apiKey,
+            path: "/v1/vault/entries/\(id)",
+            method: "PUT", request: request, endpoint: "凭据条目"
+        )
+    }
+
+    private func vaultWrite(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String, request: MacVaultWriteRequest,
+        endpoint: String
+    ) async throws -> MacVaultWriteResponse {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey, path: path,
+            method: method, body: try encodeBody(request)
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: status
+            )
+        }
+        do {
+            return try decoder.decode(
+                MacVaultWriteResponse.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    /// DELETE /v1/vault/entries/{id}：撤销（删除）条目
+    func revokeVaultEntry(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let (status, _) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/vault/entries/\(id)", method: "DELETE"
+        )
+        switch status {
+        case 200...299:
+            return
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "凭据条目", status: status
+            )
+        }
+    }
+
+    /// GET /v1/vault/requests：凭据请求全集（待办面
+    /// 按 status 分流呈现）
+    func vaultRequests(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MacVaultRequest] {
+        let response: MacVaultRequestListResponse = try await sessionGet(
+            config: config, apiKey: apiKey, path: "/v1/vault/requests",
+            endpoint: "凭据请求"
+        )
+        return response.data
+    }
+
+    /// GET /v1/vault/requests/{id}：单条请求状态
+    func vaultRequestStatus(
+        config: ServerConfig, apiKey: String, requestID: String
+    ) async throws -> MacVaultRequestStatus {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/vault/requests/\(requestID)",
+            endpoint: "凭据请求"
+        )
+    }
+
+    /// POST /v1/vault/requests/{id}/fulfill：兑现
+    /// （decision=fulfill 带值）或拒绝（decision=
+    /// reject）；值只在本次请求内出现，不落盘不进日志
+    func fulfillVaultRequest(
+        config: ServerConfig, apiKey: String, requestID: String,
+        request: MacVaultFulfillRequest
+    ) async throws -> MacVaultFulfillResponse {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/vault/requests/\(requestID)/fulfill",
+            method: "POST", body: try encodeBody(request)
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "凭据请求", status: status
+            )
+        }
+        do {
+            return try decoder.decode(
+                MacVaultFulfillResponse.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "凭据请求")
+        }
+    }
 }
