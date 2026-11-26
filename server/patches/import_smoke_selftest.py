@@ -261,27 +261,49 @@ def three_tables_reconciliation_check():
         print(f"⚠ manifest.yaml 解析失败: {e}", file=sys.stderr)
 
     # 3. Check verify.sh expectation table
+    verify_checked_count = 0
     try:
         with open(paths['verify.sh'], 'r', encoding='utf-8') as f:
             verify_content = f.read()
 
-        # Extract hash expectations: 'filename' 'expected_hash'
-        # Pattern: check_patch_hash 'some_file.py' 'hexhash'
-        hash_checks = re.findall(r'check_patch_hash\s+\'([^\']+)\'\s+\'([0-9a-f]{64})\'', verify_content)
-        for filename, registered_hash in hash_checks:
+        # Extract expectation array: declare -A WANT_SHA=( ... ) and WANT_SHA_EXTRA=( ... )
+        # Pattern: [filename]=hexhash
+        all_expectations = {}
+
+        # Parse WANT_SHA
+        want_sha_match = re.search(r'declare -A WANT_SHA=\(\s*\n((?:\s*\[[^\]]+\]=[0-9a-f]{64}\s*\n)+)\)', verify_content, re.MULTILINE)
+        if want_sha_match:
+            for line in want_sha_match.group(1).split('\n'):
+                line = line.strip()
+                match = re.match(r'\[([^\]]+)\]=([0-9a-f]{64})', line)
+                if match:
+                    all_expectations[match.group(1)] = match.group(2)
+
+        # Parse WANT_SHA_EXTRA
+        want_sha_extra_match = re.search(r'declare -A WANT_SHA_EXTRA=\(\s*\n((?:\s*\[[^\]]+\]=[0-9a-f]{64}\s*\n)+)\)', verify_content, re.MULTILINE)
+        if want_sha_extra_match:
+            for line in want_sha_extra_match.group(1).split('\n'):
+                line = line.strip()
+                match = re.match(r'\[([^\]]+)\]=([0-9a-f]{64})', line)
+                if match:
+                    all_expectations[match.group(1)] = match.group(2)
+
+        # Now check each expectation against actual file
+        for filename, registered_hash in all_expectations.items():
             # Files are in server/patches/
             actual_path = os.path.join(script_dir, filename)
             if os.path.exists(actual_path):
                 actual_hash = compute_sha256(actual_path)
+                verify_checked_count += 1
                 if actual_hash and actual_hash != registered_hash:
-                    discrepancies.append(f"verify.sh {filename}: 登记={registered_hash[:8]}... 实物={actual_hash[:8]}...")
+                    discrepancies.append(f"verify.sh {filename}: 期望={registered_hash[:8]}... 实物={actual_hash[:8]}...")
     except Exception as e:
         print(f"⚠ verify.sh 解析失败: {e}", file=sys.stderr)
 
     if discrepancies:
-        return False, discrepancies
+        return False, discrepancies, verify_checked_count
     else:
-        return True, []
+        return True, [], verify_checked_count
 
 def static_reconciliation_check():
     """Check MODULES table against mount insertion table in install.sh.
@@ -375,13 +397,14 @@ if __name__ == "__main__":
 
     # Run three tables reconciliation check
     print("\n三表对账检查开始（install.sh／manifest.yaml／verify.sh vs 实物）...", file=sys.stderr)
-    three_tables_passed, discrepancies = three_tables_reconciliation_check()
+    three_tables_passed, discrepancies, verify_count = three_tables_reconciliation_check()
     if not three_tables_passed:
         print(f"\n✗ 三表对账失败：发现 {len(discrepancies)} 处不符", file=sys.stderr)
         for d in discrepancies:
             print(f"  {d}", file=sys.stderr)
+        print(f"verify.sh 核对条数: {verify_count}", file=sys.stderr)
     else:
-        print("✓ 三表对账通过：所有登记哈希与实物文件一致", file=sys.stderr)
+        print(f"✓ 三表对账通过：所有登记哈希与实物文件一致（verify.sh 核对 {verify_count} 条）", file=sys.stderr)
 
     if failed == 0 and static_check_passed and three_tables_passed:
         print(f"\n✓ 全部 {passed} 个模块导入成功，静态对账通过，三表对账通过", file=sys.stderr)
