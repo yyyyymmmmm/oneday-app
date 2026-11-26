@@ -797,7 +797,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 9b818a1aa79d6fdb46735c915ad5175c7eedc76e0cb67a6f657c609e800e09be" "dist/index.js 604eb987332751f4a924a9399b5000124c720415969860f0dc815c4fb8fec36e" "dist/style.css 0027ca7ca77ee174404034bc0cec45955ac79e9be68a1a90a584ec6c93c9045c"; do
+for pair in "manifest.json 6dc46298c163ee2d284f876cb85f9be909d85bb6209331654d652f17887d17f6" "dist/index.js de5f515dd2dc19782e95a77a3de8791b811b63560d09c6671a5e4380c48965f0" "dist/style.css 5432b99f85511734f89a42579fc7a680ac724059044c648026d4ad456ba73925"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
