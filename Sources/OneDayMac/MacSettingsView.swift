@@ -147,10 +147,10 @@ struct MacSettingsView: View {
         case .appearance: return .appearance
         case .language, .identity: return .general
         case .notifications, .interaction, .voice: return .notifications
-        case .serverDetail, .authSessions, .addDevice, .disconnect:
+        case .serverDetail, .addDevice, .disconnect:
             return .server
         case .connectionSelfCheck, .healthCheck, .logs, .chatDiagnostics,
-             .crashReports, .advancedDiagnostics, .gateway, .envVars,
+             .crashReports, .gateway, .envVars,
              .mainSession, .pairingManagement:
             return .diagnostics
         case .help, .about, .privacy, .terms:

@@ -9,7 +9,7 @@ import OneDayDesign
 /// - 推送就绪自检如实呈现本机授权状态与 APNs 条件棒现状
 /// - 互动两开关与 Core ChatReactionsFloatingBarFeature /
 ///   ChatReactionsAISelfFeature 逐字同键，AI 反应按能力位门控
-/// - 回复朗读与 Core VoiceSpeechPreferences.autoReadKey 同键
+/// - 回复朗读与 iOS 端 VoiceSpeechPreferences.autoReadKey（"voice.autoReadReplies.v2"）逐字同键
 struct MacSettingsNotificationsPane: View {
     @Environment(SessionStore.self) private var session
 
@@ -27,7 +27,7 @@ struct MacSettingsNotificationsPane: View {
     @AppStorage(ChatReactionsAISelfFeature.defaultsKey)
     private var aiSelfReactionsEnabled = true
 
-    @AppStorage(VoiceSpeechPreferences.autoReadKey)
+    @AppStorage("voice.autoReadReplies.v2")
     private var autoRead = false
 
     @State private var authStatusText = "检查中…"
