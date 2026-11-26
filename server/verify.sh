@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=abfdfac97d29510377c7ca8d5411ffeb6b0eaadb5173c55b7a175eaf6ed510fd
+  [api_server.py]=8c81f0c3da1594df8cc88e3896e4c2d8d9f695c217420572957e590f15eb01d7
   [bitwarden_link.py]=d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
@@ -34,7 +34,9 @@ declare -A WANT_SHA_EXTRA=(
   [mail_gateway.py]=c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
-  [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
+  [device_gateway.py]=5f1ddcc288942c33d6c0c62036e30dc3b29455e99fa8217300d923c135f204a4
+  [device_gateway_catalog.py]=122d38d485e2fe9bcb81542d226dc89d0aa45070e6290ab2579420ab3dad278c
+  [api_server_enrollment.py]=3fe00080bbd02c0edfc72cd7437ae6375874418a6e840665eb499d9ef60c480d
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
   [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
@@ -63,7 +65,8 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
   [oneday_seg_delivery.py]=08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
-  [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
+  [oneday_seg_feed.py]=f0676764a5f75bf904799f7499c250dd301022e6b61ca154f40aa1596ab986c2
+  [oneday_feed_helpers.py]=1e6ed1b8e7d8f1fb782f2aa4f081e6736eb13547e6f0128cf936fdfeb7b9d300
   [oneday_seg_filelibrary.py]=f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
   [oneday_seg_goals_activity.py]=f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb
@@ -99,6 +102,8 @@ declare -A CPATH=(
   [fileproc_gateway.py]=/opt/hermes/gateway/platforms/fileproc_gateway.py
   [device_sync.py]=/opt/hermes/gateway/platforms/device_sync.py
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
+  [device_gateway_catalog.py]=/opt/hermes/gateway/platforms/device_gateway_catalog.py
+  [api_server_enrollment.py]=/opt/hermes/gateway/platforms/api_server_enrollment.py
   [identity_gateway.py]=/opt/hermes/gateway/platforms/identity_gateway.py
   [front_gateway.py]=/opt/hermes/gateway/platforms/front_gateway.py
   [react_to_message_tool.py]=/opt/hermes/tools/react_to_message_tool.py
@@ -128,6 +133,7 @@ declare -A CPATH=(
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
   [oneday_seg_delivery.py]=/opt/hermes/gateway/platforms/oneday_seg_delivery.py
   [oneday_seg_feed.py]=/opt/hermes/gateway/platforms/oneday_seg_feed.py
+  [oneday_feed_helpers.py]=/opt/hermes/gateway/platforms/oneday_feed_helpers.py
   [oneday_seg_filelibrary.py]=/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py
   [oneday_seg_goals.py]=/opt/hermes/gateway/platforms/oneday_seg_goals.py
   [oneday_seg_goals_activity.py]=/opt/hermes/gateway/platforms/oneday_seg_goals_activity.py
@@ -1111,3 +1117,18 @@ else
   unk "bw-status" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "bw-behavior-chain" "Bitwarden 真链（测试账号 apikey 登录→主密码解锁→同域对照 Bitwarden 赢→多条同域跳过→lock/断网降级内置库→样本零命中）属棒 3 部署验收真链：棒 1 已以同版 Vaultwarden 1.37.2 副本＋bitwarden_link_selftest.py 全链实证 75 项全绿（2026-11-26），verify 只读探针不代跑；bw 二进制钉版 2026.6.0 随包分发亦在棒 3 落地，本节只验模块与端点在位"
+
+# ---- 52. 服务端三拆分（2.18.13，队列 212）：模块在位、接缝不变量与容器 import 冒烟 ----
+SPLIT_CAT="$DEPLOY_DIR/patches/device_gateway_catalog.py"
+SPLIT_ENR="$DEPLOY_DIR/patches/api_server_enrollment.py"
+SPLIT_FEED="$DEPLOY_DIR/patches/oneday_feed_helpers.py"
+for SPLIT_PATH in "$SPLIT_CAT" "$SPLIT_ENR" "$SPLIT_FEED"; do
+  [ -f "$SPLIT_PATH" ] && ok "split-module-present" "$(basename "$SPLIT_PATH") 在位" || bad "split-module-present" "$(basename "$SPLIT_PATH") 缺失"
+done
+if [ -f "$SPLIT_CAT" ] && grep -q '^TOOLS = ' "$SPLIT_CAT" && grep -q '^TOOL_BY_NAME' "$SPLIT_CAT"; then ok "split-catalog-invariants" "catalog 工具表与注册表在位"; else bad "split-catalog-invariants" "catalog 内容不全"; fi
+if [ -f "$SPLIT_ENR" ] && grep -q '^class _EnrollmentStore' "$SPLIT_ENR" && grep -q '^class ThreadSafeAsyncQueue' "$SPLIT_ENR"; then ok "split-enrollment-invariants" "enrollment 存储与队列在位"; else bad "split-enrollment-invariants" "enrollment 内容不全"; fi
+if [ -f "$SPLIT_FEED" ] && grep -q '^def _feed_category_for' "$SPLIT_FEED" && grep -q '^def _feed_usefulness' "$SPLIT_FEED"; then ok "split-feed-invariants" "feed 两纯函数在位"; else bad "split-feed-invariants" "feed helpers 内容不全"; fi
+if grep -q 'device_gateway_catalog' "$DEPLOY_DIR/patches/device_gateway.py" && ! grep -q '^TOOLS = ' "$DEPLOY_DIR/patches/device_gateway.py"; then ok "split-device-seam" "device_gateway 接 catalog 且无内嵌 TOOLS"; else bad "split-device-seam" "device_gateway 接缝异常"; fi
+if grep -q 'api_server_enrollment' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _EnrollmentStore' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class ThreadSafeAsyncQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-enrollment-seam" "api_server 接 enrollment 且无残留类"; else bad "split-enrollment-seam" "api_server 接缝异常"; fi
+if grep -q 'oneday_feed_helpers' "$DEPLOY_DIR/patches/oneday_seg_feed.py" && ! grep -q '^def _feed_usefulness' "$DEPLOY_DIR/patches/oneday_seg_feed.py"; then ok "split-feed-seam" "seg_feed 接 helpers 且无内嵌函数"; else bad "split-feed-seam" "seg_feed 接缝异常"; fi
+if docker exec hermes python3 -c 'from gateway.platforms import device_gateway_catalog as c, api_server_enrollment as e, oneday_feed_helpers as f; assert len(c.TOOLS) >= 50; assert e._enrollment_store is not None and e.ThreadSafeAsyncQueue; assert f._feed_category_for("x") is not None' >/dev/null 2>&1; then ok "split-import-smoke" "容器内三模块 import 与最小行为探针通过"; else bad "split-import-smoke" "容器内三模块 import/行为探针失败"; fi
