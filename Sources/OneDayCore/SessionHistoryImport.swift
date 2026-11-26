@@ -67,6 +67,11 @@ public enum SessionHistoryImport {
         /// 体（v1 瞬态覆盖层口径），由导入侧按尾位规
         /// 则播种覆盖层；工具卡项恒 nil
         public let options: MessageOptions?
+        /// 0.51.2：凭据请求结构化块——与 options 同
+        /// 式不进条目本体，由导入侧全量按行播种覆
+        /// 盖层（凭据卡是行内历史构件、不走尾位规
+        /// 则）；工具卡项恒 nil
+        public let vaultRequest: MessageVaultRequest?
         /// 收敛包（2026-11-24，P3-1）：user 消息正文
         /// 首引用块拆出的引用槽位——落盘回填 Chat-
         /// Entry.quoteRole/quoteContent，正文只存干
@@ -80,6 +85,7 @@ public enum SessionHistoryImport {
             serverRowID: Int? = nil,
             reactions: [MessageReaction] = [],
             options: MessageOptions? = nil,
+            vaultRequest: MessageVaultRequest? = nil,
             quote: MessageQuote? = nil
         ) {
             self.role = role
@@ -91,6 +97,7 @@ public enum SessionHistoryImport {
             self.serverRowID = serverRowID
             self.reactions = reactions
             self.options = options
+            self.vaultRequest = vaultRequest
             self.quote = quote
         }
     }
@@ -211,6 +218,7 @@ public enum SessionHistoryImport {
                         ),
                         reactions: message.reactions,
                         options: message.options,
+                        vaultRequest: message.vaultRequest,
                         quote: normalized.quote
                     )
                 }
@@ -232,7 +240,8 @@ public enum SessionHistoryImport {
                     toolCard: nil,
                     serverRowID: Self.serverRowID(of: message),
                     reactions: message.reactions,
-                        options: message.options
+                        options: message.options,
+                        vaultRequest: message.vaultRequest
                 )
             }
         }

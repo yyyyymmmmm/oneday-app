@@ -235,6 +235,28 @@ final class SessionHistoryBackfiller {
         )
     }
 
+    /// 凭据卡播种（0.51.2）：与选择框的尾位规则不
+    /// 同——凭据卡是行内历史构件，拉到的全部块按
+    /// 行落位（过期/已处理态照样呈现）；块的呈现
+    /// 以本地条目在位为前提，行未落地的块播了也
+    /// 无行可挂、无副作用
+    private func seedVaultBlocks(
+        thread: ChatThread,
+        items: [SessionHistoryImport.RichItem]
+    ) {
+        let entries: [(serverRowID: Int, block: MessageVaultRequest)] =
+            items.compactMap { item in
+                guard let block = item.vaultRequest,
+                      let rowID = item.serverRowID
+                else { return nil }
+                return (serverRowID: rowID, block: block)
+            }
+        guard !entries.isEmpty else { return }
+        appState.vaultRequestOverlay.seedAll(
+            threadID: thread.id, entries: entries
+        )
+    }
+
     func backfill(
         thread: ChatThread, context: ModelContext
     ) async -> HistoryPullOutcome {
@@ -276,6 +298,7 @@ final class SessionHistoryBackfiller {
             let items = SessionHistoryImport.richItems(
                 from: ordered
             )
+            seedVaultBlocks(thread: thread, items: items)
             // 台账 187：先对账（既有条目补钉＋镜像覆
             // 写）再落新项——新项落盘自带钉桩/镜像，
             // 不走对账口（防同页内自配）
@@ -418,6 +441,7 @@ final class SessionHistoryBackfiller {
         let ordered = SessionHistoryPagePlanner.chronological(page)
         let seedCandidate = OptionsCardLogic.seedCandidate(in: ordered)
         let items = SessionHistoryImport.richItems(from: ordered)
+        seedVaultBlocks(thread: thread, items: items)
 
         // 1) 对账既有条目：完全同指纹者补钉 serverRowID、同步反应
         SessionHistoryInserter.reconcileReactions(

@@ -9,6 +9,8 @@ struct VaultListView: View {
     @State private var showBiometricError = false
     @State private var biometricErrorMessage = ""
     @State private var isUnlocked = false
+    @State private var showCreateEntry = false
+    @State private var showRequests = false
 
     var body: some View {
         Group {
@@ -23,19 +25,34 @@ struct VaultListView: View {
         .navigationTitle("密码与安全凭证")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    NavigationLink(destination: VaultEditView(entryId: nil, initialEntry: nil)) {
-                        Label("新建凭据", systemImage: "plus")
-                    }
-                    NavigationLink(destination: VaultRequestsView()) {
-                        Label("待处理请求", systemImage: "bell")
-                    }
+            // 0.51.2 修复（真机三报之一）：旧形态把
+            // NavigationLink 塞进 Menu——SwiftUI 的
+            // Menu 不响应 NavigationLink，点「新建凭
+            // 据」只收菜单不跳转，入口等于不存在。改
+            // 一级按钮＋@State 驱动：新建走 sheet、
+            // 待处理请求走 navigationDestination
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showRequests = true
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "bell")
                 }
                 .disabled(!isUnlocked)
+                .accessibilityLabel("待处理请求")
+                Button {
+                    showCreateEntry = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(!isUnlocked)
+                .accessibilityLabel("新建凭据")
             }
+        }
+        .sheet(isPresented: $showCreateEntry) {
+            VaultEditView(entryId: nil, initialEntry: nil)
+        }
+        .navigationDestination(isPresented: $showRequests) {
+            VaultRequestsView()
         }
         .task {
             await authenticateAndUnlock()

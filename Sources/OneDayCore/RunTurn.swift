@@ -700,13 +700,35 @@ public struct SettledRunTurn: Sendable, Equatable {
     public var optionsRowID: Int?
     /// 服务端内联交付附件（2.6.1+：供落定时预灌 DeliveryStore）
     public var attachments: [BridgeDelivery]
+    /// 0.51.2 修复（真机三报之三·消息乱序）：落定
+    /// 条目的行级服务端时刻——锚点 user 行／终答
+    /// 正文末行／每张工具卡各自来源行。落定据此
+    /// 写 createdAt，废除旧「本地 endDate＋毫秒偏
+    /// 移」重盖戳（双时钟混排正是乱序病灶）；取
+    /// 不到为 nil、落定回落旧口径兜底
+    public var userRowDate: Date?
+    public var assistantRowDate: Date?
+    public var toolCardDates: [Date?]
+    /// 0.51.2 修复（真机三报之二·密码卡不显示）：
+    /// 凭据请求结构化块（服务端 2.17.2 起随消息顶
+    /// 层 vault_request 下发）与挂载行 id——提取口
+    /// 在段内取带块的最后一条 assistant 行（终态
+    /// attach 每轮至多挂一行，与 options 同口
+    /// 径）；落定点据此播种本机覆盖层，端上凭块
+    /// 同步渲染、不再二次拉取
+    public var vaultRequest: MessageVaultRequest?
+    public var vaultRequestRowID: Int?
 
     public init(
         found: Bool, toolCards: [ToolCard], reasoning: String?,
         finalText: String?, failed: Bool, failureText: String?,
         userRowID: Int? = nil, assistantRowID: Int? = nil,
         options: MessageOptions? = nil, optionsRowID: Int? = nil,
-        attachments: [BridgeDelivery] = []
+        attachments: [BridgeDelivery] = [],
+        userRowDate: Date? = nil, assistantRowDate: Date? = nil,
+        toolCardDates: [Date?] = [],
+        vaultRequest: MessageVaultRequest? = nil,
+        vaultRequestRowID: Int? = nil
     ) {
         self.found = found
         self.toolCards = toolCards
@@ -719,6 +741,11 @@ public struct SettledRunTurn: Sendable, Equatable {
         self.options = options
         self.optionsRowID = optionsRowID
         self.attachments = attachments
+        self.userRowDate = userRowDate
+        self.assistantRowDate = assistantRowDate
+        self.toolCardDates = toolCardDates
+        self.vaultRequest = vaultRequest
+        self.vaultRequestRowID = vaultRequestRowID
     }
 
     public static let notFound = SettledRunTurn(
@@ -780,17 +807,22 @@ public enum RunTranscriptSettle {
                 found: true, toolCards: [], reasoning: nil,
                 finalText: nil, failed: true,
                 failureText: text.isEmpty ? nil : text,
-                userRowID: Self.rowID(messages[anchorIndex])
+                userRowID: Self.rowID(messages[anchorIndex]),
+                userRowDate: messages[anchorIndex].date
             )
         }
 
-        let cards = ToolCardBuilder.build(from: segment)
-            .compactMap { item -> ToolCard? in
-                if case .toolCard(let card, _) = item {
-                    return card
+        // 工具卡与各自来源行的服务端时刻成对提取
+        // （0.51.2：落定写行级时刻用，见 Settled-
+        // RunTurn.toolCardDates）
+        let cardPairs = ToolCardBuilder.build(from: segment)
+            .compactMap { item -> (card: ToolCard, date: Date?)? in
+                if case .toolCard(let card, let date) = item {
+                    return (card, date)
                 }
                 return nil
             }
+        let cards = cardPairs.map(\.card)
         let reasoningParts = segment
             .filter { $0.role == "assistant" }
             .map {
@@ -853,7 +885,18 @@ public enum RunTranscriptSettle {
             optionsRowID: segment.last(where: {
                 $0.role == "assistant" && $0.options != nil
             }).flatMap { Self.rowID($0) },
-            attachments: turnAttachments
+            attachments: turnAttachments,
+            userRowDate: messages[anchorIndex].date,
+            // 拼接成文的助手条目落在其末行时刻（段
+            // 内最后一条正文行的服务端时刻）
+            assistantRowDate: textRows.last?.row.date,
+            toolCardDates: cardPairs.map(\.date),
+            vaultRequest: segment.last(where: {
+                $0.role == "assistant" && $0.vaultRequest != nil
+            })?.vaultRequest,
+            vaultRequestRowID: segment.last(where: {
+                $0.role == "assistant" && $0.vaultRequest != nil
+            }).flatMap { Self.rowID($0) }
         )
     }
 

@@ -15,8 +15,47 @@ struct VaultRequestCard: View {
     @State private var fieldValues: [String: String] = [:]
     @State private var submitting = false
     @State private var submitError: String?
-    @State private var status: RequestCardStatus = .pending
+    @State private var status: RequestCardStatus
     @State private var isAlwaysAsk = false
+
+    /// initialStatus（0.51.2）：结构化块直出时按
+    /// 服务端块状态起卡（已提交/已过期不许再摆出
+    /// 可填表单）；标记兜底路径不传、恒 pending
+    /// 起（与旧形态同）
+    init(
+        requestId: String,
+        service: String,
+        domain: String,
+        reason: String,
+        fields: [String],
+        initialStatus: RequestCardStatus = .pending
+    ) {
+        self.requestId = requestId
+        self.service = service
+        self.domain = domain
+        self.reason = reason
+        self.fields = fields
+        _status = State(initialValue: initialStatus)
+    }
+
+    /// 服务端块/列表状态字面 → 卡内状态（未知字
+    /// 面按 pending 起、失效侧由提交回执纠正）
+    static func cardStatus(
+        forServerStatus status: String
+    ) -> RequestCardStatus {
+        switch status {
+        case "fulfilled", "submitted":
+            return .fulfilled(credentialRef: "")
+        case "rejected":
+            return .rejected
+        case "expired":
+            return .expired
+        case "consumed":
+            return .consumed
+        default:
+            return .pending
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {

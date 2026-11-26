@@ -119,6 +119,12 @@ struct ChatNativeRowFacets {
     /// 则派生后经快照器注入（与 sources 同为呈现
     /// 层派生 facet）；键缺＝无卡、零增量
     var optionsCards: [UUID: OptionsCardHeightInput] = [:]
+    /// 凭据卡行高输入（0.51.2）：键＝条目 id；值
+    /// 为该行全部凭据卡（块卡＋标记兜底卡/灰行）
+    /// 的输入列，由 ChatView 按覆盖层＋请求列表
+    /// 派生后经快照器注入（与 optionsCards 同为
+    /// 呈现层派生 facet）；键缺＝无卡、零增量
+    var vaultCards: [UUID: [VaultCardHeightInput]] = [:]
     var zoneAnchoredIDs: Set<String> = []
     var zoneResolvedLineIDs: [String] = []
     /// 第 6 项：失败条目的分类成因快照（供后台量测
@@ -139,7 +145,8 @@ enum ChatNativeRowFacetSnapshotter {
         ledger: ChatRowStateLedger,
         hubStore: AgentHubStore,
         outboxRetry: OutboxRetryStore? = nil,
-        optionsCard: OptionsCardHeightInput? = nil
+        optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = []
     ) -> ChatNativeRowFacets {
         var facets = ChatNativeRowFacets()
         if entry.sendFailed,
@@ -149,6 +156,9 @@ enum ChatNativeRowFacetSnapshotter {
         }
         if let optionsCard {
             facets.optionsCards[entry.id] = optionsCard
+        }
+        if !vaultCards.isEmpty {
+            facets.vaultCards[entry.id] = vaultCards
         }
         recordExpansion(
             ledger,

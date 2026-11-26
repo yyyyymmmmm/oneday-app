@@ -472,6 +472,12 @@ final class AppState {
     /// 呈现态，突变随条目/线程变更的重建趟消费
     let optionsOverlay = OptionsCardOverlay()
 
+    /// 凭据请求卡覆盖层（0.51.2）：与 options-
+    /// Overlay 同式持有——聊天面（呈现）与历史回
+    /// 补器（播种）共达；真源在服务端消息行的
+    /// vault_request 块，本层按行持呈现副本
+    let vaultRequestOverlay = VaultRequestOverlay()
+
     /// 中枢卡片底层处理进度（§502 灰底根治）：写端
     /// HubCardHost、读端壳层 HubUnderlayTreatment 的
     /// 共享持有者（与 optionsOverlay 同式单例持有、

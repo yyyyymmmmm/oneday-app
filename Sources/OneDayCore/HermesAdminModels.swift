@@ -1170,6 +1170,104 @@ public struct MessageOption: Decodable, Sendable, Equatable {
     }
 }
 
+/// 凭据请求结构化块（0.51.2／服务端 2.17.2）：终
+/// 态 attach 写在 assistant 行 display_metadata
+/// 的 vault_request 键，消息投影以顶层同名对象下
+/// 发——{v, type: "vault_request", request_id,
+/// service, domain, reason, fields, status,
+/// expires_at?, at?}。端上凭块同步渲染密码卡，
+/// 不再靠模型手抄 [[vreq:]] 正文标记＋二次拉取
+/// （标记只作旧存档兜底）。解码宽容与服务端形检
+/// 同口径：type 不符／request_id 非 vreq_ 前缀／
+/// service 空／fields 空或含空串／status 空，任
+/// 一不过判坏块（SessionMessage 侧据此判 nil），
+/// 一条坏载荷不许打死整页解码
+public struct MessageVaultRequest: Decodable, Sendable, Equatable {
+    public let requestID: String
+    public let service: String
+    public let domain: String
+    public let reason: String
+    public let fields: [String]
+    public let status: String
+    public let v: Int?
+    public let expiresAt: Double?
+    public let at: Double?
+
+    public init(
+        requestID: String, service: String, domain: String,
+        reason: String, fields: [String], status: String,
+        v: Int? = nil, expiresAt: Double? = nil,
+        at: Double? = nil
+    ) {
+        self.requestID = requestID
+        self.service = service
+        self.domain = domain
+        self.reason = reason
+        self.fields = fields
+        self.status = status
+        self.v = v
+        self.expiresAt = expiresAt
+        self.at = at
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case requestID = "request_id"
+        case service, domain, reason, fields, status
+        case v
+        case expiresAt = "expires_at"
+        case at
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decodeIfPresent(
+            String.self, forKey: .type
+        ) ?? ""
+        let requestID = try container.decodeIfPresent(
+            String.self, forKey: .requestID
+        ) ?? ""
+        let service = (try container.decodeIfPresent(
+            String.self, forKey: .service
+        ) ?? "").trimmingCharacters(in: .whitespaces)
+        let rawFields = try container.decodeIfPresent(
+            [String].self, forKey: .fields
+        ) ?? []
+        let status = (try container.decodeIfPresent(
+            String.self, forKey: .status
+        ) ?? "").trimmingCharacters(in: .whitespaces)
+        guard type == "vault_request",
+              requestID.hasPrefix("vreq_"),
+              !service.isEmpty,
+              !rawFields.isEmpty,
+              rawFields.allSatisfy({
+                  !$0.trimmingCharacters(in: .whitespaces).isEmpty
+              }),
+              !status.isEmpty
+        else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type, in: container,
+                debugDescription: "vault_request block shape invalid"
+            )
+        }
+        self.requestID = requestID
+        self.service = service
+        domain = try container.decodeIfPresent(
+            String.self, forKey: .domain
+        ) ?? ""
+        reason = try container.decodeIfPresent(
+            String.self, forKey: .reason
+        ) ?? ""
+        fields = rawFields
+        self.status = status
+        v = try container.decodeIfPresent(Int.self, forKey: .v)
+        expiresAt = try container.decodeIfPresent(
+            Double.self, forKey: .expiresAt
+        )
+        at = try container.decodeIfPresent(Double.self, forKey: .at)
+    }
+}
+
 public struct SessionMessage: Decodable, Sendable, Identifiable {
     public let id: Double
     public let role: String
@@ -1202,6 +1300,10 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     /// 行可带；解码全坏或空项判 nil（见 Message-
     /// Options 宽容口径）
     public let options: MessageOptions?
+    /// 凭据请求结构化块（0.51.2／2.17.2）：仅
+    /// assistant 行可带；形检不过判 nil（见
+    /// MessageVaultRequest 宽容口径）
+    public let vaultRequest: MessageVaultRequest?
     /// 服务端直出交付附件（2.6.1+：消息投影内联，
     /// 缺键＝[] 兼容旧版服务端）
     public let attachments: [BridgeDelivery]
@@ -1217,6 +1319,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         case displayKind = "display_kind"
         case reactions
         case options
+        case vaultRequest = "vault_request"
         case attachments
     }
 
@@ -1252,6 +1355,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         )) ?? nil
         options = (rawOptions?.options.isEmpty == false)
             ? rawOptions : nil
+        vaultRequest = (try? container.decodeIfPresent(
+            MessageVaultRequest.self, forKey: .vaultRequest
+        )) ?? nil
         attachments = (try? container.decodeIfPresent(
             [BridgeDelivery].self, forKey: .attachments
         )) ?? []
@@ -1267,6 +1373,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         displayKind: String? = nil,
         reactions: [MessageReaction] = [],
         options: MessageOptions? = nil,
+        vaultRequest: MessageVaultRequest? = nil,
         attachments: [BridgeDelivery] = []
     ) {
         self.id = id
@@ -1282,6 +1389,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         self.displayKind = displayKind
         self.reactions = reactions
         self.options = options
+        self.vaultRequest = vaultRequest
         self.attachments = attachments
     }
 

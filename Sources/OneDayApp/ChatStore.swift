@@ -96,9 +96,29 @@ final class ChatThread {
         updatedAt = Date()
     }
 
-    /// 按时间排序的消息（视图层统一走它，不散落 sort）
+    /// 排序的消息（视图层统一走它，不散落 sort）。
+    /// 0.51.2 修复（真机三报之三·消息乱序）：排序
+    /// 真源换服务端行号——双侧已钉桩（serverRow-
+    /// ID）按行号升序、同号再按 createdAt；任一侧
+    /// 未钉桩时按 createdAt 定序。落定/导入条目
+    /// 的 createdAt 已统一为行级服务端时刻（落定
+    /// 写口径见 applySettledTurn、导入见 Session-
+    /// HistoryInserter），时刻域同源可比；未钉桩
+    /// 的本地未落定条目（待发回显等）创建时刻恒
+    /// 最新、自然附在末尾，拿到回执钉桩后即按行
+    /// 号归位。旧口径只按本地 createdAt 排，而落
+    /// 定曾以本地轮次结束时刻重盖戳——双时钟混
+    /// 排、多段回复首段被盖晚戳沉底，正是乱序病灶
     var sortedEntries: [ChatEntry] {
-        entries.sorted { $0.createdAt < $1.createdAt }
+        entries.sorted { a, b in
+            switch (a.serverRowID, b.serverRowID) {
+            case let (x?, y?):
+                if x != y { return x < y }
+                return a.createdAt < b.createdAt
+            default:
+                return a.createdAt < b.createdAt
+            }
+        }
     }
 
     /// 种子同步态（§331）：原文落盘、枚举呈现——

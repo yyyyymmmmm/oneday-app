@@ -18,10 +18,37 @@ struct VaultEditView: View {
     @State private var fieldValues: [VaultFieldType: String] = [:]
     @State private var submitting = false
     @State private var submitError: String?
-    @State private var validationError: String?
+    @State private var domainsWarning: String?
 
     private var isEditing: Bool { entryId != nil }
-    private var isValid: Bool { validationError == nil }
+
+    /// 0.51.2 修复（真机三报之一）：必填收敛为名
+    /// 称＋至少一个字段值（大厂最小集口径）；服务
+    /// 名与域名改可选。旧口径名称/服务/域名/字段
+    /// 四件全是硬门槛、按钮禁用还不给原因，提交
+    /// 根本出不了手机
+    private var hasFieldValue: Bool {
+        fieldValues.values.contains {
+            !$0.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
+
+    private var canSubmit: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+            && hasFieldValue
+    }
+
+    /// 按钮禁用时当场说清差什么（人话原因），不
+    /// 再静默灰置
+    private var missingHint: String? {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "还差：凭据名称"
+        }
+        if !hasFieldValue {
+            return "还差：至少填写一个字段值（在下方勾选字段类型并填入）"
+        }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -31,7 +58,7 @@ struct VaultEditView: View {
                         .font(.body)
                         .autocorrectionDisabled()
 
-                    TextField("服务名称", text: $service)
+                    TextField("服务名称（可选）", text: $service)
                         .font(.body)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -59,15 +86,15 @@ struct VaultEditView: View {
                             validateDomains()
                         }
 
-                    if let error = validationError {
-                        Text(error)
+                    if let warning = domainsWarning {
+                        Text(warning)
                             .font(.meta)
-                            .foregroundStyle(Palette.danger)
+                            .foregroundStyle(Palette.warning)
                     }
                 } header: {
-                    Text("绑定域名")
+                    Text("绑定域名（可选）")
                 } footer: {
-                    Text("每行一个域名，如 example.com")
+                    Text("每行一个域名，如 example.com；不填也能保存，格式问题只提示、不拦保存")
                 }
 
                 Section {
@@ -142,7 +169,13 @@ struct VaultEditView: View {
                             Spacer()
                         }
                     }
-                    .disabled(!isValid || submitting || name.isEmpty || service.isEmpty || domainsText.isEmpty)
+                    .disabled(!canSubmit || submitting)
+
+                    if !canSubmit, let missingHint {
+                        Text(missingHint)
+                            .font(.meta)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                 }
             }
             .navigationTitle(isEditing ? "编辑凭据" : "新建凭据")
@@ -181,56 +214,45 @@ struct VaultEditView: View {
         }
     }
 
+    /// 域名校验降为提示口径（0.51.2）：域名可选
+    /// ——空不报错；填了才查格式，查出问题只给行
+    /// 内提示、不拦保存（匹配是使用时的事）
     private func validateDomains() {
         let lines = domainsText.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
 
-        if lines.isEmpty {
-            validationError = "至少需要一个域名"
-            return
-        }
-
         for line in lines {
-            if line.isEmpty {
-                validationError = "域名不能为空"
-                return
-            }
-
             if line != line.lowercased() {
-                validationError = "域名必须是小写：\(line)"
+                domainsWarning = "域名建议用小写：\(line)"
                 return
             }
 
             if line.contains(" ") {
-                validationError = "域名不能包含空格：\(line)"
+                domainsWarning = "域名不能包含空格：\(line)"
                 return
             }
 
             if !line.contains(".") {
-                validationError = "域名必须包含点号：\(line)"
+                domainsWarning = "域名通常包含点号：\(line)"
                 return
             }
 
             let domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/
             if line.firstMatch(of: domainRegex) == nil {
-                validationError = "无效的域名格式：\(line)"
+                domainsWarning = "域名格式看起来不对：\(line)"
                 return
             }
         }
 
-        validationError = nil
+        domainsWarning = nil
     }
 
     private func submitForm() async {
-        guard isValid else { return }
+        guard canSubmit else { return }
 
+        // 域名可选：空数组照常提交（服务端同包放行）
         let domains = domainsText.split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-
-        guard !domains.isEmpty else {
-            submitError = "至少需要一个域名"
-            return
-        }
 
         var values: [String: String] = [:]
         for (field, value) in fieldValues where !value.isEmpty {
@@ -238,7 +260,7 @@ struct VaultEditView: View {
         }
 
         guard !values.isEmpty else {
-            submitError = "至少需要填写一个字段"
+            submitError = "至少需要填写一个字段值"
             return
         }
 
