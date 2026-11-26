@@ -3,6 +3,7 @@ import Foundation
 @testable import OneDayApp
 
 @Suite("Vault 凭据库测试")
+@MainActor
 struct VaultTests {
 
     // MARK: - 门禁状态机测试
