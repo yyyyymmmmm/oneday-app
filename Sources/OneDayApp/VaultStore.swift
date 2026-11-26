@@ -11,6 +11,9 @@ final class VaultStore {
 
     private(set) var requests: [VaultRequestMeta] = []
     private(set) var requestsLoaded = false
+    /// 拉取在飞守卫（0.51.2）：行管线按行触发拉取
+    /// 后，多行同帧命中不许并发重复打同一端点
+    private var requestsRefreshInFlight = false
 
     private let client = VaultBridgeClient()
 
@@ -62,6 +65,12 @@ final class VaultStore {
     }
 
     func refreshRequests(appState: AppState) async {
+        // 在飞守卫必须在第一个 await 之前落锁：行
+        // 管线同趟可有多行同时触发，检查若排在
+        // await 之后，两个任务会同时穿过
+        guard !requestsRefreshInFlight else { return }
+        requestsRefreshInFlight = true
+        defer { requestsRefreshInFlight = false }
         guard appState.phase == .connected, let config = appState.config else {
             return
         }

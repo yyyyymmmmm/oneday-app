@@ -559,6 +559,7 @@ struct ChatNativeRowHeightComposer {
         showsUnreadDivider: Bool = false,
         sources: [MessageSource] = [],
         optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = [],
         memoKey: String, rowKey: String
     ) -> ChatNativeRowMeasureJob {
         let facets: ChatNativeRowFacets
@@ -568,10 +569,15 @@ struct ChatNativeRowHeightComposer {
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
                     outboxRetry: outboxRetry,
-                    optionsCard: optionsCard
+                    optionsCard: optionsCard,
+                    vaultCards: vaultCards
                 )
         } else {
-            facets = ChatNativeRowFacets()
+            var empty = ChatNativeRowFacets()
+            if !vaultCards.isEmpty {
+                empty.vaultCards[entry.id] = vaultCards
+            }
+            facets = empty
         }
         let snapshot = ChatEntryHeightSnapshot(
             entry, sources: sources
@@ -1120,7 +1126,8 @@ struct ChatNativeRowHeightComposer {
     private func entryFacetDigest(
         _ entry: ChatEntry,
         buildProducts: ChatEntryRowBuildMemo.Products? = nil,
-        optionsCard: OptionsCardHeightInput? = nil
+        optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = []
     ) -> String {
         var parts: [String] = []
         parts.append(
@@ -1139,6 +1146,17 @@ struct ChatNativeRowHeightComposer {
             // sources 同为呈现层派生入参），合成器
             // 核心读 facets 同值（快照器注入）
             parts.append("oc\(oc.kind == .live ? "l" : oc.kind == .selected ? "s" : "e")\(oc.optionCount)")
+        }
+        if !vaultCards.isEmpty {
+            // 凭据卡（0.51.2）：与选择框同理——块
+            // 到达/状态推进/字段数变都改行高，摘
+            // 要必须同变；入参由行构建点派生、核
+            // 心读 facets 同值（快照器注入）
+            parts.append(
+                "vc" + vaultCards.map {
+                    "\($0.status):\($0.fieldCount)"
+                }.joined(separator: ",")
+            )
         }
         if entry.traceKey != nil {
             // 回响时刻文案随日界变宽（今天只时刻、
@@ -2532,14 +2550,15 @@ struct ChatNativeRowHeightComposer {
         baseRevision: ChatNativeRowRevision,
         entry: ChatEntry,
         buildProducts: ChatEntryRowBuildMemo.Products? = nil,
-        optionsCard: OptionsCardHeightInput? = nil
+        optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = []
     ) -> String {
         var revision = baseRevision
         revision.addFlag(false)
         revision.addText("")
         return "e|\(entry.id.uuidString)"
             + "|\(Self.revisionDigest(revision))"
-            + "|\(entryFacetDigest(entry, buildProducts: buildProducts, optionsCard: optionsCard))"
+            + "|\(entryFacetDigest(entry, buildProducts: buildProducts, optionsCard: optionsCard, vaultCards: vaultCards))"
             + "|\(environmentFingerprint)"
     }
 
@@ -2552,7 +2571,8 @@ struct ChatNativeRowHeightComposer {
         _ entry: ChatEntry, dividerText: String?,
         showsUnreadDivider: Bool = false,
         sources: [MessageSource] = [],
-        optionsCard: OptionsCardHeightInput? = nil
+        optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = []
     ) -> CGFloat {
         var core = self
         if let ledger, let hubStore {
@@ -2561,10 +2581,16 @@ struct ChatNativeRowHeightComposer {
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
                     outboxRetry: outboxRetry,
-                    optionsCard: optionsCard
+                    optionsCard: optionsCard,
+                    vaultCards: vaultCards
                 )
-        } else if let optionsCard {
-            core.facets.optionsCards[entry.id] = optionsCard
+        } else {
+            if let optionsCard {
+                core.facets.optionsCards[entry.id] = optionsCard
+            }
+            if !vaultCards.isEmpty {
+                core.facets.vaultCards[entry.id] = vaultCards
+            }
         }
         return core.entryHeightCore(
             ChatEntryHeightSnapshot(entry, sources: sources),
@@ -2595,6 +2621,7 @@ struct ChatNativeRowHeightComposer {
         showsUnreadDivider: Bool = false,
         sources: [MessageSource] = [],
         optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = [],
         product: LayoutProduct
     ) -> CGFloat? {
         guard entry.role == "assistant",
@@ -2618,10 +2645,16 @@ struct ChatNativeRowHeightComposer {
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
                     outboxRetry: outboxRetry,
-                    optionsCard: optionsCard
+                    optionsCard: optionsCard,
+                    vaultCards: vaultCards
                 )
-        } else if let optionsCard {
-            core.facets.optionsCards[entry.id] = optionsCard
+        } else {
+            if let optionsCard {
+                core.facets.optionsCards[entry.id] = optionsCard
+            }
+            if !vaultCards.isEmpty {
+                core.facets.vaultCards[entry.id] = vaultCards
+            }
         }
         core.productSegmentHeights = segmentHeights
         return core.entryHeightCore(
@@ -3036,6 +3069,14 @@ struct ChatNativeRowHeightComposer {
             slots.append(
                 deliveryItemHeight(id: deliveryID)
             )
+        }
+        // 凭据卡槽（0.51.2）：与 bubble 呈现同位
+        // （交付项之后、整条裸路径之前）——块卡与
+        // 标记兜底卡/灰行逐项按 facet 输入计高；
+        // 无卡恒零增量（呈现侧同判，见 ChatView
+        // .vaultCardHeightInputs）
+        for input in facets.vaultCards[entry.id] ?? [] {
+            slots.append(CGFloat(input.estimatedHeight))
         }
         if let wholePathRef {
             if FileRefDetector.isImagePath(

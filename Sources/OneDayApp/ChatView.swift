@@ -3116,6 +3116,9 @@ struct ChatView: View {
                             optionsCard: optionsCardHeightInput(
                                 for: entry, in: thread
                             ),
+                            vaultCards: vaultCardHeightInputs(
+                                for: entry, in: thread
+                            ),
                             composer: composer,
                             styleKey: styleKey
                         )
@@ -3292,6 +3295,7 @@ struct ChatView: View {
         _ entry: ChatEntry, dividerText: String?,
         sources: [MessageSource],
         optionsCard: OptionsCardHeightInput? = nil,
+        vaultCards: [VaultCardHeightInput] = [],
         composer: ChatNativeRowHeightComposer,
         styleKey: String
     ) -> ChatNativeRow {
@@ -3374,13 +3378,67 @@ struct ChatView: View {
                 }
             }
         }
+        // 0.51.2（密码卡修复）：vault 状态折入修订
+        // 基段——旧形态漏折：请求数据就算拉回来，
+        // 行修订不变、原生行永不重建，卡永远不出
+        // （真机三报之二的端侧断点之一）。折法与
+        // 呈现同账：块在场折块（行号＋状态＋字段
+        // 数）；标记逐个折三态（meta 在场／已加载
+        // 查无此号／未加载）。拉取触发随行出现启
+        // 动（行构建期），不再只靠气泡 .task——
+        // 原生行托管下 .task 不可靠、实测全天零
+        // 拉取；VaultStore 在飞守卫防同趟多行重
+        // 复打端点
+        if entry.role != "user", entry.traceKey == nil, entry.echoKey == nil {
+            let scans = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            )
+            let threadID = entry.thread?.id
+            if let rowID = entry.serverRowID,
+               let threadID,
+               let block = appState.vaultRequestOverlay.block(
+                threadID: threadID, serverRowID: rowID
+               ) {
+                baseRevision.addText(
+                    "vreqb:\(rowID):\(block.status):\(block.fields.count)"
+                )
+            }
+            let covered: Set<String> = threadID.map {
+                appState.vaultRequestOverlay
+                    .coveredRequestIDs(threadID: $0)
+            } ?? []
+            var needsFetch = false
+            for requestID in scans.vaultRequest.requestIDs
+            where !covered.contains(requestID) {
+                if let meta = vaultRequestMeta(for: requestID) {
+                    baseRevision.addText(
+                        "vreq:\(requestID):m:\(meta.status):\(meta.fields.count)"
+                    )
+                } else if vaultStore.requestsLoaded {
+                    baseRevision.addText("vreq:\(requestID):gone")
+                } else {
+                    baseRevision.addText("vreq:\(requestID):wait")
+                    needsFetch = true
+                }
+            }
+            if needsFetch {
+                let store = vaultStore
+                let state = appState
+                Task { @MainActor in
+                    await store.refreshRequests(appState: state)
+                }
+            }
+        }
         // §331：行高先查整行备忘（命中＝确定高）；
         // 未命中投量测台后台预排版、当趟用上次高/
         // 兜底高，回填后经发布代次以确定高重喂
         let memoKey = composer.entryMemoKey(
             baseRevision: baseRevision, entry: entry,
             buildProducts: buildProducts,
-            optionsCard: optionsCard
+            optionsCard: optionsCard,
+            vaultCards: vaultCards
         )
         let resolved = rowMeasureDesk.resolve(
             memoKey: memoKey, rowKey: key,
@@ -3395,6 +3453,7 @@ struct ChatView: View {
                     showsUnreadDivider: showsUnread,
                     sources: sources,
                     optionsCard: optionsCard,
+                    vaultCards: vaultCards,
                     memoKey: memoKey, rowKey: key
                 )
             )
@@ -3439,6 +3498,7 @@ struct ChatView: View {
                 showsUnreadDivider: showsUnread,
                 sources: sources,
                 optionsCard: optionsCard,
+                vaultCards: vaultCards,
                 product: product
             ) {
             feedHeight = precomputed
@@ -6119,6 +6179,14 @@ struct ChatView: View {
                     remoteImagePaths: entry.remoteImagePaths
                 )
                 let deliverySplit = scans.delivery
+                // 0.51.2：已被结构化块覆盖的凭据请求
+                // id 集——标记兜底路据此排除同 id、
+                // 防一卡双出（块主路在下方直出）
+                let vaultCoveredRequestIDs: Set<String> =
+                    currentThread.map {
+                        appState.vaultRequestOverlay
+                            .coveredRequestIDs(threadID: $0.id)
+                    } ?? []
                 // §136：MEDIA: 图片标记拆分（Core 纯
                 // 函数）——独立成行的图片标记从正文
                 // 摘除、走下方图片行出图，正文只喂摘
@@ -6294,12 +6362,36 @@ struct ChatView: View {
                     )
                     .modifier(messageMenu(for: entry))
                 }
-                // 凭据请求卡（补件 C 客户端半边）：标记
-                // 摘行后原地渲染 VaultRequestCard——按号
-                // 向 /v1/vault/requests 取 meta 喂卡，
-                // 匹配不到按卡组件既有失效态呈现
+                // 凭据请求卡（0.51.2 主路）：消息行带
+                // vault_request 结构化块（服务端
+                // 2.17.2）时凭块同步直出——覆盖层按
+                // 本行 serverRowID 取块，不发二次请
+                // 求；行高由合成器 vault 槽同值预留
+                // （见 vaultCardHeightInputs）
+                if let thread = currentThread,
+                   let rowID = entry.serverRowID,
+                   let block = appState.vaultRequestOverlay
+                    .block(threadID: thread.id, serverRowID: rowID) {
+                    VaultRequestCard(
+                        requestId: block.requestID,
+                        service: block.service,
+                        domain: block.domain,
+                        reason: block.reason,
+                        fields: block.fields,
+                        initialStatus: VaultRequestCard
+                            .cardStatus(forServerStatus: block.status)
+                    )
+                    .modifier(messageMenu(for: entry))
+                }
+                // 兜底路（补件 C 旧形态）：正文
+                // [[vreq:]] 标记在、块不在时才走——
+                // 按号向 /v1/vault/requests 取 meta
+                // 喂卡，匹配不到按既有失效态呈现；
+                // 已被块覆盖的 id 排除、防一卡双出
                 ForEach(
-                    scans.vaultRequest.requestIDs, id: \.self
+                    scans.vaultRequest.requestIDs.filter {
+                        !vaultCoveredRequestIDs.contains($0)
+                    }, id: \.self
                 ) { requestID in
                     if let meta = vaultRequestMeta(for: requestID) {
                         VaultRequestCard(
@@ -6520,6 +6612,51 @@ struct ChatView: View {
             state: state,
             optionCount: card.options.options.count
         )
+    }
+
+    /// 凭据卡行高输入（0.51.2）：与 bubble 呈现逐
+    /// 项同账——块在场出一张块卡；块不在场时每个
+    /// 未被覆盖的正文标记出一项（取到 meta＝卡
+    /// 高、已加载查无此号＝「已处理或已过期」灰
+    /// 行高、未加载＝零，等拉回后修订折变重算）
+    private func vaultCardHeightInputs(
+        for entry: ChatEntry, in thread: ChatThread
+    ) -> [VaultCardHeightInput] {
+        guard entry.role == "assistant" else { return [] }
+        var inputs: [VaultCardHeightInput] = []
+        var block: MessageVaultRequest?
+        if let rowID = entry.serverRowID {
+            block = appState.vaultRequestOverlay.block(
+                threadID: thread.id, serverRowID: rowID
+            )
+        }
+        if let block {
+            inputs.append(VaultCardHeightInput(
+                fieldCount: block.fields.count,
+                status: block.status
+            ))
+        }
+        let covered = appState.vaultRequestOverlay
+            .coveredRequestIDs(threadID: thread.id)
+        let scans = EntryScanMemo.scans(
+            entryID: entry.id,
+            content: entry.content,
+            remoteImagePaths: entry.remoteImagePaths
+        )
+        for requestID in scans.vaultRequest.requestIDs
+        where !covered.contains(requestID) {
+            if let meta = vaultRequestMeta(for: requestID) {
+                inputs.append(VaultCardHeightInput(
+                    fieldCount: meta.fields.count,
+                    status: meta.status
+                ))
+            } else if vaultStore.requestsLoaded {
+                inputs.append(VaultCardHeightInput(
+                    fieldCount: 0, status: "missing"
+                ))
+            }
+        }
+        return inputs
     }
 
     /// 选择框呈现（§441）：状态 hidden 恒不出行
@@ -13876,6 +14013,13 @@ struct ComposerBarLayout: Layout {
             if let rowID = settled.userRowID,
                userEntry.serverRowID == nil {
                 userEntry.serverRowID = rowID
+                // 0.51.2（消息乱序修复）：钉桩同点把
+                // createdAt 校正为该行服务端时刻——
+                // 本地发送时刻与服务端时刻自此同域，
+                // 排序不再双时钟混排（见 sortedEntries）
+                if let rowDate = settled.userRowDate {
+                    userEntry.createdAt = rowDate
+                }
             }
             userEntry.markSendState(.delivered, in: modelContext)
             // 发送失败机制包（语义 1 清账点①）：run
@@ -13890,9 +14034,15 @@ struct ComposerBarLayout: Layout {
                 role: "tool", content: "", thread: thread,
                 toolCard: card
             )
-            cardEntry.createdAt = endDate.addingTimeInterval(
-                Double(index) * 0.001
-            )
+            // 0.51.2（消息乱序修复）：工具卡落其来
+            // 源行的服务端时刻，不再用本地 endDate
+            // 盖戳（取不到才回落旧口径兜底）
+            cardEntry.createdAt =
+                (index < settled.toolCardDates.count
+                    ? settled.toolCardDates[index] : nil)
+                ?? endDate.addingTimeInterval(
+                    Double(index) * 0.001
+                )
             modelContext.insert(cardEntry)
         }
         if !settled.attachments.isEmpty {
@@ -13930,8 +14080,29 @@ struct ComposerBarLayout: Layout {
                     )
                 )
             }
-            assistantEntry.createdAt = endDate
-                .addingTimeInterval(
+            // 0.51.2（密码卡修复）：凭据请求块与选
+            // 择框同构——本条目即段内拼接体、块的落
+            // 点行是段内带块的最后一条 assistant
+            // 行；未钉桩时改钉该行 id 使卡有行可
+            // 挂，并播种覆盖层，渲染凭块同步出卡
+            if assistantEntry.serverRowID == nil,
+               let vaultRowID = settled.vaultRequestRowID {
+                assistantEntry.serverRowID = vaultRowID
+            }
+            if let vaultRequest = settled.vaultRequest,
+               let vaultRowID = settled.vaultRequestRowID {
+                appState.vaultRequestOverlay.seed(
+                    threadID: thread.id,
+                    serverRowID: vaultRowID,
+                    block: vaultRequest
+                )
+            }
+            // 0.51.2（消息乱序修复）：助手条目落其
+            // 末行服务端时刻，不再用本地 endDate
+            // 盖戳（取不到才回落旧口径兜底）——旧
+            // 盖戳使多段回复首段被压到后段之后沉底
+            assistantEntry.createdAt = settled.assistantRowDate
+                ?? endDate.addingTimeInterval(
                     Double(settled.toolCards.count) * 0.001
                         + 0.001
                 )
