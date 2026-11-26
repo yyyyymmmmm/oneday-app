@@ -1,6 +1,7 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.18.18   # 修复 2.18.17 部署翻车二号（2026-11-27，fix/21818-mount-error-boundary）：根因＝error_boundary.py 已在 install.sh MODULES 表登记（:91）但 compose 挂载机器三处全缺（需求检查 :270、插入表 :467-469、写入后校验 :729）——文件落树、挂载不进容器，api_server_runs.py 导入即崩 ModuleNotFoundError。修复：照 api_server_support.py 镜像补齐三处，目标路径 /opt/hermes/gateway/platforms/error_boundary.py。防复发：import_smoke_selftest.py 加 static_reconciliation_check() 段落——读 install.sh 提取 MODULES 表（64 件）与挂载插入表 specs（65 条含 device-data-ro），逐件核对，缺失且不在显式存量名单（hermes_state_portability.py 存量已挂载）的报红；verify.sh 第 55 节文案同步（增"与静态对账"、成功分支增"静态对账通过"）。登记顺排 CAPABILITIES #74 改 2.18.18、verify 第 55 节不变。
+version: 2.18.19   # 纯文书对平（2026-11-27，fix/21819-registration-align）：前置校验查实三表过期——install.sh MODULES 表 import_smoke_selftest.py 钉值过期 1 件、manifest.yaml 两件（web_routers_profiles／ops）、verify.sh 期望表 11 件（2.18.18 部署窗口三表对账拦下）。修复：三表哈希全部对平实物；import_smoke_selftest.py 增三表对账自测段（install／manifest／verify vs 实物全表哈希对比，任一不符即红列明），verify.sh 第 55 节探针文案同步增"三表对账"。登记顺排 CAPABILITIES #74 改 2.18.19、verify 第 55 节同步。运行时代码零改动。
+# 此前 2.18.18   # 修复 2.18.17 部署翻车二号（2026-11-27，fix/21818-mount-error-boundary）：根因＝error_boundary.py 已在 install.sh MODULES 表登记（:91）但 compose 挂载机器三处全缺（需求检查 :270、插入表 :467-469、写入后校验 :729）——文件落树、挂载不进容器，api_server_runs.py 导入即崩 ModuleNotFoundError。修复：照 api_server_support.py 镜像补齐三处，目标路径 /opt/hermes/gateway/platforms/error_boundary.py。防复发：import_smoke_selftest.py 加 static_reconciliation_check() 段落——读 install.sh 提取 MODULES 表（64 件）与挂载插入表 specs（65 条含 device-data-ro），逐件核对，缺失且不在显式存量名单（hermes_state_portability.py 存量已挂载）的报红；verify.sh 第 55 节文案同步（增"与静态对账"、成功分支增"静态对账通过"）。登记顺排 CAPABILITIES #74 改 2.18.18、verify 第 55 节不变。
 # 此前 2.18.17   # 修复 2.18.16 部署翻车（2026-11-27，fix/21817-webrouters-import）：①web_routers 两件（profiles.py:51／ops.py:37）导入路径修复——相对导入 from .error_boundary 改绝对导入 from gateway.platforms.error_boundary（与 api_server_runs.py 现行写法一致、单一数据源），已按 install.sh 挂载布局实证可达；②新增导入冒烟自测 import_smoke_selftest.py 按 MODULES 挂载表逐模块导入、任一失败即红，install.sh MODULES 新增行＋compose 挂载确保，verify.sh 新增第 55 节探针调用；③install.sh 自动回滚机制排查——ROLLBACK_ARMED 武装时点（第 376 行）与 trap on_error ERR（第 198 行）逻辑正确，但 2.18.16 部署报告显示健康门 die 后回滚未执行（日志在 ERROR 行即止、无回滚行），根因不明（trap ERR 应生效但实际未触发），标注存疑、未改动（人工基线回滚兜底机制仍生效）。登记顺排 CAPABILITIES #74 不变、verify 新增第 55 节（54 节为 2.18.16 报错边界）。
 # 此前 2.18.16   # 服务端报错统一边界（2026-11-27，队列 230，驱动行 dp-271）：新模块 error_boundary.py（5 类稳定码 invalid_argument/permission_denied/not_found/upstream_error/internal_error＋路径/URL 脱敏＋薄封装），13 件报错面逐件收口——写闸（异常原文与参数错误）、面板档案/运维、对话运行直播与批准裁决、健康接口三字段、云电脑验活、监测/简报落存脱敏、定时任务参数码、成功响应摘路径补资源名、失败通知脱敏分类、状态接口收摘要、网页插件报错呈现与文案统一；状态码逐点对平、只改响应体、成功路径不动（覆盖对账 agents/errbound-coverage-audit-20261127.md：13 件全覆盖）。登记顺排 CAPABILITIES #74、verify 第 54 节（与 9.1 的 #73／第 53 节错开）；**部署翻车**：web_routers 两件相对导入 from .error_boundary 在容器布局下找不到同级模块、dashboard 导入即崩 ModuleNotFoundError，install 健康门未过、自动回滚未触发（根因不明），按基线手工整树回滚退回 2.18.14；2.18.17 修复后另开窗。
 # 此前 2.18.15   # api_server_support 拆分（2026-11-26，队列 222，9.1 第三批）：对照封存分支 refactor/standard-architecture 3511a27d，从现行 api_server.py 抽出 _IdempotencyCache、_ProviderAuthResolutionError、_SessionEventQueue；本体保留缓存实例、provider 文案常量及路由/SSE 业务编排，仅加显式双路导入。api_server_enrollment.py 的 SSE 常量副本改为从 api_server 单源惰性回取，避开初始化循环。登记四件套：manifest 新模块/哈希/摘要，install WANT_SHA/compose 挂载与校验，verify 第 53 节，CAPABILITIES #73。登记定版 2.18.15（司礼监排定）；只入包未部署。
@@ -103,7 +104,7 @@ components:
       container: hermes
       container_path: /opt/hermes/hermes_cli/web_routers/profiles.py
       mount_mode: ro
-      sha256: 27a93e656154a935ee03b8b25666658cee61db468d2c5e8c700023bd177a8ba1
+      sha256: 116fbd0371dc2e01855c0660a27c7b0775b1c63e3cd24aae3ce4cb368215cd34
       upstream_baseline_sha256: e374c6785a514733ee2ab3cf43aa2a2872c6bb448dbde9da36188cc74aef2bb7   # 应用时从未挂载补丁的镜像内同路径文件回读核验（容器内回读与包内 .orig 三方一致）；应用时落盘为部署目录 patches/web_routers_profiles.py.orig
       diff_lines_vs_upstream: 12
       provides: [profile-soul-updated-at]
@@ -114,7 +115,7 @@ components:
       container: hermes
       container_path: /opt/hermes/hermes_cli/web_routers/ops.py
       mount_mode: ro
-      sha256: cbde4780509d30888af0e90fbe004457ced9ef690a0c99bbe1a48835921b4196
+      sha256: c5a229ec16b2ad7fd935b3ee1dbe008a5c559cec7e9ba5c70b97f30724c76553
       upstream_baseline_sha256: e68deb8726ca8852aedca14279b2694aac1e1aaf32fc1e2e43f057310e75c250   # 同上，回读核验三方一致；落盘为部署目录 patches/web_routers_ops.py.orig
       diff_lines_vs_upstream: 13
       provides: [memory-builtin-files-updated-at]

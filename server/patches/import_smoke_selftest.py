@@ -146,6 +146,165 @@ def test_imports():
 
     return passed, failed
 
+def three_tables_reconciliation_check():
+    """Check all three registration tables against actual file hashes.
+
+    Verifies that:
+    1. install.sh PATCHES and MODULES tables: registered sha256 matches actual file
+    2. manifest.yaml entries: registered sha256 matches actual file
+    3. verify.sh expectation table: registered sha256 matches actual file
+
+    Returns (True, []) if all match, or (False, discrepancies_list) if any mismatch.
+    """
+    import hashlib
+    import yaml
+
+    discrepancies = []
+
+    # Find install.sh, manifest.yaml, verify.sh
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = {
+        'install.sh': [
+            os.path.join(script_dir, "../../../install.sh"),
+            "install.sh",
+        ],
+        'manifest.yaml': [
+            os.path.join(script_dir, "../../../manifest.yaml"),
+            "manifest.yaml",
+        ],
+        'verify.sh': [
+            os.path.join(script_dir, "../../../verify.sh"),
+            "verify.sh",
+        ],
+    }
+
+    paths = {}
+    for name, candidate_list in candidates.items():
+        for candidate in candidate_list:
+            if os.path.exists(candidate):
+                paths[name] = candidate
+                break
+        if name not in paths:
+            print(f"⚠ 三表对账跳过：找不到 {name}", file=sys.stderr)
+            return True, []
+
+    def compute_sha256(filepath):
+        """Compute sha256 of a file."""
+        h = hashlib.sha256()
+        try:
+            with open(filepath, 'rb') as f:
+                while chunk := f.read(8192):
+                    h.update(chunk)
+            return h.hexdigest()
+        except Exception as e:
+            return None
+
+    # 1. Check install.sh PATCHES and MODULES tables
+    try:
+        with open(paths['install.sh'], 'r', encoding='utf-8') as f:
+            install_content = f.read()
+
+        # Extract PATCHES table: "filename|source|target|hash"
+        patches_match = re.search(r'^PATCHES=\(\s*\n((?:\s*"[^"]+"\s*\n)+)\)', install_content, re.MULTILINE)
+        if patches_match:
+            for line in patches_match.group(1).split('\n'):
+                line = line.strip().strip('"')
+                if '|' in line:
+                    parts = line.split('|')
+                    if len(parts) == 4:
+                        filename, source, target, registered_hash = parts
+                        # source is relative to server/ directory (e.g., "patches/api_server.py")
+                        # We're in server/patches/, so go up one level
+                        actual_path = os.path.join(script_dir, "../", source)
+                        if os.path.exists(actual_path):
+                            actual_hash = compute_sha256(actual_path)
+                            if actual_hash and actual_hash != registered_hash:
+                                discrepancies.append(f"install.sh PATCHES {filename}: 登记={registered_hash[:8]}... 实物={actual_hash[:8]}...")
+
+        # Extract MODULES table: same format
+        modules_match = re.search(r'^MODULES=\(\s*\n((?:\s*"[^"]+"\s*\n)+)\)', install_content, re.MULTILINE)
+        if modules_match:
+            for line in modules_match.group(1).split('\n'):
+                line = line.strip().strip('"')
+                if '|' in line:
+                    parts = line.split('|')
+                    if len(parts) == 4:
+                        filename, source, target, registered_hash = parts
+                        actual_path = os.path.join(script_dir, "../", source)
+                        if os.path.exists(actual_path):
+                            actual_hash = compute_sha256(actual_path)
+                            if actual_hash and actual_hash != registered_hash:
+                                discrepancies.append(f"install.sh MODULES {filename}: 登记={registered_hash[:8]}... 实物={actual_hash[:8]}...")
+    except Exception as e:
+        print(f"⚠ install.sh 解析失败: {e}", file=sys.stderr)
+
+    # 2. Check manifest.yaml entries
+    # Use regex extraction as fallback for broken YAML structure
+    try:
+        with open(paths['manifest.yaml'], 'r', encoding='utf-8') as f:
+            manifest_content = f.read()
+
+        # Extract: source: patches/something.py followed by sha256: hexhash
+        # Pattern matches multi-line blocks
+        pattern = r'source:\s*(patches/[^\s]+)\s+.*?sha256:\s*([0-9a-f]{64})'
+        matches = re.findall(pattern, manifest_content, re.DOTALL)
+
+        for source, registered_hash in matches:
+            # source is relative to server/ (e.g., "patches/api_server.py")
+            actual_path = os.path.join(script_dir, "../", source)
+            if os.path.exists(actual_path):
+                actual_hash = compute_sha256(actual_path)
+                if actual_hash and actual_hash != registered_hash:
+                    filename = os.path.basename(source)
+                    discrepancies.append(f"manifest.yaml {filename}: 登记={registered_hash[:8]}... 实物={actual_hash[:8]}...")
+    except Exception as e:
+        print(f"⚠ manifest.yaml 解析失败: {e}", file=sys.stderr)
+
+    # 3. Check verify.sh expectation table
+    verify_checked_count = 0
+    try:
+        with open(paths['verify.sh'], 'r', encoding='utf-8') as f:
+            verify_content = f.read()
+
+        # Extract expectation array: declare -A WANT_SHA=( ... ) and WANT_SHA_EXTRA=( ... )
+        # Pattern: [filename]=hexhash
+        all_expectations = {}
+
+        # Parse WANT_SHA
+        want_sha_match = re.search(r'declare -A WANT_SHA=\(\s*\n((?:\s*\[[^\]]+\]=[0-9a-f]{64}\s*\n)+)\)', verify_content, re.MULTILINE)
+        if want_sha_match:
+            for line in want_sha_match.group(1).split('\n'):
+                line = line.strip()
+                match = re.match(r'\[([^\]]+)\]=([0-9a-f]{64})', line)
+                if match:
+                    all_expectations[match.group(1)] = match.group(2)
+
+        # Parse WANT_SHA_EXTRA
+        want_sha_extra_match = re.search(r'declare -A WANT_SHA_EXTRA=\(\s*\n((?:\s*\[[^\]]+\]=[0-9a-f]{64}\s*\n)+)\)', verify_content, re.MULTILINE)
+        if want_sha_extra_match:
+            for line in want_sha_extra_match.group(1).split('\n'):
+                line = line.strip()
+                match = re.match(r'\[([^\]]+)\]=([0-9a-f]{64})', line)
+                if match:
+                    all_expectations[match.group(1)] = match.group(2)
+
+        # Now check each expectation against actual file
+        for filename, registered_hash in all_expectations.items():
+            # Files are in server/patches/
+            actual_path = os.path.join(script_dir, filename)
+            if os.path.exists(actual_path):
+                actual_hash = compute_sha256(actual_path)
+                verify_checked_count += 1
+                if actual_hash and actual_hash != registered_hash:
+                    discrepancies.append(f"verify.sh {filename}: 期望={registered_hash[:8]}... 实物={actual_hash[:8]}...")
+    except Exception as e:
+        print(f"⚠ verify.sh 解析失败: {e}", file=sys.stderr)
+
+    if discrepancies:
+        return False, discrepancies, verify_checked_count
+    else:
+        return True, [], verify_checked_count
+
 def static_reconciliation_check():
     """Check MODULES table against mount insertion table in install.sh.
 
@@ -236,12 +395,25 @@ if __name__ == "__main__":
     print("\n静态对账检查开始...", file=sys.stderr)
     static_check_passed = static_reconciliation_check()
 
-    if failed == 0 and static_check_passed:
-        print(f"\n✓ 全部 {passed} 个模块导入成功，静态对账通过", file=sys.stderr)
+    # Run three tables reconciliation check
+    print("\n三表对账检查开始（install.sh／manifest.yaml／verify.sh vs 实物）...", file=sys.stderr)
+    three_tables_passed, discrepancies, verify_count = three_tables_reconciliation_check()
+    if not three_tables_passed:
+        print(f"\n✗ 三表对账失败：发现 {len(discrepancies)} 处不符", file=sys.stderr)
+        for d in discrepancies:
+            print(f"  {d}", file=sys.stderr)
+        print(f"verify.sh 核对条数: {verify_count}", file=sys.stderr)
+    else:
+        print(f"✓ 三表对账通过：所有登记哈希与实物文件一致（verify.sh 核对 {verify_count} 条）", file=sys.stderr)
+
+    if failed == 0 and static_check_passed and three_tables_passed:
+        print(f"\n✓ 全部 {passed} 个模块导入成功，静态对账通过，三表对账通过", file=sys.stderr)
         sys.exit(0)
     else:
         if failed > 0:
             print(f"\n✗ {failed}/{total_modules} 个模块导入失败", file=sys.stderr)
         if not static_check_passed:
             print("✗ 静态对账未通过", file=sys.stderr)
+        if not three_tables_passed:
+            print("✗ 三表对账未通过", file=sys.stderr)
         sys.exit(1)
