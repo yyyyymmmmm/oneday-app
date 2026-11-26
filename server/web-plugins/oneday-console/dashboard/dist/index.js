@@ -1,9 +1,10 @@
 /**
  * OneDay Console — dashboard plugin (大活12 网页端对齐).
  *
- * 棒 0 地基 + 棒 1 功能面 (approvals decide + credential vault):
- * registers as a native dashboard tab via window.__HERMES_PLUGINS__
- * and renders with the plugin SDK's React.
+ * 棒 0 地基 + 棒 1 功能面 (approvals decide + credential vault)
+ * + 棒 2 内容三面 (feed activity/posts, ideas, goals): registers as
+ * a native dashboard tab via window.__HERMES_PLUGINS__ and renders
+ * with the plugin SDK's React.
  *
  * The logic core (Core) is habitat-agnostic on purpose: it only speaks
  * the live gateway contract over same-origin fetch —
@@ -123,6 +124,58 @@
     },
     fulfillVaultRequest: function (requestId, body) {
       return apiJson("POST", "/v1/vault/requests/" + encodeURIComponent(requestId) + "/fulfill", body);
+    },
+    // ---- bar 2: content faces (same gateway, canonical /v1/oneday/*) ----
+    fetchActivity: function () { return apiJson("GET", "/v1/write-gate/activity?limit=50"); },
+    fetchFeed: function () { return apiJson("GET", "/v1/oneday/feed?days=30"); },
+    fetchFeedGeneration: function () { return apiJson("GET", "/v1/oneday/feed/generation"); },
+    fetchFeedBrief: function () { return apiJson("GET", "/v1/oneday/meta/brief"); },
+    generateFeed: function () { return apiJson("POST", "/v1/oneday/feed/generate", {}); },
+    likeFeedPost: function (id, liked) {
+      return apiJson("POST", "/v1/oneday/feed/" + encodeURIComponent(id) + "/like", { liked: liked });
+    },
+    readFeedPost: function (id) {
+      return apiJson("POST", "/v1/oneday/feed/" + encodeURIComponent(id) + "/read", {});
+    },
+    signalFeedPost: function (id) {
+      return apiJson("POST", "/v1/oneday/feed/" + encodeURIComponent(id) + "/signal", { type: "discuss" });
+    },
+    fetchIdeas: function () { return apiJson("GET", "/v1/oneday/ideas"); },
+    fetchIdeasGeneration: function () { return apiJson("GET", "/v1/oneday/ideas/generation"); },
+    createIdea: function (body) { return apiJson("POST", "/v1/oneday/ideas", body); },
+    patchIdea: function (id, body) {
+      return apiJson("PATCH", "/v1/oneday/ideas/" + encodeURIComponent(id), body);
+    },
+    deleteIdea: function (id) {
+      return apiJson("DELETE", "/v1/oneday/ideas/" + encodeURIComponent(id));
+    },
+    fetchGoals: function () { return apiJson("GET", "/v1/oneday/goals"); },
+    createGoal: function (body) { return apiJson("POST", "/v1/oneday/goals", body); },
+    patchGoal: function (id, body) {
+      return apiJson("PATCH", "/v1/oneday/goals/" + encodeURIComponent(id), body);
+    },
+    deleteGoal: function (id) {
+      return apiJson("DELETE", "/v1/oneday/goals/" + encodeURIComponent(id));
+    },
+    fetchGoalEntries: function (goalId) {
+      return apiJson("GET", "/v1/oneday/goals/" + encodeURIComponent(goalId) + "/entries");
+    },
+    createGoalEntry: function (goalId, body) {
+      return apiJson("POST", "/v1/oneday/goals/" + encodeURIComponent(goalId) + "/entries", body);
+    },
+    deleteGoalEntry: function (goalId, entryId) {
+      return apiJson("DELETE", "/v1/oneday/goals/" + encodeURIComponent(goalId) +
+        "/entries/" + encodeURIComponent(entryId));
+    },
+    fetchGoalBriefings: function (goalId) {
+      return apiJson("GET", "/v1/oneday/goals/" + encodeURIComponent(goalId) + "/briefings");
+    },
+    openBriefing: function (goalId, briefingId) {
+      return apiJson("POST", "/v1/oneday/goals/" + encodeURIComponent(goalId) +
+        "/briefings/" + encodeURIComponent(briefingId) + "/opened", {});
+    },
+    fetchGoalTasks: function (goalId) {
+      return apiJson("GET", "/v1/oneday/goals/" + encodeURIComponent(goalId) + "/tasks");
     }
   };
   window.__ONEDAY_CONSOLE_CORE__ = Core;
@@ -139,6 +192,20 @@
     var d = new Date(Number(epoch) * 1000);
     if (isNaN(d.getTime())) return "";
     return d.toLocaleTimeString();
+  }
+  // Dual-format timestamps: bridge faces send epoch seconds (number),
+  // the write-gate activity stream sends ISO strings. Both render here.
+  function fmtTs(v) {
+    if (v == null || v === "") return "";
+    var d = (typeof v === "number") ? new Date(v * 1000) : new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleString();
+  }
+  function fmtTsShort(v) {
+    if (v == null || v === "") return "";
+    var d = (typeof v === "number") ? new Date(v * 1000) : new Date(v);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
   var CHOICE_LABELS = {
@@ -477,28 +544,754 @@
     return faceShell("凭据请求", "独立待办面（与 App 聊天内嵌卡功能对齐、形态差异）：智能体在对话里索要凭据时在此办理。填写的值只进提交请求体，提交后即清、不回显、不落盘；办理结果由服务端落审计（只记动作不记值）。", face, load, body);
   }
 
+  // ---------------- feed face: task流水 (write-gate activity) + posts ----------------
+  var ACT_STATUS = {
+    pending: { label: "待批", cls: "odc-st-pending" },
+    completed: { label: "已完成", cls: "odc-st-done" },
+    failed: { label: "有驳回", cls: "odc-st-failed" }
+  };
+  var SUBSYSTEM_LABELS = { skills: "技能", memory: "记忆" };
+
+  function memberHeadline(m) {
+    if (m.summary) return m.summary;
+    var sub = SUBSYSTEM_LABELS[m.subsystem] || m.subsystem || "";
+    var op = m.op || m.action || "";
+    var parts = [];
+    if (sub) parts.push(sub);
+    if (op) parts.push(op);
+    if (m.target_name) parts.push("《" + m.target_name + "》");
+    if (m.op_count && m.op_count > 1) parts.push("共 " + m.op_count + " 项");
+    return parts.join(" ") || (m.id || "记录");
+  }
+  function memberStateLine(m) {
+    if (m.state === "pending") return "待批 · " + fmtTsShort(m.created_at);
+    var word = "已处理";
+    if (m.decision === "approved") word = m.via_rule ? "已按规则放行" : "已批准";
+    if (m.decision === "rejected") word = "已驳回";
+    return word + " · " + fmtTsShort(m.decided_at || m.created_at);
+  }
+
+  function ActivityGroupCard(props) {
+    var g = props.group;
+    var openPair = hooks.useState(false);
+    var open = openPair[0];
+    var setOpen = openPair[1];
+    var st = ACT_STATUS[g.status] || { label: g.status || "", cls: "" };
+    var meta = [];
+    if (g.counts && g.counts.total > 1) meta.push("共 " + g.counts.total + " 笔");
+    if (g.counts && g.counts.pending) meta.push("待批 " + g.counts.pending);
+    if (g.tier) meta.push(g.tier);
+    meta.push(fmtTsShort(g.updated_at));
+    var kids = [
+      h("span", { key: "t", className: "odc-row-title" },
+        h("span", { className: "odc-st " + st.cls }, st.label), " ", g.title_human || "(无标题)"),
+      h("span", { key: "m", className: "odc-row-meta" }, meta.join(" · ")),
+    ];
+    if (g.preview) kids.push(h("span", { key: "p", className: "odc-preview" }, g.preview));
+    kids.push(h("span", { key: "acts", className: "odc-actions" },
+      h("button", { className: "odc-btn odc-btn-text", onClick: function () { setOpen(!open); } },
+        open ? "收起" : "展开 " + ((g.records || []).length) + " 笔")));
+    if (open) {
+      (g.records || []).forEach(function (m, i) {
+        kids.push(h("div", { key: "rec" + i, className: "odc-member" },
+          h("span", { className: "odc-row-title odc-member-title" }, memberHeadline(m)),
+          h("span", { className: "odc-row-meta" }, memberStateLine(m)),
+          (m.content_preview && m.content_preview !== m.summary)
+            ? h("span", { className: "odc-preview" }, m.content_preview) : null));
+      });
+    }
+    return h("div", { className: "odc-row odc-row-card" }, kids);
+  }
+
+  var FEED_KIND_LABELS = { research: "调研", morning: "晨报", event: "事件", digest: "汇编" };
+
+  function FeedPostCard(props) {
+    var post = props.post;
+    var onSettled = props.onSettled;
+    var openPair = hooks.useState(false);
+    var open = openPair[0];
+    var setOpen = openPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+    var liked = !!post.likedAt;
+    var read = !!post.readAt;
+
+    function toggleOpen() {
+      var next = !open;
+      setOpen(next);
+      if (next && !post.readAt) {
+        Core.readFeedPost(post.id).then(function (p) { if (p && p.id) onSettled(p); }, function () { /* read mark is best-effort */ });
+      }
+    }
+    function toggleLike() {
+      setBusy("like");
+      Core.likeFeedPost(post.id, !liked).then(function (p) {
+        setBusy("");
+        if (p && p.id) onSettled(p);
+      }).catch(function (err) {
+        setBusy("");
+        setMsg("点赞失败：" + ((err && err.message) || String(err)));
+      });
+    }
+    function discuss() {
+      setBusy("signal");
+      Core.signalFeedPost(post.id).then(function () {
+        setBusy("");
+        setMsg("已记下「想聊这篇」，回聊天时可继续。");
+      }).catch(function (err) {
+        setBusy("");
+        setMsg("登记失败：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var meta = [];
+    if (post.category) meta.push(post.category);
+    meta.push(fmtTsShort(post.createdAt));
+    if (read) meta.push("已读");
+    var kids = [
+      h("span", { key: "t", className: "odc-row-title" },
+        (post.emoji ? post.emoji + " " : "") + (post.title || "(无标题)")),
+      h("span", { key: "m", className: "odc-row-meta" },
+        (FEED_KIND_LABELS[post.kind] || post.kind || "") + (meta.length ? " · " + meta.join(" · ") : "")),
+    ];
+    if (open) {
+      if (post.why) kids.push(h("p", { key: "why", className: "odc-preview" }, "为什么选这篇：" + post.why));
+      kids.push(h("div", { key: "body", className: "odc-body" }, post.body || ""));
+      (post.images || []).forEach(function (img, i) {
+        if (img && img.url) kids.push(h("img", { key: "img" + i, className: "odc-img", src: img.url, alt: "" }));
+      });
+      if (post.sourceCard && post.sourceCard.name) {
+        kids.push(h("p", { key: "sc", className: "odc-preview" },
+          "来源：" + post.sourceCard.name + (post.sourceCard.description ? " — " + post.sourceCard.description : "")));
+      }
+      (post.links || []).forEach(function (lnk, i) {
+        if (lnk && lnk.url) {
+          kids.push(h("a", { key: "lnk" + i, className: "odc-link", href: lnk.url, target: "_blank", rel: "noreferrer" },
+            lnk.title || lnk.url));
+        }
+      });
+    }
+    if (msg) kids.push(h("p", { key: "msg", className: "odc-done" }, msg));
+    kids.push(h("span", { key: "acts", className: "odc-actions" },
+      h("button", { className: "odc-btn odc-btn-text", onClick: toggleOpen }, open ? "收起" : "展开"),
+      h("button", { className: "odc-btn odc-btn-text", disabled: busy === "like", onClick: toggleLike },
+        liked ? "♥ 已赞" : "♡ 点赞"),
+      h("button", { className: "odc-btn odc-btn-text", disabled: busy === "signal", onClick: discuss }, "想聊这篇")));
+    return h("div", { className: "odc-row odc-row-card" }, kids);
+  }
+
+  function FeedFace() {
+    var actPair = useFace(Core.fetchActivity);
+    var act = actPair[0];
+    var actLoad = actPair[1];
+    var postsPair = useFace(function () {
+      return Core.fetchFeed().then(function (feed) {
+        return Promise.all([
+          Core.fetchFeedGeneration().catch(function () { return null; }),
+          Core.fetchFeedBrief().catch(function () { return null; })
+        ]).then(function (r) { return { feed: feed, gen: r[0], brief: r[1] }; });
+      });
+    });
+    var posts = postsPair[0];
+    var postsLoad = postsPair[1];
+    var postsSet = postsPair[2];
+    var genBusyPair = hooks.useState(false);
+    var genBusy = genBusyPair[0];
+    var setGenBusy = genBusyPair[1];
+    var genMsgPair = hooks.useState(null);
+    var genMsg = genMsgPair[0];
+    var setGenMsg = genMsgPair[1];
+
+    function settlePost(p) {
+      if (!posts.data) return;
+      var items = (posts.data.feed.items || []).map(function (x) { return x.id === p.id ? p : x; });
+      postsSet({ phase: "ready", error: "", data: { feed: { items: items }, gen: posts.data.gen, brief: posts.data.brief } });
+    }
+    function generateNow() {
+      setGenBusy(true);
+      setGenMsg(null);
+      Core.generateFeed().then(function () {
+        setGenBusy(false);
+        setGenMsg({ ok: true, text: "已起一轮生成，稍后刷新查看。" });
+        postsLoad();
+      }).catch(function (err) {
+        setGenBusy(false);
+        setGenMsg({ ok: false, text: "没能开始生成（" + ((err && err.message) || String(err)) + "）——生成在跑时桥回 409，属既有口径。" });
+      });
+    }
+
+    var actBody = null;
+    if (act.phase === "ready") {
+      var payload = act.data || {};
+      if (payload.grouped && (payload.groups || []).length) {
+        actBody = payload.groups.map(function (g) { return h(ActivityGroupCard, { key: g.id, group: g }); });
+      } else if ((payload.records || []).length) {
+        actBody = payload.records.map(function (m, i) {
+          return h("div", { key: "flat" + i, className: "odc-row odc-row-card" },
+            h("span", { className: "odc-row-title" }, memberHeadline(m)),
+            h("span", { className: "odc-row-meta" }, memberStateLine(m)));
+        });
+      } else {
+        actBody = h("p", { className: "odc-empty" }, "暂无任务流水记录。");
+      }
+    }
+
+    var postsBody = null;
+    if (posts.phase === "ready") {
+      var items = (posts.data.feed && posts.data.feed.items) || [];
+      var gen = posts.data.gen;
+      var brief = posts.data.brief;
+      var parts = [];
+      var seg = gen && (gen.research || gen.morning);
+      var genLine = [];
+      if (gen && gen.unread != null) genLine.push("未读 " + gen.unread + " 篇");
+      if (seg && seg.lastRunAt) genLine.push("上次生成 " + fmtTsShort(seg.lastRunAt));
+      if (seg && seg.running) genLine.push("生成中…");
+      if (seg && seg.nextRunAt) genLine.push("下次 " + fmtTsShort(seg.nextRunAt));
+      parts.push(h("p", { key: "gen", className: "odc-count" }, genLine.length ? genLine.join(" · ") : "生成状态未读到"));
+      if (genMsg) parts.push(h("p", { key: "gmsg", className: genMsg.ok ? "odc-done" : "odc-error" }, genMsg.text));
+      parts.push(h("span", { key: "gacts", className: "odc-actions" },
+        h("button", { className: "odc-btn odc-btn-secondary", disabled: genBusy, onClick: generateNow },
+          genBusy ? "提交中…" : "立即生成一轮")));
+      if (brief && brief.text) {
+        parts.push(h("details", { key: "brief", className: "odc-brief" },
+          h("summary", null, "当前简报方向（只读，编辑在 App）" + (brief.polished ? " · 润色稿" : "")),
+          h("div", { className: "odc-body" }, brief.text)));
+      }
+      if (!items.length) {
+        parts.push(h("p", { key: "empty", className: "odc-empty" }, "近 30 天暂无动态帖。"));
+      }
+      items.forEach(function (p) {
+        parts.push(h(FeedPostCard, { key: p.id, post: p, onSettled: settlePost }));
+      });
+      postsBody = parts;
+    }
+
+    return h("div", null,
+      faceShell("动态 · 任务流水", "写闸记录按归属会话聚合成任务级人话组（与 App 枢纽审核记录同一出口、只读呈现；裁决仍在批准面）。", act, actLoad, actBody),
+      faceShell("动态 · 晨报与汇编", "与 App 动态页同一数据源（近 30 天）：点赞/已读/想聊这篇与 App 同口径回执对账。", posts, postsLoad, postsBody));
+  }
+
+  // ---------------- ideas face ----------------
+  var IDEA_STATUS = {
+    pending: "待定", adopted: "已采纳", built: "已落地",
+    dismissed: "已忽略", expired: "已过期"
+  };
+  var IDEA_KIND = { chat: "对话", routine: "例行", goal: "目标" };
+
+  function IdeaCard(props) {
+    var idea = props.idea;
+    var onChanged = props.onChanged;
+    var openPair = hooks.useState(false);
+    var open = openPair[0];
+    var setOpen = openPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+
+    function act(kind) {
+      if (kind === "delete" && !window.confirm("删除这条想法？（与 App 同一删除口）")) return;
+      setBusy(kind);
+      var call = kind === "delete"
+        ? Core.deleteIdea(idea.id)
+        : Core.patchIdea(idea.id, kind === "tooGeneric"
+            ? { status: "dismissed", dismissReason: "tooGeneric" }
+            : { status: "dismissed" });
+      call.then(function () {
+        setBusy("");
+        onChanged();
+      }).catch(function (err) {
+        setBusy("");
+        setMsg("失败：" + ((err && err.message) || String(err)) + "（状态机非法流转时桥回人话，请看回读）");
+        onChanged();
+      });
+    }
+
+    var meta = [];
+    if (idea.categoryLabel) meta.push(idea.categoryLabel);
+    else if (idea.domain) meta.push(idea.domain);
+    if (idea.kind) meta.push(IDEA_KIND[idea.kind] || idea.kind);
+    meta.push(idea.source === "generated" ? "生成" : "手记");
+    meta.push(fmtTsShort(idea.createdAt));
+    if (idea.expiresAt) meta.push("过期 " + fmtTsShort(idea.expiresAt));
+    var kids = [
+      h("span", { key: "t", className: "odc-row-title" },
+        (idea.emoji ? idea.emoji + " " : "") + (idea.title || "(无标题)")),
+      h("span", { key: "m", className: "odc-row-meta" },
+        (IDEA_STATUS[idea.status] || idea.status || "") + (meta.length ? " · " + meta.join(" · ") : "")),
+    ];
+    if (idea.evidence) kids.push(h("span", { key: "ev", className: "odc-preview" }, "依据：" + idea.evidence));
+    if (open) {
+      if (idea.detail) kids.push(h("div", { key: "d", className: "odc-body" }, idea.detail));
+      (idea.deliverables || []).forEach(function (d, i) {
+        kids.push(h("p", { key: "dl" + i, className: "odc-preview" },
+          "交付物：" + (d.name || "") + (d.summary ? " — " + d.summary : "")));
+      });
+      if (idea.taskId) kids.push(h("p", { key: "tk", className: "odc-preview" }, "已转任务：" + idea.taskId));
+      if (idea.dismissReason === "tooGeneric") kids.push(h("p", { key: "dr", className: "odc-preview" }, "忽略原因：太泛了"));
+    }
+    if (msg) kids.push(h("p", { key: "msg", className: "odc-error" }, msg));
+    var actions = [
+      h("button", { key: "open", className: "odc-btn odc-btn-text", onClick: function () { setOpen(!open); } },
+        open ? "收起" : "详情")
+    ];
+    if (idea.status === "pending") {
+      actions.push(h("button", { key: "dis", className: "odc-btn odc-btn-text", disabled: !!busy, onClick: function () { act("dismiss"); } }, "忽略"));
+      actions.push(h("button", { key: "tg", className: "odc-btn odc-btn-text", disabled: !!busy, onClick: function () { act("tooGeneric"); } }, "太泛了"));
+      actions.push(h("button", { key: "del", className: "odc-btn odc-btn-text", disabled: !!busy, onClick: function () { act("delete"); } }, "删除"));
+    }
+    kids.push(h("span", { key: "acts", className: "odc-actions" }, actions));
+    return h("div", { className: "odc-row odc-row-card" }, kids);
+  }
+
+  function IdeasFace() {
+    var facePair = useFace(function () {
+      return Core.fetchIdeas().then(function (ideas) {
+        return Core.fetchIdeasGeneration().catch(function () { return null; })
+          .then(function (gen) { return { ideas: ideas, gen: gen }; });
+      });
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var filterPair = hooks.useState("all");
+    var filter = filterPair[0];
+    var setFilter = filterPair[1];
+    var formPair = hooks.useState(null);
+    var form = formPair[0];
+    var setForm = formPair[1];
+    var busyPair = hooks.useState(false);
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+
+    function create() {
+      var title = ((form && form.title) || "").trim();
+      if (!title) { setMsg("标题不能为空。"); return; }
+      setBusy(true);
+      var body = { title: title };
+      var detail = ((form && form.detail) || "").trim();
+      if (detail) body.detail = detail;
+      Core.createIdea(body).then(function () {
+        setBusy(false);
+        setForm(null);
+        setMsg(null);
+        load();
+      }).catch(function (err) {
+        setBusy(false);
+        setMsg("新建失败：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var items = (face.data.ideas && face.data.ideas.items) || [];
+      var gen = face.data.gen;
+      var parts = [];
+      var counts = {};
+      items.forEach(function (i) { counts[i.status] = (counts[i.status] || 0) + 1; });
+      var filters = [["all", "全部 " + items.length]]
+        .concat(Object.keys(IDEA_STATUS).filter(function (s) { return counts[s]; })
+          .map(function (s) { return [s, (IDEA_STATUS[s] || s) + " " + counts[s]]; }));
+      parts.push(h("span", { key: "filters", className: "odc-chips" }, filters.map(function (f) {
+        return h("button", {
+          key: f[0],
+          className: "odc-chip odc-chip-btn" + (filter === f[0] ? " odc-chip-on" : ""),
+          onClick: function () { setFilter(f[0]); }
+        }, f[1]);
+      })));
+      if (gen) {
+        var gl = [];
+        if (gen.running) gl.push("生成中…");
+        if (gen.lastRunAt) gl.push("上次生成 " + fmtTsShort(gen.lastRunAt));
+        if (gen.nextRunAt) gl.push("下次 " + fmtTsShort(gen.nextRunAt));
+        var lastHist = (gen.history || [])[0];
+        if (lastHist && lastHist.error) gl.push("最近一轮：" + lastHist.error);
+        else if (lastHist) gl.push("最近一轮：" + (lastHist.status || "") + " · 产 " + (lastHist.produced || 0) + " 张");
+        parts.push(h("p", { key: "gen", className: "odc-row-meta" }, gl.join(" · ")));
+      }
+      if (msg) parts.push(h("p", { key: "msg", className: "odc-error" }, msg));
+      if (form) {
+        parts.push(h("div", { key: "form", className: "odc-form" },
+          h("label", { className: "odc-field" }, h("span", null, "标题"),
+            h("input", {
+              type: "text", value: form.title || "",
+              onChange: function (ev) { setForm({ title: ev.target.value, detail: form.detail || "" }); }
+            })),
+          h("label", { className: "odc-field" }, h("span", null, "详情（可选）"),
+            h("textarea", {
+              rows: 3, value: form.detail || "",
+              onChange: function (ev) { setForm({ title: form.title || "", detail: ev.target.value }); }
+            })),
+          h("span", { className: "odc-actions" },
+            h("button", { className: "odc-btn odc-btn-primary", disabled: busy, onClick: create }, busy ? "提交中…" : "新建"),
+            h("button", { className: "odc-btn odc-btn-text", onClick: function () { setForm(null); } }, "取消"))));
+      } else {
+        parts.push(h("span", { key: "new", className: "odc-actions" },
+          h("button", { className: "odc-btn odc-btn-secondary", onClick: function () { setForm({ title: "", detail: "" }); } }, "＋ 新建想法")));
+      }
+      var shown = items.filter(function (i) { return filter === "all" || i.status === filter; });
+      if (!shown.length) parts.push(h("p", { key: "empty", className: "odc-empty" }, "这一档暂无想法。"));
+      shown.forEach(function (idea) {
+        parts.push(h(IdeaCard, { key: idea.id, idea: idea, onChanged: load }));
+      });
+      body = parts;
+    }
+    return faceShell("想法", "与 App 想法页同一数据源：生成卡与手记卡同表；忽略/太泛了/删除/新建与 App 同口，采纳转任务仍在对话里办。", face, load, body);
+  }
+
+  // ---------------- goals face ----------------
+  var GOAL_CATEGORY = {
+    health: "健康", relationships: "关系", finance: "财务", career: "事业",
+    interest: "兴趣", efficiency: "效率", other: "其他"
+  };
+
+  function goalActivityLine(a) {
+    if (!a) return "";
+    var parts = [];
+    if (a.label) parts.push(a.label);
+    var counts = [];
+    if (a.runningCount) counts.push("运行 " + a.runningCount);
+    if (a.blockedCount) counts.push("阻塞 " + a.blockedCount);
+    if (a.failedCount) counts.push("失败 " + a.failedCount);
+    if (a.waitingCount) counts.push("等待 " + a.waitingCount);
+    if (a.doneCount) counts.push("完成 " + a.doneCount);
+    if (counts.length) parts.push(counts.join(" · "));
+    return parts.join("（") + (counts.length ? "）" : "");
+  }
+
+  function GoalDetail(props) {
+    var goal = props.goal;
+    var pair = hooks.useState(null);
+    var data = pair[0];
+    var setData = pair[1];
+    var entryPair = hooks.useState("");
+    var entryText = entryPair[0];
+    var setEntryText = entryPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+    var openBriefPair = hooks.useState("");
+    var openBrief = openBriefPair[0];
+    var setOpenBrief = openBriefPair[1];
+
+    function loadDetail() {
+      Promise.all([
+        Core.fetchGoalEntries(goal.id).catch(function () { return { items: [] }; }),
+        Core.fetchGoalBriefings(goal.id).catch(function () { return { items: [] }; }),
+        Core.fetchGoalTasks(goal.id).catch(function () { return { items: [] }; })
+      ]).then(function (r) {
+        setData({ entries: r[0].items || [], briefings: r[1].items || [], tasks: r[2].items || [] });
+      });
+    }
+    hooks.useEffect(function () { loadDetail(); }, []);
+
+    function addEntry() {
+      var text = entryText.trim();
+      if (!text) return;
+      setBusy("entry");
+      Core.createGoalEntry(goal.id, { body: text, source: "user" }).then(function () {
+        setBusy("");
+        setEntryText("");
+        loadDetail();
+      }).catch(function (err) {
+        setBusy("");
+        setMsg("记录进展失败：" + ((err && err.message) || String(err)));
+      });
+    }
+    function delEntry(eid) {
+      setBusy("del" + eid);
+      Core.deleteGoalEntry(goal.id, eid).then(function () {
+        setBusy("");
+        loadDetail();
+      }).catch(function (err) {
+        setBusy("");
+        setMsg("删除进展失败：" + ((err && err.message) || String(err)));
+      });
+    }
+    function toggleBriefing(b) {
+      if (openBrief === b.id) { setOpenBrief(""); return; }
+      setOpenBrief(b.id);
+      if (!b.lastOpenedAt) Core.openBriefing(goal.id, b.id).then(function () { loadDetail(); }, function () { /* best effort */ });
+    }
+
+    if (!data) return h("p", { className: "odc-row-meta" }, "正在读进展/简报/任务……");
+    var kids = [];
+    if (goal.note) kids.push(h("div", { key: "note", className: "odc-body" }, goal.note));
+    if (msg) kids.push(h("p", { key: "msg", className: "odc-error" }, msg));
+    kids.push(h("p", { key: "eh", className: "odc-summary-head" }, "进展时间线（新→旧）"));
+    if (!data.entries.length) kids.push(h("p", { key: "ee", className: "odc-empty" }, "暂无进展记录。"));
+    data.entries.slice().reverse().forEach(function (e) {
+      kids.push(h("div", { key: "e" + e.id, className: "odc-member" },
+        e.title ? h("span", { className: "odc-row-title odc-member-title" }, e.title) : null,
+        h("span", { className: "odc-body odc-entry-body" }, e.body || ""),
+        h("span", { className: "odc-row-meta" },
+          (e.source === "agent" ? "智能体记账" : "手记") + " · " + fmtTsShort(e.createdAt)),
+        h("span", { className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-text", disabled: busy === "del" + e.id,
+            onClick: function () { delEntry(e.id); }
+          }, "删除此条"))));
+    });
+    kids.push(h("div", { key: "eform", className: "odc-form" },
+      h("label", { className: "odc-field" }, h("span", null, "记一条进展"),
+        h("textarea", {
+          rows: 2, value: entryText,
+          onChange: function (ev) { setEntryText(ev.target.value); }
+        })),
+      h("span", { className: "odc-actions" },
+        h("button", { className: "odc-btn odc-btn-primary", disabled: busy === "entry", onClick: addEntry },
+          busy === "entry" ? "提交中…" : "记录进展"))));
+    kids.push(h("p", { key: "bh", className: "odc-summary-head" }, "周简报"));
+    if (!data.briefings.length) kids.push(h("p", { key: "be", className: "odc-empty" }, "暂无简报。"));
+    data.briefings.forEach(function (b) {
+      kids.push(h("div", { key: "b" + b.id, className: "odc-member" },
+        h("span", { className: "odc-row-title odc-member-title" }, (b.period ? b.period + " · " : "") + (b.title || "简报")),
+        h("span", { className: "odc-row-meta" },
+          fmtTsShort(b.createdAt) + (b.lastOpenedAt ? " · 已打开" : " · 未打开")),
+        openBrief === b.id ? h("div", { className: "odc-body" }, b.body || "") : null,
+        b.note && openBrief === b.id ? h("span", { className: "odc-preview" }, b.note) : null,
+        h("span", { className: "odc-actions" },
+          h("button", { className: "odc-btn odc-btn-text", onClick: function () { toggleBriefing(b); } },
+            openBrief === b.id ? "收起" : "打开"))));
+    });
+    kids.push(h("p", { key: "th", className: "odc-summary-head" }, "关联任务"));
+    if (!data.tasks.length) kids.push(h("p", { key: "te", className: "odc-empty" }, "暂无关联任务。"));
+    data.tasks.forEach(function (t) {
+      kids.push(h("div", { key: "t" + (t.taskId || t.linkId), className: "odc-member" },
+        h("span", { className: "odc-row-title odc-member-title" }, t.title || t.taskId || "任务"),
+        h("span", { className: "odc-row-meta" },
+          (t.status || t.bucket || "") + (t.updatedAt ? " · " + fmtTsShort(t.updatedAt) : ""))));
+    });
+    return h("div", { className: "odc-detail" }, kids);
+  }
+
+  function GoalCard(props) {
+    var goal = props.goal;
+    var onChanged = props.onChanged;
+    var openPair = hooks.useState(false);
+    var open = openPair[0];
+    var setOpen = openPair[1];
+    var editPair = hooks.useState(null);
+    var edit = editPair[0];
+    var setEdit = editPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+
+    function run(kind, call) {
+      setBusy(kind);
+      call.then(function () { setBusy(""); setEdit(null); onChanged(); }).catch(function (err) {
+        setBusy("");
+        setMsg("失败：" + ((err && err.message) || String(err)));
+        onChanged();
+      });
+    }
+    var meta = [];
+    meta.push(goal.status === "completed" ? "已完成" : "进行中");
+    if (goal.category && GOAL_CATEGORY[goal.category]) meta.push(GOAL_CATEGORY[goal.category]);
+    if (goal.parentId) meta.push("子目标");
+    if (goal.source === "chat") meta.push("对话创建");
+    meta.push("更新 " + fmtTsShort(goal.updatedAt));
+    var kids = [
+      h("span", { key: "t", className: "odc-row-title" }, goal.title || "(无标题)"),
+      h("span", { key: "m", className: "odc-row-meta" }, meta.join(" · ")),
+    ];
+    var actLine = goalActivityLine(goal.activity);
+    if (actLine) kids.push(h("span", { key: "a", className: "odc-preview" }, "活动：" + actLine));
+    if (goal.latestEntry) {
+      kids.push(h("span", { key: "le", className: "odc-preview" },
+        "最新进展：" + (goal.latestEntry.title || (goal.latestEntry.body || "").slice(0, 60)) +
+        " · " + fmtTsShort(goal.latestEntry.createdAt)));
+    }
+    if (msg) kids.push(h("p", { key: "msg", className: "odc-error" }, msg));
+    if (edit) {
+      kids.push(h("div", { key: "edit", className: "odc-form" },
+        h("label", { className: "odc-field" }, h("span", null, "标题"),
+          h("input", {
+            type: "text", value: edit.title,
+            onChange: function (ev) { setEdit({ title: ev.target.value, note: edit.note }); }
+          })),
+        h("label", { className: "odc-field" }, h("span", null, "备注"),
+          h("textarea", {
+            rows: 2, value: edit.note,
+            onChange: function (ev) { setEdit({ title: edit.title, note: ev.target.value }); }
+          })),
+        h("span", { className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-primary", disabled: busy === "save",
+            onClick: function () {
+              run("save", Core.patchGoal(goal.id, { title: edit.title.trim(), note: edit.note.trim() }));
+            }
+          }, busy === "save" ? "提交中…" : "保存"),
+          h("button", { className: "odc-btn odc-btn-text", onClick: function () { setEdit(null); } }, "取消"))));
+    }
+    var actions = [
+      h("button", { key: "open", className: "odc-btn odc-btn-text", onClick: function () { setOpen(!open); } },
+        open ? "收起详情" : "详情（进展/简报/任务）"),
+      h("button", {
+        key: "edit", className: "odc-btn odc-btn-text",
+        onClick: function () { setEdit({ title: goal.title || "", note: goal.note || "" }); }
+      }, "编辑"),
+    ];
+    if (goal.status === "completed") {
+      actions.push(h("button", {
+        key: "st", className: "odc-btn odc-btn-text", disabled: !!busy,
+        onClick: function () { run("st", Core.patchGoal(goal.id, { status: "active" })); }
+      }, "重新打开"));
+    } else {
+      actions.push(h("button", {
+        key: "st", className: "odc-btn odc-btn-text", disabled: !!busy,
+        onClick: function () { run("st", Core.patchGoal(goal.id, { status: "completed" })); }
+      }, "标记完成"));
+    }
+    actions.push(h("button", {
+      key: "del", className: "odc-btn odc-btn-text", disabled: !!busy,
+      onClick: function () {
+        if (window.confirm("删除目标「" + (goal.title || "") + "」？（与 App 同一删除口）")) {
+          run("del", Core.deleteGoal(goal.id));
+        }
+      }
+    }, "删除"));
+    kids.push(h("span", { key: "acts", className: "odc-actions" }, actions));
+    if (open) kids.push(h(GoalDetail, { key: "detail", goal: goal }));
+    return h("div", { className: "odc-row odc-row-card" }, kids);
+  }
+
+  function GoalsFace() {
+    var facePair = useFace(Core.fetchGoals);
+    var face = facePair[0];
+    var load = facePair[1];
+    var formPair = hooks.useState(null);
+    var form = formPair[0];
+    var setForm = formPair[1];
+    var busyPair = hooks.useState(false);
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var msgPair = hooks.useState(null);
+    var msg = msgPair[0];
+    var setMsg = msgPair[1];
+    var showDonePair = hooks.useState(false);
+    var showDone = showDonePair[0];
+    var setShowDone = showDonePair[1];
+
+    function create() {
+      var title = ((form && form.title) || "").trim();
+      if (!title) { setMsg("标题不能为空。"); return; }
+      setBusy(true);
+      var body = { title: title, source: "manual" };
+      var note = ((form && form.note) || "").trim();
+      if (note) body.note = note;
+      if (form && form.parentId) body.parentId = form.parentId;
+      Core.createGoal(body).then(function () {
+        setBusy(false);
+        setForm(null);
+        setMsg(null);
+        load();
+      }).catch(function (err) {
+        setBusy(false);
+        setMsg("新建失败：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var items = (face.data && face.data.items) || [];
+      var active = items.filter(function (g) { return g.status !== "completed"; });
+      var done = items.filter(function (g) { return g.status === "completed"; });
+      var topLevel = items.filter(function (g) { return !g.parentId; });
+      var parts = [];
+      parts.push(h("p", { key: "count", className: "odc-count" },
+        "进行中 ", h("strong", null, String(active.length)), " 个 · 已完成 ", h("strong", null, String(done.length)), " 个（与 App 同一数据源，网页端新建 App 侧可见、反之亦然）"));
+      if (msg) parts.push(h("p", { key: "msg", className: "odc-error" }, msg));
+      if (form) {
+        parts.push(h("div", { key: "form", className: "odc-form" },
+          h("label", { className: "odc-field" }, h("span", null, "标题"),
+            h("input", {
+              type: "text", value: form.title || "",
+              onChange: function (ev) { setForm({ title: ev.target.value, note: form.note || "", parentId: form.parentId || "" }); }
+            })),
+          h("label", { className: "odc-field" }, h("span", null, "备注（可选）"),
+            h("textarea", {
+              rows: 2, value: form.note || "",
+              onChange: function (ev) { setForm({ title: form.title || "", note: ev.target.value, parentId: form.parentId || "" }); }
+            })),
+          h("label", { className: "odc-field" }, h("span", null, "父目标（可选，只能挂顶层目标）"),
+            h("select", {
+              value: form.parentId || "",
+              onChange: function (ev) { setForm({ title: form.title || "", note: form.note || "", parentId: ev.target.value }); }
+            },
+              h("option", { value: "" }, "（顶层目标）"),
+              topLevel.map(function (g) { return h("option", { key: g.id, value: g.id }, g.title); }))),
+          h("span", { className: "odc-actions" },
+            h("button", { className: "odc-btn odc-btn-primary", disabled: busy, onClick: create }, busy ? "提交中…" : "新建目标"),
+            h("button", { className: "odc-btn odc-btn-text", onClick: function () { setForm(null); } }, "取消"))));
+      } else {
+        parts.push(h("span", { key: "new", className: "odc-actions" },
+          h("button", { className: "odc-btn odc-btn-secondary", onClick: function () { setForm({ title: "", note: "", parentId: "" }); } }, "＋ 新建目标")));
+      }
+      if (!active.length) parts.push(h("p", { key: "ae", className: "odc-empty" }, "暂无进行中目标。"));
+      active.forEach(function (g) { parts.push(h(GoalCard, { key: g.id, goal: g, onChanged: load })); });
+      if (done.length) {
+        parts.push(h("span", { key: "dt", className: "odc-actions" },
+          h("button", { className: "odc-btn odc-btn-text", onClick: function () { setShowDone(!showDone); } },
+            (showDone ? "收起" : "展开") + "已完成 " + done.length + " 个")));
+        if (showDone) done.forEach(function (g) { parts.push(h(GoalCard, { key: g.id, goal: g, onChanged: load })); });
+      }
+      body = parts;
+    }
+    return faceShell("目标", "与 App 目标页同一数据源：新建/编辑/完成/删除、进展记录、周简报、关联任务与活动流同口径。", face, load, body);
+  }
+
   // ---------------- page ----------------
-  var FUTURE_FACES = [
-    { name: "动态", bar: "棒 2" },
-    { name: "想法", bar: "棒 2" },
-    { name: "目标", bar: "棒 2" },
-    { name: "枢纽", bar: "棒 3" }
+  var NAV_ITEMS = [
+    { id: "odc-face-approvals", label: "批准" },
+    { id: "odc-face-entries", label: "凭据库" },
+    { id: "odc-face-requests", label: "凭据请求" },
+    { id: "odc-face-feed", label: "动态" },
+    { id: "odc-face-ideas", label: "想法" },
+    { id: "odc-face-goals", label: "目标" }
   ];
+
+  function scrollToFace(id) {
+    var el = document.getElementById(id);
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function OneDayConsolePage() {
     return h("div", { className: "odc-root" },
       h("div", { key: "head", className: "odc-head" },
         h("h2", null, "OneDay 控制台"),
         h("p", { className: "odc-sub" },
-          "棒 1：批准裁决＋凭据库只读＋凭据请求待办。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口。")),
-      h(ApprovalsFace, { key: "appr" }),
-      h(VaultEntriesFace, { key: "entries" }),
-      h(VaultRequestsFace, { key: "reqs" }),
-      h("div", { key: "faces", className: "odc-faces" },
-        h("span", { className: "odc-face odc-face-on" }, "批准 · 凭据（棒 1）"),
-        FUTURE_FACES.map(function (f) {
-          return h("span", { key: f.name, className: "odc-face" }, f.name + " · " + f.bar);
-        })));
+          "棒 2：批准＋凭据（棒 1）＋动态/想法/目标三面（棒 2）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；三面与 App 同一数据源。")),
+      h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
+      h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
+      h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
+      h("div", { key: "w-feed", id: "odc-face-feed", className: "odc-anchor" }, h(FeedFace, null)),
+      h("div", { key: "w-ideas", id: "odc-face-ideas", className: "odc-anchor" }, h(IdeasFace, null)),
+      h("div", { key: "w-goals", id: "odc-face-goals", className: "odc-anchor" }, h(GoalsFace, null)),
+      h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
+        NAV_ITEMS.map(function (n) {
+          return h("button", {
+            key: n.id, className: "odc-face odc-face-nav", type: "button",
+            onClick: function () { scrollToFace(n.id); }
+          }, n.label);
+        }),
+        h("span", { key: "hub", className: "odc-face" }, "枢纽 · 棒 3")));
   }
 
   window.__HERMES_PLUGINS__.register("oneday-console", OneDayConsolePage);

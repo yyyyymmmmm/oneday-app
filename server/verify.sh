@@ -834,3 +834,18 @@ else
   unk "webvault-owner-list" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "webbar1-browser" "棒 1 真浏览器目视（批准卡按钮按 choices 渲染、裁决后回读、凭据请求表单提交清值）属部署验收人工项；服务端等价链由部署单实测留据"
+
+# ---- 36. 网页端棒 2 内容三面（包 2.14.0, #54）: 动态/想法/目标数据源只读探针 ----
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/write-gate/activity?limit=1" || true)
+  if [ "$code" = "200" ]; then ok "webactivity-list" "GET /v1/write-gate/activity → 200（动态·任务流水数据源）"; else bad "webactivity-list" "write-gate activity 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/feed?days=30" || true)
+  if [ "$code" = "200" ]; then ok "webfeed-list" "GET /v1/oneday/feed?days=30 → 200（动态帖数据源）"; else bad "webfeed-list" "oneday feed 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ideas" || true)
+  if [ "$code" = "200" ]; then ok "webideas-list" "GET /v1/oneday/ideas → 200（想法面数据源）"; else bad "webideas-list" "oneday ideas 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/goals" || true)
+  if [ "$code" = "200" ]; then ok "webgoals-list" "GET /v1/oneday/goals → 200（目标面数据源）"; else bad "webgoals-list" "oneday goals 应答 $code（期望 200）"; fi
+else
+  unk "webbar2-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "webbar2-browser" "棒 2 真浏览器目视（三面真数据渲染、底部导航锚点跳转、网页端新建目标后 App 侧可见的双向对账）属部署验收人工项；服务端等价链由部署单实测留据"
