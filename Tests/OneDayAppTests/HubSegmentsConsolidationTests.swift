@@ -65,14 +65,15 @@ final class HubSegmentsConsolidationTests: XCTestCase {
 
     // MARK: - §222 分段条量测钉
 
-    /// §222（枢纽页对 Muse 重建）：自绘胶囊条的三
-    /// 个量测值钉死（对基准真机图：条高 48／选中胶
-    /// 囊 36／图标 22），且条高不低于命中下限、胶囊
-    /// 恒纳于条内——防后续顺手改值把对齐量测改没
+    /// dp-213 量测对位表（2026-11-27）：自绘胶囊条
+    /// 的三个量测值钉死（条高 44／选中胶囊 32／图标
+    /// 20，dp-213 瘦身定版值），且条高不低于命中下
+    /// 限、胶囊恒纳于条内——防后续顺手改值把对齐量
+    /// 测改没（§222 量测 ≈48/36/22 让位于本表定版）
     func testHubSegmentBarMetricsMatchParitySpec() {
-        XCTAssertEqual(OneDayMetrics.hubSegBarHeight, 48)
-        XCTAssertEqual(OneDayMetrics.hubSegCapsuleHeight, 36)
-        XCTAssertEqual(OneDayMetrics.hubSegGlyphSize, 22)
+        XCTAssertEqual(OneDayMetrics.hubSegBarHeight, 44)
+        XCTAssertEqual(OneDayMetrics.hubSegCapsuleHeight, 32)
+        XCTAssertEqual(OneDayMetrics.hubSegGlyphSize, 20)
         XCTAssertGreaterThanOrEqual(
             OneDayMetrics.hubSegBarHeight,
             OneDayMetrics.minTapTarget

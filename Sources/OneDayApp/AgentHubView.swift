@@ -335,8 +335,10 @@ struct AgentHubView: View {
             header(store)
             if let modelEntry {
                 modelEntryRow(modelEntry)
+                    .padding(.top, OneDayMetrics.spacingSM)
             }
             segmentPicker(store)
+                .padding(.top, OneDayMetrics.spacingSM)
             segmentContent(store)
         }
         .onChange(of: segment) { _, newSegment in
@@ -411,11 +413,11 @@ struct AgentHubView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("选择模型")
-                    .font(.body.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(entry.currentLabel)
-                    .font(.body)
+                    .font(.subheadline)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")

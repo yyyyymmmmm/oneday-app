@@ -1049,15 +1049,15 @@ public enum OneDayMetrics {
     /// 卡内边距（0.6.1 新增：OpenMuse card padding 20，
     /// ui.tsx:52）
     public static let cardPadding: CGFloat = 20
-    /// 枢纽分段条高（§222，2026-11-14 对 Muse 智能
-    /// 体页真机图量测：整条胶囊 ≈48；系统 segmented
-    /// 轨道 32 不可调、自绘条按此值落）
-    public static let hubSegBarHeight: CGFloat = 48
-    /// 枢纽分段选中胶囊高（§222，同上量测 ≈36；条内
-    /// 上下各留 6）
-    public static let hubSegCapsuleHeight: CGFloat = 36
-    /// 枢纽分段图标字形（§222，同上量测 ≈22）
-    public static let hubSegGlyphSize: CGFloat = 22
+    /// 枢纽分段条高（dp-213 量测对位表，2026-11-27：
+    /// 48→44，取 HIG 命中下限；§222 量测 ≈48 让位）
+    public static let hubSegBarHeight: CGFloat = 44
+    /// 枢纽分段选中胶囊高（dp-213 量测对位表：36→32，
+    /// 条 44－胶囊 32＝上下衬仍各 6；§222 量测 ≈36 让位）
+    public static let hubSegCapsuleHeight: CGFloat = 32
+    /// 枢纽分段图标字形（dp-213 量测对位表：22→20，
+    /// 与文字并行档对位；§222 量测 ≈22 让位）
+    public static let hubSegGlyphSize: CGFloat = 20
 
     // —— 气泡内边距（0.6.1 改挂 OpenMuse 气泡内边距
     // 16/13，chat.tsx:588-589；0.3.2 收编的 14/10 让位）——
