@@ -123,7 +123,7 @@ MODULES=(
   "oneday_seg_goals_facade.py|patches/oneday_seg_goals_facade.py|/opt/hermes/gateway/platforms/oneday_seg_goals_facade.py|f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352"
   "oneday_seg_ideas_gen.py|patches/oneday_seg_ideas_gen.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py|93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3"
   "oneday_seg_ideas_pool.py|patches/oneday_seg_ideas_pool.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_pool.py|762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4"
-  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|f74ce763301a60e4331eb4e467637086c30f73095b89857dbf643afbf930c278"
+  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|c935d4907db546f6517f23d2e9b12510747bd2e7dc5156a65a5bb816ff4ca3e5"
   "oneday_seg_library_mcp.py|patches/oneday_seg_library_mcp.py|/opt/hermes/gateway/platforms/oneday_seg_library_mcp.py|29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd"
   "oneday_seg_monitors.py|patches/oneday_seg_monitors.py|/opt/hermes/gateway/platforms/oneday_seg_monitors.py|fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07"
   "oneday_seg_sessions.py|patches/oneday_seg_sessions.py|/opt/hermes/gateway/platforms/oneday_seg_sessions.py|5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d"
@@ -142,8 +142,8 @@ MODULES=(
   "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ade5a34876d35f20af8dff964e7cca0e2cb4a05ff2b5cd0e372425872e7373e"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
   "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583"
-  "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|5d665b658299cd7bd9c331b3cec894b290eb93c9caaec13ea20a63c1aea9cab9"
-  "title_engine.py|patches/title_engine.py|/opt/hermes/gateway/platforms/title_engine.py|cf2dcdf6593f99f3aa3d89839aa0514956abeb4acff4efc895f1e1785d836ae2"
+  "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85"
+  "title_engine.py|patches/title_engine.py|/opt/hermes/gateway/platforms/title_engine.py|3b648327907466446030a7f9fe3dab3f9d23c30fd225085fcf4efe879d463135"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 

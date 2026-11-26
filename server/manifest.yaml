@@ -216,7 +216,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/activity_feed.py
       mount_mode: ro
-      sha256: 5d665b658299cd7bd9c331b3cec894b290eb93c9caaec13ea20a63c1aea9cab9
+      sha256: 0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [activity-classify, activity-thread-assembly, activity-thread-pagination]
       summary: 活动流取舍与线程化的纯函数单源（2.18.6 新增，队列 176）：classify_item 按用户意图判据对台账件分类（进/出＋原因码 system_round/no_user_intent/definition/monitor，definition 为预定任务定义预留码——定义只在 /api/jobs 面、从不入台账）；thread_key 给四原型（会话任务 run/审批批 approval/目标活 kanban/设备 device）确定性身份键，审批批有来源锚点按锚点、无锚点单件自成一条，预定执行键 thread:job:<jobId>:<fireTs> 已入表待实例；assemble_threads 纯函数组装（同件组合同线程、幂等），进行中置顶＋endedAt 倒序；paginate_threads 复合游标分页。消费方：oneday_seg_ledger 的打标 pass、列表出口与 threads 出口。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
@@ -227,7 +227,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/title_engine.py
       mount_mode: ro
-      sha256: cf2dcdf6593f99f3aa3d89839aa0514956abeb4acff4efc895f1e1785d836ae2
+      sha256: 3b648327907466446030a7f9fe3dab3f9d23c30fd225085fcf4efe879d463135
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [title-prompt, title-output-gates, title-close-fingerprint, title-summary-queue]
       summary: 活动流标题引擎的纯函数单源（2.18.8 新增，队列 193）：PROMPT_TEMPLATE 为拟案棒 2 提示词草稿全文＋三关硬约束（无乱码／有区分度／一眼看懂谁对什么做了什么）与反例（指令原文、编号串、万能句）；build_prompt 按意图 300 字／步骤 20 行截断组装；parse_summary_output 解析两行输出并跑三关机械检（形状、长度、指令开头、内部术语、截断标记），不过检即整件作废不入账；fingerprint 为线程收口指纹（身份键＋成员集＋endedAt＋状态），同收口恒同值、新收口才换值；队列状态机（new_state／enqueue 幂等／pick_next 新近优先／record_attempt／record_success／record_failure／sweep_requeues 冷却重入／stats 审计计数）无 IO、时钟由调用方传入。消费方：oneday_seg_ledger 的入队 pass 与 worker 线程。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
@@ -623,7 +623,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ledger.py
       mount_mode: ro
-      sha256: f74ce763301a60e4331eb4e467637086c30f73095b89857dbf643afbf930c278
+      sha256: c935d4907db546f6517f23d2e9b12510747bd2e7dc5156a65a5bb816ff4ca3e5
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。

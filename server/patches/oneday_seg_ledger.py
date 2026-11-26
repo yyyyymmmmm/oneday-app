@@ -892,6 +892,13 @@ def _ledger_threads_view(cursor, limit) -> dict:
 # with the entry resting as failed -- never a blank title, never
 # a blocked exit. Submissions/successes/failures are cumulative
 # counters in the queue file and surface on the counts view.
+#
+# Bar 3 (queue 200) adds the stock backfill to the same queue:
+# the enqueue reconcile's second pass feeds pre-engine closes
+# (newest first, per-pass capped) in as backfill-flagged
+# entries; their write-backs land as titleHumanSource=
+# "model_backfill" (proposal sec.3), and a sweep that finds
+# the stock pool empty stamps backfillDoneAt and retires.
 
 TITLE_SESSION_ID = "oneday-title-summary"
 TITLE_QUEUE_PATH = Path(os.environ.get(
@@ -1123,12 +1130,48 @@ def _title_poll_run(run_id: str) -> tuple:
     return None, f"标题汇总运行超时（>{TITLE_TIMEOUT_SECONDS}s）"
 
 
+def _title_backfill_candidates(state, threads, by_id,
+                               started) -> list:
+    """Bar 3's stock pool (queue 200): closes from BEFORE the
+    engine's first boot that still lack a model headline for
+    their current close and have no queue entry for it yet,
+    newest first (the proposal's backfill order). A thread
+    whose entry already exists in any state is out of the pool
+    -- a rested-failed entry is a reported residual with its
+    reason on record, never re-fed by the sweep."""
+    out = []
+    for thread in threads:
+        if thread["inProgress"] or not thread.get("endedAt"):
+            continue
+        if thread["endedAt"] >= started:
+            continue
+        fp = _title_mod.fingerprint(thread)
+        key = _title_mod.queue_key(thread["threadId"], fp)
+        if key in state["entries"]:
+            continue
+        members = [by_id.get(iid) for iid in
+                   thread.get("itemIds") or []]
+        if any(m and _title_mod.is_model_source(
+                m.get("titleHumanSource"))
+               and m.get("titleFingerprint") == fp
+               for m in members):
+            continue
+        out.append((thread, fp))
+    out.sort(key=lambda tf: (-(tf[0]["endedAt"] or 0),
+                             tf[0]["threadId"]))
+    return out
+
+
 def _title_enqueue_reconcile() -> int:
     """Enqueue newly closed threads for model summarising.
     Runs on the collector cadence with its own failure line.
-    Only closes at/after the engine's first boot are enqueued
-    (older stock is bar 3's backfill, by the proposal's own
-    staging); in-progress threads wait for their close."""
+    The live pass takes closes at/after the engine's first
+    boot; in-progress threads wait for their close. The stock
+    pass (bar 3, queue 200) then feeds pre-engine closes into
+    the SAME queue -- same state machine, same three-gate
+    check, no side channel -- newest first, up to
+    TITLE_ENQUEUE_PER_PASS per pass, until a full sweep finds
+    the pool empty and stamps backfillDoneAt on the state."""
     enqueued = 0
     try:
         store = _ledger()
@@ -1140,6 +1183,7 @@ def _title_enqueue_reconcile() -> int:
         threads = _activity_mod.assemble_threads(
             items, LEDGER_SKIP_SESSIONS)
         with _title_queue_lock:
+            dirty = False
             for thread in threads:
                 if enqueued >= TITLE_ENQUEUE_PER_PASS:
                     break
@@ -1151,14 +1195,33 @@ def _title_enqueue_reconcile() -> int:
                 fp = _title_mod.fingerprint(thread)
                 members = [by_id.get(iid) for iid in
                            thread.get("itemIds") or []]
-                if any(m and m.get("titleHumanSource") == "model"
+                if any(m and _title_mod.is_model_source(
+                        m.get("titleHumanSource"))
                        and m.get("titleFingerprint") == fp
                        for m in members):
                     continue
                 if _title_mod.enqueue(
                         state, thread["threadId"], fp, _now()):
                     enqueued += 1
-            if enqueued:
+                    dirty = True
+            if not state.get("backfillDoneAt"):
+                cands = _title_backfill_candidates(
+                    state, threads, by_id, started)
+                if not cands:
+                    state["backfillDoneAt"] = _now()
+                    dirty = True
+                else:
+                    added = 0
+                    for thread, fp in cands:
+                        if added >= TITLE_ENQUEUE_PER_PASS:
+                            break
+                        if _title_mod.enqueue(
+                                state, thread["threadId"], fp,
+                                _now(), backfill=True):
+                            added += 1
+                            dirty = True
+                    enqueued += added
+            if dirty:
                 _title_queue_save()
     except Exception as e:
         _print(f"title enqueue failed: {e!r}",
@@ -1244,7 +1307,8 @@ def _title_worker_loop() -> None:
             store.update_fields(
                 target_id,
                 {"title_human": title, "summary": summary,
-                 "titleHumanSource": "model",
+                 "titleHumanSource": "model_backfill"
+                 if entry.get("backfill") else "model",
                  "titleFingerprint": entry["fingerprint"],
                  "titleModel": GEN_MODEL,
                  "titleSummarizedAt": _now()},
