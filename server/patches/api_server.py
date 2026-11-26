@@ -3691,6 +3691,11 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "object": "hermes.api_server.capabilities", "platform": "hermes-agent",
             "model": self._model_name,
             "auth": {"type": "bearer", "required": bool(self._api_key)},
+            "version_gate": {
+                "min_app_version": os.getenv("ONEDAY_MIN_APP_VERSION", "0.50.125"),
+                "recommended_app_version": os.getenv("ONEDAY_RECOMMENDED_APP_VERSION", "0.51.0"),
+                "hermes_version": _hermes_version(),
+            },
             "runtime": {
                 "mode": "server_agent", "tool_execution": "server", "split_runtime": False,
                 "description": (
