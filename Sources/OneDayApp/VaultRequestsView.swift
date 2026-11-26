@@ -30,7 +30,7 @@ struct VaultRequestsView: View {
                 .background(Palette.settingsBG)
             }
         }
-        .navigationTitle("待处理凭据请求")
+        .navigationTitle("待处理凭据授权请求")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await authenticateAndUnlock()
@@ -62,7 +62,7 @@ struct VaultRequestsView: View {
                         if error.contains("404") || error.contains("未启用") {
                             Text("服务端尚未提供凭据请求列表端点 (GET /v1/vault/requests)")
                                 .font(.meta)
-                                .foregroundStyle(Palette.inkSecondary)
+                                .foregroundStyle(Palette.inkMuted)
                                 .multilineTextAlignment(.center)
                                 .padding(.top, OneDayMetrics.spacingS)
                         }
