@@ -47,8 +47,8 @@ declare -A WANT_SHA_EXTRA=(
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
   [oneday_gateway.py]=82755461e014e89bf1ebd8d96cb68501d77edb747185d3cc3b04db4f1b17434b
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
-  [oneday_ledger_lib.py]=5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566
-  [cron_projection.py]=0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6
+  [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
+  [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
   [api_server_oneday_routes.py]=bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
@@ -67,7 +67,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
   [oneday_seg_ideas_gen.py]=93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
   [oneday_seg_ideas_pool.py]=762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4
-  [oneday_seg_ledger.py]=cd2679a66c6364c7527ee3ed6ae093b781b2213f8f5bd511d8fab08c9a95bd9f
+  [oneday_seg_ledger.py]=3d1f0a9f6b6a0803bb207109a0d4e16cc559c8ff0d0e715084d66300e9427d91
   [oneday_seg_library_mcp.py]=29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
   [oneday_seg_monitors.py]=fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
   [oneday_seg_sessions.py]=5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d
@@ -942,4 +942,28 @@ if [ -n "$API_KEY" ]; then
   if [ "$FEED_JOB_N" = "0" ]; then ok "feed-source-swap" "GET /v1/oneday/ledger 列表内 job 件（系统轮逐次运行记录）= 0（服务端出口过滤在位，队列 155）"; else bad "feed-source-swap" "台账列表仍含 job 件 $FEED_JOB_N 条（期望 0；探针异常时值为 -1）"; fi
 else
   unk "feed-source-swap" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+# ---- 43. 人话标题真修复（包 2.18.4, #63；队列 173）: 派生/回填/接通标记 + cron 人话化行为 + 出口回读 ----
+if docker exec hermes grep -q "_parse_batch_summary" /opt/hermes/gateway/platforms/oneday_ledger_lib.py 2>/dev/null && docker exec hermes grep -q "_step_title_human" /opt/hermes/gateway/platforms/oneday_ledger_lib.py 2>/dev/null; then ok "title-human-derive" "oneday_ledger_lib 含决策 summary 解析派生与 Collector 回填步（队列 173 件 1）"; else bad "title-human-derive" "台账库缺 summary 解析派生/回填步（2.18.4 未应用）"; fi
+if docker exec hermes grep -q "_ledger_humanize_reconcile" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null; then ok "title-human-reconcile" "oneday_seg_ledger 含 run 人话接通 pass（队列 173 件 2/3）"; else bad "title-human-reconcile" "seg 缺 humanize pass（2.18.4 未应用）"; fi
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms.cron_projection import humanize_schedule as h; assert h("30 7 * * *") == ("每天 7:30", True); assert h("30 7 * * 1-5") == ("工作日 7:30", True); assert h("*/30 * * * *") == ("每 30 分钟", True); assert h("5 4 1 * *") == ("每月 1 日 4:05", True); assert h("0 9 1 * 1")[1] is False' 2>/dev/null; then ok "schedule-humanize" "cron_projection.humanize_schedule 行为自检通过（队列 173 件 4）"; else bad "schedule-humanize" "humanize_schedule 行为自检失败"; fi
+if [ -n "$API_KEY" ]; then
+  PROMPT_TITLES=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger" | python3 -c 'import json,sys; d=json.load(sys.stdin); items=d.get("items") or []; rend=[(i.get("title_human") or i.get("title") or "") for i in items if isinstance(i, dict)]; print(sum(1 for t in rend if "feed_reconc" in t or "feed_material" in t or "feed_constitution" in t or "会话摘要器" in t or "口味笔记整理者" in t))' 2>/dev/null || echo -1)
+  if [ "$PROMPT_TITLES" = "0" ]; then ok "title-human-exit" "台账出口渲染标题中指令原文当标题 = 0（队列 173 硬验收）"; else bad "title-human-exit" "出口仍有指令原文标题 $PROMPT_TITLES 件（期望 0；探针异常时值为 -1；回填 pass 未跑完时部署验收复验）"; fi
+  RAW_SCHED=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/api/jobs" | python3 -c 'import json,re,sys; d=json.load(sys.stdin); jobs=d.get("jobs") or []; pat=re.compile(r"^[0-9*/,\-]+( [0-9*/,\-]+){4}$"); print(sum(1 for j in jobs if isinstance(j, dict) and pat.match(str(j.get("schedule_display") or ""))))' 2>/dev/null || echo -1)
+  if [ "$RAW_SCHED" = "0" ]; then ok "schedule-human-exit" "/api/jobs 的 schedule_display 仍呈裸 cron 表达式 = 0（队列 173 硬验收）"; else bad "schedule-human-exit" "仍有 $RAW_SCHED 件 schedule_display 为裸表达式（期望 0；探针异常时值为 -1）"; fi
+else
+  unk "title-human-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+  unk "schedule-human-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "title-human-sampling" "approval 成品句/run 真任务名抽样与最新 60 件互不相同计数属部署验收回读（队列 173 交卷对照表）；verify 只读探针只锁指令原文归零与表达式归零两条"
+
+# ---- 44. 三处小补漏（包 2.18.5, #64；队列 183）: 每小时形态 + 点子生成器模式 + 登记对平后全表复核 ----
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms.cron_projection import humanize_schedule as h; assert h("5 * * * *") == ("每小时第 5 分钟", True); assert h("5,35 * * * *") == ("每小时第 5、35 分钟", True)' 2>/dev/null; then ok "schedule-humanize-hourly" "humanize_schedule 覆盖「每小时第 N 分钟」形态（队列 183 件 1）"; else bad "schedule-humanize-hourly" "每小时形态自检失败（2.18.5 未应用）"; fi
+if docker exec hermes grep -q "点子生成器" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null; then ok "title-human-ideas-head" "oneday_seg_ledger 轮次模式表含「点子生成器」（队列 183 件 2）"; else bad "title-human-ideas-head" "seg 模式表缺「点子生成器」（2.18.5 未应用）"; fi
+if [ -n "$API_KEY" ]; then
+  PROMPT_TITLES44=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger" | python3 -c 'import json,sys; d=json.load(sys.stdin); items=d.get("items") or []; pats=("你是 OneDay","feed_reconc","feed_material","feed_constitution","feed_social"); print(sum(1 for i in items if isinstance(i, dict) and not i.get("title_human") and any(p in (i.get("title") or "") for p in pats)))' 2>/dev/null || echo -1)
+  if [ "$PROMPT_TITLES44" = "0" ]; then ok "title-human-exit-full" "台账出口渲染标题中指令原文当标题 = 0（全模式表口径，队列 183 硬验收；含点子生成器）"; else bad "title-human-exit-full" "出口仍有指令原文标题 $PROMPT_TITLES44 件（期望 0；探针异常时值为 -1；回填 pass 未跑完时部署验收复验）"; fi
+else
+  unk "title-human-exit-full" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi

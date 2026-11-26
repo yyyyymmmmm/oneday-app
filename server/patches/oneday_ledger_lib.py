@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta
@@ -164,11 +165,64 @@ _HUMAN_ACTIONS = {
 }
 
 
+def _human_verb(actions) -> str:
+    """One headline verb for a batch of op kinds: the single mapped
+    verb when all known kinds agree, 更新了 for a mixed batch, and ""
+    when no kind is known (no factual verb to print)."""
+    verbs = {_HUMAN_ACTIONS[a] for a in actions if a in _HUMAN_ACTIONS}
+    if not verbs:
+        return ""
+    return next(iter(verbs)) if len(verbs) == 1 else "更新了"
+
+
+_BATCH_SUMMARY_RE = re.compile(
+    r"^batch\(\d+\s+ops?:\s*([^)]*)\)\s*on\s+(.+)$")
+_APPLY_SUMMARY_RE = re.compile(
+    r"^apply\s+\d+\s+op\(s\)\s+to\s+(.+?):\s*-\s*([A-Za-z_]+)\s*:")
+
+
+def _parse_batch_summary(summary: str):
+    """(kinds, slugs) from a skills-batch summary line, or None.
+
+    The write-gate's decision summary is the object's true home:
+    ``batch(4 ops: patch, patch, patch, patch) on hermes-agent,
+    weekly-review-planning``. A truncated slug (excerpt cap bit it,
+    ending in …) means the object is NOT recoverable — return None
+    rather than print a cut-off name as if it were whole.
+    """
+    m = _BATCH_SUMMARY_RE.match(summary or "")
+    if not m:
+        return None
+    kinds = [k.strip() for k in m.group(1).split(",") if k.strip()]
+    slugs = [s.strip() for s in m.group(2).split(",")]
+    if not kinds or not slugs or any(
+            not s or s.endswith("…") or s == "..." for s in slugs):
+        return None
+    return kinds, slugs
+
+
+def _join_slugs(slugs) -> str:
+    joined = "、".join(slugs)
+    if len(joined) <= 56:
+        return joined
+    return f"{slugs[0]} 等 {len(slugs)} 个对象"
+
+
 def derive_title_human(fields: dict) -> str:
     """Derive an approval headline from the write-gate's structured facts.
 
     Do not cap target_name: resolve_title's excerpt cap is for user prose,
     and must not destroy the object used by this independent title.
+
+    Object sources, in order: the structured ``target_name`` /
+    ``mem_target`` fields when the decision line carries them, else the
+    decision ``summary`` text itself — the batch form names its slugs
+    after ``on``, the memory form names its target after ``to``. The
+    summary parse is what heals the lines whose structured fields are
+    absent (the live decisions file carries target_name on 0 of its
+    lines; the object only ever lived in the summary). When neither
+    source yields a whole object, return "" — a missing headline is
+    honest, a fabricated one is not.
     """
     if not isinstance(fields, dict):
         return ""
@@ -176,18 +230,37 @@ def derive_title_human(fields: dict) -> str:
     if not isinstance(actions, list) or not actions:
         actions = [fields.get("op")]
     actions = [str(a).strip() for a in actions if a]
-    verbs = {_HUMAN_ACTIONS[a] for a in actions if a in _HUMAN_ACTIONS}
-    verb = next(iter(verbs)) if len(verbs) == 1 else "更新了"
+    verb = _human_verb(actions)
 
     target = fields.get("target_name")
     if isinstance(target, str) and target.strip():
-        obj = target.strip()
-    elif fields.get("mem_target") in ("memory", "user"):
+        return f"{verb} {target.strip()}" if verb else ""
+    if fields.get("mem_target") in ("memory", "user"):
         obj = "长期记忆" if fields["mem_target"] == "memory" \
             else "用户档案"
-    else:
+        return f"{verb} {obj}" if verb else ""
+
+    summary = fields.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
         return ""
-    return f"{verb} {obj}"
+    summary = summary.strip()
+    parsed = _parse_batch_summary(summary)
+    if parsed is not None:
+        kinds, slugs = parsed
+        verb = _human_verb(kinds)
+        return f"{verb} {_join_slugs(slugs)}" if verb else ""
+    m = _APPLY_SUMMARY_RE.match(summary)
+    if m:
+        where = m.group(1).strip().lower()
+        if "user" in where:
+            obj = "用户档案"
+        elif "memory" in where or "profile" in where:
+            obj = "长期记忆"
+        else:
+            return ""
+        verb = _human_verb([m.group(2)])
+        return f"{verb} {obj}" if verb else ""
+    return ""
 
 
 # --- activity summary (hermes-deploy 1.23.0) -------------------------
@@ -1093,6 +1166,7 @@ class Collector:
         now = self._now()
         actions = {"created": 0, "settled": 0, "stale": 0}
         self._step_decisions(actions, now)
+        self._step_title_human(actions, now)
         self._step_device(actions, now)
         self._step_zombies(actions, now)
         self.state["lastRunAt"] = now
@@ -1164,6 +1238,61 @@ class Collector:
                 note="审批已裁决：" + decision)
             if res == "ok":
                 actions["settled"] += 1
+
+    def _step_title_human(self, actions, now):
+        """Backfill approval headlines the write-time derivation
+        missed (queue 173). title_human is stored at creation from
+        the decision line, but lines written before the summary
+        parse existed — and items born from the App's pending mirror
+        whose decision line arrived shaped differently — sit in the
+        book with no headline while their decision line still names
+        the object in its summary. This step re-reads the decisions
+        file whole (it is small and append-only) and fills the gaps
+        through update_fields, so the heal is itself an event in the
+        log. Items whose decision line is gone (the file rotated
+        before this step existed) keep no headline: the object is
+        unrecoverable and is never guessed."""
+        if not self.decisions_path:
+            return
+        try:
+            raw = Path(self.decisions_path).read_text(
+                encoding="utf-8")
+        except Exception:
+            return
+        lines = {}
+        for chunk in raw.splitlines():
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            try:
+                line = json.loads(chunk)
+            except Exception:
+                continue
+            pid = str(line.get("id") or "")
+            if pid:
+                lines[pid] = line
+        if not lines:
+            return
+        healed = 0
+        for item in list(self.store.items.values()):
+            if item.get("kind") != "approval":
+                continue
+            if str(item.get("title_human") or "").strip():
+                continue
+            pid = str(item.get("id") or "")
+            if pid.startswith("appr:"):
+                pid = pid[len("appr:"):]
+            line = lines.get(pid)
+            if line is None:
+                continue
+            human = derive_title_human(line)
+            if human:
+                self.store.update_fields(
+                    item["id"], {"title_human": human},
+                    by="collector")
+                healed += 1
+        if healed:
+            actions["title_human_healed"] = healed
 
     def _step_device(self, actions, now):
         """Device-call events: one audit line is one standalone
