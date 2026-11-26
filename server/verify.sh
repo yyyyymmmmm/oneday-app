@@ -51,7 +51,7 @@ declare -A WANT_SHA_EXTRA=(
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
   [oneday_semantic.py]=930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
-  [oneday_gateway.py]=f96c263f08e6f8770ddb6559e9683d06715bb18c443fa7a5fc113e41b57483fc
+  [oneday_gateway.py]=d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f
   [overview_gateway.py]=44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
@@ -817,7 +817,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
+for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 9ef927c4f1046cb429fc293347182414f971d2ffc50f16531ad0cbdd8dbfd6aa" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi

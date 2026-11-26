@@ -439,7 +439,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_gateway.py
       mount_mode: ro
-      sha256: f96c263f08e6f8770ddb6559e9683d06715bb18c443fa7a5fc113e41b57483fc
+      sha256: d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-bridge-face, oneday-ledger, ledger-summary-inject, oneday-feed, oneday-ideas, oneday-goals, oneday-cron-rounds, oneday-file-library, library-mcp-face]
       summary: OneDay 面入关（1.19.0 新增，断桥批三）：自 companion oneday_bridge.py 拆壳平移——核心（状态存储/目标/动态/点子/台账/交付/文件库/monitors/traces/会话门面）逐字承接，进程壳换网关面：start() 由 api_server connect() 钩子调、dispatch() 承接 /api/oneday-bridge/* 66 路由、鉴权归一网关 API_SERVER_KEY（桥钥 ONEDAY_BRIDGE_KEY 退役）；业务分段以 _load_segment 汇入同一命名空间（platforms/ 同目录 16 段，含批三重基补齐的 library_mcp 段与网关 library 分发支，#26 读面不失）。C-3：内部 Dashboard 调用改会话令牌 Bearer（HERMES_DASH_AUTH_MODE 可回退密码登录）；#47：feed 小时评估与点子到期清理改引擎 cron 两轮（feed-evaluate 5 * * * *／ideas-expire 15 3 * * *），kanban 轮询留 reconcile 循环（G-3b 延迟验收）；简报润色加 reconcile 兜底触发＋pending 语义拆分（从未扩写报 idle）。数据源 /opt/data/oneday（自桥 data 整迁）。
