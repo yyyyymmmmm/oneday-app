@@ -159,12 +159,19 @@
 
   function apiJson(method, path, body) {
     return api(method, path, body).then(function (resp) {
-      if (!resp.ok) {
-        var err = new Error(path + " 应答 " + resp.status);
-        err.status = resp.status;
-        throw err;
-      }
-      return resp.json();
+      return resp.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+        if (!resp.ok) {
+          var msg = (data && (data.error || data.detail || data.message)) ||
+            (path + " 应答 " + resp.status);
+          var err = new Error(typeof msg === "string" ? msg : path + " 应答 " + resp.status);
+          err.status = resp.status;
+          if (data && data.code) err.code = data.code;
+          throw err;
+        }
+        return data;
+      });
     });
   }
 
