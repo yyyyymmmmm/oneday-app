@@ -295,10 +295,13 @@ class OneDayAuthPushRoutesMixin:
         auth_err = self._check_auth(request)
         if auth_err:
             return auth_err
-        if not self._vault_session(request):
-            return web.json_response({"status": "not_found"}, status=404)
+        # Owner mode (2.13.0): an empty auth session means the caller
+        # authenticated with the long-lived API_SERVER_KEY itself (the
+        # deployment master key); pass None so the vault serves every
+        # request in scope. Short-lived device tokens keep their own
+        # session filter (see credential_vault module docstring).
         try:
-            payload = self._vault_module().request_status(request.match_info.get("request_id", ""), self._vault_session(request), self._vault_scope())
+            payload = self._vault_module().request_status(request.match_info.get("request_id", ""), self._vault_session(request) or None, self._vault_scope())
             return web.json_response(payload if payload else {"status": "not_found"}, status=200 if payload else 404)
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")
@@ -307,11 +310,9 @@ class OneDayAuthPushRoutesMixin:
         auth_err = self._check_auth(request)
         if auth_err:
             return auth_err
-        if not self._vault_session(request):
-            return web.json_response({"status": "not_found"}, status=404)
         try:
             status = request.query.get("status", "pending")
-            data = self._vault_module().list_requests(self._vault_session(request), self._vault_scope(), status)
+            data = self._vault_module().list_requests(self._vault_session(request) or None, self._vault_scope(), status)
             return web.json_response({"object": "list", "data": data})
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")
@@ -320,14 +321,12 @@ class OneDayAuthPushRoutesMixin:
         auth_err = self._check_auth(request)
         if auth_err:
             return auth_err
-        if not self._vault_session(request):
-            return web.json_response({"status": "not_found"}, status=404)
         try:
             body = await request.json()
             status, payload = await asyncio.to_thread(
                 self._vault_module().fulfill_request,
                 request.match_info.get("request_id", ""), body,
-                self._expected_api_key(), self._vault_session(request), self._vault_scope())
+                self._expected_api_key(), self._vault_session(request) or None, self._vault_scope())
             return web.json_response(payload, status=status)
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")

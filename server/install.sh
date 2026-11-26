@@ -125,12 +125,12 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
   "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|ed95fcaf15a04abce54a68443e69d455ab3f9ba0cee3b42db4d292e2624e52f0"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs

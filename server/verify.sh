@@ -49,12 +49,12 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566
   [cron_projection.py]=0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6
-  [api_server_oneday_routes.py]=355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5
+  [api_server_oneday_routes.py]=bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe
+  [credential_vault.py]=ed95fcaf15a04abce54a68443e69d455ab3f9ba0cee3b42db4d292e2624e52f0
   [credential_vault_tool.py]=ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
@@ -797,7 +797,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json c4a176759863cd6be3cbc4f68632f549878924839e316c3a342e61269b3ed54c" "dist/index.js d91c904b7bafa9442183bf13eee7dbcff92d543f6ac73a37e69e493ff9f97545" "dist/style.css 542aa02cc3934dfc7d7c19ab4838d724e18d0c1b7c524348d478130f6353732f"; do
+for pair in "manifest.json 377451901ed5df2d3c6bfffbf19005b058f4c038861cbb92bff6fe0e801e633b" "dist/index.js 633c0bd919f655f975e9c0224d302734993fdbb5420f83826236ecb64b8e5b14" "dist/style.css eef9eec10bd5efc5121f6a82ed82d269a238b370974b0c86c9b9d0bd6e6bc237"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -821,3 +821,16 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST http://127.0.
 if [ "$code" = "401" ]; then ok "webcors-site-origin" "本站 Origin POST /api/env/reveal（无会话）→ 401（已过 CORS 闸、由会话闸应答）"; else bad "webcors-site-origin" "本站 Origin reveal 应答 $code（期望 401；403＝CORS 白名单未生效，查容器 env 与网关重启）"; fi
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST http://127.0.0.1:8642/api/env/reveal -H 'Origin: https://foreign.invalid' -H 'Content-Type: application/json' -d '{"key":"API_SERVER_KEY"}' || true)
 if [ "$code" = "403" ]; then ok "webcors-foreign-origin" "外部 Origin POST /api/env/reveal → 403（CORS 闸对未登记来源保持拦截）"; else bad "webcors-foreign-origin" "外部 Origin reveal 应答 $code（期望 403；非 403＝白名单口径被放宽，须回滚核查）"; fi
+
+# ---- 35. 网页端棒 1 功能面（包 2.13.0, #53）: 凭据请求主人模式 + 批准裁决面在位（只读探针；API_KEY 沿用文件头既有定义） ----
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/vault/requests?status=pending" || true)
+  if [ "$code" = "200" ]; then ok "webvault-owner-list" "GET /v1/vault/requests（长钥主人模式）→ 200（棒 1 前长钥恒 404）"; else bad "webvault-owner-list" "vault requests 长钥列表应答 $code（期望 200；404＝主人模式未生效）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/vault/entries" || true)
+  if [ "$code" = "200" ]; then ok "webvault-entries" "GET /v1/vault/entries → 200（凭据库只读面数据源）"; else bad "webvault-entries" "vault entries 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/approvals" || true)
+  if [ "$code" = "200" ]; then ok "webapprovals-list" "GET /v1/approvals → 200（批准面数据源；裁决写探针属部署验收人工项，不在只读 verify 内）"; else bad "webapprovals-list" "approvals 应答 $code（期望 200）"; fi
+else
+  unk "webvault-owner-list" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "webbar1-browser" "棒 1 真浏览器目视（批准卡按钮按 choices 渲染、裁决后回读、凭据请求表单提交清值）属部署验收人工项；服务端等价链由部署单实测留据"

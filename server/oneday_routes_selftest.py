@@ -162,9 +162,13 @@ async def run() -> None:
         r_vault_default = await adapter._handle_vault_requests_list(req_vault_default)
         assert r_vault_default.status == 200
         assert calls[-1] == (sid, "default", "pending")
-        no_session = await adapter._handle_vault_requests_list(_FakeRequest(
+        # 3c. Owner mode (2.13.0): the long-lived master key lists across
+        # sessions -- the handler forwards session_id=None; device tokens
+        # above keep their own session. (Pre-2.13.0 this asserted 404.)
+        owner_list = await adapter._handle_vault_requests_list(_FakeRequest(
             headers={"Authorization": f"Bearer {api_key}"}))
-        assert no_session.status == 404
+        assert owner_list.status == 200
+        assert calls[-1] == (None, "default", "pending")
 
         # 4. Refresh without Authorization header
         r_ref = await adapter._handle_auth_refresh(_FakeRequest(body={"refresh_token": refresh}))

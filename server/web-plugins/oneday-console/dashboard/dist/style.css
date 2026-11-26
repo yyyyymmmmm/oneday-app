@@ -1,15 +1,39 @@
-/* oneday-console plugin styles (棒 0 地基). Neutral, inherits dashboard
-   typography; no hard-coded theme colors beyond muted borders. */
-.odc-root { padding: 16px; max-width: 880px; }
+/* oneday-console plugin styles (棒 0 地基 + 棒 1 功能面). Neutral,
+   inherits dashboard typography; no hard-coded theme colors beyond
+   muted borders. Button roles mirror the App approval card spec:
+   filled primary / outlined secondary / text-only deny. */
+.odc-root { padding: 16px; max-width: 880px; display: flex; flex-direction: column; gap: 16px; }
 .odc-head h2 { margin: 0 0 4px; }
-.odc-sub { opacity: 0.75; margin: 0 0 16px; }
+.odc-sub { opacity: 0.75; margin: 0 0 12px; }
 .odc-card { border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 8px; padding: 12px 16px; }
+.odc-face-head { display: flex; justify-content: space-between; align-items: center; }
+.odc-face-head h3 { margin: 0; }
 .odc-count { font-size: 15px; }
 .odc-list { list-style: none; margin: 12px 0; padding: 0; }
 .odc-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(127, 127, 127, 0.2); }
-.odc-row-meta { opacity: 0.6; font-size: 12px; white-space: nowrap; }
+.odc-row-card { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 0; }
+.odc-row-title { font-weight: 600; }
+.odc-row-meta { opacity: 0.6; font-size: 12px; }
+.odc-cmd { font-size: 12px; opacity: 0.85; word-break: break-all; }
 .odc-empty { opacity: 0.7; }
-.odc-btn { margin-top: 8px; padding: 4px 14px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; cursor: pointer; }
-.odc-faces { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.odc-warn { color: #b26a00; font-size: 13px; }
+.odc-error { color: #c0392b; font-size: 13px; }
+.odc-done { color: #1e8449; font-size: 13px; }
+.odc-btn { padding: 4px 14px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; cursor: pointer; }
+.odc-btn:disabled { opacity: 0.5; cursor: default; }
+.odc-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.odc-btn-secondary { background: transparent; }
+.odc-btn-text { border-color: transparent; }
+.odc-btn-small { padding: 2px 10px; font-size: 12px; }
+.odc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.odc-toast { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid rgba(30, 132, 73, 0.5); border-radius: 8px; padding: 6px 12px; font-size: 13px; }
+.odc-summary { border-top: 1px solid rgba(127, 127, 127, 0.2); margin-top: 8px; padding-top: 8px; }
+.odc-summary-head { opacity: 0.6; font-size: 12px; margin: 0 0 4px; }
+.odc-summary-line { margin: 2px 0; font-size: 13px; opacity: 0.85; }
+.odc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.odc-chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.4); }
+.odc-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: 0.95; }
+.odc-field input { padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; }
+.odc-faces { display: flex; flex-wrap: wrap; gap: 8px; }
 .odc-face { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.35); opacity: 0.65; }
 .odc-face-on { opacity: 1; border-style: solid; }

@@ -2,6 +2,19 @@
 
 The vault derives its AES-GCM key from the existing API_SERVER_KEY. This
 single-key design is provisional and requires a separate key-lifecycle ADR.
+
+Request access modes (2.13.0): requests are bound at creation to the
+chat session that asked. HTTP callers authenticated with a short-lived
+device token stay filtered to their own device session. A caller that
+authenticated with the long-lived API_SERVER_KEY itself (the deployment
+master key -- the same key that already authorizes entry create /
+replace / delete and approval decisions) passes session_id=None, the
+owner mode: every request in scope is listable / decidable. In the
+chat flow the two session namespaces (the conversation's
+``HERMES_SESSION_ID`` vs device ``sess_*`` ids) do not intersect, and
+long-key callers previously got a hard 404 before any filtering, so a
+chat-created request was unreachable over HTTP; owner mode restores
+the surface without widening device-token access by one bit.
 """
 
 from __future__ import annotations
@@ -203,7 +216,7 @@ def list_requests(session_id: str, scope: str = "default", status: str | None = 
     with _lock:
         rows = []
         for request_id, req in _requests.items():
-            if req["session_id"] != session_id or req.get("scope") != scope:
+            if (session_id is not None and req["session_id"] != session_id) or req.get("scope") != scope:
                 continue
             if req["status"] == "pending" and req["expires_at"] <= now:
                 req["status"] = "expired"
@@ -226,7 +239,7 @@ def fulfill_request(request_id: str, body: Any, api_key: str, session_id: str, s
     with _lock:
         req = _requests.get(request_id)
         now = time.time()
-        if not req or req["session_id"] != session_id or req.get("scope") != scope:
+        if not req or (session_id is not None and req["session_id"] != session_id) or req.get("scope") != scope:
             return 404, {"status": "not_found"}
         if req["expires_at"] <= now:
             req["status"] = "expired"
@@ -295,7 +308,7 @@ def vault_use(entry_id: str, domain: str, purpose: str, operation: str, *, api_k
 def request_status(request_id: str, session_id: str, scope: str = "default") -> dict[str, Any] | None:
     with _lock:
         req = _requests.get(request_id)
-        if not req or req["session_id"] != session_id or req.get("scope") != scope:
+        if not req or (session_id is not None and req["session_id"] != session_id) or req.get("scope") != scope:
             return None
         if req["status"] == "pending" and req["expires_at"] <= time.time():
             req["status"] = "expired"

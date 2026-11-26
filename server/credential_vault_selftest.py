@@ -110,6 +110,16 @@ check("status filter and no-filter", vault.list_requests("list-sess", "scope-a",
       and vault.list_requests("list-sess", "scope-a", "")[0]["request_id"] == "vreq_expired")
 check("lazy expiry mutates pending", vault._requests["vreq_expired"]["status"] == "expired")
 
+print("== owner mode (2.13.0: session_id=None, master-key callers) ==")
+owner_rows = vault.list_requests(None, "scope-a")
+check("owner lists across sessions in scope", [r["request_id"] for r in owner_rows] == ["vreq_other_session", "vreq_new"])
+check("owner still scope-filtered", all(r["request_id"] != "vreq_other_scope" for r in vault.list_requests(None, "scope-a", None)))
+check("owner request_status sees other session", (vault.request_status("vreq_other_session", None, "scope-a") or {}).get("status") == "pending")
+check("device session still isolated", vault.request_status("vreq_other_session", "list-sess", "scope-a") is None)
+owner_reject_status, owner_reject = vault.fulfill_request("vreq_other_session", {"decision": "reject"}, key, None, "scope-a")
+check("owner reject settles other-session request", owner_reject_status == 200 and owner_reject.get("status") == "rejected")
+check("owner-settled request leaves pending list", [r["request_id"] for r in vault.list_requests(None, "scope-a")] == ["vreq_new"])
+
 print("== vault_use authorization ==")
 if entry_id:
     denied = vault.vault_use(entry_id, "evil.test", "login", "submit", api_key=key)
