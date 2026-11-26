@@ -779,7 +779,7 @@ DASHENV=$(docker exec hermes env 2>/dev/null | grep -c '^HERMES_DASH_USER=\|^HER
 if [ "$DASHENV" = "0" ]; then ok "c3-dash-password-env-retired" "容器环境无 HERMES_DASH_USER/HERMES_DASH_PASSWORD（C-3 终局：内部通道只剩服务凭据，包 2.5.0）"; else bad "c3-dash-password-env-retired" "容器环境仍有 $DASHENV 行密码登录变量（C-3 未终局）"; fi
 if docker exec hermes grep -q 'idem = f"ideas-sum-{int(_now())}"' /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py 2>/dev/null; then ok "ideas-digest-epoch-key" "点子摘要轮幂等键为轮次 epoch 形态（内容寻址键退役，包 2.5.0）"; else bad "ideas-digest-epoch-key" "摘要轮仍为内容寻址幂等键（409 毒化未除）"; fi
 GENM=$(docker exec hermes env 2>/dev/null | grep '^ONEDAY_GEN_MODEL=' | cut -d= -f2)
-if [ "$GENM" = "deepseek-v4-pro" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=deepseek-v4-pro（DeepSeek 官方通道，包 2.5.1）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL=$GENM（期望 deepseek-v4-pro；laogou8 通道余额枯竭，见 genkey-fix-20261125.md）"; fi
+if [ -n "$GENM" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=$GENM（容器 env 即实例配置 ONEDAY_GEN_MODEL 本值、非空即齐——模型走配置不写死，2026-11-26 19:37/19:38 亲令；队列 200 改口径，不再等值断言具体模型名）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL 未配置（生成管线无模型来源；模型须由实例配置给出）"; fi
 unk "settings-admin-write-deep" "设置写型验收（一次性测试键 register→set→delete→revoke 全程对账＋白名单外写入被拒）默认不跑; 应用步人工执行并记入 batch3plus-rollout-20261125.md"
 
 # ---- 30. Credential Vault (2.7.0): read-only route/capability probes ----
@@ -1068,6 +1068,20 @@ else
   unk "approval-history-capability" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "guard-event-live" "守卫事件真链（cron 真跑一次危险命令被即时拒绝后账本新增 guard_event 行）属部署验收回读；verify 只锁分类/记录/对账行为与出口对账式"
+
+# ---- 49. 活动流棒 3 存量补汇总（包 2.18.10, #69；队列 200）: 补汇总标记 + 组装行为 + 计数面补汇总块回读 ----
+# （本节原拟第 48 节/#68，与队列 182 批准棒 1 撞号，182 先行部署占号，本棒顺延第 49 节/#69；探针名不变。）
+if docker exec hermes grep -q "_title_backfill_candidates" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null && docker exec hermes grep -q "model_backfill" /opt/hermes/gateway/platforms/activity_feed.py 2>/dev/null && docker exec hermes grep -q "model_backfill" /opt/hermes/gateway/platforms/title_engine.py 2>/dev/null; then ok "title-backfill-marks" "补汇总 pass 与 model_backfill 来源标记三件在位（队列 200）"; else bad "title-backfill-marks" "补汇总 pass 或 model_backfill 标记缺失（2.18.10 未应用）"; fi
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import title_engine as t; from gateway.platforms import activity_feed as f; st=t.new_state(100); assert t.enqueue(st,"thread:run:o1","fp",100,backfill=True); assert st["entries"]["thread:run:o1@fp"]["backfill"] is True; assert t.is_model_source("model_backfill") and not t.is_model_source("rule"); items=[{"id":"run:b1","kind":"run","sessionId":"s1","runId":"b1","title":"老活","status":"completed","startedAt":50,"endedAt":90,"title_human":"规则标题","summary":"规则副题"},{"id":"run:b2","kind":"run","sessionId":"s1","runId":"b1","title":"老活","status":"completed","startedAt":60,"endedAt":80,"title_human":"补汇总标题","summary":"补汇总副题","titleHumanSource":"model_backfill"}]; th=f.assemble_threads(items, ()); assert len(th)==1 and th[0]["titleSource"]=="model_backfill" and th[0]["title"]=="补汇总标题" and th[0]["summary"]=="补汇总副题"' 2>/dev/null; then ok "title-backfill-behavior" "补汇总行为自检通过（入队标记＋来源集＋组装 model_backfill 接管标题与副题，队列 200）"; else bad "title-backfill-behavior" "补汇总行为自检失败（2.18.10 未应用）"; fi
+if [ -n "$API_KEY" ]; then
+  BF49=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/summary" | python3 -c 'import json,sys; d=json.load(sys.stdin); te=d.get("titleEngine") or {}; bf=te.get("backfill"); print("ok:%s:%s" % ((bf or {}).get("done"), te.get("backfillDoneAt")) if isinstance(bf, dict) else "missing")' 2>/dev/null || echo -1)
+  case "$BF49" in
+    ok:*) ok "title-backfill-stats" "计数面 titleEngine.backfill 在位：已补 $(echo $BF49 | cut -d: -f2)、补完戳 $(echo $BF49 | cut -d: -f3)（补完进度属部署验收回读，队列 200）" ;;
+    *) bad "title-backfill-stats" "计数面 titleEngine.backfill 异常（值 $BF49；期望 backfill 块在位）" ;;
+  esac
+else
+  unk "title-backfill-stats" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
 # ---- 50. 云电脑接管（包 2.18.11, #70；队列 164 合入、队列 205 构建关）: vault 执行器注册 + reverse_node 回连面（静态探针：部署目录包文件 grep）+ 脚本下发鉴权（行为探针） ----
 CVF="$DEPLOY_DIR/patches/credential_vault.py"; FGF="$DEPLOY_DIR/patches/front_gateway.py"; ASF="$DEPLOY_DIR/patches/api_server.py"
 if grep -qF 'OPERATIONS[("cloud_computer", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("browser_login", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("cloud_computer", "type_password")]' "$CVF"; then ok "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器在册（cloud_computer/browser_login fill_credential + cloud_computer type_password，保险库零知识填密链通）"; else bad "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器不全（vault_use 恒 denied，填密链断）"; fi

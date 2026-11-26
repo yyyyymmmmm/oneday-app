@@ -527,6 +527,69 @@ check("no headline at all reads as raw, never blanked by the engine",
       bare[0]["title"] == "查内存"
       and bare[0]["titleSource"] == "raw")
 
+print("== title engine stock backfill (queue 200) ==")
+# -- queue: backfill entries carry the flag, live entries do
+#    not; stats keep the backfill's own ledger line --
+qs3 = te.new_state(5000)
+check("backfill enqueue records the flag, live enqueue does not",
+      te.enqueue(qs3, "thread:run:old1", "fpo1", 5000,
+                 backfill=True) is True
+      and qs3["entries"]["thread:run:old1@fpo1"]["backfill"]
+      is True
+      and te.enqueue(qs3, "thread:run:new1", "fpn1", 5001) is True
+      and qs3["entries"]["thread:run:new1@fpn1"]["backfill"]
+      is False)
+check("model source set covers live and backfill provenance",
+      te.is_model_source("model")
+      and te.is_model_source("model_backfill")
+      and not te.is_model_source("rule")
+      and not te.is_model_source(None))
+k_old = te.queue_key("thread:run:old1", "fpo1")
+te.record_attempt(qs3, k_old, "run_bf", 5002)
+te.record_success(qs3, k_old, 5003)
+stats200 = te.stats(qs3)
+check("stats expose the backfill breakdown and done stamp",
+      stats200["backfill"] == {"pending": 0, "done": 1,
+                               "failed": 0}
+      and stats200["backfillDoneAt"] is None)
+qs3["backfillDoneAt"] = 6000
+check("stats surface the backfill completion stamp",
+      te.stats(qs3)["backfillDoneAt"] == 6000)
+
+# -- assembly: a backfilled headline takes the thread over from
+#    the rule headline (title AND summary), reads as
+#    model_backfill, and a live model headline outranks it --
+bf_items = [
+    {"id": "run:b1", "kind": "run", "sessionId": "oneday-main-2",
+     "runId": "b1", "title": "老活", "status": "completed",
+     "startedAt": 50, "endedAt": 90,
+     "title_human": "规则标题", "summary": "规则副题"},
+    {"id": "run:b2", "kind": "run", "sessionId": "oneday-main-2",
+     "runId": "b1", "title": "老活", "status": "completed",
+     "startedAt": 60, "endedAt": 80,
+     "title_human": "补汇总标题",
+     "summary": "补汇总副题",
+     "titleHumanSource": "model_backfill"},
+]
+th200 = feed.assemble_threads(bf_items, SKIP)
+check("backfilled headline wins over the rule headline",
+      len(th200) == 1 and th200[0]["title"] == "补汇总标题"
+      and th200[0]["summary"] == "补汇总副题"
+      and th200[0]["titleSource"] == "model_backfill",
+      repr(th200))
+live_over_bf = feed.assemble_threads(
+    bf_items + [{"id": "run:b3", "kind": "run",
+                 "sessionId": "oneday-main-2", "runId": "b1",
+                 "title": "老活", "status": "completed",
+                 "startedAt": 55, "endedAt": 70,
+                 "title_human": " live 标题".strip(),
+                 "summary": "live 副题",
+                 "titleHumanSource": "model"}], SKIP)
+check("a live model headline outranks a backfilled one",
+      live_over_bf[0]["title"] == "live 标题"
+      and live_over_bf[0]["titleSource"] == "model",
+      repr(live_over_bf))
+
 
 print()
 if FAILS:
