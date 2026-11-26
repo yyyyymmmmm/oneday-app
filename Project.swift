@@ -28,7 +28,11 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
             // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
-            dependencies: [.external(name: "Markdown")]
+            // 移植 1.4：Highlightr 代码语法高亮（Tuist/Package.swift 钉版 2.3.0）
+            dependencies: [
+                .external(name: "Markdown"),
+                .external(name: "Highlightr"),
+            ]
         ),
         .target(
             name: "OneDayDesign",
