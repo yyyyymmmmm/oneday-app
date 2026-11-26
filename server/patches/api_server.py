@@ -3764,6 +3764,12 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # patch is applied; the [[vreq:...]] body marker remains
             # only as the archive fallback.
             "vault_request_block": True,
+            # Local patch (mail bar 1, queue 181): the hub mail data
+            # source (mail_gateway module) is part of this listener's
+            # code -- IMAP/SMTP accounts whose passwords live only in
+            # the credential vault, polling sync, unified inbox.
+            # Advertised once the patch is applied.
+            "mail_gateway": True,
             # Local patch (hermes-deploy 2.8.0): the panel web-login
             # bridge (api_server_oneday_routes) is part of this
             # listener's code; advertised once the patch is applied.
@@ -5850,6 +5856,11 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
                 _front_gateway.start()
             except Exception:
                 logger.debug("[%s] front gateway unavailable", self.name, exc_info=True)
+            try:
+                from gateway.platforms import mail_gateway as _mail_gateway
+                _mail_gateway.start(self._expected_api_key())
+            except Exception:
+                logger.debug("[%s] mail gateway unavailable", self.name, exc_info=True)
             # Network-accessible + unsandboxed local terminal backend = host-user RCE surface;
             # warn, don't refuse (the operator may have a firewall / strong key).
             if is_network_accessible(self._host):
