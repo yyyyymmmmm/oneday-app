@@ -4508,47 +4508,16 @@ final class ChatRootViewController: UIViewController,
             identifier: row.key as NSString,
             previewProvider: nil
         ) { [weak self] _ in
-            var children: [UIMenuElement] = []
-            if data.canReact {
-                let reactionActions = MessageReactions.palette.map { emoji in
-                    UIAction(
-                        title: emoji,
-                        state: data.ownEmoji == emoji ? .on : .off
-                    ) { _ in
-                        Haptics.selection()
-                        data.onPickReaction(emoji)
-                    }
+            ReactionContextMenuBuilder.makeMenu(
+                data: data,
+                items: items,
+                onOpenAllReactions: {
+                    self?.presentAllReactionsSheet(
+                        ownEmoji: data.ownEmoji,
+                        onPick: data.onPickReaction
+                    )
                 }
-                let moreAction = UIAction(
-                    title: L10n.string("更多"),
-                    image: UIImage(systemName: "plus")
-                ) { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        self?.presentAllReactionsSheet(
-                            ownEmoji: data.ownEmoji,
-                            onPick: data.onPickReaction
-                        )
-                    }
-                }
-                let paletteMenu = UIMenu(
-                    title: L10n.string("添加反应"),
-                    image: UIImage(systemName: MessageActionSymbols.react),
-                    options: .displayAsPalette,
-                    children: reactionActions + [moreAction]
-                )
-                children.append(paletteMenu)
-            }
-            let actions = items.map { item in
-                UIAction(
-                    title: item.title,
-                    image: UIImage(systemName: item.systemImage),
-                    attributes: item.isDestructive ? .destructive : []
-                ) { _ in
-                    item.action()
-                }
-            }
-            children.append(contentsOf: actions)
-            return UIMenu(title: "", children: children)
+            )
         }
     }
 
