@@ -152,6 +152,9 @@ let project = Project(
                 // 移植 1.3：KeychainAccess 钥匙串存取
                 // （版本钉死在 Tuist/Package.swift）
                 .external(name: "KeychainAccess"),
+                // 移植 1.6：官方 MCP Swift SDK
+                // （版本钉死在 Tuist/Package.swift）
+                .external(name: "MCP"),
             ]
         ),
         .target(

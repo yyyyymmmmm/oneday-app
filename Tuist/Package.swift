@@ -28,6 +28,8 @@ let packageSettings = PackageSettings(
 // 185+ 语言），MIT；钉版 2.3.0。
 // 移植 1.5：mattt/EventSource 标准 SSE 流式客户端，MIT；
 // 钉版 1.6.0（与官方 MCP swift-sdk 共用同一依赖无冲突）。
+// 移植 1.6：modelcontextprotocol/swift-sdk 官方 MCP
+// Swift SDK，MIT；钉版 0.12.1。
 // 注：Exyte 钉不在本版范围（0.50.104 组版单明示勿带入）。
 let package = Package(
     name: "OneDay",
@@ -51,6 +53,10 @@ let package = Package(
         .package(
             url: "https://github.com/mattt/EventSource.git",
             exact: "1.6.0"
+        ),
+        .package(
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+            exact: "0.12.1"
         )
     ]
 )
