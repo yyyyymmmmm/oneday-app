@@ -159,12 +159,19 @@
 
   function apiJson(method, path, body) {
     return api(method, path, body).then(function (resp) {
-      if (!resp.ok) {
-        var err = new Error(path + " 应答 " + resp.status);
-        err.status = resp.status;
-        throw err;
-      }
-      return resp.json();
+      return resp.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+        if (!resp.ok) {
+          var msg = (data && (data.error || data.detail || data.message)) ||
+            (path + " 应答 " + resp.status);
+          var err = new Error(typeof msg === "string" ? msg : path + " 应答 " + resp.status);
+          err.status = resp.status;
+          if (data && data.code) err.code = data.code;
+          throw err;
+        }
+        return data;
+      });
     });
   }
 
@@ -539,7 +546,7 @@
   function faceShell(title, sub, face, onRefresh, body) {
     var inner;
     if (face.phase === "loading") {
-      inner = h("p", null, "正在经 dashboard 会话换钥并读取……");
+      inner = h("p", null, "正在加载数据……");
     } else if (face.phase === "error") {
       inner = [h("p", { key: "e" }, "读取失败：" + face.error),
         h("button", { key: "r", className: "odc-btn", onClick: onRefresh }, "重试")];
@@ -574,7 +581,7 @@
         if (choice === "always") {
           setNote({ kind: "always", rec: rec });
         } else {
-          setNote({ kind: "done", text: "已提交：" + (CHOICE_LABELS[choice] || choice) + "（以回读为准）" });
+          setNote({ kind: "done", text: "已提交：" + (CHOICE_LABELS[choice] || choice) });
         }
         load();
         if (props.onDecided) props.onDecided();
@@ -608,9 +615,9 @@
       var decided = records.filter(function (r) { return r.status !== "pending"; }).slice(0, 20);
       var parts = [];
       parts.push(h("p", { key: "count", className: "odc-count" },
-        "当前待批：", h("strong", null, String(payload.pending_count != null ? payload.pending_count : pending.length)), " 件（与 App 同一接口）"));
+        "当前待批：", h("strong", null, String(payload.pending_count != null ? payload.pending_count : pending.length)), " 件"));
       if (payload.ledger_degraded) {
-        parts.push(h("p", { key: "deg", className: "odc-warn" }, "注意：服务端账本降级，已决记录可能不完整。"));
+        parts.push(h("p", { key: "deg", className: "odc-warn" }, "注意：批准记录可能不完整，请检查近期数据。"));
       }
       if (note) {
         if (note.kind === "always") {
@@ -669,7 +676,7 @@
       }
       body = parts;
     }
-    return faceShell("批准", "待批与 App 同一接口、同一语义：一次点按即生效，按钮按服务端给本条的 choices 渲染。", face, load, body);
+    return faceShell("批准", "待批事项列表：一次点按即生效，可选操作根据每条事项的可用选项显示。", face, load, body);
   }
 
   // ---------------- vault entries face (read-only) ----------------
@@ -1001,7 +1008,7 @@
         postsLoad();
       }).catch(function (err) {
         setGenBusy(false);
-        setGenMsg({ ok: false, text: "没能开始生成（" + ((err && err.message) || String(err)) + "）——生成在跑时桥回 409，属既有口径。" });
+        setGenMsg({ ok: false, text: "没能开始生成（" + ((err && err.message) || String(err)) + "）——已有生成任务正在运行，请稍后再试。" });
       });
     }
 
@@ -1698,7 +1705,7 @@
       Core.deleteWriteGateRule(rule.id).then(function () {
         load(); // verdict by read-back, same rule as the App hub
       }).catch(function (err) {
-        setNote("撤销没成（" + ((err && err.message) || err) + "），已按服务端真值重读。");
+        setNote("撤销失败（" + ((err && err.message) || err) + "），已刷新数据。");
         load();
       }).then(function () {
         var n2 = {}; Object.keys(busy).forEach(function (k) { n2[k] = busy[k]; });
@@ -1776,7 +1783,7 @@
       p.then(function () {
         load(); // verdict by read-back (App hub rule)
       }).catch(function (err) {
-        setNote("撤销没成（" + ((err && err.message) || err) + "），已按服务端真值重读。");
+        setNote("撤销失败（" + ((err && err.message) || err) + "），已刷新数据。");
         load();
       }).then(function () {
         var n2 = {}; Object.keys(busy).forEach(function (k) { n2[k] = busy[k]; });
@@ -1829,7 +1836,7 @@
       }
       body = parts;
     }
-    return faceShell("授权管理 · 规矩", "与 App 设置授权节同一清单（GET /v1/grants 双源投影）：在批准时选「总是允许」立下的规矩全量列在这里，逐条可撤销；命令授权走网关撤销口、写闸规矩走写闸规则口（服务端单一写者口径），成败以回读为准。", face, load, body);
+    return faceShell("授权管理 · 规矩", "在批准时选择「总是允许」建立的授权规则，可在此查看和撤销。", face, load, body);
   }
 
   // ---------------- cron face (bar 3, user-visible projection) ----------------
@@ -1948,7 +1955,7 @@
       setBusy(true);
       Core.saveLearningNode(sel.node.id, draft).then(function () {
         setBusy(false);
-        setNote("已保存（以回读为准）。");
+        setNote("已保存。");
         load();
         openNode(sel.node);
       }).catch(function (err) {
@@ -1962,7 +1969,7 @@
       Core.deleteLearningNode(sel.node.id).then(function () {
         setBusy(false);
         setSel(null);
-        setNote("已删除（以回读为准）。");
+        setNote("已删除。");
         load();
       }).catch(function (err) {
         setBusy(false);
@@ -2235,7 +2242,7 @@
       }
       body = parts;
     }
-    return faceShell("文件库", "交付物库（GET /api/oneday-bridge/file-library 服务端聚合，与 App 同一函数）：预览走 dashboard 文件通道 /api/files/download，与 App 打开同一文件同源对账；置顶与打开历史是本机本地记录（App 同为本地存储）。与 dashboard 的 Files 服务器文件浏览器分工并存、不合并。", face, load, body);
+    return faceShell("文件库", "智能体生成的文件与交付物，可预览、下载和管理。置顶与打开历史保存在本地。", face, load, body);
   }
 
   // ---------------- monitors face (bar 4, gap #10) ----------------
@@ -2278,7 +2285,7 @@
         if (openId === id) loadChanges(id);
       }).catch(function (err) {
         setBusy("");
-        setNote("操作没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        setNote("操作失败：" + ((err && err.message) || String(err)) + "，已刷新数据");
         load();
       });
     }
@@ -2392,16 +2399,16 @@
             h("span", { key: "ac", className: "odc-actions" },
               h("button", {
                 className: "odc-btn odc-btn-small", disabled: busy === m.id,
-                onClick: function () { act(m.id, function () { return Core.checkMonitor(m.id); }, "已检查（以回读为准）。"); }
+                onClick: function () { act(m.id, function () { return Core.checkMonitor(m.id); }, "已检查。"); }
               }, "立即检查"),
               m.enabled
                 ? h("button", {
                   className: "odc-btn odc-btn-small", disabled: busy === m.id,
-                  onClick: function () { act(m.id, function () { return Core.pauseMonitor(m.id); }, "已暂停（以回读为准）。"); }
+                  onClick: function () { act(m.id, function () { return Core.pauseMonitor(m.id); }, "已暂停。"); }
                 }, "暂停")
                 : h("button", {
                   className: "odc-btn odc-btn-small", disabled: busy === m.id,
-                  onClick: function () { act(m.id, function () { return Core.resumeMonitor(m.id); }, "已恢复（以回读为准）。"); }
+                  onClick: function () { act(m.id, function () { return Core.resumeMonitor(m.id); }, "已恢复。"); }
                 }, "恢复"),
               h("button", {
                 className: "odc-btn odc-btn-small",
@@ -2448,7 +2455,7 @@
       }
       body = parts;
     }
-    return faceShell("监控", "与 App 智能体监控面同一数据源（GET /api/oneday-bridge/monitors）：盯网页变化、检出留痕。立即检查/暂停/恢复/删除/新建与 App 同口，成败以回读为准。", face, load, body);
+    return faceShell("监控", "监控网页变化并自动检测更新。可立即检查、暂停、恢复或删除监控项。", face, load, body);
   }
 
   // ---------------- connectors face (bar 4, gap #11) ----------------
@@ -2505,11 +2512,11 @@
       setNote("");
       Core.setMcpServerEnabled(s.name, !s.enabled).then(function () {
         setBusy("");
-        setNote("「" + s.name + "」已" + (!s.enabled ? "启用" : "停用") + "（以回读为准）。");
+        setNote("「" + s.name + "」已" + (!s.enabled ? "启用" : "停用") + "。");
         load();
       }).catch(function (err) {
         setBusy("");
-        setNote("开关没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        setNote("开关失败：" + ((err && err.message) || String(err)) + "，已刷新数据");
         load();
       });
     }
@@ -2721,7 +2728,7 @@
       setNote("");
       Core.setDelegationBackend(name).then(function () {
         setBusy("");
-        setNote("已切换委派后端（以回读为准）。");
+        setNote("已切换委派后端。");
         load();
       }).catch(function (err) {
         setBusy("");

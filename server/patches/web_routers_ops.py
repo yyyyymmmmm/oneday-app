@@ -609,6 +609,9 @@ async def run_backup(body: BackupRequest, profile: Optional[str] = None):
         output = str(archive)
     response = _spawn_action(["backup", "-o", output], "backup", log_msg="Failed to spawn backup",
                              prefix="Failed to run backup", profile=profile)
+    # dp-238: add resource name for user reference (not absolute path)
+    archive_name = Path(output).name
+    response["archive"] = archive_name
     return response
 
 
