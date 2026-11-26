@@ -1945,10 +1945,17 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("PATCH", "/api/identity-bridge/{tail:.*}", self._handle_identity_gateway),
             ("DELETE", "/api/identity-bridge/{tail:.*}", self._handle_identity_gateway),
             ("POST", "/mcp/identity", self._handle_identity_mcp),
-            # Front read-only faces (batch 4): connections +
-            # gateway-channels move in-gateway read-only (verdict
-            # C-2 plan b); the write faces are NOT migrated -- the
-            # credential registry is edited server-side from here.
+            # Front faces (batch 4 read faces; cloud-computer
+            # upgrade write faces): connections + gateway-channels
+            # moved in-gateway read-only under verdict C-2 plan b;
+            # the write faces joined later and stay in-gateway by
+            # the user's 2026-11-26 verdict reversing C-2 -- see
+            # the front_gateway module header for the full verdict
+            # history. The reverse-node faces (agent-install
+            # scripts, node check-in) are NOT behind @_require_auth:
+            # the target machine holds only its pairing token,
+            # which front_gateway checks itself (cron-callback
+            # discipline).
             ("GET", "/v1/front/connections", self._handle_front_connections),
             ("POST", "/v1/front/connections", self._handle_front_connection_create),
             ("POST", "/v1/front/connections/{id}/credential", self._handle_front_connection_credential),
@@ -1965,6 +1972,12 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("POST", "/api/companion/connections/{id}/keygen", self._handle_front_connection_keygen),
             ("DELETE", "/api/companion/connections/{id}", self._handle_front_connection_delete),
             ("GET", "/api/companion/gateway-channels", self._handle_front_gateway_channels),
+            ("GET", "/v1/front/agent-install.sh", self._handle_front_agent_install_sh),
+            ("GET", "/v1/front/agent-install.ps1", self._handle_front_agent_install_ps1),
+            ("POST", "/v1/front/nodes/{id}/checkin", self._handle_front_node_checkin),
+            ("GET", "/api/companion/agent-install.sh", self._handle_front_agent_install_sh),
+            ("GET", "/api/companion/agent-install.ps1", self._handle_front_agent_install_ps1),
+            ("POST", "/api/companion/nodes/{id}/checkin", self._handle_front_node_checkin),
             # Cron callbacks (bridge contract B-01): NOT behind
             # @_require_auth -- the generated scripts hold only the
             # dedicated callback key, which the module checks
@@ -3971,6 +3984,51 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
                 code="front_gateway_unavailable")
         status, payload = await asyncio.to_thread(
             _fg.get_gateway_channels)
+        return web.json_response(payload, status=status)
+
+    async def _front_agent_install(self, request: web.Request, kind: str) -> web.Response:
+        """Reverse-node installer download: NOT behind @_require_auth --
+        front_gateway authenticates by the pairing token itself."""
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        node_id = request.query.get("node", "") or request.headers.get("X-Node-Id", "")
+        token = request.query.get("token", "") or request.headers.get("X-Node-Token", "")
+        status, ctype, text = await asyncio.to_thread(
+            _fg.get_agent_install_script, kind, node_id, token)
+        return web.Response(body=text.encode("utf-8"), status=status,
+                            headers={"Content-Type": ctype})
+
+    async def _handle_front_agent_install_sh(self, request: web.Request) -> web.Response:
+        return await self._front_agent_install(request, "sh")
+
+    async def _handle_front_agent_install_ps1(self, request: web.Request) -> web.Response:
+        return await self._front_agent_install(request, "ps1")
+
+    async def _handle_front_node_checkin(self, request: web.Request) -> web.Response:
+        """Reverse-node report-in / heartbeat: NOT behind
+        @_require_auth -- front_gateway authenticates by the
+        pairing token itself."""
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        token = (request.headers.get("X-Node-Token", "")
+                 or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+                 or str(body.get("token", "")))
+        status, payload = await asyncio.to_thread(_fg.node_checkin, cid, token, body)
         return web.json_response(payload, status=status)
 
     @_require_auth

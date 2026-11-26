@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=a493afb2dc3ab1121716ddd8dc41aec5fc72ab566b94cc6ea216895bcf7464c6
+  [api_server.py]=fe8419ff4be10f0431ff2d6e248711372d4b0e7cc267097f72f1f4e704d4917e
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
@@ -33,7 +33,7 @@ declare -A WANT_SHA_EXTRA=(
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
-  [front_gateway.py]=857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf
+  [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
   [write_gate_gateway.py]=a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
@@ -54,7 +54,7 @@ declare -A WANT_SHA_EXTRA=(
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=ed95fcaf15a04abce54a68443e69d455ab3f9ba0cee3b42db4d292e2624e52f0
+  [credential_vault.py]=37906f26dff13e4caddf1e4095753cba73fda4f8c2b528f6b5d9d4a4ec2a33d9
   [credential_vault_tool.py]=ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
@@ -913,3 +913,12 @@ else
 fi
 unk "webbar5-dashfaces" "会话消息与反应读面（/api/sessions、/api/sessions/{id}/messages）、语音（/api/audio/voice-config、/api/audio/speak）走 dashboard 会话 cookie，服务端探针无会话不代测；反应写面（PUT/DELETE /v1/reactions）为写型探针、不在 verify 内代跑，部署验收以真浏览器登录态实测留据"
 unk "webbar5-browser" "棒 5 真浏览器目视（工具集启停往返复原、反应设置/撤回往返回读、播报实播、听写出字、身份头像廊渲染、设备/电脑/设置三面真数据、搜索跨面命中与锚点跳转）属部署验收人工项；服务端等价链由部署单实测留据。差集 #19 引用回复未销账·遗留（终端面约束），不在本节探针范围"
+
+# ---- 40. 云电脑接管（包 2.18.0, #59）: vault 执行器注册 + reverse_node 回连面（静态探针：部署目录包文件 grep）+ 脚本下发鉴权（行为探针） ----
+CVF="$DEPLOY_DIR/patches/credential_vault.py"; FGF="$DEPLOY_DIR/patches/front_gateway.py"; ASF="$DEPLOY_DIR/patches/api_server.py"
+if grep -qF 'OPERATIONS[("cloud_computer", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("browser_login", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("cloud_computer", "type_password")]' "$CVF"; then ok "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器在册（cloud_computer/browser_login fill_credential + cloud_computer type_password，保险库零知识填密链通）"; else bad "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器不全（vault_use 恒 denied，填密链断）"; fi
+if grep -q 'def node_checkin' "$FGF" && grep -q 'def get_agent_install_script' "$FGF"; then ok "cloudpc-node-face" "front_gateway 节点回连面在位（node_checkin 落状态 + get_agent_install_script 按令牌下发）"; else bad "cloudpc-node-face" "front_gateway 缺节点回连面（reverse_node 装不上、永远停在待回连）"; fi
+if grep -q 'agent-install.sh' "$ASF" && grep -q 'agent-install.ps1' "$ASF" && grep -q 'nodes/{id}/checkin' "$ASF"; then ok "cloudpc-node-routes" "api_server 安装脚本端点（agent-install.sh/.ps1）与节点 checkin 路由在位（正口+保形口）"; else bad "cloudpc-node-routes" "api_server 缺 reverse_node 路由（配对命令指向空端点）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8642/v1/front/agent-install.sh" || true)
+if [ "$code" = "403" ]; then ok "cloudpc-install-auth" "无令牌 GET /v1/front/agent-install.sh → 403（脚本按配对令牌鉴权下发、无令牌不发）"; else bad "cloudpc-install-auth" "无令牌 agent-install.sh 应答 $code（期望 403；200＝脚本裸奔下发，404＝端点未在位）"; fi
+unk "cloudpc-node-live" "真节点回连（目标机执行配对命令 → checkin 落 node 状态 → connections 出 node.online=true → verify_connection 报在线）与保险库填密真链（vault_use 三件）属部署验收写型项，不在只读 verify 内代跑"

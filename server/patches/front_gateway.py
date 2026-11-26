@@ -14,6 +14,20 @@ Cloud Computer & Remote Host upgrade:
      (generates one-time node token & ready-to-run install command)
 - Secret values (apiKey, password, privateKey, token, nodeToken) NEVER
   leave the server; conn_public emits only safe display metadata.
+
+Verdict history (write faces in this module):
+- 2026-11-24, batch-4 bridge retirement, verdict C-2 (plan b): only the
+  two read faces (connections list, gateway channels) migrated
+  in-gateway; the write faces (create / credential / verify /
+  disconnect) were deliberately NOT migrated -- the connection
+  registry was edited server-side only, and no write face existed on
+  the gateway (404).
+- 2026-11-26, the user personally reversed C-2 for this module: the
+  write faces stay in the gateway ("write operations move back into
+  the gateway, that settles it"). The CRUD + credential + verify +
+  disconnect + delete + keygen faces below, and the reverse_node
+  pairing / install-script / check-in faces, are therefore in-gateway
+  by the user's own ruling, superseding C-2.
 """
 from __future__ import annotations
 
@@ -178,10 +192,40 @@ def conn_save(recs: list[dict]) -> None:
         pass
 
 
+NODE_ONLINE_WINDOW_SEC = 180
+
+
+def _node_public(rec: dict) -> dict | None:
+    """Non-secret reverse-node liveness view: whether the node agent has
+    checked in, and whether its heartbeat is still fresh. The pairing
+    token itself never leaves the server."""
+    if rec.get("provider") != "reverse_node":
+        return None
+    n = rec.get("node") if isinstance(rec.get("node"), dict) else {}
+    last = str(n.get("lastSeenAt", ""))
+    online = False
+    if last:
+        try:
+            seen = datetime.fromisoformat(last.replace("Z", "+00:00"))
+            online = (datetime.now(timezone.utc) - seen).total_seconds() <= NODE_ONLINE_WINDOW_SEC
+        except Exception:
+            online = False
+    return {
+        "online": online,
+        "lastSeenAt": last or None,
+        "hostname": str(n.get("hostname", "")) or None,
+        "osType": str(n.get("osType", "")) or None,
+        "agentVersion": str(n.get("agentVersion", "")) or None,
+    }
+
+
 def conn_public(rec: dict) -> dict:
     pub = {k: rec.get(k) for k in
            ("id", "kind", "provider", "name", "configured",
             "lastVerify", "effective", "note")}
+    node = _node_public(rec)
+    if node:
+        pub["node"] = node
     # Expose only non-secret display metadata (never passwords/keys/tokens).
     s = rec.get("secret", {}) if isinstance(rec.get("secret"), dict) else {}
     meta: dict = {}
@@ -444,21 +488,187 @@ def _generate_ed25519_keypair(comment: str) -> tuple[str | None, str | None, str
 
 def _reverse_pair_commands(node_id: str, token: str, os_type: str) -> dict:
     base = PUBLIC_BASE or "https://<你的服务器域名>"
+    # The install-script endpoints authenticate by the pairing token
+    # itself (the target machine holds no gateway key), so the token
+    # rides in the download URL as well as in the agent environment.
+    q = f"?node={node_id}&token={token}"
     linux_cmd = (
-        f"curl -fsSL {base}/v1/front/agent-install.sh | "
+        f"curl -fsSL '{base}/v1/front/agent-install.sh{q}' | "
         f"ONEDAY_SERVER='{base}' ONEDAY_NODE_ID='{node_id}' "
         f"ONEDAY_NODE_TOKEN='{token}' sh"
     )
     win_cmd = (
         f"$env:ONEDAY_SERVER='{base}'; $env:ONEDAY_NODE_ID='{node_id}'; "
         f"$env:ONEDAY_NODE_TOKEN='{token}'; "
-        f"irm {base}/v1/front/agent-install.ps1 | iex"
+        f"irm '{base}/v1/front/agent-install.ps1{q}' | iex"
     )
     return {
         "linuxCommand": linux_cmd,
         "windowsCommand": win_cmd,
         "recommendedCommand": win_cmd if os_type == "windows" else linux_cmd,
     }
+
+
+# ------------------------------------------------------------ reverse node agent
+# The pairing command pipes one of these installers into sh / iex on
+# the target machine. The installer lays down a small heartbeat agent
+# that POSTs to /v1/front/nodes/{id}/checkin with the pairing token,
+# so the connection record gains a real node state (lastSeenAt /
+# hostname) instead of waiting forever for a check-in that has no
+# receiving face. Placeholders __SERVER__ / __NODE_ID__ / __TOKEN__
+# are baked in at serve time from the authenticated pairing; the
+# ONEDAY_* environment variables set by the pairing command win when
+# present.
+
+_AGENT_INSTALL_SH = r"""#!/bin/sh
+# OneDay reverse node agent installer (served by front_gateway).
+set -e
+SERVER="${ONEDAY_SERVER:-__SERVER__}"
+NODE_ID="${ONEDAY_NODE_ID:-__NODE_ID__}"
+TOKEN="${ONEDAY_NODE_TOKEN:-__TOKEN__}"
+AGENT_DIR="$HOME/.oneday"
+AGENT_FILE="$AGENT_DIR/node-agent.sh"
+mkdir -p "$AGENT_DIR"
+cat > "$AGENT_FILE" <<'AGENT_EOF'
+#!/bin/sh
+SERVER="${ONEDAY_SERVER:-__SERVER__}"
+NODE_ID="${ONEDAY_NODE_ID:-__NODE_ID__}"
+TOKEN="${ONEDAY_NODE_TOKEN:-__TOKEN__}"
+while true; do
+  HOSTNAME="$(hostname 2>/dev/null || echo unknown)"
+  curl -fsS -X POST "$SERVER/v1/front/nodes/$NODE_ID/checkin" \
+    -H "X-Node-Token: $TOKEN" -H "Content-Type: application/json" \
+    -d "{\"hostname\":\"$HOSTNAME\",\"osType\":\"linux\",\"agentVersion\":\"1.0.0\"}" \
+    >/dev/null 2>&1 || true
+  sleep 60
+done
+AGENT_EOF
+chmod 700 "$AGENT_FILE"
+# First check-in right away, so the gateway sees this node in seconds.
+HOSTNAME="$(hostname 2>/dev/null || echo unknown)"
+curl -fsS -X POST "$SERVER/v1/front/nodes/$NODE_ID/checkin" \
+  -H "X-Node-Token: $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"hostname\":\"$HOSTNAME\",\"osType\":\"linux\",\"agentVersion\":\"1.0.0\"}" || true
+echo ""
+# Keep the agent alive across reboots where a user systemd is around;
+# otherwise fall back to a nohup background loop.
+STARTED=""
+if command -v systemctl >/dev/null 2>&1; then
+  UNIT_DIR="$HOME/.config/systemd/user"
+  mkdir -p "$UNIT_DIR"
+  cat > "$UNIT_DIR/oneday-node-agent.service" <<UNIT_EOF
+[Unit]
+Description=OneDay reverse node agent
+After=network-online.target
+
+[Service]
+ExecStart=$AGENT_FILE
+Restart=always
+Environment=ONEDAY_SERVER=$SERVER
+Environment=ONEDAY_NODE_ID=$NODE_ID
+Environment=ONEDAY_NODE_TOKEN=$TOKEN
+
+[Install]
+WantedBy=default.target
+UNIT_EOF
+  if systemctl --user daemon-reload 2>/dev/null && \
+     systemctl --user enable --now oneday-node-agent.service 2>/dev/null; then
+    STARTED="systemd"
+  fi
+fi
+if [ -z "$STARTED" ]; then
+  if [ -f "$AGENT_DIR/agent.pid" ]; then
+    kill "$(cat "$AGENT_DIR/agent.pid")" 2>/dev/null || true
+  fi
+  ONEDAY_SERVER="$SERVER" ONEDAY_NODE_ID="$NODE_ID" ONEDAY_NODE_TOKEN="$TOKEN" \
+    nohup "$AGENT_FILE" >/dev/null 2>&1 &
+  echo $! > "$AGENT_DIR/agent.pid"
+fi
+echo "OneDay node agent installed and running."
+"""
+
+_AGENT_INSTALL_PS1 = r"""# OneDay reverse node agent installer (served by front_gateway).
+$ErrorActionPreference = 'Stop'
+$server = if ($env:ONEDAY_SERVER) { $env:ONEDAY_SERVER } else { '__SERVER__' }
+$nodeId = if ($env:ONEDAY_NODE_ID) { $env:ONEDAY_NODE_ID } else { '__NODE_ID__' }
+$token  = if ($env:ONEDAY_NODE_TOKEN) { $env:ONEDAY_NODE_TOKEN } else { '__TOKEN__' }
+$dir = Join-Path $env:USERPROFILE '.oneday'
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+$agent = Join-Path $dir 'node-agent.ps1'
+@'
+$server = '__SERVER__'
+$nodeId = '__NODE_ID__'
+$token = '__TOKEN__'
+while ($true) {
+  try {
+    $body = @{ hostname = $env:COMPUTERNAME; osType = 'windows'; agentVersion = '1.0.0' } | ConvertTo-Json -Compress
+    Invoke-RestMethod -Method Post -Uri "$server/v1/front/nodes/$nodeId/checkin" -Headers @{ 'X-Node-Token' = $token } -ContentType 'application/json' -Body $body | Out-Null
+  } catch { }
+  Start-Sleep -Seconds 60
+}
+'@ | Set-Content -Encoding UTF8 $agent
+# First check-in right away, so the gateway sees this node in seconds.
+try {
+  $body = @{ hostname = $env:COMPUTERNAME; osType = 'windows'; agentVersion = '1.0.0' } | ConvertTo-Json -Compress
+  Invoke-RestMethod -Method Post -Uri "$server/v1/front/nodes/$nodeId/checkin" -Headers @{ 'X-Node-Token' = $token } -ContentType 'application/json' -Body $body | Out-Null
+} catch { }
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File', $agent
+try {
+  $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agent`""
+  $trigger = New-ScheduledTaskTrigger -AtLogOn
+  Register-ScheduledTask -TaskName 'OneDay Node Agent' -Action $action -Trigger $trigger -Force | Out-Null
+} catch { }
+Write-Host 'OneDay node agent installed and running.'
+"""
+
+
+def _render_agent_script(template: str, node_id: str, token: str) -> str:
+    return (template.replace("__SERVER__", PUBLIC_BASE)
+                    .replace("__NODE_ID__", node_id)
+                    .replace("__TOKEN__", token))
+
+
+def _node_token_ok(rec: dict, token: str) -> bool:
+    s = rec.get("secret", {}) if isinstance(rec.get("secret"), dict) else {}
+    saved = str(s.get("nodeToken", ""))
+    return bool(saved and token and secrets.compare_digest(saved, token))
+
+
+def get_agent_install_script(kind: str, node_id: str, token: str) -> tuple[int, str, str]:
+    """Serve a reverse-node installer, authenticated by the pairing
+    token itself (the target machine holds no gateway key).
+    Returns (status, content_type, text)."""
+    rec = next((r for r in conn_load()
+                if r.get("id") == node_id and r.get("provider") == "reverse_node"), None)
+    if rec is None or not _node_token_ok(rec, token):
+        return 403, "text/plain; charset=utf-8", "pairing token not recognized\n"
+    if kind == "ps1":
+        return 200, "text/plain; charset=utf-8", _render_agent_script(_AGENT_INSTALL_PS1, node_id, token)
+    return 200, "text/x-shellscript; charset=utf-8", _render_agent_script(_AGENT_INSTALL_SH, node_id, token)
+
+
+def node_checkin(node_id: str, token: str, body: dict) -> tuple[int, dict]:
+    """Node agent report-in / heartbeat: validates the pairing token,
+    then records real liveness on the connection so verify can judge
+    by actual check-ins instead of token existence."""
+    recs = conn_load()
+    rec = next((r for r in recs if r.get("id") == node_id), None)
+    if rec is None or rec.get("provider") != "reverse_node":
+        return 404, {"ok": False, "error": "没有这条节点记录"}
+    if not _node_token_ok(rec, token):
+        return 403, {"ok": False, "error": "节点令牌不对"}
+    s = rec.get("secret", {}) if isinstance(rec.get("secret"), dict) else {}
+    rec["node"] = {
+        "lastSeenAt": now_iso(),
+        "hostname": str(body.get("hostname", ""))[:80],
+        "osType": str(body.get("osType") or s.get("osType") or "linux")[:16],
+        "agentVersion": str(body.get("agentVersion", ""))[:24],
+    }
+    rec["configured"] = True
+    rec["effective"] = "已上线"
+    rec["note"] = f"节点已回连（{rec['node']['hostname'] or node_id}）"
+    conn_save(recs)
+    return 200, {"ok": True, "nextHeartbeatSec": 60, "connection": conn_public(rec)}
 
 
 # ------------------------------------------------------------ gateway channels
@@ -590,6 +800,7 @@ def submit_credential(cid: str, body: dict) -> tuple[int, dict]:
         if os_type not in ("linux", "windows"):
             os_type = "linux"
         rec["secret"] = {"nodeToken": token, "osType": os_type, "authType": "reverse_token"}
+        rec.pop("node", None)
         rec["configured"] = True
         rec["effective"] = "待节点回连"
         rec["note"] = "已重置配对令牌，请在目标机器重新执行配对命令"
@@ -738,8 +949,17 @@ def verify_connection(cid: str) -> tuple[int, dict]:
     elif p in ("vps_agent", "vps_ssh"):
         ok, detail = _verify_vps(rec)
     elif p == "reverse_node":
-        ok = bool(s.get("nodeToken"))
-        detail = "配对令牌有效，等待目标机器回连" if ok else "未生成配对令牌"
+        node = _node_public(rec)
+        if node and node.get("lastSeenAt"):
+            if node.get("online"):
+                ok, detail = True, f"节点在线（最近回连 {node['lastSeenAt']}）"
+            else:
+                ok, detail = False, (f"节点曾回连，但心跳已超时（最后回连 {node['lastSeenAt']}），"
+                                     "请检查目标机器上的节点代理是否还在运行")
+        elif s.get("nodeToken"):
+            ok, detail = False, "配对令牌已生成，但目标机器还没回连——请先在目标机器上执行配对命令安装节点代理"
+        else:
+            ok, detail = False, "未生成配对令牌"
     else:
         ok, detail = False, "这一项暂不支持自动验活"
     _set_verify(rec, ok, detail)
