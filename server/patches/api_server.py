@@ -3677,6 +3677,13 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "push_tokens": True,
             "short_lived_tokens": True,
             "credential_vault": True,
+            # Local patch (hermes-deploy 2.8.0): the panel web-login
+            # bridge (api_server_oneday_routes) is part of this
+            # listener's code; advertised once the patch is applied.
+            # The bridge additionally needs the panel password file
+            # (install.sh mount) and the dashboard deployment
+            # credentials, and answers 500/502 honestly without them.
+            "panel_web_login": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}

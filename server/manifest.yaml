@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.7.0   # 凭据请求列表端点＋聊天 marker（2026-11-26）：服务端新增 GET /v1/vault/requests，工具回执带 [[vreq:...]]，提示词要求 marker 单独成行；不含 B 项.
+version: 2.8.0   # 面板密码登录桥入关（2026-11-26）：api_server_oneday_routes 新增 POST /api/companion/web-login（scrypt 验 password.json＋失败限流＋dashboard cookie 透传）与 POST /api/env/reveal（会话校验＋白名单只放 API_SERVER_KEY）；install.sh 增面板密码文件只读挂载确保（源文件存在才挂）。
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -23,7 +23,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server.py
       mount_mode: ro
-      sha256: 690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb
+      sha256: 5f5822b68d1e9c0025a3482d3b0502457d8602ea1c9b693993696f9a1cecabef
       upstream_baseline_sha256: 73175d668c0c683209ad047191921fe899e84b8a429470081a718ae7d163d3f6   # 部署目录 patches/api_server.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 1576
       provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes]
@@ -365,10 +365,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server_oneday_routes.py
       mount_mode: ro
-      sha256: 3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c
+      sha256: 355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5
       upstream_baseline_sha256: null
-      provides: [auth-token-exchange, auth-token-refresh, auth-sessions-list, auth-session-revoke, push-tokens-registry, credential-vault-routes, credential-vault-request-list]
-      summary: OneDay auth/push/vault route mixin and route table; GET /v1/vault/requests is session-scoped and status-filterable.
+      provides: [auth-token-exchange, auth-token-refresh, auth-sessions-list, auth-session-revoke, push-tokens-registry, credential-vault-routes, credential-vault-request-list, panel-web-login, env-reveal]
+      summary: OneDay auth/push/vault route mixin and route table; GET /v1/vault/requests is session-scoped and status-filterable. 2.8.0 adds the panel web-login bridge (POST /api/companion/web-login: scrypt verify against password.json mounted at /opt/companion-state/password.json, 5-per-300s per-IP fail limit, dashboard session cookie passed through) and POST /api/env/reveal (dashboard-session-validated, allowlist API_SERVER_KEY only).
     - name: auth_tokens.py
       kind: module
       source: patches/auth_tokens.py

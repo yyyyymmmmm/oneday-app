@@ -778,3 +778,12 @@ if [ "$code" = "401" ]; then ok "vault-requests-route-auth" "无钥 GET /v1/vaul
 CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
 case "$CAPS" in *'"credential_vault": true'*) ok "vault-capability-flag" "features.credential_vault=true" ;; *) bad "vault-capability-flag" "capabilities 未见 credential_vault 位" ;; esac
 unk "vault-behavior" "python3 credential_vault_selftest.py 在包内运行；真实 TLS/客户端安全卡联调、日志与备份审查仅部署验收时执行"
+
+# ---- 31. 面板密码登录桥（包 2.8.0, #46）: 路由在位 + 鉴权口径（只读探针） ----
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$BASE/api/companion/web-login" -H Content-Type:application/json -d '{"password":"verify-probe-wrong"}' || true)
+if [ "$code" = "401" ]; then ok "web-login-route" "错密码 POST /api/companion/web-login → 401（路由在位、验密生效）"; else bad "web-login-route" "应答 $code（期望 401）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$BASE/api/env/reveal" -H Content-Type:application/json -d '{"key":"API_SERVER_KEY"}' || true)
+if [ "$code" = "401" ]; then ok "env-reveal-route-auth" "无会话 POST /api/env/reveal → 401"; else bad "env-reveal-route-auth" "应答 $code（期望 401）"; fi
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"panel_web_login": true'*) ok "web-login-capability-flag" "features.panel_web_login=true" ;; *) bad "web-login-capability-flag" "capabilities 未见 panel_web_login 位" ;; esac
+unk "web-login-behavior" "python3 oneday_routes_selftest.py 在包内运行；真实登录全链（新密码→cookie→reveal→models）仅部署验收时执行"

@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|5f5822b68d1e9c0025a3482d3b0502457d8602ea1c9b693993696f9a1cecabef"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -125,7 +125,7 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
@@ -659,6 +659,46 @@ PYEOF
   grep -q "options_pending.py" "$compose_file" || die "compose options_pending mount line write failed"
   grep -q "present_options_tool.py" "$compose_file" || die "compose present_options_tool mount line write failed"
   log "compose 已加模块挂载行"
+fi
+
+# ---------- 3b-2. 面板密码文件挂载确保（2.8.0，#46） ----------
+# web-login 桥（api_server_oneday_routes）验面板密码读 password.json
+# （scrypt 哈希；companion 时代的现行实物在部署目录同级 companion/
+# companion-state/ 下）。源文件存在才给 hermes 服务加只读单文件挂载；
+# 不存在的部署跳过——桥回退 PANEL_PASSWORD_HASH env，再无则回
+# 「未配好」500，与旧 front 口径一致。单文件挂载下改密码必须原地
+# 写回保 inode（front 的 write_text_inplace 同口径），容器免重启读新值。
+PW_MOUNT_SRC="../companion/companion-state/password.json"
+if [ -f "$DEPLOY_DIR/$PW_MOUNT_SRC" ]; then
+  compose_file="$DEPLOY_DIR/docker-compose.yml"
+  if ! grep -q "companion-state/password.json" "$compose_file"; then
+    cbak="$compose_file$BAK_SUFFIX"
+    if [ ! -f "$cbak" ]; then
+      cp -a "$compose_file" "$cbak"
+      log "已备份: docker-compose.yml$BAK_SUFFIX"
+    fi
+    COMPOSE_CHANGED=1
+    python3 - "$compose_file" << 'PYEOF'
+import sys
+path = sys.argv[1]
+line = "      - ../companion/companion-state/password.json:/opt/companion-state/password.json:ro"
+anchor = "./patches/api_server_oneday_routes.py:/opt/hermes/gateway/platforms/api_server_oneday_routes.py:ro"
+lines = open(path).read().split("\n")
+if not any("companion-state/password.json" in ln for ln in lines):
+    out = []
+    inserted = False
+    for ln in lines:
+        out.append(ln)
+        if not inserted and anchor in ln:
+            out.append(line)
+            inserted = True
+    if not inserted:
+        sys.exit("password.json mount anchor (api_server_oneday_routes) not found in compose")
+    open(path, "w").write("\n".join(out))
+PYEOF
+    grep -q "companion-state/password.json" "$compose_file" || die "compose password.json mount line write failed"
+    log "compose 已加面板密码文件挂载行"
+  fi
 fi
 
 # ---------- 3c. OneDay 记忆资产（§439）：种子 + 技能 + cron 合并 ----------

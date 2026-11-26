@@ -3,11 +3,26 @@
 Extracted from ``server/patches/api_server.py`` (following the upstream
 ``OpenAICompatRoutesMixin`` pattern) so OneDay-owned endpoints stay cohesive,
 independently testable, and easy to merge across upstream Hermes upgrades.
+
+2.8.0 adds the panel web-login bridge (``POST /api/companion/web-login``)
+and its companion reveal (``POST /api/env/reveal``): the App's one-step
+password login, previously served only by the companion front process
+(retired in 2.0.0/2.3.0), restored natively on the gateway with the
+contract unchanged (front 1.0.33+ semantics; see ``_handle_web_login``).
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import http.client
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
 from typing import Any, Optional
 
 try:
@@ -32,6 +47,8 @@ ONEDAY_CAPABILITY_ENDPOINTS = (
     ("vault_requests", ("GET", "/v1/vault/requests", "credential_vault")),
     ("vault_request_status", ("GET", "/v1/vault/requests/{request_id}", "credential_vault")),
     ("vault_fulfill", ("POST", "/v1/vault/requests/{request_id}/fulfill", "credential_vault")),
+    ("web_login", ("POST", "/api/companion/web-login", "panel_web_login")),
+    ("env_reveal", ("POST", "/api/env/reveal", "panel_web_login")),
 )
 
 
@@ -53,6 +70,114 @@ def _err(
     return web.json_response(payload, status=status)
 
 
+# ------------------------------------------------------------ web login bridge
+# Ported from the retired companion front (server/companion/front/front.py,
+# 1.0.33+) with semantics unchanged: the panel (deployer) password is the
+# one credential the user knows; it is verified by scrypt against
+# password.json, then exchanged server-side for a Hermes dashboard
+# session cookie using the deployment credentials in the gateway's own
+# environment. The dashboard password itself never leaves the server.
+
+_WEB_LOGIN_FAIL_LIMIT = 5
+_WEB_LOGIN_FAIL_WINDOW = 300
+_WEB_LOGIN_FAILS: dict[str, list[float]] = {}
+_REVEAL_ALLOWLIST = frozenset({"API_SERVER_KEY"})
+
+
+def _panel_password_file() -> Path:
+    override = os.environ.get("PANEL_PASSWORD_FILE", "")
+    if override:
+        return Path(override)
+    return Path("/opt/companion-state/password.json")
+
+
+def _panel_password_hash() -> str:
+    p = _panel_password_file()
+    if p.exists():
+        try:
+            return json.loads(p.read_text()).get("hash", "") or ""
+        except Exception:
+            pass
+    return os.environ.get("PANEL_PASSWORD_HASH", "")
+
+
+def _verify_panel_password(pw: str, stored: str) -> bool:
+    try:
+        _, n, r, p, salt_hex, dk_hex = stored.split("$")
+        dk = hashlib.scrypt(
+            pw.encode(),
+            salt=bytes.fromhex(salt_hex),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(bytes.fromhex(dk_hex)),
+            maxmem=2**26,
+        )
+        return hmac.compare_digest(dk.hex(), dk_hex)
+    except Exception:
+        return False
+
+
+def _dashboard_base() -> str:
+    return (
+        os.environ.get("HERMES_DASHBOARD_BASE")
+        or os.environ.get("ONEDAY_DASH_BASE_URL")
+        or "http://127.0.0.1:9119"
+    ).rstrip("/")
+
+
+def _dashboard_password_login() -> tuple[int, list[str]]:
+    """Exchange the deployment credentials for a Hermes dashboard
+    session inside the server network. Returns (status, Set-Cookie
+    header values) so the caller can pass the cookie through as-is."""
+    from urllib.parse import urlparse
+
+    user = os.environ.get("HERMES_DASHBOARD_BASIC_AUTH_USERNAME", "")
+    password = os.environ.get("HERMES_DASHBOARD_BASIC_AUTH_PASSWORD", "")
+    u = urlparse(_dashboard_base())
+    conn = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=8)
+    body = json.dumps(
+        {"provider": "basic", "username": user, "password": password, "next": "/"}
+    )
+    try:
+        conn.request(
+            "POST", "/auth/password-login", body, {"Content-Type": "application/json"}
+        )
+        resp = conn.getresponse()
+        resp.read()
+        cookies = resp.headers.get_all("Set-Cookie") or []
+        return resp.status, cookies
+    finally:
+        conn.close()
+
+
+def _dashboard_cookie_valid(cookie: str) -> bool:
+    """A dashboard session cookie counts as valid only if the dashboard
+    itself answers an auth-gated read (GET /api/env) with 200 for it."""
+    if not cookie:
+        return False
+    req = urllib.request.Request(
+        _dashboard_base() + "/api/env", headers={"Cookie": cookie}, method="GET"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _web_login_client_ip(request: Any) -> str:
+    """Source IP for login rate-limit accounting (front 1.0.34 parity):
+    public traffic arrives via the same-host nginx, so the peer is
+    loopback and X-Real-IP carries the real source; trust it only then."""
+    peer = request.remote or ""
+    if peer in ("127.0.0.1", "::1"):
+        real = request.headers.get("X-Real-IP", "")
+        if real:
+            return real
+    return peer
+
+
 def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
     """Return the (method, path, handler) rows for OneDay push & short-lived auth."""
     return [
@@ -71,11 +196,14 @@ def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
         ("GET", "/v1/vault/requests", adapter._handle_vault_requests_list),
         ("GET", "/v1/vault/requests/{request_id}", adapter._handle_vault_request_status),
         ("POST", "/v1/vault/requests/{request_id}/fulfill", adapter._handle_vault_fulfill),
+        ("POST", "/api/companion/web-login", adapter._handle_web_login),
+        ("POST", "/api/env/reveal", adapter._handle_env_reveal),
     ]
 
 
 class OneDayAuthPushRoutesMixin:
-    """Mixin for ``APIServerAdapter`` providing ``/v1/push/tokens`` and ``/v1/auth/*``."""
+    """Mixin for ``APIServerAdapter`` providing ``/v1/push/tokens``,
+    ``/v1/auth/*``, ``/v1/vault/*`` and the panel web-login bridge."""
 
     def _check_short_lived_bearer(
         self, token: str, expected_key: str, request: Any
@@ -364,3 +492,95 @@ class OneDayAuthPushRoutesMixin:
                 code=payload.get("code", "invalid_request"),
             )
         return web.json_response(payload, status=200)
+
+    # ---------------------------------------------------------- web login
+    @staticmethod
+    def _web_login_fails(fkey: str) -> list[float]:
+        now = time.time()
+        fails = [
+            t
+            for t in _WEB_LOGIN_FAILS.get(fkey, [])
+            if now - t < _WEB_LOGIN_FAIL_WINDOW
+        ]
+        _WEB_LOGIN_FAILS[fkey] = fails
+        return fails
+
+    async def _handle_web_login(self, request: Any) -> Any:
+        """POST /api/companion/web-login -- panel password in, dashboard
+        session cookie out. Public by design (the password is the
+        credential); failures share the front-era 5-per-300s per-IP
+        limit. Contract identical to companion front 1.0.33+."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        fkey = f"{_web_login_client_ip(request)}:password"
+        fails = self._web_login_fails(fkey)
+        if len(fails) >= _WEB_LOGIN_FAIL_LIMIT:
+            return web.json_response(
+                {"ok": False, "error": "尝试太多次，请几分钟后再试"}, status=429
+            )
+        stored = await asyncio.to_thread(_panel_password_hash)
+        ok = bool(stored) and await asyncio.to_thread(
+            _verify_panel_password, str(body.get("password", "")), stored
+        )
+        if not ok:
+            fails.append(time.time())
+            _WEB_LOGIN_FAILS[fkey] = fails
+            return web.json_response(
+                {"ok": False, "error": "登录失败，请检查后重试"}, status=401
+            )
+        _WEB_LOGIN_FAILS.pop(fkey, None)
+        if not os.environ.get(
+            "HERMES_DASHBOARD_BASIC_AUTH_USERNAME"
+        ) or not os.environ.get("HERMES_DASHBOARD_BASIC_AUTH_PASSWORD"):
+            return web.json_response(
+                {"ok": False, "error": "服务器还没有配好网页登录，请联系部署者"},
+                status=500,
+            )
+        try:
+            code, cookies = await asyncio.to_thread(_dashboard_password_login)
+        except Exception:
+            code, cookies = 0, []
+        if code != 200 or not cookies:
+            return web.json_response(
+                {"ok": False, "error": "登录服务暂时不可用，请稍后再试"}, status=502
+            )
+        resp = web.json_response({"ok": True}, status=200)
+        for c in cookies:
+            resp.headers.add("Set-Cookie", c)
+        return resp
+
+    async def _handle_env_reveal(self, request: Any) -> Any:
+        """POST /api/env/reveal -- dashboard-session-gated env reveal.
+
+        The App fetches API_SERVER_KEY immediately after web-login,
+        riding the dashboard session cookie the bridge set. Only
+        allowlisted keys are served, and the session is validated
+        against the dashboard itself, never trusted blindly."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        key = str(body.get("key", ""))
+        if key not in _REVEAL_ALLOWLIST:
+            return _err("Key is not revealable", 403, code="reveal_not_allowed")
+        cookie = request.headers.get("Cookie", "")
+        valid = await asyncio.to_thread(_dashboard_cookie_valid, cookie)
+        if not valid:
+            return _err(
+                "Dashboard session required",
+                401,
+                err_type="gateway_auth_error",
+                code="no_dashboard_session",
+            )
+        value = self._expected_api_key()
+        if not value:
+            return _err(
+                "Value is not available", 503, code="reveal_unavailable"
+            )
+        return web.json_response({"key": key, "value": value}, status=200)

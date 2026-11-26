@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
+import json
+import os
+import secrets
 import sys
 import tempfile
 import types
@@ -21,10 +25,16 @@ def _load(name: str, path: Path):
     return mod
 
 
+class _FakeHeaders(dict):
+    def add(self, key, value):
+        self.setdefault(key, []).append(value)
+
+
 class _FakeResponse:
     def __init__(self, data, status=200):
         self.data = data
         self.status = status
+        self.headers = _FakeHeaders()
 
 
 class _FakeWeb:
@@ -34,12 +44,13 @@ class _FakeWeb:
 
 
 class _FakeRequest(dict):
-    def __init__(self, *, headers=None, body=None, match_info=None, query=None):
+    def __init__(self, *, headers=None, body=None, match_info=None, query=None, remote="203.0.113.7"):
         super().__init__()
         self.headers = headers or {}
         self._body = body
         self.match_info = match_info or {}
         self.query = query or {}
+        self.remote = remote
 
     async def json(self):
         return self._body
@@ -93,11 +104,15 @@ async def run() -> None:
 
         adapter = _DummyAdapter()
 
-        # 1. Route table exposes auth, push, and vault endpoints
+        # 1. Route table exposes auth, push, vault, and web-login endpoints
         table = routes_mod.oneday_http_routes(adapter)
-        assert len(table) == 15, f"expected 15 routes, got {len(table)}"
-        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 15
-        assert {(method, path) for method, path, _ in table[-8:]} == {
+        assert len(table) == 17, f"expected 17 routes, got {len(table)}"
+        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 17
+        assert {(method, path) for method, path, _ in table[-2:]} == {
+            ("POST", "/api/companion/web-login"),
+            ("POST", "/api/env/reveal"),
+        }
+        assert {(method, path) for method, path, _ in table[-10:-2]} == {
             ("GET", "/v1/vault/entries"),
             ("GET", "/v1/vault/entries/{entry_id}"),
             ("POST", "/v1/vault/entries"),
@@ -194,6 +209,52 @@ async def run() -> None:
             match_info={"device_token": tok_hex},
         ))
         assert r_p3.status == 200
+
+        # 7. Web-login bridge: scrypt panel password -> dashboard cookie;
+        #    reveal serves only allowlisted keys behind a valid session.
+        panel_pw = "panel-test-pw"
+        salt = secrets.token_bytes(16)
+        dk = hashlib.scrypt(panel_pw.encode(), salt=salt, n=16384, r=8, p=1,
+                            dklen=32, maxmem=2 ** 26)
+        pw_file = Path(tmp) / "password.json"
+        pw_file.write_text(json.dumps(
+            {"hash": f"scrypt$16384$8$1${salt.hex()}${dk.hex()}"}))
+        os.environ["PANEL_PASSWORD_FILE"] = str(pw_file)
+        os.environ["HERMES_DASHBOARD_BASIC_AUTH_USERNAME"] = "dashuser"
+        os.environ["HERMES_DASHBOARD_BASIC_AUTH_" + "PASSWORD"] = "dashpass"
+        routes_mod._dashboard_password_login = lambda: (
+            200, ["session=abc123; Path=/; HttpOnly"])
+        routes_mod._dashboard_cookie_valid = (
+            lambda cookie: "session=abc123" in cookie)
+
+        r_bad = await adapter._handle_web_login(_FakeRequest(
+            body={"password": "wrong"}, remote="198.51.100.9"))
+        assert r_bad.status == 401
+        r_ok = await adapter._handle_web_login(_FakeRequest(
+            body={"password": panel_pw}, remote="198.51.100.9"))
+        assert r_ok.status == 200
+        assert r_ok.data == {"ok": True}
+        assert r_ok.headers.get("Set-Cookie") == ["session=abc123; Path=/; HttpOnly"]
+
+        # Rate limit: 5 failures from one IP, the 6th attempt is refused
+        for _ in range(5):
+            r_rl = await adapter._handle_web_login(_FakeRequest(
+                body={"password": "wrong"}, remote="198.51.100.10"))
+            assert r_rl.status == 401
+        r_rl = await adapter._handle_web_login(_FakeRequest(
+            body={"password": panel_pw}, remote="198.51.100.10"))
+        assert r_rl.status == 429
+
+        r_rev_nocookie = await adapter._handle_env_reveal(_FakeRequest(
+            body={"key": "API_SERVER_KEY"}))
+        assert r_rev_nocookie.status == 401
+        r_rev_badkey = await adapter._handle_env_reveal(_FakeRequest(
+            headers={"Cookie": "session=abc123"}, body={"key": "HOME"}))
+        assert r_rev_badkey.status == 403
+        r_rev = await adapter._handle_env_reveal(_FakeRequest(
+            headers={"Cookie": "session=abc123"}, body={"key": "API_SERVER_KEY"}))
+        assert r_rev.status == 200
+        assert r_rev.data == {"key": "API_SERVER_KEY", "value": api_key}
 
     print("oneday_routes_selftest: ALL PASSED")
 
