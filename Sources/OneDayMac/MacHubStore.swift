@@ -18,9 +18,6 @@ final class MacHubStore {
     var ledgerSummary: JSONValue?
     var ledgerEntries: [JSONValue] = []
     var ledgerDetail: JSONValue?
-    var decisions: [WriteGateDecisionRecord] = []
-    var rules: [WriteGateRule] = []
-    var grants: [GrantEntry] = []
     var computerStatus: JSONValue?
     var egressStatus: JSONValue?
     var identity: JSONValue?
@@ -110,15 +107,10 @@ final class MacHubStore {
                 )
                 if ledgerEntries.isEmpty { ledgerEntries = raw.hubList }
             case .audit:
-                decisions = try await client.writeGateDecisions(
-                    config: config, apiKey: key
-                )
-                rules = try await client.writeGateRules(
-                    config: config, apiKey: key
-                )
-                grants = try await client.grants(
-                    config: config, apiKey: key
-                ).grants
+                // 审计面状态归 MacApprovalStore（棒 2 既有
+                // 店：已决/规则/授权＋撤销动作），本店不另
+                // 立第二份；视图进面时调它的 refresh 三件
+                break
             case .computer:
                 computerStatus = try await client.hubComputerStatus(
                     config: config, apiKey: key
@@ -315,26 +307,6 @@ final class MacHubStore {
         ledgerDetail = try? await session.chatClient.hubLedgerEntry(
             config: config, apiKey: key, id: id
         )
-    }
-
-    func revokeRule(session: SessionStore, id: String) async {
-        guard let (config, key) = creds(session) else { return }
-        await settle(.audit, session: session,
-                     ok: "规则已撤销（已回读）", failed: "撤销规则失败") {
-            try await session.chatClient.deleteWriteGateRule(
-                config: config, apiKey: key, id: id
-            )
-        }
-    }
-
-    func revokeGrant(session: SessionStore, patternKey: String) async {
-        guard let (config, key) = creds(session) else { return }
-        await settle(.audit, session: session,
-                     ok: "授权已撤销（已回读）", failed: "撤销授权失败") {
-            _ = try await session.chatClient.revokeGrant(
-                config: config, apiKey: key, patternKey: patternKey
-            )
-        }
     }
 
     // MARK: - 动作（档案 / 记忆 / 技能）

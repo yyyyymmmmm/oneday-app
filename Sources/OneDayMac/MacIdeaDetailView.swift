@@ -2,8 +2,8 @@ import SwiftUI
 import OneDayCore
 
 /// 想法详情（棒 3，对位 #35）：全文＋依据＋交付物清
-/// 单；动作＝忽略/删除。采纳依赖任务板建卡链（枢纽
-/// 看板 #58，归枢纽棒），本面明示未落、不摆假按钮。
+/// 单；动作＝忽略/删除＋采纳（棒 4 看板 #58 落地后
+/// 接通：建卡→回写 taskId，见 MacIdeasStore.adopt）。
 struct MacIdeaDetailView: View {
     @Environment(SessionStore.self) private var session
     var store: MacIdeasStore
@@ -121,6 +121,19 @@ struct MacIdeaDetailView: View {
                 if idea.status == .pending {
                     Button {
                         Task {
+                            await store.adopt(
+                                session: session, idea: idea
+                            )
+                        }
+                    } label: {
+                        Label(
+                            "采纳（建任务推进）",
+                            systemImage: "hammer"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button {
+                        Task {
                             await store.dismiss(
                                 session: session, idea: idea
                             )
@@ -135,8 +148,8 @@ struct MacIdeaDetailView: View {
                     Label("删除", systemImage: "trash")
                 }
             }
-            if idea.status == .pending {
-                Text("采纳（建任务推进）在 Mac 端尚未接入：它依赖任务板建卡链，随枢纽棒（看板）一并落，本面不假装能采纳。")
+            if let taskID = idea.taskId {
+                Text("已转任务：\(taskID)（在枢纽看板面跟进）")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

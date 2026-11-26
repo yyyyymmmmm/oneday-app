@@ -64,6 +64,9 @@ struct MainShellView: View {
     @State private var goalSelection: String?
     @State private var fileSelection: String?
     @State private var showSearch = false
+    // 棒 4 枢纽：状态店与选中面
+    @State private var hubStore = MacHubStore()
+    @State private var hubFace: MacHubFace? = .ledger
 
     var body: some View {
         NavigationSplitView {
@@ -108,6 +111,11 @@ struct MainShellView: View {
                     showSearch = false
                     section = .files
                     fileSelection = path
+                },
+                onOpenCron: {
+                    showSearch = false
+                    section = .hub
+                    hubFace = .cron
                 },
                 onClose: { showSearch = false }
             )
@@ -254,11 +262,10 @@ struct MainShellView: View {
             MacVaultView(store: vaultStore, selection: $vaultSelection)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
         case .hub:
-            ContentUnavailableView(
-                "枢纽",
-                systemImage: MacSection.hub.symbol,
-                description: Text("工作／审计／电脑／身份／邮件五面在枢纽棒接入。")
-            )
+            MacHubView(face: $hubFace)
+                .navigationSplitViewColumnWidth(
+                    min: 240, ideal: 300, max: 380
+                )
         }
     }
 
@@ -289,11 +296,7 @@ struct MainShellView: View {
         case .vault:
             MacVaultDetailView(store: vaultStore, selection: vaultSelection)
         case .hub:
-            ContentUnavailableView(
-                "枢纽",
-                systemImage: MacSection.hub.symbol,
-                description: Text("本面在枢纽棒按对位表接入。")
-            )
+            MacHubDetailView(store: hubStore, face: hubFace)
         }
     }
 }

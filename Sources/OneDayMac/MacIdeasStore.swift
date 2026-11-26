@@ -4,8 +4,7 @@ import OneDayCore
 
 /// 想法状态店（棒 3，对位 #3/#35）：点子列表＋生成
 /// 管道账面。采纳动作依赖任务板建卡链（枢纽看板
-/// #58，归枢纽棒），本店只做新建/忽略/删除，采纳在
-/// 详情面明示未落、不假装。
+/// #58），棒 4 看板面落地后在此接通（见 adopt）。
 @MainActor
 @Observable
 final class MacIdeasStore {
@@ -90,6 +89,51 @@ final class MacIdeasStore {
             actionNote = error.userMessage
         } catch {
             actionNote = "忽略失败"
+        }
+    }
+
+    /// 采纳（棒 4 接通，对位 #35）：看板建卡（幂等键
+    /// 按想法 id 定，防重复点建双卡）→ 桥 PATCH 回
+    /// 写 status=adopted＋taskId → 以回执整行替换为
+    /// 终局（taskId 是「已转任务」的服务端真源）。
+    /// 板清单为空/建卡无 id 时如实失败、不假装采纳
+    func adopt(session: SessionStore, idea: BridgeIdea) async {
+        guard let config = session.config, let key = session.apiKey
+        else { return }
+        do {
+            let boardsRaw = try await session.chatClient
+                .hubKanbanBoards(config: config, apiKey: key)
+            let boards = boardsRaw.hubFirstList(["boards"])
+                .compactMap { $0.stringValue }
+            guard let board = boards.first ?? boardsRaw.hubList
+                .compactMap({ $0.stringValue }).first
+            else {
+                actionNote = "采纳失败：服务端没有可用看板。"
+                return
+            }
+            let receipt = try await session.chatClient
+                .hubKanbanCreateTask(
+                    config: config, apiKey: key, board: board,
+                    title: idea.title, body: idea.detail,
+                    idempotencyKey: "idea-adopt-\(idea.id)"
+                )
+            guard let taskID = receipt.hubFirstStr(
+                ["id", "task_id", "taskId"]
+            ) else {
+                actionNote = "采纳失败：建卡回执里没有任务 id。"
+                return
+            }
+            let settled = try await session.chatClient.patchIdea(
+                config: config, apiKey: key, id: idea.id,
+                request: BridgeIdeaPatchRequest(
+                    status: .adopted, taskId: taskID
+                )
+            )
+            replace(settled)
+        } catch let error as HermesError {
+            actionNote = error.userMessage
+        } catch {
+            actionNote = "采纳失败"
         }
     }
 
