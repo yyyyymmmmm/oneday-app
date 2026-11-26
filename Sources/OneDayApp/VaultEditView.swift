@@ -83,7 +83,7 @@ struct VaultEditView: View {
                                 }
                             }
                         ))
-                        .tint(Palette.accent)
+                        .tint(Palette.primary)
                     }
                 } header: {
                     Text("字段类型")
@@ -137,7 +137,7 @@ struct VaultEditView: View {
                             } else {
                                 Text(isEditing ? "保存" : "创建")
                                     .font(.body)
-                                    .foregroundStyle(Palette.accent)
+                                    .foregroundStyle(Palette.primary)
                             }
                             Spacer()
                         }
@@ -232,8 +232,9 @@ struct VaultEditView: View {
             return
         }
 
-        let values = fieldValues.compactMapValues { value in
-            value.isEmpty ? nil : value
+        var values: [String: String] = [:]
+        for (field, value) in fieldValues where !value.isEmpty {
+            values[field.rawValue] = value
         }
 
         guard !values.isEmpty else {

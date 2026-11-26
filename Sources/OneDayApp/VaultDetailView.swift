@@ -143,7 +143,7 @@ struct VaultDetailView: View {
                             }
                         )
                     )
-                    .tint(Palette.accent)
+                    .tint(Palette.primary)
                     .listRowBackground(Palette.surface)
                 } footer: {
                     Text("开启后，每次使用此凭据都需要确认")

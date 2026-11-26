@@ -899,7 +899,7 @@ struct ChatNativeRowHeightComposer {
                 )
             }
         }
-        return facets.anchorStates[recordID] ?? .unavailable
+        return facets.anchorStates[recordID] ?? .loading
     }
 
     private func facetCardNote(
@@ -1163,8 +1163,10 @@ struct ChatNativeRowHeightComposer {
                 )
             case .decided(let decision):
                 parts.append("apDecided|\(decision.decision)|\(decision.viaRule ?? "")|\(decision.headline)")
-            case .unavailable:
-                parts.append("apUnavailable")
+            case .stale:
+                parts.append("apStale")
+            case .loading:
+                parts.append("apLoading")
             }
         }
         if entry.role == "user" {
@@ -2150,11 +2152,9 @@ struct ChatNativeRowHeightComposer {
             return approvalCardHeight(
                 record: record, width: contentWidth
             )
-        case .decided:
+        case .decided, .stale, .loading:
             return OneDayMetrics.spacingS * 2
                 + spec(.footnote)
-        case .unavailable:
-            return 0
         }
     }
 

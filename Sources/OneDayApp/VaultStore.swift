@@ -14,8 +14,8 @@ final class VaultStore {
 
     private let client = VaultBridgeClient()
 
-    var isAvailable: Bool {
-        guard let capabilities = AppState.shared.capabilities else {
+    func isAvailable(appState: AppState) -> Bool {
+        guard let capabilities = appState.capabilities else {
             return false
         }
         return capabilities.credentialVaultSupported == true
@@ -27,7 +27,7 @@ final class VaultStore {
             entries = []
             return
         }
-        guard isAvailable else {
+        guard isAvailable(appState: appState) else {
             entries = []
             return
         }
@@ -58,7 +58,7 @@ final class VaultStore {
         guard appState.phase == .connected, let config = appState.config else {
             return
         }
-        guard isAvailable else {
+        guard isAvailable(appState: appState) else {
             return
         }
         if appState.isDemo {

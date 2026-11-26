@@ -23,7 +23,7 @@ struct VaultRequestCard: View {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "lock.shield")
                     .font(.system(size: 20))
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.primary)
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text("凭据请求")
@@ -145,7 +145,7 @@ struct VaultRequestCard: View {
                             .padding(.vertical, OneDayMetrics.spacingS)
                     }
                 }
-                .background(Palette.accent)
+                .background(Palette.primary)
                 .cornerRadius(OneDayMetrics.radiusS)
                 .disabled(submitting || !canFulfill)
             }
