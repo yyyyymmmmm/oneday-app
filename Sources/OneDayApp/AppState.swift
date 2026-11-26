@@ -1030,13 +1030,17 @@ final class AppState {
         networkPathEpoch += 1
     }
 
+    private let apiKeyProvider: (() -> String?)?
+
     init(
         client: HermesClientProtocol = HermesClient(),
         demoMode: DemoMode = .off,
         outboxRetryStorage: OutboxRetryStore? = nil,
         sessionLedgerStorage: SessionLedger? = nil,
-        runLedgerStorage: RunLedgerStore? = nil
+        runLedgerStorage: RunLedgerStore? = nil,
+        apiKeyProvider: (() -> String?)? = nil
     ) {
+        self.apiKeyProvider = apiKeyProvider
         self.client = client
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
@@ -1126,9 +1130,15 @@ final class AppState {
     }
 
     private func restore() {
+        let hasKey: Bool
+        if let provider = apiKeyProvider {
+            hasKey = provider() != nil
+        } else {
+            hasKey = KeychainStore.read(account: CredentialKey.apiKey) != nil
+        }
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
               let config = ServerConfig(rawInput: base),
-              KeychainStore.read(account: CredentialKey.apiKey) != nil else {
+              hasKey else {
             phase = .needsConnection
             return
         }
@@ -1140,6 +1150,9 @@ final class AppState {
     var apiKey: String? {
         // 演示假值：只会被递给 DemoHermesClient，不出设备
         if isDemo { return "demo-api-key" }
+        if let provider = apiKeyProvider {
+            return provider()
+        }
         return KeychainStore.read(account: CredentialKey.apiKey)
     }
 
