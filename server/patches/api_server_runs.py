@@ -27,6 +27,7 @@ except ImportError:
     RequestKey = None  # type: ignore[assignment,misc]
 
 from gateway.platforms.api_server_room_grants import _json_error, _room_grant_error_response
+from gateway.platforms.error_boundary import error_response
 from gateway.turn_executor import _UnboundedThreadExecutor
 from gateway.platforms.api_server_run_idempotency import TERMINAL_STATUSES
 
@@ -2026,14 +2027,15 @@ async def _execute_run_via_live_owner(self, run: _RunLaunch, home, record: dict[
             _finish("cancelled", completed=False, partial=False, interrupted=True)
         else:
             _finish("failed", completed=False, partial=False, interrupted=False,
-                    error=record.get("error") or f"Bot Chat delivery {record['status']}",
-                    **({"reason": record["reason"]} if record.get("reason") else {}))
+                    error=error_response(RuntimeError(record.get("error") or
+                                                     f"Bot Chat delivery {record['status']}"))[1]["error"])
     except asyncio.CancelledError:
         _finish("cancelled", completed=False, partial=False, interrupted=True)
         raise
     except Exception as exc:
         logger.exception("[api_server] run %s (live Bot Chat) failed", run_id)
-        _finish("failed", completed=False, partial=False, interrupted=False, error=str(exc))
+        _finish("failed", completed=False, partial=False, interrupted=False,
+                error=error_response(exc)[1]["error"])
     finally:
         with suppress(Exception):
             run.put_event(None)  # sentinel: close the SSE stream
