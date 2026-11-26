@@ -267,6 +267,7 @@ grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MO
 grep -q "device_gateway_catalog.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_enrollment.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_support.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "error_boundary.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "import_smoke_selftest.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_feed_helpers.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "identity_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -464,9 +465,12 @@ specs = [
     ("api_server_support.py",
      "      - ./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
+    ("error_boundary.py",
+     "      - ./patches/error_boundary.py:/opt/hermes/gateway/platforms/error_boundary.py:ro",
+     "./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro"),
     ("import_smoke_selftest.py",
      "      - ./patches/import_smoke_selftest.py:/opt/hermes/gateway/platforms/import_smoke_selftest.py:ro",
-     "./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro"),
+     "./patches/error_boundary.py:/opt/hermes/gateway/platforms/error_boundary.py:ro"),
     ("react_to_message_tool.py",
      "      - ./patches/react_to_message_tool.py:/opt/hermes/tools/react_to_message_tool.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
@@ -726,6 +730,7 @@ PYEOF
   grep -q "device_gateway_catalog.py" "$compose_file" || die "compose device_gateway_catalog mount line write failed"
   grep -q "api_server_enrollment.py" "$compose_file" || die "compose api_server_enrollment mount line write failed"
   grep -q "api_server_support.py" "$compose_file" || die "compose api_server_support mount line write failed"
+  grep -q "error_boundary.py" "$compose_file" || die "compose error_boundary mount line write failed"
   grep -q "import_smoke_selftest.py" "$compose_file" || die "compose import_smoke_selftest mount line write failed"
   grep -q "oneday_feed_helpers.py" "$compose_file" || die "compose oneday_feed_helpers mount line write failed"
   grep -q "identity_gateway.py" "$compose_file" || die "compose identity_gateway mount line write failed"
