@@ -139,11 +139,18 @@ final class ChatSendMechanism451PinTests: XCTestCase {
     private func makeConnectedAppState(
         mainThreadID: UUID, script: RunsScript
     ) async throws -> AppState {
+        let sharedOutboxRetry = OutboxRetryStore(persisted: true)
+        let sharedSessionLedger = SessionLedger(persisted: true)
+        let sharedRunLedger = RunLedgerStore(persisted: true)
+
         let appState = AppState(
             client: ScriptedRunsClient(
                 recorder: CatalogCallRecorder(), runs: script
             ),
-            demoMode: .connected
+            demoMode: .connected,
+            outboxRetryStorage: sharedOutboxRetry,
+            sessionLedgerStorage: sharedSessionLedger,
+            runLedgerStorage: sharedRunLedger
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sessionLedger.setMainServerSessionID(

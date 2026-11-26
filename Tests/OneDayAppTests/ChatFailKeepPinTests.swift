@@ -169,11 +169,18 @@ final class ChatFailKeepPinTests: XCTestCase {
     private func makeConnectedAppState(
         mainThreadID: UUID
     ) async throws -> AppState {
+        let sharedOutboxRetry = OutboxRetryStore(persisted: true)
+        let sharedSessionLedger = SessionLedger(persisted: true)
+        let sharedRunLedger = RunLedgerStore(persisted: true)
+
         let appState = AppState(
             client: CountingCatalogClient(
                 recorder: CatalogCallRecorder()
             ),
-            demoMode: .connected
+            demoMode: .connected,
+            outboxRetryStorage: sharedOutboxRetry,
+            sessionLedgerStorage: sharedSessionLedger,
+            runLedgerStorage: sharedRunLedger
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sideChats.setLastThreadID(mainThreadID)
