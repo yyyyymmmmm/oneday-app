@@ -797,7 +797,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 22c45395028a5d898d62215a273b690bb666f579071435d40fd735a2af3c5ff9" "dist/index.js 8e2b1cf5025c3349b77951ab74216f42b9824e4ea1cccdc192edce0610512a92" "dist/style.css d92cd4e545f062a9017529bdcdbf762266bdcb61307b7caf4d9e0cfa7a0d3726"; do
+for pair in "manifest.json 9b818a1aa79d6fdb46735c915ad5175c7eedc76e0cb67a6f657c609e800e09be" "dist/index.js 604eb987332751f4a924a9399b5000124c720415969860f0dc815c4fb8fec36e" "dist/style.css 0027ca7ca77ee174404034bc0cec45955ac79e9be68a1a90a584ec6c93c9045c"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -888,3 +888,28 @@ else
 fi
 unk "webbar4-dashfaces" "学习图谱（/api/learning/*）、连接器（/api/mcp/*）、委派（/api/delegation/*）、文件预览字节（/api/files/download）走 dashboard 会话 cookie，服务端探针无会话不代测；部署验收以真浏览器登录态实测留据（与 App 同文件双向对账）"
 unk "webbar4-browser" "棒 4 真浏览器目视（记忆分层/洞察/图谱节点编辑回读、文件库预览与 App 同文件对账、监控造单往返删净、连接器开关/测试回读、委派后端切换往返与路线保存回读）属部署验收人工项；服务端等价链由部署单实测留据"
+
+# ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
+if grep -q '"version": "0.6.0"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.6.0（棒 5）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.6.0（install 3f 未同步棒 5 资产）"; fi
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/toolsets" || true)
+  if [ "$code" = "200" ]; then ok "webtoolsets-list" "GET /v1/toolsets → 200（工具集面数据源）"; else bad "webtoolsets-list" "toolsets 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/settings/registry" || true)
+  if [ "$code" = "200" ]; then ok "websettings-registry" "GET /v1/settings/registry → 200（结构化设置面数据源）"; else bad "websettings-registry" "settings registry 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/identity/name" || true)
+  if [ "$code" = "200" ]; then ok "webidentity-name" "GET /v1/identity/name → 200（身份面数据源）"; else bad "webidentity-name" "identity name 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/identity/avatar" || true)
+  if [ "$code" = "200" ]; then ok "webidentity-avatar" "GET /v1/identity/avatar → 200（身份面头像廊数据源）"; else bad "webidentity-avatar" "identity avatar 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8642/api/device-bridge/health" || true)
+  if [ "$code" = "200" ]; then ok "webdevice-health" "GET /api/device-bridge/health → 200（设备面通道状态，免钥）"; else bad "webdevice-health" "device-bridge health 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/api/device-bridge/device/sync/status" || true)
+  if [ "$code" = "200" ]; then ok "webdevice-sync" "GET /api/device-bridge/device/sync/status → 200（设备面同步状态数据源）"; else bad "webdevice-sync" "device sync status 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/push/tokens" || true)
+  if [ "$code" = "200" ]; then ok "webdevice-push" "GET /v1/push/tokens → 200（设备面推送设备数据源，服务端脱敏预览）"; else bad "webdevice-push" "push tokens 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "https://hermes.didichou.site/api/device-bridge/health" || true)
+  if [ "$code" = "200" ]; then ok "webdevice-public" "公网 GET /api/device-bridge/health → 200（nginx device-bridge 接线在位，设备面公网可达）"; else bad "webdevice-public" "公网 device-bridge health 应答 $code（期望 200；非 200＝nginx device-bridge 接线缺失）"; fi
+else
+  unk "webbar5-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "webbar5-dashfaces" "会话消息与反应读面（/api/sessions、/api/sessions/{id}/messages）、语音（/api/audio/voice-config、/api/audio/speak）走 dashboard 会话 cookie，服务端探针无会话不代测；反应写面（PUT/DELETE /v1/reactions）为写型探针、不在 verify 内代跑，部署验收以真浏览器登录态实测留据"
+unk "webbar5-browser" "棒 5 真浏览器目视（工具集启停往返复原、反应设置/撤回往返回读、播报实播、听写出字、身份头像廊渲染、设备/电脑/设置三面真数据、搜索跨面命中与锚点跳转）属部署验收人工项；服务端等价链由部署单实测留据。差集 #19 引用回复未销账·遗留（终端面约束），不在本节探针范围"
