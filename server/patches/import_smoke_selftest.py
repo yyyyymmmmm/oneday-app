@@ -10,7 +10,12 @@ MODULES table are present in the mount insertion table (specs array), or are
 explicitly listed in the legacy-mounted exceptions list.
 
 Usage (inside hermes container):
-    python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
+    **MUST execute from outside the deployment layout** to avoid sys.path[0]
+    masking bare import defects. Correct:
+        cd /tmp && python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
+
+    WRONG (sys.path[0] will be /opt/hermes/gateway/platforms, hiding bare imports):
+        python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
 
 Exit codes:
     0: all imports succeeded and static checks passed
