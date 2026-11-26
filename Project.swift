@@ -143,6 +143,9 @@ let project = Project(
                 // NukeUI（版本钉死在 Tuist/Package.swift）
                 .external(name: "Nuke"),
                 .external(name: "NukeUI"),
+                // 移植 1.3：KeychainAccess 钥匙串存取
+                // （版本钉死在 Tuist/Package.swift）
+                .external(name: "KeychainAccess"),
             ]
         ),
         .target(

@@ -17,6 +17,8 @@ let packageSettings = PackageSettings(
 // §418（#23 图片管线换底）：kean/Nuke 图片管线（核心＋
 // NukeUI），MIT；钉版 13.2.3（2026-11-08 发布，13.2 线
 // 最新稳定 patch；14.0 仅 beta 不取）。
+// 移植 1.3：kishikawakatsumi/KeychainAccess 钥匙串安全
+// 存取，MIT；钉版 4.2.2。
 // 注：Exyte 钉不在本版范围（0.50.104 组版单明示勿带入）。
 let package = Package(
     name: "OneDay",
@@ -28,6 +30,10 @@ let package = Package(
         .package(
             url: "https://github.com/kean/Nuke.git",
             exact: "13.2.3"
+        ),
+        .package(
+            url: "https://github.com/kishikawakatsumi/KeychainAccess.git",
+            exact: "4.2.2"
         )
     ]
 )
