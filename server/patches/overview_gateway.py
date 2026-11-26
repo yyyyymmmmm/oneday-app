@@ -489,7 +489,7 @@ def _one_line_reason(text, limit: int = 120) -> str:
     redaction and classification: paths/URLs/tokens replaced,
     exception type names and status codes recognized and mapped
     to human categories, whitespace collapsed, length capped."""
-    from .error_boundary import redact
+    from gateway.platforms.error_boundary import redact
 
     raw = str(text or "").strip()
     if not raw:
