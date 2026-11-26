@@ -25,7 +25,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from error_boundary import error_response, invalid_argument, not_found, unavailable
+from gateway.platforms.error_boundary import error_response, invalid_argument, not_found, unavailable
 
 logger = logging.getLogger("gateway.platforms.write_gate_gateway")
 
@@ -37,7 +37,7 @@ try:
     from hermes_cli.write_approval_commands import handle_pending_subcommand
 except Exception as e:  # pragma: no cover
     SUPPORTED = False
-    from error_boundary import redact
+    from gateway.platforms.error_boundary import redact
     SUPPORT_ERROR = redact(e)
     logger.error(f"write-gate startup failed: {type(e).__name__}: {e}")
     wa = None  # type: ignore
