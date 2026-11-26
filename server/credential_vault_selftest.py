@@ -53,12 +53,32 @@ else:
     check("audit excludes secret", secret not in vault.AUDIT_PATH.read_text())
 
 print("== request card lifecycle ==")
+audit_card = vault.create_request("Audit demo", "example.test", "Sign in", ["password"], "sess-audit")
+audit_status, audit_receipt = vault.fulfill_request(
+    audit_card["request_id"], {"decision": "reject"}, key, "sess-audit")
+audit_rows = [json.loads(line) for line in vault.AUDIT_PATH.read_text().splitlines()]
+check("request create and reject audited", audit_status == 200
+      and audit_receipt == {"status": "rejected"}
+      and [r["action"] for r in audit_rows if r.get("id") == audit_card["request_id"]]
+      == ["request.created", "request.rejected"])
+check("request audit excludes secret", secret not in vault.AUDIT_PATH.read_text())
 if vault.AESGCM is not None:
     card = vault.create_request("Demo", "example.test", "Sign in", ["password"], "sess-a")
     status, receipt = vault.fulfill_request(card["request_id"], {"decision": "fulfill", "values": {"password": secret}}, key, "sess-a")
     check("one-time fulfill returns no value", status == 200 and secret not in json.dumps(receipt))
+    audit_rows = [json.loads(line) for line in vault.AUDIT_PATH.read_text().splitlines()]
+    check("request create and fulfill audited", [r["action"] for r in audit_rows if r.get("id") == card["request_id"]]
+          == ["request.created", "request.fulfilled"])
     status2, repeat = vault.fulfill_request(card["request_id"], {"decision": "fulfill", "values": {"password": secret}}, key, "sess-a")
     check("replay rejected", status2 == 409 and repeat == {"status": "consumed"})
+    rejected = vault.create_request("Demo", "example.test", "Sign in", ["password"], "sess-reject")
+    reject_status, reject_receipt = vault.fulfill_request(
+        rejected["request_id"], {"decision": "reject"}, key, "sess-reject")
+    audit_rows = [json.loads(line) for line in vault.AUDIT_PATH.read_text().splitlines()]
+    check("request reject audited", reject_status == 200 and reject_receipt == {"status": "rejected"}
+          and [r["action"] for r in audit_rows if r.get("id") == rejected["request_id"]]
+          == ["request.created", "request.rejected"])
+    check("request audit excludes secret", secret not in vault.AUDIT_PATH.read_text())
     expired = vault.create_request("Demo", "example.test", "Sign in", ["password"], "sess-b")
     vault._requests[expired["request_id"]]["expires_at"] = time.time() - 1
     status3, expired_result = vault.fulfill_request(expired["request_id"], {"decision": "fulfill", "values": {"password": secret}}, key, "sess-b")

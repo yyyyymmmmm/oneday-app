@@ -409,10 +409,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/credential_vault.py
       mount_mode: ro
-      sha256: 6ccb618172ec84d24dde9e5ff4ec5218a0de54fc4e3dbcbebf5145e8d1e3b310
+      sha256: 7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe
       upstream_baseline_sha256: null
       provides: [credential-vault-store, credential-vault-request, credential-vault-request-list]
-      summary: AES-GCM encrypted credential metadata store, one-time request fulfillment, session/scope-isolated request listing, and audited server-side use; operation allowlist remains empty.
+      summary: AES-GCM encrypted credential metadata store, one-time request fulfillment, session/scope-isolated request listing, audited request create/fulfill/reject lifecycle and server-side use; operation allowlist remains empty.
     - name: credential_vault_tool.py
       kind: module
       source: patches/credential_vault_tool.py
@@ -420,10 +420,10 @@ components:
       container: hermes
       container_path: /opt/hermes/tools/credential_vault_tool.py
       mount_mode: ro
-      sha256: 299c40bec5aca0a1cfe5253ace3f4ef79d819bbfff3e74eaa75026de6d7ddd13
+      sha256: ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
       upstream_baseline_sha256: null
       provides: [credential-vault-ai-tools]
-      summary: Registry-only credential_vault tools; request_credential returns a chat presentation marker and no plaintext secret read tool exists.
+      summary: Registry-only credential_vault tools; request_credential binds requests to HERMES_SESSION_ID for short-ticket list/fulfill isolation, returns a chat presentation marker, and exposes no plaintext secret read tool.
     - name: oneday_seg_automation.py
       kind: module
       source: patches/oneday_seg_automation.py

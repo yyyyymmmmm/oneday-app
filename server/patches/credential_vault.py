@@ -192,6 +192,9 @@ def create_request(service: str, domain: str, reason: str, fields: Any, session_
             "session_id": session_id, "created_at": now,
             "expires_at": now + REQUEST_TTL, "status": "pending", "scope": scope,
         }
+        _audit({"at": int(now), "action": "request.created", "id": request_id,
+                "service": service[:120], "domain": clean_domain,
+                "fields": sorted(set(fields))}, scope)
     return {"request_id": request_id, "status": "pending", "expires_at": int(now + REQUEST_TTL)}
 
 
@@ -236,6 +239,8 @@ def fulfill_request(request_id: str, body: Any, api_key: str, session_id: str, s
     if body["decision"] == "reject":
         with _lock:
             req["status"] = "rejected"
+            _audit({"at": int(time.time()), "action": "request.rejected",
+                    "id": request_id}, scope)
         return 200, {"status": "rejected"}
     values = body.get("values")
     if not isinstance(values, dict) or set(values) != set(req["fields"]):
@@ -249,6 +254,9 @@ def fulfill_request(request_id: str, body: Any, api_key: str, session_id: str, s
     }, api_key, scope=scope)
     with _lock:
         req["status"] = "fulfilled" if status == 200 else "failed"
+        _audit({"at": int(time.time()),
+                "action": "request.fulfilled" if status == 200 else "request.fulfillment_failed",
+                "id": request_id}, scope)
     if status != 200:
         return status, {"status": "unavailable"}
     return 200, {"status": "fulfilled", "credential_ref": result["id"]}

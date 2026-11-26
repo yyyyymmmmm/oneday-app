@@ -129,8 +129,8 @@ MODULES=(
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|6ccb618172ec84d24dde9e5ff4ec5218a0de54fc4e3dbcbebf5145e8d1e3b310"
-  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|299c40bec5aca0a1cfe5253ace3f4ef79d819bbfff3e74eaa75026de6d7ddd13"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe"
+  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
