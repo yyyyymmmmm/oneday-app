@@ -733,7 +733,7 @@ def _sentinel_pass() -> None:
         if not guard.get("ok"):
             _sentinel_status.update(
                 lastRunAt=_now(),
-                lastError=f"schema_guard:{guard.get('reason')}:{guard.get('missing')}",
+                lastError=f"schema_guard:{guard.get('reason')}",
             )
             return
     watermark = _sentinel_load_watermark()
@@ -839,7 +839,7 @@ def _sentinel_loop() -> None:
             _sentinel_pass()
         except Exception as e:
             _sentinel_status.update(
-                lastRunAt=_now(), lastError=repr(e)[:160])
+                lastRunAt=_now(), lastError=redact(e))
             _print(f"delivery sentinel pass failed: {e!r}",
                   file=sys.stderr, flush=True)
         time.sleep(_SENTINEL_INTERVAL)
