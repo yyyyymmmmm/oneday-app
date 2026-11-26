@@ -184,7 +184,7 @@ final class ApprovalAnchorTests: XCTestCase {
 
     // MARK: - 行呈现态
 
-    func testRowStatePrecedenceAndStaleGate() {
+    func testRowStatePrefersConfirmedDecisionAndHidesMissingHistory() {
         let record = pendingRecord(
             id: "r1", createdAt: now,
             anchor: WriteGateAnchor(sessionId: "s", tier: "T1")
@@ -192,64 +192,37 @@ final class ApprovalAnchorTests: XCTestCase {
         let decided = decisionRecord(
             id: "r1", decidedAt: now, anchor: nil
         )
-        // 待批优先于已决（裁决刚落账的竞态以待批现态为准）
         XCTAssertEqual(
             ApprovalAnchor.rowState(
-                recordID: "r1", dataReady: true,
-                pending: [record], decisions: [decided], missCount: 0
+                recordID: "r1", pending: [record], decisions: [decided]
+            ),
+            .decided(decided)
+        )
+        XCTAssertEqual(
+            ApprovalAnchor.rowState(
+                recordID: "r1", pending: [record], decisions: []
             ),
             .pending(record)
         )
         XCTAssertEqual(
             ApprovalAnchor.rowState(
-                recordID: "r1", dataReady: true,
-                pending: [], decisions: [decided], missCount: 0
+                recordID: "r1", pending: [], decisions: []
             ),
-            .decided(decided)
-        )
-        // 两处皆无：缺席 1 轮不判死（loading 等对账），
-        // 满 2 轮才已失效；数据未就绪恒 loading
-        XCTAssertEqual(
-            ApprovalAnchor.rowState(
-                recordID: "r1", dataReady: true,
-                pending: [], decisions: [], missCount: 1
-            ),
-            .loading
-        )
-        XCTAssertEqual(
-            ApprovalAnchor.rowState(
-                recordID: "r1", dataReady: true,
-                pending: [], decisions: [], missCount: 2
-            ),
-            .stale
-        )
-        XCTAssertEqual(
-            ApprovalAnchor.rowState(
-                recordID: "r1", dataReady: false,
-                pending: [], decisions: [], missCount: 9
-            ),
-            .loading
+            .unavailable
         )
     }
 
-    func testMissCounting() {
-        XCTAssertEqual(
-            ApprovalAnchor.missCountAfterRefresh(
-                previous: 0, present: false
-            ), 1
+    func testApprovalScopeKeepsUnlinkedRecordsAndExcludesOtherChats() {
+        let anchored = pendingRecord(
+            id: "anchored", createdAt: now,
+            anchor: WriteGateAnchor(sessionId: "chat-1")
         )
-        XCTAssertEqual(
-            ApprovalAnchor.missCountAfterRefresh(
-                previous: 1, present: false
-            ), 2
-        )
-        XCTAssertEqual(
-            ApprovalAnchor.missCountAfterRefresh(
-                previous: 2, present: true
-            ), 0
-        )
-        XCTAssertTrue(ApprovalAnchor.isStale(missCount: 2))
-        XCTAssertFalse(ApprovalAnchor.isStale(missCount: 1))
+        let legacy = pendingRecord(id: "legacy", createdAt: now, anchor: nil)
+        XCTAssertTrue(anchored.appliesToChat(sessionID: "chat-1"))
+        XCTAssertFalse(anchored.appliesToChat(sessionID: "chat-2"))
+        XCTAssertFalse(anchored.appliesToChat(sessionID: nil))
+        XCTAssertTrue(legacy.appliesToChat(sessionID: "chat-2"))
+        XCTAssertTrue(legacy.appliesToChat(sessionID: nil))
     }
 
     func testKeyAndRecordIDRoundTrip() {

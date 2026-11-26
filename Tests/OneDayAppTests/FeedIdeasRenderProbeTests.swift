@@ -19,6 +19,22 @@ import XCTest
 /// 位同形（组版/真机帧同口径复核）。
 final class FeedIdeasRenderProbeTests: XCTestCase {
 
+    func testPostGalleryOpensSelectedImageInPostOrder() throws {
+        let first = try XCTUnwrap(URL(string: "https://example.com/first.jpg"))
+        let second = try XCTUnwrap(URL(string: "https://example.com/second.jpg"))
+        let images = [first.absoluteString, "", first.absoluteString, second.absoluteString]
+            .map { BridgeFeedImage(url: $0, sourceUrl: "") }
+
+        let session = try XCTUnwrap(ImageViewerSession(
+            feedImages: images, selectedURL: second, previewLongEdge: 1600
+        ))
+        XCTAssertEqual(session.initialIndex, 1)
+        XCTAssertEqual(session.items.map(\.source), [
+            .publicURL(first, previewLongEdge: 1600),
+            .publicURL(second, previewLongEdge: 1600),
+        ])
+    }
+
     @MainActor
     func testRenderLinkPreviewCards() throws {
         let cases: [(String, BridgeFeedLink)] = [

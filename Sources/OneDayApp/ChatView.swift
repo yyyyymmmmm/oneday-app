@@ -2433,7 +2433,9 @@ struct ChatView: View {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
             statusWord: appState.liveActivityPhrase,
-            needsApproval: appState.sharedHubStore().hasPendingApprovals,
+            needsApproval: appState.sharedHubStore().hasPendingApprovals(
+                inChat: currentThread?.serverSessionID
+            ),
             avatar: appState.agentAvatarImage,
             statusColor: overviewStatusColor,
             onOpenHub: { presentHub() },
@@ -4898,6 +4900,7 @@ struct ChatView: View {
         /// D3/D2 乐观隐藏集戳（DESIGN §352）：与
         /// key 并列比对，隐藏集变化即计划失效
         var hiddenStamp: Set<UUID> = []
+        var visibleApprovalIDs: Set<String> = []
         var dividers: [UUID: String] = [:]
         var items: [EntryRenderItem] = []
         var sources: [UUID: [MessageSource]] = [:]
@@ -4915,6 +4918,7 @@ struct ChatView: View {
         dividers: [UUID: String], items: [EntryRenderItem],
         sources: [UUID: [MessageSource]]
     ) {
+        let visibleApprovalIDs = appState.sharedHubStore().visibleApprovalIDs
         let key = ChatRenderPlanKey.make(
             threadID: thread.id,
             entries: thread.entries.map {
@@ -4927,7 +4931,8 @@ struct ChatView: View {
             dayStamp: Calendar.current.startOfDay(for: Date())
         )
         if renderPlanCache.key == key,
-           renderPlanCache.hiddenStamp == rewindHiddenEntryIDs {
+           renderPlanCache.hiddenStamp == rewindHiddenEntryIDs,
+           renderPlanCache.visibleApprovalIDs == visibleApprovalIDs {
             return (
                 renderPlanCache.dividers, renderPlanCache.items,
                 renderPlanCache.sources
@@ -4937,7 +4942,12 @@ struct ChatView: View {
         // 划层过滤（存储一字不动）；隐藏集入缓存戳
         // 比对，集变即计划重算、不许吃旧计划
         let sorted = thread.sortedEntries.filter {
-            !rewindHiddenEntryIDs.contains($0.id)
+            guard !rewindHiddenEntryIDs.contains($0.id) else { return false }
+            guard let key = $0.approvalKey else { return true }
+            guard let recordID = ApprovalAnchor.recordID(fromKey: key) else {
+                return false
+            }
+            return visibleApprovalIDs.contains(recordID)
         }
         let dividers = timelineDividers(for: sorted)
         let items = entryRenderItems(for: sorted)
@@ -4976,6 +4986,7 @@ struct ChatView: View {
         }
         renderPlanCache.key = key
         renderPlanCache.hiddenStamp = rewindHiddenEntryIDs
+        renderPlanCache.visibleApprovalIDs = visibleApprovalIDs
         renderPlanCache.dividers = dividers
         renderPlanCache.items = items
         renderPlanCache.sources = sources
@@ -5388,14 +5399,7 @@ struct ChatView: View {
     }
 
 
-    /// 审批锚定行（§165，规格 §4.3）：锚定条目按记录
-    /// 在桥两集的现态出三形态——待批＝与流末尾区同一
-    /// 张完整卡（共用 ChatApprovalCard、同一裁决路
-    /// 径）；已决＝结论行（与枢纽历史行同句式：结论
-    /// 图标＋标题＋结果措辞＋按规则后缀）；两处皆无
-    /// 且缺席满两轮＝「已失效」灰行（标题取物化时落
-    /// 盘的快照）。呈现判定全走 Core（rowState＋store
-    /// 的缺席计数），本视图只渲染
+    /// 审批锚定行：待批共用审批卡，已决展示服务端回执。
     @ViewBuilder
     private func approvalAnchorRow(_ entry: ChatEntry) -> some View {
         let store = appState.sharedHubStore()
@@ -5431,35 +5435,8 @@ struct ChatView: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, OneDayMetrics.spacingXS)
-        case .stale:
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: "questionmark.circle")
-                    .foregroundStyle(Palette.inkMuted)
-                Text(entry.content)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-                Spacer()
-                Text("已失效")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingS)
-            .accessibilityElement(children: .combine)
-        case .loading:
-            // 审批数据还没拉到：行位占住、只给转圈，不
-            // 提前判待批/已决/失效中的任何一种
-            HStack(spacing: OneDayMetrics.spacingS) {
-                ProgressView()
-                Text(entry.content)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingS)
+        case .unavailable:
+            EmptyView()
         }
     }
 
@@ -5476,6 +5453,8 @@ struct ChatView: View {
             appState.router.drawerThreadSelection = request.threadID
         }
         guard let key = request.approvalKey,
+              let recordID = ApprovalAnchor.recordID(fromKey: key),
+              appState.sharedHubStore().visibleApprovalIDs.contains(recordID),
               let thread = threads.first(
                   where: { $0.id == request.threadID }
               ),
@@ -5839,8 +5818,7 @@ struct ChatView: View {
             traceEchoRow(entry)
         } else if entry.approvalKey != nil {
             // §165（锚点包）：审批锚定条目——按记录在
-            // 桥两集里的现态渲染（待批＝完整卡、已决＝
-            // 已决行、两处皆无过两轮＝失效灰行），状态
+            // 桥两集里的现态渲染（待批卡或已决回执），状态
             // 判定走 Core ApprovalAnchor.rowState 单源；
             // 不是气泡、不冒充任何一方发言
             approvalAnchorRow(entry)
@@ -8538,6 +8516,7 @@ struct ChatView: View {
 
     private var standardComposerRow: some View {
         ComposerBarLayout(
+            draft: input,
             contentSizeCategory: dynamicTypeSize.contentSizeCategory
         ) {
             attachButton
@@ -8581,10 +8560,12 @@ struct ChatView: View {
 /// capsuleHeight(narrow:full:)；形态只活在布局内部
 /// （0.3.5 起不再回写任何视图状态，§20.1）；Layout 保
 /// 持子视图身份，切换不重建 UITextView、焦点不丢
-private struct ComposerBarLayout: Layout {
+struct ComposerBarLayout: Layout {
     // 0.3.5（§20.1）：形态回写通道（onModeChange＋
     // Cache＋主队列异步派发）整条撤销——异步回写滞后
     // 布局一拍，是回车重影的合谋者
+
+    let draft: String
 
     /// 当前字号档（0.43.0，A11Y-D1）：由 ChatView 从
     /// 环境注入——Layout 协议无环境直读口，档位经
@@ -8592,35 +8573,34 @@ private struct ComposerBarLayout: Layout {
     /// 源；档位变更即值变更、布局自然重算
     var contentSizeCategory: UIContentSizeCategory = .large
 
-    /// 量测：文本子视图在窄宽/全宽各 sizeThatFits 一次
-    /// （ComposerTextView 的 sizeThatFits 以提议宽返回封
-    /// 顶后的纯文本高，与 ComposerLayout 口径同源）
-    private func metrics(
-        rowWidth: CGFloat, subviews: Subviews
-    ) -> (multiline: Bool, totalHeight: CGFloat) {
+    private func metrics(rowWidth: CGFloat) -> (
+        multiline: Bool, textWidth: CGFloat, textHeight: CGFloat,
+        totalHeight: CGFloat
+    ) {
         let containerWidth = rowWidth + ComposerLayout.inputBarChrome
-        let narrowTextH = subviews[1].sizeThatFits(
-            ProposedViewSize(
-                width: ComposerLayout.textWidth(
-                    forContainerWidth: containerWidth
-                ),
-                height: nil
+        let narrowWidth = ComposerLayout.textWidth(forContainerWidth: containerWidth)
+        let narrowHeight = ComposerTextMetrics.textHeight(
+            for: draft, width: narrowWidth, category: contentSizeCategory
+        )
+        let multiline = ComposerLayout.isMultiline(
+            measured: narrowHeight, category: contentSizeCategory
+        )
+        let textWidth = ComposerLayout.textWidth(
+            forContainerWidth: containerWidth, multiline: multiline
+        )
+        let measuredHeight = multiline
+            ? ComposerTextMetrics.textHeight(
+                for: draft, width: textWidth, category: contentSizeCategory
             )
-        ).height
-        let fullTextH = subviews[1].sizeThatFits(
-            ProposedViewSize(
-                width: ComposerLayout.textWidth(
-                    forContainerWidth: containerWidth, multiline: true
-                ),
-                height: nil
-            )
-        ).height
+            : narrowHeight
         return (
-            multiline: ComposerLayout.isMultiline(
-                measured: narrowTextH, category: contentSizeCategory
+            multiline: multiline,
+            textWidth: textWidth,
+            textHeight: ComposerLayout.cappedTextHeight(
+                measured: measuredHeight, category: contentSizeCategory
             ),
             totalHeight: ComposerLayout.capsuleHeight(
-                narrowMeasured: narrowTextH, fullMeasured: fullTextH,
+                narrowMeasured: narrowHeight, fullMeasured: measuredHeight,
                 category: contentSizeCategory
             )
         )
@@ -8632,7 +8612,7 @@ private struct ComposerBarLayout: Layout {
         cache: inout Void
     ) -> CGSize {
         let rowWidth = proposal.width ?? 0
-        let m = metrics(rowWidth: rowWidth, subviews: subviews)
+        let m = metrics(rowWidth: rowWidth)
         return CGSize(width: rowWidth, height: m.totalHeight)
     }
 
@@ -8642,18 +8622,15 @@ private struct ComposerBarLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) {
-        let containerWidth = bounds.width + ComposerLayout.inputBarChrome
-        let m = metrics(rowWidth: bounds.width, subviews: subviews)
+        let m = metrics(rowWidth: bounds.width)
         let pad: CGFloat = 8
         let btn = ComposerLayout.buttonHeight
         let textInset = pad + ComposerLayout.textVerticalInsets / 2 // 13
+        let textProposal = ProposedViewSize(width: m.textWidth, height: m.textHeight)
         if m.multiline {
-            let fullWidth = ComposerLayout.textWidth(
-                forContainerWidth: containerWidth, multiline: true
-            )
             subviews[1].place(
                 at: CGPoint(x: bounds.minX + pad + 8, y: bounds.minY + textInset),
-                proposal: ProposedViewSize(width: fullWidth, height: nil)
+                proposal: textProposal
             )
             let rowY = bounds.maxY - pad - btn
             subviews[0].place(
@@ -8665,17 +8642,10 @@ private struct ComposerBarLayout: Layout {
                 proposal: ProposedViewSize(width: btn, height: btn)
             )
         } else {
-            let narrowWidth = ComposerLayout.textWidth(
-                forContainerWidth: containerWidth
-            )
-            let textProposal = ProposedViewSize(
-                width: narrowWidth, height: nil
-            )
-            let textSize = subviews[1].sizeThatFits(textProposal)
             subviews[1].place(
                 at: CGPoint(
                     x: bounds.minX + pad + btn + pad + 8,
-                    y: bounds.maxY - textInset - textSize.height
+                    y: bounds.maxY - textInset - m.textHeight
                 ),
                 proposal: textProposal
             )
@@ -10653,7 +10623,8 @@ private struct ComposerBarLayout: Layout {
         // 入口不再禁止
         guard !text.isEmpty || !pending.isEmpty else { return }
         // 有待批审批卡时拦截发送，给轻量浮条提示并自动滚回审批卡位置
-        if appState.sharedHubStore().hasPendingApprovals {
+        let hubStore = appState.sharedHubStore()
+        if hubStore.hasPendingApprovals(inChat: currentThread?.serverSessionID) {
             showNotice(
                 L10n.string("先处理上面的批准请求"),
                 tier: .brief
@@ -10662,8 +10633,8 @@ private struct ComposerBarLayout: Layout {
                 guard let key = entry.approvalKey,
                       let recordID = ApprovalAnchor.recordID(fromKey: key)
                 else { return false }
-                if case .pending = appState.sharedHubStore().anchorRowState(recordID: recordID) {
-                    return true
+                if case .pending(let record) = hubStore.anchorRowState(recordID: recordID) {
+                    return record.appliesToChat(sessionID: currentThread?.serverSessionID)
                 }
                 return false
             }) {

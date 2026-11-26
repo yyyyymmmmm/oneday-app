@@ -134,43 +134,25 @@ public enum ApprovalAnchor {
         return planned
     }
 
-    /// 锚定行呈现态（规格 §4.3 单源）：同一记录在全部
-    /// 聊天面只出现一处——本机已落锚的记录由锚定行承
-    /// 载（pending→完整卡、decisions→已决行）；数据未
-    /// 就位（store 还没成功拉过/正在刷新）→加载中行，
-    /// 不许在数据没到时就判已决或失效；两处皆无且缺
-    /// 席满两轮→已失效灰行；未落锚的记录维持流末尾
-    /// 区出卡（不经本判定）。
+    /// 聊天只渲染有待批记录或已决回执的审批锚点。
     public enum RowState: Equatable, Sendable {
         case pending(WriteGateRecord)
         case decided(WriteGateDecisionRecord)
-        /// 两处皆无且缺席满两轮：上游已丢弃/账本已滚
-        /// 出——诚实灰行，不删行、不冒充已决
-        case stale
-        /// 审批数据还没成功拉到（段未就绪）：行位先占
-        /// 一行加载态，等刷新落位后自然翻成上面三态
-        case loading
+        case unavailable
     }
 
     public static func rowState(
         recordID: String,
-        dataReady: Bool,
         pending: [WriteGateRecord],
-        decisions: [WriteGateDecisionRecord],
-        missCount: Int
+        decisions: [WriteGateDecisionRecord]
     ) -> RowState {
-        if let record = pending.first(where: { $0.id == recordID }) {
-            return .pending(record)
-        }
         if let item = decisions.first(where: { $0.id == recordID }) {
             return .decided(item)
         }
-        guard dataReady else { return .loading }
-        if isStale(missCount: missCount) { return .stale }
-        // 缺席未满两轮且无据：多半是裁决刚落账、账本
-        // 刷新未跟上的一拍——维持加载态等下一轮对账，
-        // 不提前判死、也不假装已决
-        return .loading
+        if let record = pending.first(where: { $0.id == recordID }) {
+            return .pending(record)
+        }
+        return .unavailable
     }
 
     /// 流末尾区（ChatApprovalZone）的排除集：本机任一
@@ -202,17 +184,4 @@ public enum ApprovalAnchor {
         return String(parts[2])
     }
 
-    /// 物化后连续缺席轮数：记录在 pending 与 decisions
-    /// 两处皆无的刷新轮数达 2 才转「已失效」（规格
-    /// §4.2：一轮缺席可能是刷新竞态/分页截断，不许一
-    /// 轮就判死）
-    public static func missCountAfterRefresh(
-        previous: Int, present: Bool
-    ) -> Int {
-        present ? 0 : previous + 1
-    }
-
-    public static func isStale(missCount: Int) -> Bool {
-        missCount >= 2
-    }
 }

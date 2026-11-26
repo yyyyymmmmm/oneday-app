@@ -3,7 +3,7 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
-/// 0.2.7 发送舱文本视图（DESIGN-V4 §11）：自量高 UITextView。
+/// 发送舱原生文本视图。ComposerBarLayout 按草稿计算高度。
 ///
 /// 换代缘由（§11.1 定案）：0.2.6 的纵向 TextField 是发送舱
 /// 高度链上唯一没有权威量高者的一环——其理想高由 SwiftUI
@@ -54,10 +54,6 @@ struct ComposerTextView: UIViewRepresentable {
     /// 占位符文案（0.36.6）：普通态「发消息…」，录音
     /// 态由录音条传「正在聆听…」
     var placeholderText: String = "发消息…"
-    // 0.3.3：onMeasuredHeight 通道撤销——多行形态判据改
-    // 由布局层（ChatView.ComposerBarLayout）以 sizeThat-
-    // Fits 量测回写，视图不再反向驱动布局状态
-
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
@@ -164,33 +160,15 @@ struct ComposerTextView: UIViewRepresentable {
         refreshScroll(textView)
     }
 
-    /// 高度权威（0.2.9 纯逻辑定案，§13）：行数由
-    /// ComposerTextMetrics 以 TextKit 在提议宽（＝实际布
-    /// 局宽）与单一来源字体下数出（含 marked 段——组合
-    /// 文本同在 textView.text 里，与 IME 同路），高度只
-    /// 经 ComposerLayout 纯函数封顶。0.3.3：本函数只回
-    /// 高、不再回调报模式——模式由布局层据两次
-    /// sizeThatFits（窄宽/全宽）自行判定
+    /// ComposerBarLayout supplies the measured text size for the current draft.
     func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView textView: UITextView,
         context: Context
     ) -> CGSize? {
-        guard let width = proposal.width, width > 0 else { return nil }
-        // 量测档＝视图自身 trait 档（A11Y-D1 贯穿：
-        // 与 applyGeometry 施加给本视图的排版档恒同
-        // 一份，不许回落全局当前档另成一套账）
-        let category =
-            textView.traitCollection.preferredContentSizeCategory
-        let reported = ComposerTextMetrics.textHeight(
-            for: textView.text ?? "", width: width, category: category
-        )
-        return CGSize(
-            width: width,
-            height: ComposerLayout.cappedTextHeight(
-                measured: reported, category: category
-            )
-        )
+        guard let width = proposal.width, let height = proposal.height
+        else { return nil }
+        return CGSize(width: width, height: height)
     }
 
     /// 未定稿尾段染灰（0.36.6）：以当前文本重建属性

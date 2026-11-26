@@ -179,12 +179,13 @@ final class AgentHubStore {
     private(set) var alwaysAllowToast: AlwaysAllowToast?
     private var alwaysAllowToastTask: Task<Void, Never>?
 
-    /// 是否存在未决待审批记录（聊天页拦截发送用）
+    /// 是否存在未决待审批记录（全局审核面）。
     var hasPendingApprovals: Bool {
-        if case .ready(let records) = approvalState {
-            return !records.isEmpty
-        }
-        return false
+        !currentPendingRecords().isEmpty
+    }
+
+    func hasPendingApprovals(inChat sessionID: String?) -> Bool {
+        currentPendingRecords().contains { $0.appliesToChat(sessionID: sessionID) }
     }
 
     // MARK: - 授权账本（§434 审核格；能力 #12 活证）
@@ -439,7 +440,10 @@ final class AgentHubStore {
         } else if !force, approvalState != .loading {
             return
         }
-        approvalState = .loading
+        let previousPending = currentPendingRecords()
+        if case .ready = approvalState {} else {
+            approvalState = .loading
+        }
         guard let config = appState.config else {
             approvalState = .bridgeUnavailable
             return
@@ -462,10 +466,9 @@ final class AgentHubStore {
             approvalState = .gateDisabled
             return
         }
-        let previousPending = currentPendingRecords()
+        let records: [WriteGateRecord]
         do {
-            let list = try await gateClient.pendingList(config: config)
-            approvalState = .ready(list.records)
+            records = try await gateClient.pendingList(config: config).records
         } catch let error as WriteGateError {
             approvalState = mapGateError(error)
             return
@@ -474,6 +477,7 @@ final class AgentHubStore {
             return
         }
         await refreshDecisionHistory()
+        publishPendingApprovalRecords(records, config: config)
         // 结果行对账（0.36.21）：上一轮还在待批、本轮
         // 已消失且已决账本里查得到的记录，补一行结果
         // ——覆盖「卡已显示、又被规则自动放行」的生命
@@ -511,11 +515,8 @@ final class AgentHubStore {
     /// 尾区据此排除已锚记录（单源呈现），锚定行据此
     /// 不再依赖本地逐线程扫描
     var anchoredRecordIDs: Set<String> = []
-    /// 已落锚记录的连续缺席轮数（物化方回写，键＝锚
-    /// 定键）：记录在 pending 与 decisions 两处皆无的
-    /// 刷新轮数——满两轮锚定行才转「已失效」（Core
-    /// ApprovalAnchor.isStale），一轮缺席不判死
-    var anchorMissCounts: [String: Int] = [:]
+    /// 已收到服务端终态的请求，防止较早发出的待批刷新把卡片恢复。
+    private var closedApprovalIDsByServer: [String: Set<String>] = [:]
     /// 锚点回溯专用已决集（大 limit 拉取、低频刷新）：
     /// 日常 decisionHistory 只取最近 50 条，30 天回溯
     /// 窗内的带锚记录可能在窗口外——本集只作已决全
@@ -541,35 +542,18 @@ final class AgentHubStore {
     }
     private var anchorDecisionsFetchedAt: Date?
 
-    /// 锚定行呈现态（单源判定，逻辑在 Core
-    /// ApprovalAnchor.rowState）：待批集/已决集（含回
-    /// 溯宽集）命中即现态；两处皆无才看缺席计数与数
-    /// 据就绪位
+    /// 已决回执、待批卡共用的聊天可见范围。
+    var visibleApprovalIDs: Set<String> {
+        Set(decidedRecords.map(\.id)).union(currentPendingRecords().map(\.id))
+    }
+
     func anchorRowState(
         recordID: String
     ) -> ApprovalAnchor.RowState {
-        let pending: [WriteGateRecord]
-        let dataReady: Bool
-        if case .ready(let records) = approvalState {
-            pending = records
-            dataReady = true
-        } else {
-            pending = []
-            dataReady = false
-        }
-        let decisions = decidedRecords
-        let key = anchoredKey(forRecordID: recordID)
-        return ApprovalAnchor.rowState(
-            recordID: recordID, dataReady: dataReady,
-            pending: pending, decisions: decisions,
-            missCount: key.flatMap { anchorMissCounts[$0] } ?? 0
+        ApprovalAnchor.rowState(
+            recordID: recordID,
+            pending: currentPendingRecords(), decisions: decidedRecords
         )
-    }
-
-    private func anchoredKey(forRecordID id: String) -> String? {
-        anchorMissCounts.keys.first { key in
-            ApprovalAnchor.recordID(fromKey: key) == id
-        }
     }
 
     /// 回溯已决集低频刷新：距上次成功拉取 <10 分钟跳
@@ -654,7 +638,7 @@ final class AgentHubStore {
                     config: config, subsystem: record.subsystem, id: record.id
                 )
             if response.success {
-                removeRecord(record.id)
+                removeRecord(record.id, config: config)
                 // 0.36.5（联动 C 部）：记本人裁决——
                 // 本条的回执通知生成后由总览桥状态层
                 // 按 id 自动消账，不再回头占角标
@@ -668,8 +652,6 @@ final class AgentHubStore {
                 } else {
                     Haptics.warning()
                 }
-                // 决刚落账，此时刷新已决历史最准（P10）
-                await refreshDecisionHistory()
                 // 结果行（0.36.21）：卡原地收成一行，
                 // 不凭空消失；经「总是允许」路径的标明
                 // 规则已记住
@@ -680,6 +662,7 @@ final class AgentHubStore {
                         : (approve ? .approved : .rejected)
                 )
                 alwaysApproveMarks.remove(record.id)
+                await refreshDecisionHistory()
             } else {
                 // §245：桥回了结构化失败原因就直出它
                 // （与记录面预检原因同一「原因上卡面」
@@ -697,7 +680,7 @@ final class AgentHubStore {
         } catch let error as WriteGateError {
             switch error {
             case .recordGone:
-                removeRecord(record.id)
+                removeRecord(record.id, config: config)
                 await refreshDecisionHistory()
                 if let entry = decisionHistory.first(
                     where: { $0.id == record.id }
@@ -726,12 +709,21 @@ final class AgentHubStore {
         decidingIDs.remove(record.id)
     }
 
-    private func removeRecord(_ id: String) {
+    private func removeRecord(_ id: String, config: ServerConfig) {
+        closedApprovalIDsByServer[config.baseString, default: []].insert(id)
         if case .ready(var records) = approvalState {
             records.removeAll { $0.id == id }
             approvalState = .ready(records)
         }
         onApprovalChanged?()
+    }
+
+    private func publishPendingApprovalRecords(
+        _ records: [WriteGateRecord], config: ServerConfig
+    ) {
+        let closedIDs = (closedApprovalIDsByServer[config.baseString] ?? [])
+            .union(decidedRecords.map(\.id))
+        approvalState = .ready(records.filter { !closedIDs.contains($0.id) })
     }
 
     // MARK: - 「总是允许」与规则（0.36.21，规格 §4）
@@ -859,8 +851,8 @@ final class AgentHubStore {
         else { return }
         let previous = currentPendingRecords()
         await refreshDecisionHistory()
-        approvalState = .ready(list.records)
-        reconcileResolvedLines(previous: previous, current: list.records)
+        publishPendingApprovalRecords(list.records, config: config)
+        reconcileResolvedLines(previous: previous, current: currentPendingRecords())
         await loadRules()
         await refreshAnchorDecisionsIfStale()
         notifyAnchorDataRefreshed()

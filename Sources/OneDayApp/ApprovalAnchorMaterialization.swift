@@ -6,11 +6,7 @@ import SwiftData
 /// 每次刷新（枢纽 loadApproval／聊天 refreshApproval-
 /// ForChat）成功拿到 pending 现态后触发一次——按 Core
 /// ApprovalAnchor.plan 把带锚且本机有对应线程的记录落
-/// 成锚定条目，并回写两份 store 侧派生状态：
-/// - anchoredRecordIDs（全 App 已落锚记录集）：流末尾
-///   区排除与「单源」呈现的依据；
-/// - anchorMissCounts（已落锚记录的连续缺席轮数）：
-///   锚定行的「已失效」判定（满两轮才转，见 Core）。
+/// 成锚定条目，并回写已落锚记录集供审批区去重。
 ///
 /// 纪律：
 /// - 找不到绑定该服务端会话的本地线程 → 不物化、不
@@ -24,13 +20,9 @@ import SwiftData
 ///   thread.updatedAt 不动（物化不是用户活动，不许
 ///   把老对话顶到抽屉前列）；
 /// - 桥错误/未接通时不调用本步（调用方只在 pending
-///   拉成功后触发），缺席计数不被网络失败污染。
+///   拉成功后触发）。
 @MainActor
 enum ApprovalAnchorMaterialization {
-    /// 触发资格＝store 已进 ready 态（pending 本轮拉成
-    /// 功的同义反复——loadApproval/refreshApprovalFor-
-    /// Chat 只在成功路径置 ready，失败/未接通不触发，
-    /// 缺席计数不被网络失败污染）
     static func run(store: AgentHubStore, context: ModelContext) {
         guard case .ready(let pending) = store.approvalState
         else { return }
@@ -78,22 +70,8 @@ enum ApprovalAnchorMaterialization {
         if didInsert {
             try? context.save()
         }
-        // 派生状态回写（store 观察面，ChatApprovalZone
-        // 与锚定行渲染消费）
         store.anchoredRecordIDs = ApprovalAnchor.anchoredRecordIDs(
             keys: existingKeys
         )
-        var misses = store.anchorMissCounts
-        let presentIDs = Set(pending.map(\.id))
-            .union(decisions.map(\.id))
-        for key in existingKeys {
-            guard let recordID = ApprovalAnchor.recordID(fromKey: key)
-            else { continue }
-            misses[key] = ApprovalAnchor.missCountAfterRefresh(
-                previous: misses[key] ?? 0,
-                present: presentIDs.contains(recordID)
-            )
-        }
-        store.anchorMissCounts = misses
     }
 }

@@ -899,7 +899,7 @@ struct ChatNativeRowHeightComposer {
                 )
             }
         }
-        return facets.anchorStates[recordID] ?? .loading
+        return facets.anchorStates[recordID] ?? .unavailable
     }
 
     private func facetCardNote(
@@ -1161,12 +1161,10 @@ struct ChatNativeRowHeightComposer {
                 parts.append(
                     "app\(approvalRecordDigest(record))"
                 )
-            case .decided:
-                parts.append("apDecided")
-            case .stale:
-                parts.append("apStale")
-            case .loading:
-                parts.append("apLoading")
+            case .decided(let decision):
+                parts.append("apDecided|\(decision.decision)|\(decision.viaRule ?? "")|\(decision.headline)")
+            case .unavailable:
+                parts.append("apUnavailable")
             }
         }
         if entry.role == "user" {
@@ -2138,9 +2136,7 @@ struct ChatNativeRowHeightComposer {
         return total
     }
 
-    /// 审批锚行高（approvalAnchorRow 四态）：待
-    /// 批＝整卡；已决/失效/加载＝内距 spacingS
-    /// 纵＋footnote 一行
+    /// 待批用完整卡片，已决回执用一行。
     func approvalAnchorHeight(
         _ entry: ChatEntryHeightSnapshot
     ) -> CGFloat {
@@ -2154,9 +2150,11 @@ struct ChatNativeRowHeightComposer {
             return approvalCardHeight(
                 record: record, width: contentWidth
             )
-        case .decided, .stale, .loading:
+        case .decided:
             return OneDayMetrics.spacingS * 2
                 + spec(.footnote)
+        case .unavailable:
+            return 0
         }
     }
 

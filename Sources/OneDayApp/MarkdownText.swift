@@ -1,3 +1,4 @@
+import Nuke
 import NukeUI
 import OneDayCore
 import OneDayDesign
@@ -15,6 +16,7 @@ struct MarkdownText: View {
     let allowsDirectSelection: Bool
     let segmentProducts: [Int: NSAttributedString]?
     let searchHighlightQuery: String?
+    let onOpenImageGallery: ((ImageViewerSession) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.legibilityWeight) private var legibilityWeight
@@ -24,13 +26,15 @@ struct MarkdownText: View {
         onSelectionChange: ((Bool) -> Void)? = nil,
         segmentProducts: [Int: NSAttributedString]? = nil,
         allowsDirectSelection: Bool = true,
-        searchHighlightQuery: String? = nil
+        searchHighlightQuery: String? = nil,
+        onOpenImageGallery: ((ImageViewerSession) -> Void)? = nil
     ) {
         self.content = content
         self.onSelectionChange = onSelectionChange
         self.segmentProducts = segmentProducts
         self.allowsDirectSelection = allowsDirectSelection
         self.searchHighlightQuery = searchHighlightQuery
+        self.onOpenImageGallery = onOpenImageGallery
     }
 
     private var extractedMedia: (cleanedText: String, images: [MarkdownInlineImage]) {
@@ -52,7 +56,22 @@ struct MarkdownText: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
             if !media.images.isEmpty {
                 ForEach(media.images) { img in
-                    MarkdownInlineImageView(image: img)
+                    MarkdownInlineImageView(
+                        image: img,
+                        onOpen: onOpenImageGallery.map { present in
+                            {
+                                var seen: Set<String> = []
+                                let items = media.images.map(\.viewerItem).filter {
+                                    seen.insert($0.id).inserted
+                                }
+                                let selectedID = img.viewerItem.id
+                                guard let index = items.firstIndex(where: {
+                                    $0.id == selectedID
+                                }) else { return }
+                                present(ImageViewerSession(items: items, initialIndex: index))
+                            }
+                        }
+                    )
                 }
             }
             ForEach(Array(segments.enumerated()), id: \.offset) { offset, segment in
@@ -712,6 +731,7 @@ struct MarkdownText: View {
 }
 
 private struct MarkdownInlineImage: Identifiable {
+    static let previewLongEdge = 1200
     enum Source {
         case base64(Data)
         case remoteURL(URL)
@@ -721,6 +741,17 @@ private struct MarkdownInlineImage: Identifiable {
     let id: String
     let alt: String
     let source: Source
+
+    var viewerItem: ChatImageViewerItem {
+        switch source {
+        case .base64(let data):
+            ChatImageViewerItem(source: .data(data))
+        case .remoteURL(let url):
+            ChatImageViewerItem(source: .publicURL(url, previewLongEdge: Self.previewLongEdge))
+        case .serverPath(let path):
+            ChatImageViewerItem(source: .remotePath(path))
+        }
+    }
 
     static func make(id: String, alt: String, source: String) -> MarkdownInlineImage? {
         if source.hasPrefix("data:image/"),
@@ -744,30 +775,39 @@ private struct MarkdownInlineImage: Identifiable {
 
 private struct MarkdownInlineImageView: View {
     let image: MarkdownInlineImage
+    var onOpen: (() -> Void)?
 
     var body: some View {
         switch image.source {
         case .base64(let data):
             if let uiImage = UIImage(data: data) {
                 let cardSize = ChatImageSizing.cardSize(for: uiImage.size)
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: cardSize.width, height: cardSize.height)
-                    .background(
-                        Palette.bubbleFill,
-                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard))
-            }
-        case .remoteURL(let url):
-            LazyImage(url: url) { state in
-                if let loaded = state.image {
-                    loaded
+                previewButton {
+                    Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: 260, maxHeight: 220)
+                        .frame(width: cardSize.width, height: cardSize.height)
+                        .background(
+                            Palette.bubbleFill,
+                            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard))
+                }
+            }
+        case .remoteURL(let url):
+            let request = onOpen == nil ? ImageRequest(url: url)
+                : RemoteImageRequestFactory.publicRequest(
+                    url: url, longEdgeCap: MarkdownInlineImage.previewLongEdge
+                )
+            LazyImage(request: request) { state in
+                if let loaded = state.image {
+                    previewButton {
+                        loaded
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 260, maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard))
+                    }
                 } else if state.error != nil {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(systemName: "photo")
@@ -790,8 +830,23 @@ private struct MarkdownInlineImageView: View {
                         .overlay { ProgressView() }
                 }
             }
+            .pipeline(onOpen == nil ? .shared : OneDayImagePipelines.remote)
         case .serverPath(let path):
-            ServerRemoteImage(path: path)
+            ServerRemoteImage(path: path, onOpen: onOpen)
+        }
+    }
+
+    @ViewBuilder
+    private func previewButton<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if let onOpen {
+            Button(action: onOpen) {
+                content().contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel(image.alt.isEmpty ? L10n.string("图片") : image.alt)
+            .accessibilityHint(L10n.string("查看大图"))
+        } else {
+            content()
         }
     }
 }

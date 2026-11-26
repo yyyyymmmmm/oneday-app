@@ -38,10 +38,7 @@ struct ChatApprovalZone: View {
         var current: [WriteGateRecord] = []
         var other: [WriteGateRecord] = []
         for record in records {
-            if let anchorSession = record.anchor?.sessionId,
-               let currentServerSessionID,
-               !currentServerSessionID.isEmpty,
-               anchorSession != currentServerSessionID {
+            if !record.appliesToChat(sessionID: currentServerSessionID) {
                 other.append(record)
             } else if !anchoredIDs.contains(record.id) {
                 current.append(record)
