@@ -67,3 +67,28 @@
 3. Design AccessibilitySupport.swift：DynamicTypeSize→UIContentSizeCategory 映射段 `#if os(iOS)` 守卫（量测交接是 iOS 发送舱专属），余部跨平台不动。
 4. Design Components.swift：Pasteboard.copy 加 macOS 分支（NSPasteboard），iOS 分支原样。
 5. Design Palette.swift：macOS 垫片——UIColor 别名 NSColor、语义色按角色映射 AppKit 语义色（windowBackground/controlBackground/label 色族/separatorColor 等）、omColor/appleColor/scrim 加 NSColor 动态供应者分支。角色等值映射，非逐值复刻；暗档 α 语义以动态 α 近似。视觉逐值对齐不在地基棒口径，后续棒按真机截图验。
+
+## 棒 1 对位表销账（聊天主链 MVP，队列 127）
+
+施工：尚书省分身，2026-11-26。基线 6c9ba954，本地尖 d5fda1e8（推送通道未通，只落本地分支）。提交链：e474df35 客户端端点段 → 496ea177 列表/会话两店 → d5fda1e8 视图批（列表/聊天/Markdown/输入/菜单栏/设置）。构建：tuist generate 后 workspace 口径 OneDayMac scheme BUILD SUCCEEDED、零 error。启动实证：App 真实启动常驻无崩溃（DiagnosticReports 无 OneDayMac 记录）；本机 Keychain 无登录三件套，未登录态按 RootView 落连接页（正登实测不在本棒口径内，现行密码未递达）；截图自验被 macOS 屏幕录制权限墙挡住（SSH 与 GUI 会话 LaunchAgent 两路均回 could not create image from display），以进程存活＋无崩溃＋代码路径确定性代偿，明示未达截图标准。
+
+| 行 | 状态 | 证据 |
+|---|---|---|
+| 1 聊天（一级项） | ✅ 已落 | 三栏做实：侧边栏选「聊天」→中栏会话列表→详情聊天面；侧边栏带未读总数徽标 |
+| 9 会话列表 | ✅ 已落（逻辑同构说明） | 网关 /api/sessions 双段拉取（可见＋归档）、搜索/置顶/归档/改名/删除（右键菜单＋⌘F 聚焦搜索＋⌘⌫ 删选中）；写口全走服务端围栏（快照 revision＋request_id、409 重读重试、删除按 Core SessionDeleteDirective 分流）；已读账本地保存（UserDefaults mac.readCounts.v1）。与简报字面差异：Core 的 ChatStore/ArchiveStore 是 iOS 视图层状态店（绑 HermesClient 与 UI 状态），Mac 未直用，改以网关 API＋Core 纯逻辑件（SessionDeleteDirective 等）同构实现同一语义，不另立第二套口径 |
+| 12 连接页 | ✅ 接通真实登录态 | 未登录落 LoginView、restore() 读 Keychain 三件套直达主窗、断开回落登录页；错密码报错路径地基棒已验；正登不在本棒 |
+| 13 消息流 | ✅ 已落 | transcript 为唯一真源（开会话/落定一律回读）；Markdown 块级走 Core MarkdownParser、代码块 Core CodeHighlight 着色＋横向滚动＋复制钮、表格 Grid 对齐、思考过程折叠、工具调用名行、附件名行 |
+| 14 流式与停止 | ✅ 已落 | /v1/runs 提交（client_message_id 与 Idempotency-Key 同值双带）＋SSE 事件流（Core RunEventParser）；流断未见终态走 runStatus 轮询对账（404 转 transcript 定性）；停止走 /v1/runs/{id}/stop 真取消（⌘. 与停止钮） |
+| 15 输入框 | ✅ 已落 | NSTextView 原生多行：Return 发送/⇧Return 换行；草稿按会话存（mac.drafts.v1），存否判据走 Core DraftSavePolicy |
+| 16 附件 | ✅ 已落 | 拖拽入窗（文件 URL/图片）、NSOpenPanel 多选、粘贴文件/图片三路；图片走多模态 data_url（Core FileSendAssembly）、文件先 /api/files/upload 再拼 @file: 引用 |
+| 17 模型选择器 | ✅ 已落 | 工具栏弹出面板（⌘M），清单来自 /v1/models 与会话可用清单；切换走 POST /api/sessions/{id}/model 落锁、失败回滚 |
+| 24 聊天内查找 | ✅ 已落 | ⌘F 查找条；匹配/定位走 Core ChatFind（normalizedQuery/matches/nearestMatchIndex），命中高亮＋上/下一条＋计数文案 |
+| 30 未读分隔/已读账 | ✅ 已落 | Core UnreadDivider 锚点计算（水位 mac.readWatermark.v1）＋分隔行呈现；已读账与 #9 共用 mac.readCounts.v1 |
+| 31 发送失败重发 | ✅ 已落（语义同构说明） | 提交段真失败才入发件箱（幂等键/尝试数/末错/manualOnly，对位 OutboxRetryStore 语义）；重发沿用同一幂等键防双跑（对位能力协商 runIdempotency/clientMessageId 两旗标）；本地持久化在 UserDefaults（mac.outbox.v1），图片以 data_url 随记录保存、文件字节不落盘（重发只带文本与图片，代码注释明示） |
+| 65 通用节·身份 | ✅ 已落 | 设置窗通用节：智能体名（档案 soul 经 Core AgentName.resolve）＋当前档案名 |
+| 74 当前服务器 | ✅ 已落 | 设置窗服务器节：host/地址/Hermes 版本/可用模型数 |
+| 75 登录会话与短时票据 | ✅ 已落 | 登录方式明示（面板密码＋密钥存钥匙串）；短时票据按 Core CapabilitiesResponse.shortLivedTokensSupported 三态如实呈现（支持/未启用/未读取到） |
+| 90 Keychain | ✅ 沿地基棒 | 本棒未改，登录三件套读写沿 MacKeychain 既有实现 |
+| M1 菜单栏状态项 | ✅ 基础形态已落 | 状态点四态（Core ConnectionStatus/ConnectionPhase 呈现口径）＋待批数（/v1/approvals 计数）；小面板：状态摘要＋服务器＋智能体名＋打开主窗＋断开；30 秒轮询探活与待批 |
+
+未落/遗留（明示）：①正登实测与真数据会话列表目视——等现行密码递达或后续棒在已登录态补验；②长会话滚动/流式跟随手感——已按贴底跟随＋上滑停跟＋回到底部钮实现（对位 Telegram Mac 口径），真机手感待已登录态实测，不以「能显示」冒充已验；③#19 反应、#21/#102 内嵌卡、#22 自反应等不在本棒范围，按拟案归后续棒。
