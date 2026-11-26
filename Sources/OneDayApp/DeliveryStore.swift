@@ -23,9 +23,12 @@ final class DeliveryStore {
     enum MetaResult: Equatable {
         case loaded(BridgeDelivery)
         case notFound
+        case failed(String)
     }
 
     private(set) var metaResults: [String: MetaResult] = [:]
+    private(set) var metaRevision: Int = 0
+    private(set) var metaFailureCounts: [String: Int] = [:]
     @ObservationIgnored private var metaInFlight: Set<String> = []
     @ObservationIgnored private var imageBytes: [String: Data] = [:]
     @ObservationIgnored private var imageMisses: Set<String> = []
@@ -33,6 +36,20 @@ final class DeliveryStore {
 
     func metaResult(for id: String) -> MetaResult? {
         metaResults[id]
+    }
+
+    func metaFailureCount(for id: String) -> Int {
+        metaFailureCounts[id] ?? 0
+    }
+
+    /// 预灌服务端消息投影内联下发的交付元数据，避免回补后二次查询
+    func ingest(_ deliveries: [BridgeDelivery]) {
+        guard !deliveries.isEmpty else { return }
+        for delivery in deliveries {
+            metaResults[delivery.id] = .loaded(delivery)
+            metaFailureCounts.removeValue(forKey: delivery.id)
+        }
+        metaRevision &+= 1
     }
 
     /// 同步 peek（§329 行高合成用）：某档快照字节
@@ -46,21 +63,64 @@ final class DeliveryStore {
     }
 
     func loadMeta(
-        id: String, client: OneDayBridgeClient, appState: AppState
+        id: String, client: OneDayBridgeClientProtocol, appState: AppState
     ) async {
-        guard metaResults[id] == nil,
-              !metaInFlight.contains(id),
-              let config = appState.config
-        else { return }
+        if case .loaded = metaResults[id] { return }
+        if case .notFound = metaResults[id] { return }
+
+        // 预算闸：失败计数 ≥5 停止重试
+        if metaFailureCounts[id, default: 0] >= 5 { return }
+
+        guard !metaInFlight.contains(id) else { return }
+        guard let config = appState.config else {
+            recordFailure(id: id, message: L10n.string("服务器未连接"))
+            return
+        }
         metaInFlight.insert(id)
         defer { metaInFlight.remove(id) }
         do {
             let meta = try await client.delivery(config: config, id: id)
             metaResults[id] = .loaded(meta)
+            metaFailureCounts.removeValue(forKey: id)
+            metaRevision &+= 1
         } catch let error as OneDayBridgeError where error == .recordGone {
             metaResults[id] = .notFound
+            metaFailureCounts.removeValue(forKey: id)
+            metaRevision &+= 1
+        } catch let error as OneDayBridgeError {
+            recordFailure(id: id, message: Self.failureMessage(for: error))
         } catch {
-            // 网络/未连接类失败不落账：下次渲染重查
+            recordFailure(id: id, message: L10n.string("网络请求失败"))
+        }
+    }
+
+    private func recordFailure(id: String, message: String) {
+        metaFailureCounts[id, default: 0] += 1
+        metaResults[id] = .failed(message)
+        metaRevision &+= 1
+    }
+
+    func retryMeta(
+        id: String, client: OneDayBridgeClientProtocol, appState: AppState
+    ) async {
+        metaResults.removeValue(forKey: id)
+        metaFailureCounts.removeValue(forKey: id)
+        metaRevision &+= 1
+        await loadMeta(id: id, client: client, appState: appState)
+    }
+
+    private static func failureMessage(for error: OneDayBridgeError) -> String {
+        switch error {
+        case .noKey:
+            return L10n.string("缺少登录密钥")
+        case .unauthorized:
+            return L10n.string("登录密钥已失效")
+        case .bridgeMissing:
+            return L10n.string("服务端未开通交付接口")
+        case .recordGone:
+            return L10n.string("登记号不存在")
+        case .failed(let message):
+            return message
         }
     }
 
@@ -82,6 +142,34 @@ final class DeliveryStore {
         do {
             let data = try await client.deliveryImage(
                 config: config, id: id, variant: variant
+            )
+            imageBytes[key] = data
+            return data
+        } catch let error as HermesError
+            where error.isMissingSnapshot {
+            imageMisses.insert(key)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    /// 原文件/原图字节（GET /deliveries/{id}/content）：
+    /// 快照缺失或需要原文件时优先走桥鉴权通道获取
+    func content(
+        id: String, client: OneDayBridgeClient, appState: AppState
+    ) async -> Data? {
+        let key = "\(id)/content"
+        if let hit = imageBytes[key] { return hit }
+        if imageMisses.contains(key) { return nil }
+        guard !imageInFlight.contains(key),
+              let config = appState.config
+        else { return nil }
+        imageInFlight.insert(key)
+        defer { imageInFlight.remove(key) }
+        do {
+            let data = try await client.deliveryContent(
+                config: config, id: id
             )
             imageBytes[key] = data
             return data

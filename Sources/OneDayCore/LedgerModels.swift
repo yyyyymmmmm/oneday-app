@@ -243,6 +243,12 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
     /// 标题来源原文（server_llm／user_excerpt／
     /// job_name／task_title／record_excerpt／fallback）
     public let titleSource: String
+    /// 人话标题（服务端生成，客户端优先渲染；缺省时
+    /// 回退 title 原样）
+    public let titleHuman: String?
+    /// 人话摘要（<=120 字，服务端生成；缺省时回退现
+    /// 行 rowParts 拼装副题）
+    public let summary: String?
     public let status: LedgerStatus
     /// epoch 秒（已归一）
     public let startedAt: Double
@@ -267,7 +273,9 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
 
     public init(
         id: String, kind: LedgerKind, source: LedgerSource,
-        title: String, titleSource: String, status: LedgerStatus,
+        title: String, titleSource: String,
+        titleHuman: String? = nil, summary: String? = nil,
+        status: LedgerStatus,
         startedAt: Double, endedAt: Double?,
         lastEvidenceAt: Double?, origin: String,
         link: LedgerLink?, counts: [String: Int],
@@ -280,6 +288,8 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
         self.source = source
         self.title = title
         self.titleSource = titleSource
+        self.titleHuman = titleHuman
+        self.summary = summary
         self.status = status
         self.startedAt = startedAt
         self.endedAt = endedAt
@@ -638,6 +648,10 @@ extension LedgerItem: Decodable {
         titleSource = ledgerString(
             container, ["titleSource", "title_source"]
         ) ?? ""
+        titleHuman = ledgerString(
+            container, ["titleHuman", "title_human"]
+        )
+        summary = ledgerString(container, ["summary"])
         status = LedgerStatus(
             rawValue: ledgerString(container, ["status"])
         )

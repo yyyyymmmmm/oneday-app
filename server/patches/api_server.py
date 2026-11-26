@@ -72,7 +72,6 @@ _CAPABILITY_ENDPOINTS = (
     ("run_stop", ("POST", "/v1/runs/{run_id}/stop")),
     ("crash_reports", ("POST", "/v1/diagnostics/crash-reports")),
     ("crash_reports_list", ("GET", "/v1/diagnostics/crash-reports")),
-    # OneDay push & short-lived token endpoints live in api_server_oneday_routes.ONEDAY_CAPABILITY_ENDPOINTS
     ("settings_registry", ("GET", "/v1/settings/registry", "settings_registry")),
     ("settings_write", ("POST", "/v1/settings/entries")),
     ("settings_events", ("GET", "/v1/settings/events")),
@@ -155,12 +154,6 @@ from gateway.platforms import api_server_room_dispatch as _room_dispatch
 from gateway.platforms import api_server_room_grants as _room_grants
 from gateway.platforms import api_server_runs as _api_runs
 from gateway.platforms.api_server_openai_routes import OpenAICompatRoutesMixin
-from gateway.platforms.api_server_oneday_routes import (
-    ONEDAY_CAPABILITY_ENDPOINTS as _ONEDAY_CAPABILITY_ENDPOINTS,
-    OneDayAuthPushRoutesMixin,
-    oneday_http_routes as _oneday_http_routes,
-)
-_CAPABILITY_ENDPOINTS = _CAPABILITY_ENDPOINTS + _ONEDAY_CAPABILITY_ENDPOINTS
 from gateway.platforms.api_server_memory_sessions import ApiServerMemorySessions
 from gateway.platforms.api_server_bot_chat import reset_local_title_owner
 from gateway.platforms.base import (
@@ -1334,7 +1327,7 @@ def _apply_toolset_toggle_api_server(name: str, enabled: bool) -> tuple[int, dic
     return 200, {"ok": True, "name": name, "platform": "api_server", "enabled": bool(enabled)}
 
 
-class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BasePlatformAdapter):
+class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
     """aiohttp server routing OpenAI-format requests through hermes-agent's AIAgent."""
 
     # Stateless request/response (``send()`` is a stub): async-delivery tools must not promise
@@ -1730,9 +1723,6 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
-            handled, short_err = self._check_short_lived_bearer(token, expected_key, request)
-            if handled:
-                return short_err
             # Compare as bytes: compare_digest raises TypeError on non-ASCII str, and the
             # token is raw client input — a stray byte must 401, not 500.
             if hmac.compare_digest(token.encode(), expected_key.encode()):
@@ -1874,7 +1864,6 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("POST", "/v1/grants/revoke", self._handle_revoke_grant),
             ("POST", "/v1/diagnostics/crash-reports", self._handle_post_crash_reports),
             ("GET", "/v1/diagnostics/crash-reports", self._handle_list_crash_reports),
-            *_oneday_http_routes(self),
             ("GET", "/v1/settings/registry", self._handle_settings_registry),
             ("POST", "/v1/settings/entries", self._handle_settings_write),
             ("GET", "/v1/settings/events", self._handle_settings_events),
@@ -3018,8 +3007,6 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         data = await asyncio.to_thread(_cr.list_reports, limit)
         return web.json_response({"object": "list", "data": data})
 
-    # Push & short-lived auth handlers live in OneDayAuthPushRoutesMixin (api_server_oneday_routes.py).
-
     @_require_auth
     async def _handle_settings_registry(self, request: web.Request) -> web.Response:
         """GET /v1/settings/registry -- the settings registry,
@@ -3658,8 +3645,6 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # deployment gate display.options_card (default off)
             # separately controls whether cards are actually produced.
             "options_card": True,
-            "push_tokens": True,
-            "short_lived_tokens": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}
@@ -3667,11 +3652,6 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "object": "hermes.api_server.capabilities", "platform": "hermes-agent",
             "model": self._model_name,
             "auth": {"type": "bearer", "required": bool(self._api_key)},
-            "version_gate": {
-                "min_app_version": os.getenv("ONEDAY_MIN_APP_VERSION", "0.50.125"),
-                "recommended_app_version": os.getenv("ONEDAY_RECOMMENDED_APP_VERSION", "0.51.0"),
-                "hermes_version": _hermes_version(),
-            },
             "runtime": {
                 "mode": "server_agent", "tool_execution": "server", "split_runtime": False,
                 "description": (
@@ -4370,9 +4350,29 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         messages = await asyncio.to_thread(
             db.get_messages, resolved_id, limit=limit, offset=offset, latest=latest_page,
             include_compacted=include_compacted, include_ancestors=True)
+        delivery_cache = None
+        _od_mod = None
+        try:
+            from gateway.platforms import oneday_gateway as _od_mod
+            delivery_cache = await asyncio.to_thread(
+                _od_mod._delivery_deliveries_for_session, resolved_id)
+        except Exception:
+            delivery_cache = None
+        data = []
+        for m in messages:
+            proj = self._message_response(m)
+            if delivery_cache is not None and _od_mod is not None and isinstance(m, dict):
+                try:
+                    atts = _od_mod._delivery_attachments_for_message(
+                        m.get("id"), m.get("content") or "", delivery_cache)
+                    if atts:
+                        proj["attachments"] = atts
+                except Exception:
+                    pass
+            data.append(proj)
         return web.json_response({
             "object": "list", "session_id": resolved_id,
-            "data": [self._message_response(m) for m in messages],
+            "data": data,
             "pagination": {
                 "limit": limit, "offset": offset,
                 "order": order or ("latest" if default_page else "oldest"),

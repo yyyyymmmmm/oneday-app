@@ -34,18 +34,36 @@ public enum TraceEchoPolicy {
     /// 是物化规划的作用域/窗口闸，不再直接驱动呈现
     /// 拼装）。入参 traces 顺序不限（桥回最新在前、
     /// 本函数自排）
+    /// 过滤静默只读查询（失败留痕永不过滤，守 P0 契约）
+    public static func isReadOnlyNoise(_ trace: BridgeTrace) -> Bool {
+        guard !trace.isFailed else { return false }
+        let action = trace.action.lowercased()
+        switch action {
+        case "goals.list", "library.list", "library.check",
+             "resources.list", "resources.check",
+             "files.list", "files.read",
+             "memory.list", "memory.search":
+            return true
+        default:
+            return action.hasSuffix(".list")
+                || action.hasSuffix(".check")
+                || action.hasSuffix(".inspect")
+        }
+    }
+
     public static func cards(
         traces: [BridgeTrace],
         isMainThread: Bool,
         currentServerSessionID: String?,
         limit: Int = defaultLimit
     ) -> [BridgeTrace] {
+        let filtered = traces.filter { !isReadOnlyNoise($0) }
         let scoped: [BridgeTrace]
         if isMainThread {
-            scoped = traces
+            scoped = filtered
         } else if let sessionID = currentServerSessionID,
                   !sessionID.isEmpty {
-            scoped = traces.filter { $0.target.id == sessionID }
+            scoped = filtered.filter { $0.target.id == sessionID }
         } else {
             return []
         }

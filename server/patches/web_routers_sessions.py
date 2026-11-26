@@ -811,6 +811,36 @@ def _project_for_display(messages: list, *, home=None, inline_images: bool = Tru
             _options = _options_from_display_metadata(_m.get("display_metadata"))
             if _options:
                 _m["options"] = _options
+    # Local patch (2.6.1, delivery attachments): wire parity with
+    # api_server.py -- attach structured delivery metadata directly to
+    # each projected message row so both history load and run settle
+    # render files/images without waiting for client-side probes.
+    _session_ids = {
+        _m.get("session_id")
+        for _m in projected_messages
+        if isinstance(_m, dict) and _m.get("session_id")
+    }
+    if _session_ids:
+        try:
+            from gateway.platforms import oneday_gateway as _od_mod
+            _caches = {
+                sid: _od_mod._delivery_deliveries_for_session(sid)
+                for sid in _session_ids
+            }
+            for _m in projected_messages:
+                if not isinstance(_m, dict):
+                    continue
+                sid = _m.get("session_id")
+                cache = _caches.get(sid) if sid else None
+                if cache is None:
+                    continue
+                atts = _od_mod._delivery_attachments_for_message(
+                    _m.get("id"), _m.get("content") or "", cache
+                )
+                if atts:
+                    _m["attachments"] = atts
+        except Exception:
+            pass
     return projected_messages
 
 

@@ -247,4 +247,12 @@ struct ScriptedBridgeClient: OneDayBridgeClientProtocol {
     ) async throws -> BridgeTaskGoalAssignment {
         throw stub
     }
+
+    // MARK: - 交付
+
+    func delivery(
+        config: ServerConfig, id: String
+    ) async throws -> BridgeDelivery {
+        throw stub
+    }
 }

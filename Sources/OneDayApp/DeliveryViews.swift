@@ -40,14 +40,74 @@ struct AssistantDeliveryItem: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            case .failed(let message):
+                Button {
+                    Task {
+                        await DeliveryStore.shared.retryMeta(
+                            id: id, client: client, appState: appState
+                        )
+                    }
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: FrameworkIcon.actionGlyphSize))
+                            .foregroundStyle(Palette.warning)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.string("附件加载失败"))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            Text("\(message) · 点按重试")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
+                            .foregroundStyle(Palette.primary)
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: 280, minHeight: 64, maxHeight: 64, alignment: .leading)
+                    .background(
+                        Palette.bubbleFill,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                    )
+                }
+                .buttonStyle(.odPressable)
             case nil:
-                EmptyView()
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text(L10n.string("正在加载附件…"))
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingSM)
+                .frame(maxWidth: 240, minHeight: 64, maxHeight: 64, alignment: .leading)
+                .background(
+                    Palette.bubbleFill,
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                )
             }
         }
-        .task(id: id) {
+        .task(id: Self.metaTaskID(
+            for: id,
+            failureCount: DeliveryStore.shared.metaFailureCount(for: id)
+        )) {
             await DeliveryStore.shared.loadMeta(
                 id: id, client: client, appState: appState
             )
+        }
+    }
+
+    /// .task 触发键（可测纯函数）：失败计数变化触发重跑，实现自动重试
+    static func metaTaskID(for id: String, failureCount: Int) -> String {
+        if failureCount > 0 {
+            return "\(id)-\(failureCount)"
+        } else {
+            return id
         }
     }
 
@@ -164,18 +224,25 @@ struct DeliveryImageView: View {
     }
 
     private func loadSnapshots() async {
-        guard hasSnapshots else { return }
-        if meta.cover.thumb, thumb == nil,
-           let data = await DeliveryStore.shared.image(
-               id: meta.id, variant: .thumb,
-               client: client, appState: appState
-           ) {
-            thumb = UIImage(data: data)
+        if hasSnapshots {
+            if meta.cover.thumb, thumb == nil,
+               let data = await DeliveryStore.shared.image(
+                   id: meta.id, variant: .thumb,
+                   client: client, appState: appState
+               ) {
+                thumb = UIImage(data: data)
+            }
+            if meta.cover.cover, cover == nil,
+               let data = await DeliveryStore.shared.image(
+                   id: meta.id, variant: .cover,
+                   client: client, appState: appState
+               ) {
+                cover = UIImage(data: data)
+            }
         }
-        if meta.cover.cover, cover == nil,
-           let data = await DeliveryStore.shared.image(
-               id: meta.id, variant: .cover,
-               client: client, appState: appState
+        if thumb == nil, cover == nil,
+           let data = await DeliveryStore.shared.content(
+               id: meta.id, client: client, appState: appState
            ) {
             cover = UIImage(data: data)
         }
@@ -364,9 +431,17 @@ struct DeliveryFileCard: View {
             coverImage = image
             return
         }
-        // 登记快照取不到：§32 客户端管线回落填同
-        // 一预留区（QL 首面/降采样）；再无则占位
-        // 面落类型图标、形态不变
+        // 登记快照取不到：优先走桥 /deliveries/{id}/content，
+        // 再回落 Admin fileData 填同一预留区
+        if let bytes = await DeliveryStore.shared.content(
+            id: meta.id, client: client, appState: appState
+        ) {
+            coverImage = await FileThumbnailStore.shared.thumbnail(
+                for: entry, targetPixelSize: 720
+            ) { bytes }
+            coverSettled = true
+            return
+        }
         coverImage = await FileThumbnailStore.shared.thumbnail(
             for: entry, targetPixelSize: 720
         ) {

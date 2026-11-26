@@ -51,26 +51,35 @@ final class FileMetadataStore {
     @ObservationIgnored private var verifyInFlight: Set<String> = []
 
     func metadata(for path: String) -> Metadata? {
-        byPath[path]
+        byPath[Self.normalized(path)]
     }
 
     func existence(for path: String) -> Existence? {
-        existenceByPath[path]
+        existenceByPath[Self.normalized(path)]
+    }
+
+    private static func normalized(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        return (trimmed as NSString).standardizingPath
     }
 
     /// 合并记录：只收非空值，后到不覆盖已有实测
     func record(path: String, size: Int64?, modifiedAt: Date?) {
         guard size != nil || modifiedAt != nil else { return }
-        var entry = byPath[path] ?? Metadata()
+        let key = Self.normalized(path)
+        var entry = byPath[key] ?? Metadata()
         if let size { entry.size = size }
         if let modifiedAt { entry.modifiedAt = modifiedAt }
-        byPath[path] = entry
+        byPath[key] = entry
     }
 
     /// 改名/删除后清账：旧路径的实测不许再喂给同名
     /// 新文件（改名由调用方随后 record 新路径）
     func forget(path: String) {
-        byPath[path] = nil
+        let key = Self.normalized(path)
+        byPath[key] = nil
+        existenceByPath[key] = nil
     }
 
     /// 父目录列表回读回填：同目录只并发一轮，整目录
@@ -85,9 +94,10 @@ final class FileMetadataStore {
     /// 静默、副行保持只显类型）
     @discardableResult
     func backfillFromListing(path: String, appState: AppState) async -> Bool {
-        if byPath[path]?.size != nil { return true }
-        let parent = (path as NSString).deletingLastPathComponent
-        guard !parent.isEmpty, parent != path else { return false }
+        let key = Self.normalized(path)
+        if byPath[key]?.size != nil { return true }
+        let parent = (key as NSString).deletingLastPathComponent
+        guard !parent.isEmpty, parent != key else { return false }
         guard listingInFlight.insert(parent).inserted else { return false }
         defer { listingInFlight.remove(parent) }
         guard let listing = try? await appState.performAdmin({
@@ -97,37 +107,30 @@ final class FileMetadataStore {
             return false
         }
         absorb(listing)
-        return byPath[path]?.size != nil
+        return byPath[key]?.size != nil
     }
 
-    /// 存在性校验（§129.2）：助手侧文件牌渲染前核
-    /// 一次——exists 才成牌、missing 降纯文本、
-    /// unverified 同样先按纯文本（不阻塞渲染），但
-    /// 账上只记 unverified，下次出现重查，绝不把
-    /// 网络故障误判成不存在。已落终局账（exists/
-    /// missing）不重查；校验通道与元数据回填同源
-    /// （父目录列表），整目录兄弟的 exists 顺手入
-    /// 账。缓存口径：进程内、按路径记账、不落盘。
+    /// 存在性校验（§129.2）：只将确证存在（.exists）作为
+    /// 终局缓存；未命中列表时暂记 .missing 供文件牌参考，
+    /// 下次露面仍允许重查，避免刚写入或分页延迟被永久封杀。
     func verifyExistence(path: String, appState: AppState) async {
-        if let known = existenceByPath[path],
-           known == .exists || known == .missing { return }
-        let parent = (path as NSString).deletingLastPathComponent
-        guard !parent.isEmpty, parent != path else { return }
-        guard verifyInFlight.insert(path).inserted else { return }
-        defer { verifyInFlight.remove(path) }
+        let key = Self.normalized(path)
+        if existenceByPath[key] == .exists { return }
+        let parent = (key as NSString).deletingLastPathComponent
+        guard !parent.isEmpty, parent != key else { return }
+        guard verifyInFlight.insert(key).inserted else { return }
+        defer { verifyInFlight.remove(key) }
         do {
             let listing = try await appState.performAdmin {
                 client, config in
                 try await client.files(config: config, path: parent)
             }
             absorb(listing)
-            // 列表成功且吸收后仍无此路径＝确证不在
-            // （路径若是目录条目也不成文件牌，同判）
-            if existenceByPath[path] != .exists {
-                existenceByPath[path] = .missing
+            if existenceByPath[key] != .exists {
+                existenceByPath[key] = .missing
             }
         } catch {
-            existenceByPath[path] = .unverified
+            existenceByPath[key] = .unverified
         }
     }
 
@@ -135,11 +138,12 @@ final class FileMetadataStore {
     /// exists；目录条目不入账（牌只指向文件）
     private func absorb(_ listing: FilesListing) {
         for entry in listing.entries where !entry.isDirectory {
+            let key = Self.normalized(entry.path)
             record(
-                path: entry.path, size: entry.size,
+                path: key, size: entry.size,
                 modifiedAt: entry.modifiedAt
             )
-            existenceByPath[entry.path] = .exists
+            existenceByPath[key] = .exists
         }
     }
 

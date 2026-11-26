@@ -109,6 +109,13 @@ private func supportHeader(_ title: String) -> some View {
 struct HelpView: View {
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "questionmark.circle.fill",
+                tint: .teal,
+                title: "帮助与反馈",
+                subtitle: "连接指南、部署文档与版本更新记录。"
+            )
+
             Section {
                 helpRow(
                     icon: "server.rack", title: "服务器地址",
@@ -132,7 +139,7 @@ struct HelpView: View {
                 )
                 linkRow(
                     icon: "doc.text", title: "Hermes 部署文档",
-                    subtitle: nil,
+                    subtitle: "开源自托管服务端部署说明",
                     url: "https://github.com/NousResearch/hermes-agent"
                 )
             } header: {
@@ -159,14 +166,8 @@ struct HelpView: View {
         icon: String, title: String, text: String
     ) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingSM) {
-            Image(systemName: icon)
-                .font(.system(
-                    size: FrameworkIcon.settingsGlyphSize,
-                    weight: .regular
-                ))
-                .foregroundStyle(Palette.ink)
-                .frame(width: OneDayMetrics.iconSlot, alignment: .center)
-                .accessibilityHidden(true)
+            SettingsRowIcon(symbol: icon)
+                .padding(.top, 1)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(L10n.string(title))
                     .font(.rowTitleL)
@@ -174,6 +175,7 @@ struct HelpView: View {
                 Text(L10n.string(text))
                     .font(.rowSubtitle)
                     .foregroundStyle(Palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -186,14 +188,7 @@ struct HelpView: View {
     ) -> some View {
         Link(destination: URL(string: url)!) {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: icon)
-                    .font(.system(
-                        size: FrameworkIcon.settingsGlyphSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: OneDayMetrics.iconSlot, alignment: .center)
-                    .accessibilityHidden(true)
+                SettingsRowIcon(symbol: icon)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(L10n.string(title))
                         .font(.rowTitleL)
@@ -237,20 +232,27 @@ struct HelpView: View {
                     alignment: .leading,
                     spacing: OneDayMetrics.spacingXS
                 ) {
-                    Text(
-                        entry.version == Self.appVersion
-                            ? "v\(entry.version)（当前版本）"
-                            : "v\(entry.version)"
-                    )
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("v\(entry.version)")
+                            .font(.rowTitleL.weight(.medium))
+                            .foregroundStyle(Palette.ink)
+                        if entry.version == Self.appVersion {
+                            SettingsStatusPill(text: "当前版本", tone: .healthy)
+                        }
+                    }
                     ForEach(entry.highlights, id: \.self) { line in
-                        Text("· \(line)")
-                            .font(.rowSubtitle)
-                            .foregroundStyle(Palette.inkSecondary)
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("·")
+                                .font(.rowSubtitle.weight(.semibold))
+                                .foregroundStyle(Palette.inkMuted)
+                            Text(line)
+                                .font(.rowSubtitle)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-                .padding(.vertical, OneDayMetrics.spacingMicro)
+                .padding(.vertical, OneDayMetrics.spacingS)
             }
         } header: {
             supportHeader("更新说明")

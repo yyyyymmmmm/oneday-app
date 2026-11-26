@@ -317,6 +317,17 @@ final class AgentProfileStore {
             renderer.scale = 2
             if let image = renderer.uiImage { return image }
         }
+        if preset.isCharacter {
+            let character = BotCharacterAvatarView(
+                presetID: preset.id,
+                diameter: 240
+            )
+            let renderer = ImageRenderer(
+                content: character.frame(width: 240, height: 240)
+            )
+            renderer.scale = 2
+            if let image = renderer.uiImage { return image }
+        }
         // 资产与渲染双落空的最后兜底：空白图也不崩
         return UIImage()
     }

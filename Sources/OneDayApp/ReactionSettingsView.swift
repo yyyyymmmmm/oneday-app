@@ -46,7 +46,7 @@ struct ReactionSettingsView: View {
             Section {
                 Toggle(isOn: $floatingBarEnabled) {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "hand.thumbsup.fill", color: .pink, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "hand.thumbsup")
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.string("反应浮排"))
                                 .font(.rowTitleL)
@@ -61,7 +61,7 @@ struct ReactionSettingsView: View {
                 if aiSelfRowVisible {
                     Toggle(isOn: $aiSelfReactionsEnabled) {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            IconTile(symbol: "sparkles", color: .purple, size: OneDayMetrics.iconSlot)
+                            SettingsRowIcon(symbol: "sparkles")
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(L10n.string("AI 反应"))
                                     .font(.rowTitleL)

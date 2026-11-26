@@ -1162,9 +1162,9 @@ public enum FileRefDetector {
     }
 
     /// 单独成行候选的解包：修剪空白后，循环剥一层
-    /// 行首标记（-、*、•、>）与包裹（`、`**`），直
-    /// 到不再变化；剥完仍含别的字由调用方按「整行
-    /// 恰好一条路径」判据否决
+    /// 行首标记（-、*、•、>、MEDIA:、常见中文引导词）
+    /// 与包裹（`、`**`、Markdown 链接 `[title](path)`），
+    /// 直到不再变化；剥完仍含别的字由调用方否决
     private static func standaloneLineCandidate(
         _ line: String
     ) -> String {
@@ -1172,9 +1172,24 @@ public enum FileRefDetector {
         var changed = true
         while changed {
             changed = false
-            for marker in ["- ", "* ", "• ", "> "] where
+            for marker in ["- ", "* ", "• ", "> ", "MEDIA:", "MEDIA："] where
                 text.hasPrefix(marker) {
                 text = String(text.dropFirst(marker.count))
+                    .trimmingCharacters(in: .whitespaces)
+                changed = true
+            }
+            if text.hasPrefix("![") || text.hasPrefix("["),
+               let mid = text.range(of: "]("),
+               text.hasSuffix(")") {
+                let target = String(text[mid.upperBound..<text.index(before: text.endIndex)])
+                    .trimmingCharacters(in: .whitespaces)
+                if target.hasPrefix("/") {
+                    text = target
+                    changed = true
+                }
+            }
+            for prefix in ["路径：", "路径:", "文件：", "文件:", "附件：", "附件:", "保存至：", "保存至:", "保存在：", "保存在:"] where text.hasPrefix(prefix) {
+                text = String(text.dropFirst(prefix.count))
                     .trimmingCharacters(in: .whitespaces)
                 changed = true
             }

@@ -24,8 +24,38 @@ struct HealthCheckView: View {
     @State private var archiveStore = ArchiveStore()
     @State private var backupRecordStore = BackupRecordStore.shared
 
+    private var heroTone: SettingsStatusTone {
+        if store.isRunning { return .neutral }
+        guard let summary = savedSummary else { return .warning }
+        switch summary.overall {
+        case .ok: return .healthy
+        case .attention: return .warning
+        case .problem: return .error
+        case .incomplete: return .neutral
+        }
+    }
+
+    private var heroStatusText: String {
+        if store.isRunning { return "体检中…" }
+        guard let summary = savedSummary else { return "未体检" }
+        switch summary.overall {
+        case .ok: return "一切正常"
+        case .attention: return "需关注"
+        case .problem: return "发现异常"
+        case .incomplete: return "未完成"
+        }
+    }
+
     var body: some View {
         List {
+            SettingsHeroCard(
+                symbol: "stethoscope",
+                tint: .mint,
+                title: "体检与存档",
+                subtitle: "全面检查服务端配置、已知安全漏洞、身份对账与备份存档。",
+                statusText: heroStatusText,
+                statusTone: heroTone
+            )
             conclusionSection
             runButtonSection
             doctorSection
@@ -39,7 +69,7 @@ struct HealthCheckView: View {
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("体检与存档")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await archiveStore.loadCheckpointsIfNeeded(
                 appState: appState
@@ -55,17 +85,21 @@ struct HealthCheckView: View {
 
     @ViewBuilder
     private var conclusionSection: some View {
-        Section {
-            if store.isRunning {
+        if store.isRunning {
+            Section {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     ProgressView()
-                    Text("正在体检…")
+                    Text("正在全面体检…")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            } else if let summary = savedSummary {
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(settingsRowInsets)
+        } else if let summary = savedSummary {
+            Section {
                 VStack(
                     alignment: .leading,
                     spacing: OneDayMetrics.spacingS
@@ -73,7 +107,7 @@ struct HealthCheckView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         StatusDot(color: verdictColor(summary.overall))
                         Text(summary.headline)
-                            .font(.rowTitleL)
+                            .font(.rowTitleL.weight(.medium))
                             .foregroundStyle(Palette.ink)
                     }
                     Text(
@@ -95,16 +129,12 @@ struct HealthCheckView: View {
                     }
                 }
                 .padding(.vertical, OneDayMetrics.spacingS)
-            } else {
-                OneDayDesign.EmptyState(
-                    icon: "stethoscope",
-                    title: "还没做过体检"
-                )
-                .padding(.vertical, OneDayMetrics.spacingM)
+            } header: {
+                sectionHeader("最近结论")
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(settingsRowInsets)
         }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
     }
 
     private func groupLine(
@@ -130,18 +160,21 @@ struct HealthCheckView: View {
             Button {
                 Task { await store.runAll(appState: appState) }
             } label: {
-                HStack {
-                    Spacer()
+                HStack(spacing: OneDayMetrics.spacingSM) {
                     if store.isRunning {
                         ProgressView()
-                            .padding(.trailing, OneDayMetrics.spacingS)
-                        Text("体检中…")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.surface)
+                            .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
+                        Text("正在全面体检…")
+                            .font(.rowTitleL.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
                     } else {
-                        Text(savedSummary == nil ? "跑一次体检" : "开始体检")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.surface)
+                        SettingsRowIcon(
+                            symbol: "play.circle",
+                            color: store.canStart ? Palette.primary : Palette.inkMuted
+                        )
+                        Text(savedSummary == nil ? "开始首次体检" : "重新全面体检")
+                            .font(.rowTitleL.weight(.medium))
+                            .foregroundStyle(store.canStart ? Palette.primary : Palette.inkMuted)
                     }
                     Spacer()
                 }
@@ -149,9 +182,7 @@ struct HealthCheckView: View {
                 .contentShape(Rectangle())
             }
             .disabled(!store.canStart)
-            .listRowBackground(
-                store.canStart ? Palette.ink : Palette.inkMuted
-            )
+            .listRowBackground(Palette.surface)
             .listRowInsets(settingsRowInsets)
         }
     }

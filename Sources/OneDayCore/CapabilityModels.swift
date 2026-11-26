@@ -117,6 +117,11 @@ public struct CapabilitiesResponse: Decodable, Sendable {
         featureFlag("short_lived_tokens")
     }
 
+    /// 凭据库能力位（sj-07）：features.credential_vault
+    public var credentialVaultSupported: Bool? {
+        featureFlag("credential_vault")
+    }
+
     /// 关键端点完整性（施工图 §1.5：缺失才上屏告警）
     public var missingKeyEndpoints: [String] {
         Self.keyEndpoints.filter { endpoints[$0] == nil }

@@ -122,44 +122,31 @@ struct HubAuditSection: View {
         }
     }
 
-    // MARK: - 待审批（只计数，裁决在聊天）
+    // MARK: - 需要审核（实时待批，审批后自动进入下方审核记录）
 
     @ViewBuilder
     private var pendingSection: some View {
         if case .ready(let records) = hubStore.approvalState,
            !records.isEmpty {
             Section {
-                HStack(
-                    alignment: .top,
-                    spacing: OneDayMetrics.spacingSM
-                ) {
-                    rowGlyph(
-                        systemImage: "hourglass",
-                        tint: Palette.warning
+                ForEach(records) { record in
+                    ChatApprovalCard(
+                        store: hubStore,
+                        record: record
                     )
-                    VStack(
-                        alignment: .leading,
-                        spacing: OneDayMetrics.spacingMicro
-                    ) {
-                        Text(
-                            L10n.format(
-                                "%lld 条待审批", records.count
-                            )
-                        )
-                        .font(.system(
-                            size: OneDayMetrics.hubTitleSize,
-                            weight: .semibold
-                        ))
-                        .foregroundStyle(Palette.ink)
-                        Text("在对话里处理")
-                            // §500：副题 16 → 15（rowSubtitle）
-                            .font(.rowSubtitle)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .padding(.vertical, OneDayMetrics.spacingXS)
                 }
-                .listRowSeparator(.hidden)
-                .listRowInsets(rowInsets)
-                .padding(.vertical, OneDayMetrics.spacingS)
+            } header: {
+                Text("需要审核")
+                    .font(.system(
+                        size: OneDayMetrics.hubTitleSize,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(Palette.ink)
+                    .textCase(nil)
             }
         }
     }

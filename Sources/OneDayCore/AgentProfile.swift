@@ -42,10 +42,9 @@ public enum AgentAvatarSelection: Equatable, Sendable {
     )
 }
 
-/// 预置形象目录：资产图一款（自有 IP 三狗搭档款）＋
-/// SF 符号盘三款（渲染成 pastel 色盘＋墨色 glyph，
-/// 与活动行图标盒同语言）。符号盘的底色令牌在 App
-/// 层按 id 映射（Core 不依赖设计层）。
+/// 预置形象目录：8 款 OpenBot 风格灵动形象（自绘
+/// 柔和渐变 + 灵动五官）＋ 3 款经典 SF 符号盘 ＋
+/// 1 款相伴资产图。核心字段兼容既有服务端同步协议。
 public struct AgentAvatarPreset: Equatable, Sendable, Identifiable {
     public let id: String
     /// 选择器里给用户看的名
@@ -55,15 +54,63 @@ public struct AgentAvatarPreset: Equatable, Sendable, Identifiable {
     /// SF 符号名（非 nil 时渲染符号盘）
     public let symbolName: String?
 
-    public static let defaultID = "partner"
+    public var isCharacter: Bool {
+        assetName == nil && symbolName == nil
+    }
+
+    public static let defaultID = "blob-blue"
 
     public static let all: [AgentAvatarPreset] = [
+        // OpenBot 风格灵动形象（8 款）
         AgentAvatarPreset(
-            id: "partner",
-            displayName: "三狗搭档款",
-            assetName: "SangouPartner",
+            id: "blob-blue",
+            displayName: "晴空团子",
+            assetName: nil,
             symbolName: nil
         ),
+        AgentAvatarPreset(
+            id: "cat-violet",
+            displayName: "紫罗兰猫",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "bear-amber",
+            displayName: "琥珀小熊",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "bot-cyan",
+            displayName: "青碧智械",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "sprout-green",
+            displayName: "翡翠嫩芽",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "star-pink",
+            displayName: "樱花星灵",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "blob-coral",
+            displayName: "珊瑚元气",
+            assetName: nil,
+            symbolName: nil
+        ),
+        AgentAvatarPreset(
+            id: "bot-slate",
+            displayName: "石墨极客",
+            assetName: nil,
+            symbolName: nil
+        ),
+        // 经典图标与相伴
         AgentAvatarPreset(
             id: "paw",
             displayName: "爪印",
@@ -81,6 +128,12 @@ public struct AgentAvatarPreset: Equatable, Sendable, Identifiable {
             displayName: "原子",
             assetName: nil,
             symbolName: "atom"
+        ),
+        AgentAvatarPreset(
+            id: "partner",
+            displayName: "三狗搭档款",
+            assetName: "SangouPartner",
+            symbolName: nil
         ),
     ]
 

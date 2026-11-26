@@ -13,12 +13,9 @@ import XCTest
 /// finder 沿基线的值匹配＋reveal 路（第 95 条
 /// 的帧落定机器按收口口径不迁移、不重建）。
 /// 五件：
-/// 1. 长按正文→浮排三层同呈（§343/§346 定版）、
-///    点卡内「选择」项→选字＋编辑菜单（§353 改口
-///    径，原 §265「长按直出编辑菜单」契约作废）；
-/// 2. 长按气泡边距带→整行菜单（§332：集合视图
-///    delegate 内建通道＋hitTest 点位分工）；
-/// 3. 双击正文→选词＋编辑菜单；
+/// 1. 长按正文/气泡→原生消息操作菜单与顶部玻璃反应条；
+/// 2. 长按气泡边距带→整行菜单；
+/// 3. 双击正文→UITextView 原生选词＋编辑菜单；
 /// 4. 右滑一行→引用横幅（桥辖区帧＝cell 帧）；
 /// 5. 电话（T4）：长按号码由文本选择接管（平
 ///    台定性）或点按出系统链接动作——任一达即
@@ -35,52 +32,15 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
 
     // MARK: - 用例
 
-    /// §353 改口径（原名 testLongPressOnTextShows-
-    /// EditMenuNotRowMenu）：§265「长按正文直出系统
-    /// 编辑菜单、整行菜单不出现」契约随 0.50.82–
-    /// 0.50.84 浮排定版作废——收口调查失败时按钮树
-    /// 实证：长按后在场的是浮排动作卡、非编辑菜单。
-    /// 现行判据两段：①长按正文出浮排动作卡（§343/
-    /// §346 三层同呈的卡层四项齐在）；②点卡内「选
-    /// 择」项后进入选字、系统编辑菜单出现。
-    func testLongPressOnTextShowsFloatingBarThenSelectEntersSelection() throws {
+    /// 长按正文归消息操作菜单（含反应浮排），双击正文归系统选词与编辑菜单。
+    func testLongPressOnTextShowsRowMenu() throws {
         let app = launchDemoApp()
         openSeededThread(in: app)
         let text = try lastUserTextView(in: app)
         text.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).press(forDuration: 1.2)
-        assertFloatingActionCardShown(in: app)
-        let selectItem = app.buttons.matching(
-            NSPredicate(format: "label == %@", "选择")
-        ).firstMatch
-        XCTAssertTrue(
-            selectItem.isHittable,
-            "浮排动作卡「选择」项不可点；当时按钮树："
-                + treeSnapshot(in: app)
-        )
-        selectItem.tap()
-        // 二段（§353 亲读产品码对位）：「选择」的落
-        // 点是「选择文本」sheet（SelectableText-
-        // Sheet：整条消息纯文本置于 UITextView 真
-        // 选段页、ChatView onSelect 设 selection-
-        // Payload），不是气泡内原地选字——判据改
-        // sheet 在场→页内双击选词→系统编辑菜单出
-        // 现（assertEditMenuShown 与气泡内同口径）
-        let sheetBar = app.navigationBars["选择文本"]
-        XCTAssertTrue(
-            sheetBar.waitForExistence(timeout: 10),
-            "点「选择」后「选择文本」页未出现；"
-                + "当时全元素摘要："
-                + allElementsDigest(in: app)
-        )
-        let sheetText = try widestTextView(
-            matching: "按你说的顺序来", in: app
-        )
-        sheetText.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        ).doubleTap()
-        assertEditMenuShown(in: app)
+        assertRowMenuShown(in: app)
     }
 
     func testLongPressOnBubblePaddingShowsRowMenu() throws {
@@ -152,12 +112,8 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
         )
     }
 
-    /// §471 改钉（§476 组版，期望反转）：列表正文双击
-    /// 不再选词——§471 仲裁否决文本视图双击识别器，
-    /// 选字唯一入口＝长按菜单「选择」行（iMessage
-    /// 口径）；旧期望（双击选词出编辑菜单）系 §265
-    /// 旧口径、已被 §471 废除。测名沿用备对账溯源。
-    /// 新期望：双击后编辑菜单与整行菜单皆不在场。
+    /// 正文双击交给 UITextView 原生选词与编辑菜单；
+    /// 点位分流应阻止同一触摸再触发整行菜单。
     func testDoubleTapOnTextSelectsWordNotRowMenu() throws {
         let app = launchDemoApp()
         openSeededThread(in: app)
@@ -165,17 +121,7 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
         text.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).doubleTap()
-        // 缺席断言给足迟到窗口：3 秒内任一时点
-        // 出现 Copy 菜单即判失败
-        let deadline = Date().addingTimeInterval(3)
-        while Date() < deadline {
-            XCTAssertFalse(
-                editMenuVisible(in: app),
-                "§471 口径：列表双击不许起编辑菜单"
-                    + "（选字只走菜单「选择」行）"
-            )
-            Thread.sleep(forTimeInterval: 0.3)
-        }
+        assertEditMenuShown(in: app)
         assertRowMenuAbsent(in: app)
     }
 
@@ -815,6 +761,18 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
         }
     }
 
+    /// 整行菜单出现的判据：双口径轮询（同
+    /// pollRowMenu），限时未出即判失败并附
+    /// 按钮树（与 assertEditMenuShown 同式）
+    private func assertRowMenuShown(in app: XCUIApplication) {
+        if !pollRowMenu(in: app, timeout: 10) {
+            XCTFail(
+                "长按后整行菜单未出现；当时按钮树："
+                    + treeSnapshot(in: app)
+            )
+        }
+    }
+
     private func assertRowMenuAbsent(in app: XCUIApplication) {
         // 双口径同 pollRowMenu（台账 193 判读对
         // 齐）：自绘动作面项以标题在树——只查 SF
@@ -1074,9 +1032,8 @@ final class LongPressPresentation440Tests: XCTestCase {
         let before = target.frame
         print("§440-MEASURE window=\(app.frame)")
         print("§440-MEASURE targetTextFrame=\(before)")
-        target.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        ).press(forDuration: 1.2)
+        bubblePaddingCoordinate(for: target, in: app)
+            .press(forDuration: 1.2)
         XCTAssertTrue(
             waitOverlay(in: app, timeout: 10),
             "长按后浮排（药丸排）未出现"
@@ -1163,9 +1120,7 @@ final class LongPressPresentation440Tests: XCTestCase {
         while (target.frame.maxY < 600
             || target.frame.maxY > 690), rounds < 6 {
             let delta = 645 - target.frame.maxY
-            target.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-            ).press(
+            bubblePaddingCoordinate(for: target, in: app).press(
                 forDuration: 0.05,
                 thenDragTo: app.coordinate(
                     withNormalizedOffset: CGVector(
@@ -1203,11 +1158,8 @@ final class LongPressPresentation440Tests: XCTestCase {
         let pressY = min(
             max(target.frame.midY, 200), 690
         )
-        app.coordinate(
-            withNormalizedOffset: CGVector(
-                dx: target.frame.midX / app.frame.width,
-                dy: pressY / app.frame.height
-            )
+        bubblePaddingCoordinate(
+            for: target, in: app, y: pressY
         ).press(forDuration: 1.2)
         if !waitOverlay(in: app, timeout: 6) {
             // 一次重试：先点角落散掉可能在场的系统
@@ -1223,11 +1175,8 @@ final class LongPressPresentation440Tests: XCTestCase {
             let retryY = min(
                 max(target.frame.midY, 200), 690
             )
-            app.coordinate(
-                withNormalizedOffset: CGVector(
-                    dx: target.frame.midX / app.frame.width,
-                    dy: retryY / app.frame.height
-                )
+            bubblePaddingCoordinate(
+                for: target, in: app, y: retryY
             ).press(forDuration: 1.2)
         }
         XCTAssertTrue(
@@ -1455,6 +1404,22 @@ final class LongPressPresentation440Tests: XCTestCase {
         }
         XCTFail("可反应消息「\(needle)」未能定位进聊天区")
         throw NSError(domain: "LongPress440", code: 1)
+    }
+
+    private func bubblePaddingCoordinate(
+        for text: XCUIElement,
+        in app: XCUIApplication,
+        y: CGFloat? = nil
+    ) -> XCUICoordinate {
+        let frame = text.frame
+        let x = max(1, frame.minX - 8)
+        let pressY = y ?? frame.midY
+        return app.coordinate(
+            withNormalizedOffset: CGVector(
+                dx: x / app.frame.width,
+                dy: pressY / app.frame.height
+            )
+        )
     }
 
     /// 浮排在场判据：药丸钮（反应：…）或压暗钮

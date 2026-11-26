@@ -246,7 +246,8 @@ struct ComposerTextView: UIViewRepresentable {
         }
     }
 
-    /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
+    /// Enable scrolling when text exceeds the cap. Ensure the cursor
+    /// stays visible after each edit.
     private func refreshScroll(_ textView: UITextView) {
         guard textView.bounds.width > 0 else { return }
         let category =
@@ -255,8 +256,14 @@ struct ComposerTextView: UIViewRepresentable {
             for: textView.text ?? "", width: textView.bounds.width,
             category: category
         )
-        textView.isScrollEnabled =
+        let shouldScroll =
             ComposerLayout.shouldScroll(measured: fitted, category: category)
+        if textView.isScrollEnabled != shouldScroll {
+            textView.isScrollEnabled = shouldScroll
+        }
+        if shouldScroll, textView.selectedRange.location != NSNotFound {
+            textView.scrollRangeToVisible(textView.selectedRange)
+        }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {

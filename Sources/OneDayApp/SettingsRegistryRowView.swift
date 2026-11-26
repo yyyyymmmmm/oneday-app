@@ -81,12 +81,8 @@ struct SettingsRegistryRowView: View {
         }
     }
 
-    /// 行图标（与根页同走 IconTile 色块图标）
+    /// 行图标（与根页同走单色线性图标）
     private func rowIcon(_ name: String) -> some View {
-        IconTile(
-            symbol: name,
-            color: Palette.primary,
-            size: OneDayMetrics.iconSlot
-        )
+        SettingsRowIcon(symbol: name)
     }
 }

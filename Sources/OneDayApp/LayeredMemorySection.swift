@@ -109,7 +109,7 @@ struct LayeredMemorySection: View {
         Section {
             ForEach(layers) { layer in
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    IconTile(symbol: layer.symbolName, color: Palette.primary, size: OneDayMetrics.iconSlot)
+                    SettingsRowIcon(symbol: layer.symbolName)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(layer.displayTitle)
                             .font(.rowTitleL)

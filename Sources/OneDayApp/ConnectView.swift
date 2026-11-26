@@ -164,136 +164,122 @@ struct ConnectView: View {
         }
     }
 
-    // MARK: - 欢迎面
+    // MARK: - 欢迎面（大厂标准：品牌主视觉 + 三条核心价值 + 底部主次操作区）
 
     private var welcomePage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-                Image("SangouPartner")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 96, height: 96)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle().stroke(Palette.hairline, lineWidth: 0.5)
-                    }
-                    .accessibilityHidden(true)
-                Text("欢迎来到 OneDay")
-                    .font(.title)
-                    .foregroundStyle(Palette.ink)
-                    .padding(.top, OneDayMetrics.spacingS)
-                // 三层分工句：与命名包连接页同词条同文案
-                Text("OneDay 是客户端，连接你自己部署的 Hermes 服务；智能体的名字以服务器上的人设为准。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .multilineTextAlignment(.center)
+            VStack(alignment: .center, spacing: OneDayMetrics.spacingM) {
+                welcomeBrandMark
+
+                VStack(spacing: OneDayMetrics.spacingXS) {
+                    Text("欢迎使用 OneDay")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(Palette.ink)
+                    Text("连接你自己的 Hermes 服务，随时随地协作。")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, OneDayMetrics.spacingXXL)
+            .padding(.top, OneDayMetrics.spacingXXL + 8)
 
-            demoPreviewCard
-                .padding(.top, OneDayMetrics.spacingXL)
-
-            // 分叉版式（nanoMuse 引导线学习）：主路大
-            // 按钮＋备路次按钮＋细字讲清两条路的关系，
-            // 第一屏就摆明、不藏。两路都是现行连接流
-            // 程的真实岔口——主路进登录面（密码/密钥/
-            // 扫码三式），备路进帮助面的部署节。
-            Button("连接已有服务器") { page = .login }
-                .buttonStyle(.odPrimary)
-                .padding(.top, OneDayMetrics.spacingXL)
-            Button {
-                helpReturn = .welcome
-                page = .help
-            } label: {
-                Text("还没有服务器？了解部署")
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+                welcomePillar(
+                    symbol: "lock.shield",
+                    title: "数据完全归你所有",
+                    detail: "直连自部署服务端，凭据仅存本机钥匙串，不经任何第三方。"
+                )
+                welcomePillar(
+                    symbol: "bolt.horizontal.circle",
+                    title: "后台持续执行",
+                    detail: "复杂任务在服务端跑完，锁屏或切换对话也不会中断。"
+                )
+                welcomePillar(
+                    symbol: "checkmark.seal",
+                    title: "关键写入先经你批准",
+                    detail: "外部访问与重要修改都会先弹出确认，掌控权始终在你手里。"
+                )
             }
-            .buttonStyle(.odSecondary)
-            .padding(.top, OneDayMetrics.spacingM)
-            Text("部署和连接是前后两步：还没有服务器，先部署一台；已经有了，回来连接。凭据只保存在这台手机的钥匙串里，不经过任何第三方。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.top, OneDayMetrics.spacingM)
-        }
-    }
-
-    /// 演示对话预览卡：明确标「对话预览」，内容是示例
-    /// 文案、不冒充真实对话（原型 demo-card 同口径）。
-    private var demoPreviewCard: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Image("SangouPartner")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 26, height: 26)
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
-                Text(appState.agentDisplayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-                Text("对话预览")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            GroupDivider()
-            VStack(alignment: .trailing, spacing: OneDayMetrics.spacingS) {
-                Text("帮我把这周的会议整理成一页纪要。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                    .background(
-                        Palette.primaryPale,
-                        in: RoundedRectangle(
-                            cornerRadius: OneDayMetrics.fieldCorner,
-                            style: .continuous
-                        )
-                    )
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                HStack(spacing: OneDayMetrics.spacingXS) {
-                    Image(systemName: "sparkles")
-                        .font(.caption)
-                    Text(appState.agentDisplayName)
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(Palette.primary)
-                Text("已整理 6 场会议，冲突的周四已单独标出。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.ink)
-            }
+            .padding(.vertical, OneDayMetrics.spacingL)
             .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingS)
             .background(
                 Palette.surface,
                 in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner,
+                    cornerRadius: OneDayMetrics.containerCorner,
                     style: .continuous
                 )
             )
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner,
-                    style: .continuous
-                )
-                .stroke(Palette.hairline, lineWidth: 0.5)
+            .padding(.top, OneDayMetrics.spacingXL)
+
+            VStack(spacing: OneDayMetrics.spacingS) {
+                Button("连接我的服务器") { page = .login }
+                    .buttonStyle(.odPrimary)
+
+                Button {
+                    helpReturn = .welcome
+                    page = .help
+                } label: {
+                    Text("还没有服务器？了解部署")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(Palette.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: OneDayMetrics.minTapTarget)
+                }
+                .buttonStyle(.odPressable)
             }
-            GroupDivider()
-            HStack(spacing: OneDayMetrics.spacingXS) {
-                Image(systemName: "clock")
-                    .font(.caption)
-                Text("任务在服务器上继续运行，锁屏也不中断")
-                    .font(.caption)
-            }
-            .foregroundStyle(Palette.inkSecondary)
+            .padding(.top, OneDayMetrics.spacingXL + 8)
         }
-        .padding(OneDayMetrics.spacingM)
-        .odGroup()
+    }
+
+    /// 大厂标准欢迎页品牌标识：优先使用真实桌面 App 图标（圆角矩形 + 轻阴影），
+    /// 图标不可用时回落极简几何品牌徽标，不使用具体宠物/角色照片。
+    @ViewBuilder
+    private var welcomeBrandMark: some View {
+        if AppIconBitmap.image != nil {
+            AppIconView(size: 80, cornerRadius: 20)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Palette.hairline, lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Palette.primary.gradient)
+                    .frame(width: 80, height: 80)
+                Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .shadow(color: Palette.primary.opacity(0.24), radius: 16, y: 6)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func welcomePillar(
+        symbol: String,
+        title: String,
+        detail: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .regular))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Palette.primary)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - 登录面

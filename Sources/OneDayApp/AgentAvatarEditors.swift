@@ -20,13 +20,10 @@ private func identityWriteErrorText(_ error: Error) -> String {
     }
 }
 
-/// 更换虚拟形象（0.36.22 立、§253 改写穿）：预置目
-/// 录（OneDayCore.AgentAvatarPreset）逐款预览选点即
-/// 换＋相册选图（PhotosPicker，与聊天附件同一
-/// loadTransferable 口径）。§253 起头像是服务端单
-/// 真值：选点＝写穿头像仓，成功后缓存以仓指针整份
-/// 替换、全端同值；写穿失败留在本页报错、不先斩后
-/// 奏地改呈现。页内注明头像存服务器。
+/// 更换虚拟形象（参考 OpenBot AgentAppearancePicker）：
+/// 顶部 132pt 大预览 + 环境光晕 + 弹簧动效；
+/// 下方「灵动形象」4 列网格（支持随机换一个）+「经典图标」+「从相册选择」。
+/// 选点即写穿头像仓，全端同值。
 struct AgentAvatarEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -37,77 +34,51 @@ struct AgentAvatarEditorView: View {
 
     private var store: AgentProfileStore { appState.agentProfileStore }
 
+    private var characterPresets: [AgentAvatarPreset] {
+        AgentAvatarPreset.all.filter(\.isCharacter)
+    }
+
+    private var classicPresets: [AgentAvatarPreset] {
+        AgentAvatarPreset.all.filter { !$0.isCharacter }
+    }
+
+    private var currentGlowColor: Color {
+        if case .preset(let id) = store.currentAvatarSelection,
+           AgentAvatarPreset.resolve(id: id).isCharacter {
+            return BotCharacterSpec.resolve(id).glowColor
+        }
+        return Palette.primary
+    }
+
+    private var currentPresetTitle: String {
+        switch store.currentAvatarSelection {
+        case .preset(let id):
+            return AgentAvatarPreset.resolve(id: id).displayName
+        case .custom:
+            return L10n.string("自定义照片")
+        case nil:
+            return AgentAvatarPreset.resolve(id: AgentAvatarPreset.defaultID).displayName
+        }
+    }
+
+    private let gridColumns = Array(
+        repeating: GridItem(.flexible(), spacing: OneDayMetrics.spacingSM),
+        count: 4
+    )
+
     var body: some View {
         NavigationStack {
             List {
-                Section("预置形象") {
-                    ForEach(AgentAvatarPreset.all) { preset in
-                        presetRow(preset)
-                    }
-                }
-
-                Section {
-                    PhotosPicker(
-                        selection: $photoItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            if store.currentAvatarSelection == .custom {
-                                appState.agentAvatarImage
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(
-                                        width: OneDayMetrics.avatarListRow,
-                                        height: OneDayMetrics.avatarListRow
-                                    )
-                                    .clipShape(Circle())
-                            } else {
-                                Image(systemName: "photo")
-                                    .frame(
-                                        width: OneDayMetrics.avatarListRow,
-                                        height: OneDayMetrics.avatarListRow
-                                    )
-                            }
-                            Text("从相册选择")
-                                .foregroundStyle(Palette.ink)
-                            Spacer()
-                            if store.currentAvatarSelection == .custom {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Palette.primary)
-                            }
-                        }
-                    }
-                    .disabled(isSaving)
-                    // 0.43.0（A11Y-V5）：同预置行——自定
-                    // 义头像在用时补「已选」播报＋特征
-                    .accessibilityLabel(
-                        store.currentAvatarSelection == .custom
-                            ? L10n.string("从相册选择") + "，"
-                                + L10n.string("已选")
-                            : L10n.string("从相册选择")
-                    )
-                    .accessibilityAddTraits(
-                        store.currentAvatarSelection == .custom
-                            ? [.isSelected] : []
-                    )
-                    if isSaving {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            ProgressView()
-                            Text("正在保存…")
-                                .foregroundStyle(Palette.inkSecondary)
-                        }
-                    }
-                    if let errorText {
-                        Text(errorText)
-                            .font(.caption)
-                            .foregroundStyle(Palette.danger)
-                    }
-                } footer: {
-                    Text("头像保存在你的服务器上，改一次，所有地方看到的都是新头像。")
-                }
+                previewSection
+                characterGridSection
+                classicGridSection
+                photoPickerSection
             }
-            .navigationTitle("更换虚拟形象")
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
+            .background(Palette.settingsBG)
+            .navigationTitle("更换形象")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -123,47 +94,192 @@ struct AgentAvatarEditorView: View {
         .fullscreenPopBridge()
     }
 
-    /// 预置行（自含成件：整行表达式曾触发类型检查超
-    /// 时，拆子表达式后独立成函数）
-    @ViewBuilder
-    private func presetRow(_ preset: AgentAvatarPreset) -> some View {
-        let selected = store.currentAvatarSelection
-            == .preset(id: preset.id)
-        Button {
-            selectPreset(preset)
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                presetPreview(preset)
-                    .frame(
-                        width: OneDayMetrics.avatarListRow,
-                        height: OneDayMetrics.avatarListRow
-                    )
-                    .clipShape(Circle())
-                Text(preset.displayName)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(Palette.primary)
+    // MARK: - 顶部大预览（OpenBot 风格：120pt 头像 + 柔和环境光晕）
+
+    private var previewSection: some View {
+        Section {
+            VStack(spacing: OneDayMetrics.spacingSM) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [currentGlowColor.opacity(0.28), .clear],
+                                center: .center,
+                                startRadius: 12,
+                                endRadius: 88
+                            )
+                        )
+                        .frame(width: 168, height: 168)
+
+                    appState.agentAvatarImage
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle().stroke(.white.opacity(0.4), lineWidth: 1.5)
+                        }
+                        .shadow(color: currentGlowColor.opacity(0.25), radius: 16, y: 6)
+                        .animation(
+                            .spring(response: 0.36, dampingFraction: 0.66),
+                            value: store.revision
+                        )
+                }
+
+                VStack(spacing: 3) {
+                    Text(currentPresetTitle)
+                        .font(.headline)
+                        .foregroundStyle(Palette.ink)
+                    Text(appState.agentDisplayName)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    // MARK: - 灵动形象网格（OpenBot 同构：4 列网格 + 随机切换）
+
+    private var characterGridSection: some View {
+        Section {
+            LazyVGrid(columns: gridColumns, spacing: OneDayMetrics.spacingM) {
+                ForEach(characterPresets) { preset in
+                    presetGridCell(preset)
+                }
+            }
+            .padding(.vertical, OneDayMetrics.spacingXS)
+        } header: {
+            HStack {
+                SettingsSectionHeader("灵动形象")
+                Spacer()
+                Button {
+                    shuffleCharacter()
+                } label: {
+                    Label("随机", systemImage: "shuffle")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Palette.primary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+            }
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    // MARK: - 经典图标与搭档
+
+    private var classicGridSection: some View {
+        Section {
+            LazyVGrid(columns: gridColumns, spacing: OneDayMetrics.spacingM) {
+                ForEach(classicPresets) { preset in
+                    presetGridCell(preset)
+                }
+            }
+            .padding(.vertical, OneDayMetrics.spacingXS)
+        } header: {
+            SettingsSectionHeader("经典图标")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    // MARK: - 相册选图
+
+    private var photoPickerSection: some View {
+        Section {
+            PhotosPicker(
+                selection: $photoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "photo.on.rectangle")
+                    Text("从相册选择")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    if store.currentAvatarSelection == .custom {
+                        SettingsStatusPill(text: "使用中", tone: .healthy)
+                    }
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
+            .disabled(isSaving)
+            .accessibilityLabel(
+                store.currentAvatarSelection == .custom
+                    ? L10n.string("从相册选择") + "，"
+                        + L10n.string("已选")
+                    : L10n.string("从相册选择")
+            )
+            .accessibilityAddTraits(
+                store.currentAvatarSelection == .custom
+                    ? [.isSelected] : []
+            )
+            if isSaving {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    ProgressView()
+                    Text("正在保存…")
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            if let errorText {
+                Text(errorText)
+                    .font(.caption)
+                    .foregroundStyle(Palette.danger)
+            }
+        } footer: {
+            Text("头像保存在你的服务器上，改一次，所有地方看到的都是新头像。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    @ViewBuilder
+    private func presetGridCell(_ preset: AgentAvatarPreset) -> some View {
+        let selected = store.currentAvatarSelection == .preset(id: preset.id)
+        Button {
+            Haptics.selection()
+            selectPreset(preset)
+        } label: {
+            VStack(spacing: 6) {
+                presetPreview(preset, diameter: 56)
+                    .frame(width: 56, height: 56)
+                    .clipShape(Circle())
+                    .padding(3)
+                    .overlay {
+                        if selected {
+                            Circle()
+                                .stroke(Palette.primary, lineWidth: 2.5)
+                        }
+                    }
+                Text(preset.displayName)
+                    .font(.caption2.weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Palette.primary : Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
+        .buttonStyle(.plain)
         .disabled(isSaving)
-        // 0.43.0（A11Y-V5）：选中态只有勾形——补「已
-        // 选」播报＋特征（与外观页/连接器页房内先例同式）
         .accessibilityLabel(
             selected
-                ? preset.displayName + "，"
-                    + L10n.string("已选")
+                ? preset.displayName + "，" + L10n.string("已选")
                 : preset.displayName
         )
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     @ViewBuilder
-    private func presetPreview(_ preset: AgentAvatarPreset) -> some View {
+    private func presetPreview(_ preset: AgentAvatarPreset, diameter: CGFloat) -> some View {
         if let assetName = preset.assetName {
             Image(assetName)
                 .resizable()
@@ -172,9 +288,27 @@ struct AgentAvatarEditorView: View {
             AgentAvatarPresetDisc(
                 symbolName: symbolName,
                 tint: AgentProfileStore.presetTint(id: preset.id),
-                diameter: OneDayMetrics.avatarListRow
+                diameter: diameter
+            )
+        } else {
+            BotCharacterAvatarView(
+                presetID: preset.id,
+                diameter: diameter
             )
         }
+    }
+
+    private func shuffleCharacter() {
+        let currentID: String?
+        if case .preset(let id) = store.currentAvatarSelection {
+            currentID = id
+        } else {
+            currentID = nil
+        }
+        let candidates = characterPresets.filter { $0.id != currentID }
+        guard let next = candidates.randomElement() ?? characterPresets.first else { return }
+        Haptics.selection()
+        selectPreset(next)
     }
 
     private func selectPreset(_ preset: AgentAvatarPreset) {

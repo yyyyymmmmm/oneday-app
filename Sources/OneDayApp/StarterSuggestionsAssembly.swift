@@ -115,37 +115,11 @@ enum StarterSuggestionsAssembly {
                 && next <= now.addingTimeInterval(24 * 3600)
         }.count
 
-        // 资源库：只读已同步/快照播种的交付物（该店刷
-        // 新口要呈现面喂 fetch 闭包，聊天侧不新拉）；
-        // 48 小时内的算「最近交付」
-        var deliveryContext: StarterContext.RecentDelivery?
-        if let deliverables = libraryStore.deliverables {
-            let nowEpoch = now.timeIntervalSince1970
-            let fresh = deliverables
-                .filter { !$0.entry.isDirectory }
-                .filter { item in
-                    guard let mtime = item.entry.mtime else { return false }
-                    return mtime <= nowEpoch + 3600
-                        && nowEpoch - mtime <= 48 * 3600
-                }
-                .sorted {
-                    ($0.entry.mtime ?? 0) > ($1.entry.mtime ?? 0)
-                }
-            if let newest = fresh.first {
-                deliveryContext = .init(
-                    newestName: newest.entry.name,
-                    extraCount: fresh.count - 1,
-                    token: "\(newest.entry.path)|\(newest.entry.mtime ?? 0)"
-                )
-            }
-        }
-
         return StarterContext(
             pendingApprovals: pending,
             failedCronJob: failedContext,
             blockedGoal: blockedContext,
             activeGoal: activeContext,
-            recentDelivery: deliveryContext,
             upcomingCronCount: upcomingCount,
             hour: Calendar.current.component(.hour, from: now),
             suppressedKeys: suppressed

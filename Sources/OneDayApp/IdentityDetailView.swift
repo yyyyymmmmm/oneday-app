@@ -132,28 +132,13 @@ struct IdentityDetailView: View {
         .buttonStyle(.odPressable)
     }
 
-    // MARK: - 活动
+    // MARK: - 连接
 
     private var activitySection: some View {
         Section {
-            Button {
-                onOpenChat?()
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("text.bubble")
-                    Text("最近活动")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                    DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
             NavigationLink(value: SettingsRoute.serverDetail) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("server.rack")
+                    SettingsRowIcon(symbol: "server.rack")
                     Text("服务器状态")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -167,7 +152,7 @@ struct IdentityDetailView: View {
                 .contentShape(Rectangle())
             }
         } header: {
-            sectionHeader("活动")
+            SettingsSectionHeader("连接")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)

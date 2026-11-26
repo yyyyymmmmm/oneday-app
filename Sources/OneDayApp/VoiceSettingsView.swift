@@ -23,7 +23,7 @@ struct VoiceSettingsView: View {
             Section {
                 Toggle(isOn: $autoRead) {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "waveform", color: .orange, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "waveform")
                         Text("自动朗读新回复")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)

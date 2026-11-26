@@ -55,6 +55,7 @@ final class LedgerModelsTests: XCTestCase {
         LedgerItem(
             id: id, kind: .run, source: .app,
             title: "标题", titleSource: "user_excerpt",
+            titleHuman: nil, summary: nil,
             status: status, startedAt: startedAt,
             endedAt: endedAt, lastEvidenceAt: lastEvidenceAt,
             origin: origin, link: nil, counts: [:],
@@ -652,5 +653,68 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertNil(
             LedgerBoard.durationText(for: stale, serverNow: now, locale: Locale(identifier: "zh-Hans"))
         )
+    }
+
+    // MARK: - titleHuman 字段解码与回退（C3）
+
+    func testTitleHumanDecodesWhenPresent() throws {
+        let json = """
+        {
+          "id": "run:r-456", "kind": "run", "source": "app",
+          "title": "batch(1 ops: patch) on oneday-…",
+          "title_human": "修改技能「oneday-skill」1 处",
+          "summary": "已完成",
+          "titleSource": "server_llm",
+          "status": "completed",
+          "startedAt": 1762700000.0,
+          "origin": "reported",
+          "counts": {},
+          "lastSeq": 1
+        }
+        """
+        let item = try decode(LedgerItem.self, json)
+        XCTAssertEqual(item.title, "batch(1 ops: patch) on oneday-…")
+        XCTAssertEqual(item.titleHuman, "修改技能「oneday-skill」1 处")
+        XCTAssertEqual(item.summary, "已完成")
+    }
+
+    func testTitleHumanFallbackWhenAbsent() throws {
+        let json = """
+        {
+          "id": "run:r-789", "kind": "run", "source": "app",
+          "title": "帮我查一下天气",
+          "titleSource": "user_excerpt",
+          "status": "completed",
+          "startedAt": 1762700000.0,
+          "origin": "reported",
+          "counts": {},
+          "lastSeq": 1
+        }
+        """
+        let item = try decode(LedgerItem.self, json)
+        XCTAssertEqual(item.title, "帮我查一下天气")
+        XCTAssertNil(item.titleHuman)
+        XCTAssertNil(item.summary)
+    }
+
+    func testTitleHumanNullDoesNotCrash() throws {
+        let json = """
+        {
+          "id": "run:r-999", "kind": "run", "source": "app",
+          "title": "任务标题",
+          "title_human": null,
+          "summary": null,
+          "titleSource": "fallback",
+          "status": "running",
+          "startedAt": 1762700000.0,
+          "origin": "reported",
+          "counts": {},
+          "lastSeq": 1
+        }
+        """
+        let item = try decode(LedgerItem.self, json)
+        XCTAssertEqual(item.title, "任务标题")
+        XCTAssertNil(item.titleHuman)
+        XCTAssertNil(item.summary)
     }
 }

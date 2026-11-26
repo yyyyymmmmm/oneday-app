@@ -61,6 +61,26 @@ final class ChatNativeListAssemblyTests: XCTestCase {
         super.tearDown()
     }
 
+    func testSelectableTextRejectsLongPressAllowsDoubleTapInListMode() {
+        let bubbleText = SelectableUITextView(
+            usingTextLayoutManager: true
+        )
+        bubbleText.suppressesDirectSelection = true
+
+        let longPress = UILongPressGestureRecognizer()
+        let doubleTap = UITapGestureRecognizer()
+        doubleTap.numberOfTapsRequired = 2
+
+        XCTAssertFalse(
+            bubbleText.gestureRecognizerShouldBegin(longPress),
+            "列表态正文应拒绝 UITextView 长按，让位给消息操作菜单"
+        )
+        XCTAssertTrue(
+            bubbleText.gestureRecognizerShouldBegin(doubleTap),
+            "列表态正文应保留双击选词与原生编辑菜单"
+        )
+    }
+
     /// 装壳：窗口→根→承载（全窗出血、topInset 喂
     /// 122）＋坞座位（舱自 R2 起由容器收编、不在
     /// 壳层装配，见 composerContent/seatComposer）

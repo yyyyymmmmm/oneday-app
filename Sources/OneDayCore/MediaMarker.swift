@@ -41,7 +41,8 @@ public enum MediaMarker {
     private static let prefix = "MEDIA:"
 
     public static func split(in text: String) -> MediaMarkerSplit {
-        guard text.contains(prefix) else {
+        guard text.contains(prefix) || text.contains("MEDIA：")
+            || text.contains("![") else {
             return MediaMarkerSplit(text: text, imagePaths: [])
         }
         var kept: [String] = []
@@ -73,14 +74,26 @@ public enum MediaMarker {
     }
 
     /// 一行（已修剪）是否为可摘的图片标记行：整行
-    /// 恰好是 `MEDIA:` ＋一条无空白的绝对路径，扩
-    /// 展名是图片、且在下载根内；任一不过回 nil
-    /// （整行按原文保留）
+    /// 恰好是 `MEDIA:` / `MEDIA：` / `![...](path)`
+    /// ＋一条无空白的绝对路径，扩展名是图片、且在下载根内；
+    /// 任一不过回 nil（整行按原文保留）
     private static func markerPath(in trimmedLine: String) -> String? {
-        guard trimmedLine.hasPrefix(prefix) else { return nil }
-        let path = String(trimmedLine.dropFirst(prefix.count))
-            .trimmingCharacters(in: .whitespaces)
-        guard !path.isEmpty,
+        var rawPath: String?
+        if trimmedLine.hasPrefix(prefix) {
+            rawPath = String(trimmedLine.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespaces)
+        } else if trimmedLine.hasPrefix("MEDIA：") {
+            rawPath = String(trimmedLine.dropFirst("MEDIA：".count))
+                .trimmingCharacters(in: .whitespaces)
+        } else if trimmedLine.hasPrefix("!["),
+                  let mid = trimmedLine.range(of: "]("),
+                  trimmedLine.hasSuffix(")") {
+            rawPath = String(
+                trimmedLine[mid.upperBound..<trimmedLine.index(before: trimmedLine.endIndex)]
+            ).trimmingCharacters(in: .whitespaces)
+        }
+        guard let path = rawPath,
+              !path.isEmpty,
               !path.contains(where: { $0.isWhitespace }),
               path.hasPrefix("/"),
               FileRefDetector.isImagePath(path),

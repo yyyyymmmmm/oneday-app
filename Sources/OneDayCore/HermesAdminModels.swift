@@ -214,6 +214,9 @@ public struct CronJob: Decodable, Sendable, Identifiable {
     public let lastRunAt: String?
     public let nextRunAt: String?
     public let lastError: String?
+    /// 系统任务标记（服务端 2.8.0 起下发）：true = OneDay
+    /// 轮回/记忆/目标提炼等内部任务，用户面隐藏
+    public let isSystem: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, prompt, enabled, paused, state, deliver, model, provider
@@ -222,6 +225,7 @@ public struct CronJob: Decodable, Sendable, Identifiable {
         case lastRunAt = "last_run_at"
         case nextRunAt = "next_run_at"
         case lastError = "last_error"
+        case isSystem = "is_system"
     }
 
     public init(from decoder: Decoder) throws {
@@ -246,6 +250,7 @@ public struct CronJob: Decodable, Sendable, Identifiable {
         lastRunAt = try container.decodeIfPresent(String.self, forKey: .lastRunAt)
         nextRunAt = try container.decodeIfPresent(String.self, forKey: .nextRunAt)
         lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
+        isSystem = try container.decodeIfPresent(Bool.self, forKey: .isSystem)
     }
 
     /// 计划展示串：优先服务端 schedule_display，其次从
@@ -1197,6 +1202,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     /// 行可带；解码全坏或空项判 nil（见 Message-
     /// Options 宽容口径）
     public let options: MessageOptions?
+    /// 服务端直出交付附件（2.6.1+：消息投影内联，
+    /// 缺键＝[] 兼容旧版服务端）
+    public let attachments: [BridgeDelivery]
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp
@@ -1209,6 +1217,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         case displayKind = "display_kind"
         case reactions
         case options
+        case attachments
     }
 
     public init(from decoder: Decoder) throws {
@@ -1243,6 +1252,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         )) ?? nil
         options = (rawOptions?.options.isEmpty == false)
             ? rawOptions : nil
+        attachments = (try? container.decodeIfPresent(
+            [BridgeDelivery].self, forKey: .attachments
+        )) ?? []
     }
 
     /// 测试与拼装用直构（解码路径外）
@@ -1254,7 +1266,8 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         reasoningContent: String? = nil, reasoning: String? = nil,
         displayKind: String? = nil,
         reactions: [MessageReaction] = [],
-        options: MessageOptions? = nil
+        options: MessageOptions? = nil,
+        attachments: [BridgeDelivery] = []
     ) {
         self.id = id
         self.role = role
@@ -1269,6 +1282,7 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         self.displayKind = displayKind
         self.reactions = reactions
         self.options = options
+        self.attachments = attachments
     }
 
     public var date: Date? {

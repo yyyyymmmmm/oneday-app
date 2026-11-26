@@ -142,10 +142,9 @@ struct UsageDetailView: View {
         return Section {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    IconTile(
-                        symbol: isOver ? "exclamationmark.triangle.fill" : "gauge.with.dots.needle.33percent",
-                        color: isOver ? .red : (isWarn ? .orange : .teal),
-                        size: OneDayMetrics.iconSlot
+                    SettingsRowIcon(
+                        symbol: isOver ? "exclamationmark.triangle" : "gauge.with.dots.needle.33percent",
+                        color: isOver ? .red : (isWarn ? .orange : nil)
                     )
                     Text("月度费用预算")
                         .font(.rowTitleL)

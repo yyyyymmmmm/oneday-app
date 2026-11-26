@@ -140,6 +140,7 @@ struct ChatView: View {
     /// sheet（AgentHubView .activity 四段，自带导航栈；
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
     @State private var showHub = false
+    @State private var showPendingApprovalSheet = false
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -766,6 +767,12 @@ struct ChatView: View {
     /// refreshUnreadAnchor）、随即推进水位，锚在
     /// 本次观看内不动、新消息到达不移位
     @State private var readMarkStore = ThreadReadMarkStore()
+    /// 图片和助手文件牌依赖服务端目录回读结果。
+    /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
+    @State private var fileMetadataStore = FileMetadataStore.shared
+    @State private var deliveryStore = DeliveryStore.shared
+    /// 凭据库 Store（补件 C 客户端半边）
+    @State private var vaultStore = VaultStore()
     @State private var unreadAnchorEntryID: UUID?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
@@ -1172,6 +1179,11 @@ struct ChatView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showPendingApprovalSheet) {
+            PendingApprovalSheetView(store: appState.sharedHubStore())
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -1497,6 +1509,12 @@ struct ChatView: View {
             }
         }
         .padding(.top, nativeFedTopInset + 6)
+        .task(id: errorMessage) {
+            guard let currentError = errorMessage else { return }
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, errorMessage == currentError else { return }
+            errorMessage = nil
+        }
         .animation(
             reduceMotion ? .default : .snappy(duration: 0.25),
             value: errorMessage ?? noticePresentation.current?.text
@@ -2498,6 +2516,28 @@ struct ChatView: View {
             speechPlaybackBarView: SpeechPlayer.shared.machine
                 .showsPlaybackBar
                 ? AnyView(speechPlaybackBar) : nil,
+            approvalZoneVisible: ChatApprovalZone.hasVisibleContent(
+                store: appState.sharedHubStore(),
+                anchoredRecordIDs: currentThreadAnchoredIDs,
+                currentServerSessionID: currentThread?.serverSessionID
+            ),
+            approvalZoneView: ChatApprovalZone.hasVisibleContent(
+                store: appState.sharedHubStore(),
+                anchoredRecordIDs: currentThreadAnchoredIDs,
+                currentServerSessionID: currentThread?.serverSessionID
+            )
+                ? AnyView(
+                    ChatApprovalZone(
+                        store: appState.sharedHubStore(),
+                        anchoredRecordIDs: currentThreadAnchoredIDs,
+                        currentServerSessionID: currentThread?.serverSessionID,
+                        ledger: rowStateLedger,
+                        onOpenOtherThreadSheet: {
+                            showPendingApprovalSheet = true
+                        }
+                    )
+                )
+                : nil,
             dictation: dictation,
             dictationFailureBarView: dictation.failure.map {
                 AnyView(
@@ -3021,6 +3061,9 @@ struct ChatView: View {
     /// 派生（条目快照/卡与通知编码本体/锚定集本
     /// 体逐值入账），不再复用 gen3 的版本与估算
     private func nativeRows() -> [ChatNativeRow] {
+        _ = fileMetadataStore.existenceByPath.count
+        _ = deliveryStore.metaResults.count
+        _ = deliveryStore.metaRevision
         // 卡顿探针（2026-11-20）：每趟喂入耗时＋行
         // 构建/复用数——只记账、无行为影响
         let probeToken = ChatLagProbe.beginFeedPass()
@@ -3169,57 +3212,6 @@ struct ChatView: View {
                 )
             }
         }
-        var approvalRevision = ChatNativeRowRevision()
-        for recordID in appState.sharedHubStore()
-            .anchoredRecordIDs.sorted() {
-            approvalRevision.addText(recordID)
-        }
-        // §331：审批区行高同走量测台；但非 ready
-        // 态高恒 0、无文本量测可言——同步确知，不
-        // 走兜底高（免冷开时列表尾凭空闪 120 空行）
-        let zoneHeight: CGFloat
-        var zoneIsProvisional = false
-        if case .ready = appState.sharedHubStore()
-            .approvalState {
-            let zoneMemoKey = composer.zoneMemoKey()
-            let zoneResolved = rowMeasureDesk.resolve(
-                memoKey: zoneMemoKey,
-                rowKey: "approval-zone",
-                fallback: ChatNativeRowHeightComposer
-                    .fallbackHeight
-            )
-            zoneIsProvisional = !zoneResolved.isExact
-            if zoneResolved.needsJob {
-                rowMeasureDesk.collect(
-                    composer.makeZoneMeasureJob(
-                        memoKey: zoneMemoKey,
-                        rowKey: "approval-zone"
-                    )
-                )
-            }
-            zoneHeight = zoneResolved.height
-        } else {
-            zoneHeight = composer.approvalZoneHeight()
-        }
-        rows.append(
-            ChatNativeRow(
-                key: "approval-zone",
-                entryID: nil,
-                revision: approvalRevision,
-                height: zoneHeight,
-                heightIsProvisional: zoneIsProvisional,
-                makeView: { [rowStateLedger] in
-                    AnyView(
-                        ChatApprovalZone(
-                            store: appState.sharedHubStore(),
-                            anchoredRecordIDs: appState
-                                .sharedHubStore().anchoredRecordIDs,
-                            ledger: rowStateLedger
-                        )
-                    )
-                }
-            )
-        )
         if ChatEmptyState.shows(
             threadIsNil: currentThread == nil,
             entryCount: currentThread?.sortedEntries.count ?? 0,
@@ -3249,6 +3241,25 @@ struct ChatView: View {
                     )
                 )
             }
+        }
+        // 外观设置由根层 AppStorage 观察触发 SwiftUI 重算，但原生
+        // UICollectionView 只按行 revision 决定是否 reconfigure。
+        // 把统一外观指纹加到所有行，避免主题/强调色/背景/字号切换
+        // 后部分 cell 等下一次滚动或导航才换色。
+        let appearanceKey = nativeRowStyleKey
+        rows = rows.map { row in
+            var revision = row.revision
+            revision.addText(appearanceKey)
+            return ChatNativeRow(
+                key: row.key,
+                entryID: row.entryID,
+                revision: revision,
+                height: row.height,
+                heightIsProvisional: row.heightIsProvisional,
+                makeContextMenuData: row.makeContextMenuData,
+                contextMenuAlignsTrailing: row.contextMenuAlignsTrailing,
+                makeView: row.makeView
+            )
         }
         // §331：本趟收集的量测工单统一投递（逆序
         // ——最新行先量先就绪）
@@ -3311,6 +3322,57 @@ struct ChatView: View {
         for source in sources {
             baseRevision.addText(source.url)
             baseRevision.addText(source.title)
+        }
+        // 文件/图片存在性回读结果折入 baseRevision，确保
+        // 即使回读前后行高恰好不变，UICollectionView 也会
+        // 同步 reconfigure 该 cell 刷新图片或文件牌呈现。
+        var existencePaths = Set(entry.remoteImagePaths)
+        for rawPath in entry.remoteFilePaths {
+            existencePaths.insert(
+                FileLineAnchor.split(pathWithAnchor: rawPath).path
+            )
+        }
+        if entry.role != "user", entry.traceKey == nil, entry.echoKey == nil {
+            let scans = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            )
+            existencePaths.formUnion(scans.media.imagePaths)
+            existencePaths.formUnion(scans.inlineCandidates.map(\.path))
+            existencePaths.formUnion(scans.standalonePaths)
+            if let wholePathRef = FileRefDetector.wholeMessagePath(in: scans.media.text) {
+                existencePaths.insert(wholePathRef.path)
+            }
+        }
+        for path in existencePaths.sorted() {
+            let code: String
+            switch fileMetadataStore.existence(for: path) {
+            case .exists: code = "e"
+            case .missing: code = "m"
+            case .unverified: code = "u"
+            case nil: code = "-"
+            }
+            baseRevision.addText("\(path):\(code)")
+        }
+        if entry.role != "user", entry.traceKey == nil, entry.echoKey == nil {
+            let deliveryIDs = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            ).delivery.deliveryIDs
+            for deliveryID in deliveryIDs {
+                switch deliveryStore.metaResult(for: deliveryID) {
+                case .loaded(let meta):
+                    baseRevision.addText("dlv:\(deliveryID):\(meta.status.rawValue):\(meta.kind):\(meta.path)")
+                case .notFound:
+                    baseRevision.addText("dlv:\(deliveryID):nf")
+                case .failed(let message):
+                    baseRevision.addText("dlv:\(deliveryID):err:\(message)")
+                case nil:
+                    baseRevision.addText("dlv:\(deliveryID):-")
+                }
+            }
         }
         // §331：行高先查整行备忘（命中＝确定高）；
         // 未命中投量测台后台预排版、当趟用上次高/
@@ -4702,6 +4764,24 @@ struct ChatView: View {
             || ClarifyPromptParser.parse(from: card) != nil
     }
 
+    private var currentThreadAnchoredIDs: Set<String> {
+        guard let entries = currentThread?.entries else { return [] }
+        return ApprovalAnchor.anchoredRecordIDs(
+            keys: entries.compactMap { $0.approvalKey }
+        )
+    }
+
+    private func isHiddenReadOnlyTraceEntry(_ entry: ChatEntry) -> Bool {
+        guard let snapshot = entry.traceEcho, !snapshot.isFailed else {
+            return false
+        }
+        let headline = snapshot.headline
+        let outcome = snapshot.outcome
+        return headline.contains("查看了目标列表")
+            || outcome.contains("资源库")
+            || headline.contains("检查了资源库")
+    }
+
     private func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
@@ -4715,6 +4795,9 @@ struct ChatView: View {
         }
         for entry in entries where entry.toolCard == nil || isInlineInteractiveToolCard(entry) {
             if entry.traceKey != nil {
+                if isHiddenReadOnlyTraceEntry(entry) {
+                    continue
+                }
                 traceBuffer.append(entry)
             } else {
                 flushTraces()
@@ -5322,11 +5405,12 @@ struct ChatView: View {
             fromKey: entry.approvalKey ?? ""
         ) ?? ""
         switch store.anchorRowState(recordID: recordID) {
-        case .pending(let record):
-            ChatApprovalCard(
-                store: store, record: record,
-                ledger: rowStateLedger
-            )
+        case .pending:
+            // Bug3 修复：待批审批不在消息流内渲染，只出
+            // 现在输入栏上方停靠卡（ChatApprovalZone）；
+            // 消息流内只留已决汇总行，不再有可点按的待批
+            // 卡片（2026-11-26 用户截图定版）
+            EmptyView()
         case .decided(let item):
             HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(systemName: item.isApproved
@@ -5892,10 +5976,7 @@ struct ChatView: View {
                                     entryID: entry.id, active: active
                                 )
                             },
-                            // §471（病一）：列表态禁直
-                            // 接选字——长按归浮排/菜
-                            // 单，选字只从菜单「选择」
-                            // 行进 sheet
+                            // 正文双击选词交给 UITextView，长按归消息菜单。
                             allowsDirectSelection: false,
                             // §335：用户正文产物段串直
                             // 贴（产物 plain 段与本段同
@@ -6209,10 +6290,41 @@ struct ChatView: View {
                             )
                         },
                         onOpenFile: { meta in
-                            openChatFile(meta.path)
+                            openDeliveryFile(meta)
                         }
                     )
                     .modifier(messageMenu(for: entry))
+                }
+                // 凭据请求卡（补件 C 客户端半边）：标记
+                // 摘行后原地渲染 VaultRequestCard——按号
+                // 向 /v1/vault/requests 取 meta 喂卡，
+                // 匹配不到按卡组件既有失效态呈现
+                ForEach(
+                    scans.vaultRequest.requestIDs, id: \.self
+                ) { requestID in
+                    if let meta = vaultRequestMeta(for: requestID) {
+                        VaultRequestCard(
+                            requestId: meta.requestId,
+                            service: meta.service,
+                            domain: meta.domain,
+                            reason: meta.reason,
+                            fields: meta.fields
+                        )
+                        .modifier(messageMenu(for: entry))
+                    } else if vaultStore.requestsLoaded {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.shield")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text("凭据请求已处理或已过期")
+                                .font(.meta)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .modifier(messageMenu(for: entry))
+                    }
+                }
+                .task(id: scans.vaultRequest.requestIDs) {
+                    await vaultStore.refreshRequests(appState: appState)
                 }
                 // 聊天可靠性包：整条裸路径的附件区——
                 // 呈现与 remoteImagePaths 行同口径（图
@@ -6285,8 +6397,7 @@ struct ChatView: View {
                                     entryID: entry.id, active: active
                                 )
                             },
-                            // §471（病一）：列表态禁直
-                            // 接选字（同用户泡口径）
+                            // 正文双击选词交给 UITextView，长按归消息菜单。
                             segmentProducts:
                                 entrySegmentProducts(entry),
                             allowsDirectSelection: false,
@@ -6627,6 +6738,41 @@ struct ChatView: View {
     /// 载→直达 QL 或分享单」。§121 的 QL 资格门与五
     /// 分文案机制不变、落点升级进中间页（见 DESIGN
     /// §125 修订声明）
+    private func openDeliveryFile(_ meta: BridgeDelivery) {
+        if meta.kind == "image" || FileRefDetector.isImagePath(meta.path) {
+            openImageViewer(
+                ChatImageViewerItem(source: .remotePath(meta.path))
+            )
+            return
+        }
+        let target = FileOpenTarget(path: meta.path, anchor: nil)
+        if FileOpenRoute.resolve(target: target) == .locked {
+            chatFallbackTarget = target
+            return
+        }
+        if let localURL = ChatFileStore.shared.localURL(for: meta.path) {
+            presentChatFileRoute(target, localURL: localURL)
+            return
+        }
+        Task {
+            if let data = await DeliveryStore.shared.content(
+                id: meta.id, client: OneDayBridgeClient(), appState: appState
+            ) {
+                let cacheURL = ChatFileStore.cacheURL(for: meta.path)
+                do {
+                    try FileManager.default.createDirectory(
+                        at: cacheURL.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try data.write(to: cacheURL, options: .atomic)
+                    presentChatFileRoute(target, localURL: cacheURL)
+                    return
+                } catch {}
+            }
+            openChatFile(meta.path)
+        }
+    }
+
     private func openChatFile(
         _ path: String, anchor: FileLineAnchor? = nil
     ) {
@@ -6668,6 +6814,12 @@ struct ChatView: View {
                 chatFallbackTarget = target
             }
         }
+    }
+
+    /// 凭据请求元数据查找（补件 C 客户端半边）：
+    /// 从 VaultStore pending 列表按 request_id 匹配
+    private func vaultRequestMeta(for requestID: String) -> VaultRequestMeta? {
+        vaultStore.requests.first { $0.requestId == requestID }
     }
 
     /// 路由呈示（§452.6）：FileOpenRoute 单源判定；
@@ -7151,12 +7303,10 @@ struct ChatView: View {
     /// 层与铬件），挂载点清单见 DESIGN §265；长按
     /// 只置呈现状态，动作集在呈现时刻组装（action-
     /// SheetData），两面同开系统上下文菜单
-    /// §471 口径变更：§265「文本区长按归 UITextView
-    /// 原生选字」一句作废——列表态正文已关直接选
-    /// 字（SelectableInlineText allowsDirect-
-    /// Selection=false），长按一切落点归本菜单/浮
-    /// 排，选字唯一入口＝菜单「选择」行（iMessage
-    /// iOS 26 同构）；挂载面纪律本身不变
+    /// 原生列表的菜单由 ChatNativeList collection-view
+    /// delegate 提供；正文触点归 UITextView 原生选区，
+    /// 气泡边距与附件铬件仍走行菜单。此修饰符在原生
+    /// 列表面关闭，保留给回退承载。
     private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
         // 长按上下文菜单已收归 ChatNativeList 原生 UICollectionView Context Menu，
         // 此处关闭行内 SwiftUI 抢跑手势，避免双菜单竞争
@@ -7431,9 +7581,9 @@ struct ChatView: View {
     /// OneDayMetrics.assistantTextWidth（屏宽−2×
     /// pageGutter−2×内距，@402＝330）。卡内距维持
     /// 16/13、圆角走 assistantBubbleCorner（圆角参
-    /// 数辖区）；菜单宿主口径沿 §265：落定行传
-    /// menuEntry 时菜单挂卡身（含内边距带）、流式
-    /// 卡不传（无菜单、形态同此）。进卡＝正文/引
+    /// 数辖区）；落定行传 menuEntry 后，正文触点归
+    /// UITextView 原生选区、气泡边距触点归行菜单；流式
+    /// 卡不传 menuEntry。进卡＝正文/引
     /// 用/代码块/表格（沿 §334 归属）；推理块/工
     /// 具卡/图片/文件牌/交付项维持泡外独立承载、
     /// 层级秩序不动。按段拆分（splitBubbles）时一
@@ -13752,6 +13902,9 @@ private struct ComposerBarLayout: Layout {
                 Double(index) * 0.001
             )
             modelContext.insert(cardEntry)
+        }
+        if !settled.attachments.isEmpty {
+            DeliveryStore.shared.ingest(settled.attachments)
         }
         // H2-a：本轮落定的助手条目（自动朗读的取材
         // 口，与下方 finished 分支的触感同点消费）

@@ -52,6 +52,7 @@ final class LibraryListStore {
             var size: Int64?
             var mtime: Double?
             var mimeType: String?
+            var deliveryID: String?
             var source: String
 
             init(_ item: Deliverable) {
@@ -61,6 +62,7 @@ final class LibraryListStore {
                 size = item.entry.size
                 mtime = item.entry.mtime
                 mimeType = item.entry.mimeType
+                deliveryID = item.entry.deliveryID
                 source = item.source
             }
 
@@ -69,7 +71,8 @@ final class LibraryListStore {
                     entry: WorkspaceFileEntry(
                         name: name, path: path,
                         isDirectory: isDirectory, size: size,
-                        mtime: mtime, mimeType: mimeType
+                        mtime: mtime, mimeType: mimeType,
+                        deliveryID: deliveryID
                     ),
                     source: source
                 )
@@ -247,6 +250,19 @@ final class LibraryListStore {
         freshness = FreshnessGate(
             ttl: FreshnessGate.standardListTTL
         )
+    }
+
+    /// 当某个资源库文件在服务端确证不存在（404）时，
+    /// 立即从本地缓存快照摘除并失效新鲜度，避免幽灵条目残留
+    func removeMissingPath(_ path: String) {
+        if let current = deliverables {
+            let filtered = current.filter { $0.entry.path != path }
+            if filtered.count != current.count {
+                deliverables = filtered
+                persistSnapshot()
+            }
+        }
+        invalidateFreshness()
     }
 
     /// 差异合并（纯函数）：结果与 fresh 逐项等价（同

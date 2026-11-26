@@ -17,9 +17,6 @@ final class StarterSuggestionsTests: XCTestCase {
                 id: "goal-1", title: "OneDay 发版", token: "1700000000"
             ),
             activeGoal: .init(id: "goal-2", title: "婚礼筹备"),
-            recentDelivery: .init(
-                newestName: "周报.pdf", extraCount: 1, token: "p|1.0"
-            ),
             upcomingCronCount: 3,
             hour: 9
         )
@@ -144,5 +141,32 @@ final class StarterSuggestionsTests: XCTestCase {
             XCTAssertFalse(suggestion.text.contains("%@"))
             XCTAssertFalse(suggestion.symbol.isEmpty)
         }
+    }
+
+    /// C1 修复：recentDelivery 已从引擎移除，即使上下文
+    /// 模拟有 48h 内新交付物也不产出 delivery 类建议
+    func testRecentDeliveryDoesNotAppear() {
+        // 构造一个只有在办目标与将跑定时的上下文（模拟
+        // 有新交付物的场景，但引擎已不支持该字段）
+        let context = StarterContext(
+            activeGoal: .init(id: "goal-1", title: "测试目标"),
+            upcomingCronCount: 2,
+            hour: 10
+        )
+        let result = StarterSuggestionsEngine.suggestions(context: context)
+
+        // 断言：输出不含 delivery 前缀的 key
+        XCTAssertFalse(result.contains { $0.key.hasPrefix("delivery/") })
+
+        // 断言：输出不含资源库/交付物相关文案
+        for suggestion in result {
+            XCTAssertFalse(suggestion.text.contains("资源库"))
+            XCTAssertFalse(suggestion.text.contains("交付物"))
+            XCTAssertFalse(suggestion.text.contains("交付"))
+        }
+
+        // 验证二级优先序：在办目标仍可出、将跑定时仍可出
+        XCTAssertTrue(result.contains { $0.key.hasPrefix("goalActive/") })
+        XCTAssertTrue(result.contains { $0.key.hasPrefix("cronUpcoming") })
     }
 }

@@ -78,6 +78,16 @@ public enum DeliveryMarker {
                 }
                 continue
             }
+            if !inFence, line.contains(prefix) {
+                let (cleaned, inlineIDs) = extractInlineMarkers(in: line)
+                for id in inlineIDs where seen.insert(id).inserted {
+                    ids.append(id)
+                }
+                if !cleaned.isEmpty {
+                    kept.append(cleaned)
+                }
+                continue
+            }
             kept.append(line)
         }
         guard !ids.isEmpty else {
@@ -87,6 +97,37 @@ public enum DeliveryMarker {
             text: collapseBlankRuns(kept.joined(separator: "\n")),
             deliveryIDs: ids
         )
+    }
+
+    /// 提取行内嵌入的 `[[deliver:dlv_...]]` 标记，并返回摘除标记后的文本
+    private static func extractInlineMarkers(
+        in line: String
+    ) -> (String, [String]) {
+        var result = ""
+        var ids: [String] = []
+        var cursor = line.startIndex
+        while cursor < line.endIndex {
+            guard let start = line.range(
+                of: prefix, range: cursor..<line.endIndex
+            ),
+            let end = line.range(
+                of: suffix, range: start.upperBound..<line.endIndex
+            ) else {
+                result.append(contentsOf: line[cursor...])
+                break
+            }
+            let candidate = String(line[start.upperBound..<end.lowerBound])
+            if isValidID(candidate) {
+                result.append(contentsOf: line[cursor..<start.lowerBound])
+                ids.append(candidate)
+                cursor = end.upperBound
+            } else {
+                result.append(contentsOf: line[cursor..<start.upperBound])
+                cursor = start.upperBound
+            }
+        }
+        let cleaned = result.trimmingCharacters(in: .whitespaces)
+        return (cleaned, ids)
     }
 
     /// 一行（已修剪）是否为可摘的登记标记行：整

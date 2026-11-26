@@ -72,6 +72,10 @@ enum SettingsRoute: Hashable {
     /// 体检面（H1-a，台账 158）：原服务器管理「维护」段，
     /// 结构归位后归设置根服务器组维护尾段
     case healthCheck
+    /// 高级与诊断面（总表 70）：运维诊断枢纽页，统一路由管理
+    /// 避免直接目标式 NavigationLink 与 value 路由混用
+    /// 造成的导航栈状态冲突
+    case advancedDiagnostics
     /// 连接自检面（H13，台账 33，DESIGN §357）：客
     /// 户端只读探活驻留面，落设置根服务器段（Core
     /// 目录 connectionSelfCheck 条目直达）
@@ -89,6 +93,8 @@ enum SettingsRoute: Hashable {
     /// 添加设备（配对一期，台账 153/160）：已登录侧
     /// 出码面，台账 198 收敛 S13 后落设置根服务器段
     case addDevice
+    /// 登录会话与短时票据管理面（与设置页其他路由统一走 value 栈）
+    case authSessions
     /// 平台用户配对（H5，台账 35，DESIGN §359）：
     /// 网关消息平台用户白名单管理面，落设置根服务
     /// 器段、紧随添加设备（两物分清见 Core 目录）
@@ -100,6 +106,8 @@ enum SettingsRoute: Hashable {
     /// 崩溃报告（G-14，DESIGN §384）：入口在关于页
     /// 内部实验节（Core 目录 crashReports 条目仅搜索可达）
     case crashReports
+    /// 凭据库（sj-07）：密码与安全凭证管理
+    case vault
 }
 
 /// 目的地 → 设置路由映射（原 SettingsView 内私有，

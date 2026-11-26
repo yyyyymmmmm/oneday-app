@@ -1,12 +1,13 @@
 import Foundation
 
 /// 助手气泡派生扫描的打包产出（§199）：一次全文扫
-/// 描链的全部派生物——交付标记拆分、MEDIA 拆分、
+/// 描链的全部派生物——交付标记拆分、凭据请求标记拆分、MEDIA 拆分、
 /// 裸路径内联图候选、独立成行路径集。原消费方
 /// （ChatView 气泡 body）逐项取用，与旧逐遍现算的
 /// 五个调用点一一对应、语义逐字不变
 public struct AssistantTextScans: Equatable, Sendable {
     public let delivery: DeliveryMarkerSplit
+    public let vaultRequest: VaultRequestMarkerSplit
     public let media: MediaMarkerSplit
     public let inlineCandidates: [FileRefDetector.InlineImageRef]
     /// detectStandaloneAnchored 的路径集（出现序去
@@ -15,11 +16,13 @@ public struct AssistantTextScans: Equatable, Sendable {
 
     public init(
         delivery: DeliveryMarkerSplit,
+        vaultRequest: VaultRequestMarkerSplit,
         media: MediaMarkerSplit,
         inlineCandidates: [FileRefDetector.InlineImageRef],
         standalonePaths: [String]
     ) {
         self.delivery = delivery
+        self.vaultRequest = vaultRequest
         self.media = media
         self.inlineCandidates = inlineCandidates
         self.standalonePaths = standalonePaths
@@ -75,7 +78,8 @@ public enum EntryScanMemo {
             + "|\(contentHash(remoteImagePaths.joined(separator: "\u{1}")))"
         return scansBox.value(for: key) {
             let delivery = DeliveryMarker.split(in: content)
-            let media = MediaMarker.split(in: delivery.text)
+            let vaultRequest = VaultRequestMarker.split(in: delivery.text)
+            let media = MediaMarker.split(in: vaultRequest.text)
             let inline = FileRefDetector.inlineImageCandidates(
                 in: media.text,
                 excluding: remoteImagePaths + media.imagePaths
@@ -89,6 +93,7 @@ public enum EntryScanMemo {
             }
             return AssistantTextScans(
                 delivery: delivery,
+                vaultRequest: vaultRequest,
                 media: media,
                 inlineCandidates: inline,
                 standalonePaths: standalone

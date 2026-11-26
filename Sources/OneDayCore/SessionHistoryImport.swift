@@ -215,10 +215,19 @@ public enum SessionHistoryImport {
                     )
                 }
                 let parsed = AttachedImageRef.parse(message.content)
-                guard !parsed.text.isEmpty || !parsed.paths.isEmpty
+                var mergedText = parsed.text
+                for att in message.attachments {
+                    let marker = DeliveryMarker.markerText(for: att.id)
+                    if !mergedText.contains(marker) {
+                        mergedText = mergedText.isEmpty
+                            ? marker
+                            : "\(mergedText)\n\(marker)"
+                    }
+                }
+                guard !mergedText.isEmpty || !parsed.paths.isEmpty
                 else { return nil }
                 return RichItem(
-                    role: message.role, content: parsed.text,
+                    role: message.role, content: mergedText,
                     date: message.date, imagePaths: parsed.paths,
                     toolCard: nil,
                     serverRowID: Self.serverRowID(of: message),

@@ -698,12 +698,15 @@ public struct SettledRunTurn: Sendable, Equatable {
     /// 失败轮恒 nil（失败分支先行返回）
     public var options: MessageOptions?
     public var optionsRowID: Int?
+    /// 服务端内联交付附件（2.6.1+：供落定时预灌 DeliveryStore）
+    public var attachments: [BridgeDelivery]
 
     public init(
         found: Bool, toolCards: [ToolCard], reasoning: String?,
         finalText: String?, failed: Bool, failureText: String?,
         userRowID: Int? = nil, assistantRowID: Int? = nil,
-        options: MessageOptions? = nil, optionsRowID: Int? = nil
+        options: MessageOptions? = nil, optionsRowID: Int? = nil,
+        attachments: [BridgeDelivery] = []
     ) {
         self.found = found
         self.toolCards = toolCards
@@ -715,6 +718,7 @@ public struct SettledRunTurn: Sendable, Equatable {
         self.assistantRowID = assistantRowID
         self.options = options
         self.optionsRowID = optionsRowID
+        self.attachments = attachments
     }
 
     public static let notFound = SettledRunTurn(
@@ -810,7 +814,25 @@ public enum RunTranscriptSettle {
                 )
             }
             .filter { !$0.text.isEmpty }
-        let textParts = textRows.map(\.text)
+        var turnAttachments: [BridgeDelivery] = []
+        var seenAttachmentIDs: Set<String> = []
+        for row in segment where row.role == "assistant" && row.displayKind != "hidden" {
+            for att in row.attachments where seenAttachmentIDs.insert(att.id).inserted {
+                turnAttachments.append(att)
+            }
+        }
+        var textParts = textRows.map(\.text)
+        let joinedBase = textParts.joined(separator: "\n\n")
+        var extraMarkers: [String] = []
+        for att in turnAttachments {
+            let marker = DeliveryMarker.markerText(for: att.id)
+            if !joinedBase.contains(marker) {
+                extraMarkers.append(marker)
+            }
+        }
+        if !extraMarkers.isEmpty {
+            textParts.append(extraMarkers.joined(separator: "\n"))
+        }
         guard !cards.isEmpty || !textParts.isEmpty
                 || !reasoningParts.isEmpty
         else { return .notFound }
@@ -830,7 +852,8 @@ public enum RunTranscriptSettle {
             })?.options,
             optionsRowID: segment.last(where: {
                 $0.role == "assistant" && $0.options != nil
-            }).flatMap { Self.rowID($0) }
+            }).flatMap { Self.rowID($0) },
+            attachments: turnAttachments
         )
     }
 

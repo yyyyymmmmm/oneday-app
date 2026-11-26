@@ -133,7 +133,7 @@ struct MemoryView: View {
         let builtinActive = (status.active ?? "").isEmpty
         return Section {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                IconTile(symbol: "internaldrive", color: .blue, size: OneDayMetrics.iconSlot)
+                SettingsRowIcon(symbol: "internaldrive")
                 Text("内置记忆")
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
@@ -149,7 +149,7 @@ struct MemoryView: View {
                     MemoryProviderConfigView(provider: provider, isActive: isActive(provider, in: status))
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        IconTile(symbol: "brain", color: .purple, size: OneDayMetrics.iconSlot)
+                        SettingsRowIcon(symbol: "brain")
                         VStack(alignment: .leading, spacing: 2) {
                             Text(provider.name)
                                 .font(.rowTitleL)
