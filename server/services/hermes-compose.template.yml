@@ -1,8 +1,9 @@
 # Hermes 主部署 compose 模板（脱敏版：源自现行部署整理，路径为示例，部署时按实际环境调整）
 # 用法：置于部署目录根，命名 docker-compose.yml；所有 ${...} 凭据变量从部署者自己的保险库取（见 env.template），严禁把真值写进本文件后提交。
-# 注意：write-gate-bridge / overview-bridge 两服务为历史定义——现行环境中未运行，其 8643/8644 职能曾由 oneday-companion
-# 承载、已随断桥批二/批三入关网关；companion 本身亦已于部署包 2.0.0（断桥批五）整容器退役，现行终局为 hermes 单容器，
-# 全部职能入网关（device 面见 device_gateway 模块挂载与 DEVICE_DATA_DIR）。新部署不要再启动这两个服务，保留在此仅作沿革记录。
+# 注意：write-gate-bridge / overview-bridge 两服务的 compose 定义已于部署包 2.11.0 整段摘除——其 8643/8644 职能
+# 已随断桥批二/批三入关网关，companion 本身亦已于部署包 2.0.0（断桥批五）整容器退役，现行终局为 hermes 单容器，
+# 全部职能入网关（device 面见 device_gateway 模块挂载与 DEVICE_DATA_DIR）。残留定义无 profile 隔离，今早曾被一次
+# 全量 compose up 顺带拉起（已停回），故摘除定义本身、不再留沿革副本；线上 compose 随包同步摘除。
 # 本模板只列核心挂载；全量模块挂载由 install.sh 3b 节幂等补齐，device 数据目录 ./data/device 随 ./data 卷
 # 以 /opt/data/device 供 device_gateway 自有读写，下方 /opt/device-data:ro 行为 oneday 读面供数。
 services:
@@ -45,42 +46,3 @@ services:
       - NEWAPI_ADMIN_USER_ID=${NEWAPI_ADMIN_USER_ID:-}
     mem_limit: 2g
     shm_size: 1g
-
-  # ---- 以下两服务为 legacy 定义（现行未运行，职能已被 companion 模块取代），勿在新部署启用 ----
-  write-gate-bridge:
-    image: nousresearch/hermes-agent:v0.23.0
-    container_name: write-gate-bridge
-    restart: unless-stopped
-    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/write_gate_bridge.py"]
-    ports:
-      - "127.0.0.1:8643:8643"
-    volumes:
-      - ./data:/opt/data
-      - ./write_gate_bridge.py:/opt/bridge/write_gate_bridge.py:ro
-    env_file:
-      - ./write-gate.env
-    environment:
-      - TZ=Asia/Shanghai
-      - PYTHONPATH=/opt/hermes
-      - WRITE_GATE_PORT=8643
-    mem_limit: 512m
-  overview-bridge:
-    image: nousresearch/hermes-agent:v0.23.0
-    container_name: overview-bridge
-    restart: unless-stopped
-    entrypoint: ["/opt/hermes/.venv/bin/python3", "/opt/bridge/overview_bridge.py"]
-    ports:
-      - "127.0.0.1:8644:8644"
-    volumes:
-      - ./data:/opt/data:ro
-      - ./overview_bridge.py:/opt/bridge/overview_bridge.py:ro
-      - ./overview-data:/opt/overview-data
-      - ${ONEDAY_BRIDGE_DATA_DIR}:/opt/oneday-data:ro
-    env_file:
-      - ./write-gate.env
-      - ./overview-bridge.env
-    environment:
-      - TZ=Asia/Shanghai
-      - OVERVIEW_PORT=8644
-      - MONITOR_PATH=/opt/oneday-data/monitor-notifications.jsonl
-    mem_limit: 256m
