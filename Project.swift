@@ -29,9 +29,11 @@ let project = Project(
             sources: ["Sources/OneDayCore/**"],
             // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
             // 移植 1.4：Highlightr 代码语法高亮（Tuist/Package.swift 钉版 2.3.0）
+            // 移植 1.5：EventSource 标准 SSE 客户端（Tuist/Package.swift 钉版 1.6.0）
             dependencies: [
                 .external(name: "Markdown"),
                 .external(name: "Highlightr"),
+                .external(name: "EventSource"),
             ]
         ),
         .target(

@@ -51,3 +51,40 @@ public struct SSEParser: Sendable {
         return nil
     }
 }
+
+#if canImport(EventSource)
+import EventSource
+
+/// Phase 1.5：基于标准 RFC 8895 `mattt/EventSource` 的流式 SSE 客户端封装
+/// （与官方 `modelcontextprotocol/swift-sdk` 共用同一 `EventSource` 依赖），
+/// 复用 `SSEParser` 解码 OpenAI 兼容事件（正文/思考/工具调用/结束）。
+public enum SSEStreamClient {
+    public static func events(
+        for request: URLRequest,
+        session: URLSession = .shared
+    ) -> AsyncThrowingStream<SSEEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let parser = SSEParser()
+                    let (byteStream, _) = try await session.bytes(for: request)
+                    for try await event in byteStream.events {
+                        if Task.isCancelled { break }
+                        if let parsed = parser.consume(line: "data: \(event.data)") {
+                            continuation.yield(parsed)
+                            if parsed == .done {
+                                continuation.finish()
+                                return
+                            }
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+#endif

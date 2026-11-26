@@ -5,7 +5,12 @@ import PackageDescription
 import ProjectDescription
 
 let packageSettings = PackageSettings(
-    productTypes: [:]
+    // 移植 1.5：EventSource 同时被 OneDayCore 与 MCP
+    // （swift-sdk）依赖，显式指定为动态库，避免静态
+    // 符号重复链接警告（随封存分支原形态落）。
+    productTypes: [
+        "EventSource": .framework,
+    ]
 )
 #endif
 
@@ -21,6 +26,8 @@ let packageSettings = PackageSettings(
 // 存取，MIT；钉版 4.2.2。
 // 移植 1.4：raspu/Highlightr 代码语法高亮（highlight.js
 // 185+ 语言），MIT；钉版 2.3.0。
+// 移植 1.5：mattt/EventSource 标准 SSE 流式客户端，MIT；
+// 钉版 1.6.0（与官方 MCP swift-sdk 共用同一依赖无冲突）。
 // 注：Exyte 钉不在本版范围（0.50.104 组版单明示勿带入）。
 let package = Package(
     name: "OneDay",
@@ -40,6 +47,10 @@ let package = Package(
         .package(
             url: "https://github.com/raspu/Highlightr.git",
             exact: "2.3.0"
+        ),
+        .package(
+            url: "https://github.com/mattt/EventSource.git",
+            exact: "1.6.0"
         )
     ]
 )
