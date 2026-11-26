@@ -62,7 +62,7 @@ struct VaultRequestsView: View {
                         if error.contains("404") || error.contains("未启用") {
                             Text("服务端尚未提供凭据请求列表端点 (GET /v1/vault/requests)")
                                 .font(.meta)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.top, OneDayMetrics.spacingS)
                         }

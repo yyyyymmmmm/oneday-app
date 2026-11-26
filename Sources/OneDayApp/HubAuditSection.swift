@@ -290,7 +290,7 @@ struct HubAuditSection: View {
                 }
                 Text(meta(for: entry))
                     .font(.subheadline)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: OneDayMetrics.spacingS)
@@ -572,7 +572,7 @@ struct HubAuditSection: View {
                 }
                 Text(memberMeta(member))
                     .font(.subheadline)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: OneDayMetrics.spacingS)

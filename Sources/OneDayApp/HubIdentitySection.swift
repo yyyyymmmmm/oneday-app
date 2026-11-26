@@ -131,7 +131,7 @@ struct HubIdentitySection: View {
             Text("风格")
                 // §500：13 → 11（量测实测参照 ≈11）
                 .font(.caption2)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
             ForEach(
                 Array(paragraphs.enumerated()), id: \.offset
             ) { _, paragraph in

@@ -110,7 +110,8 @@ struct AgentReactionBadgeView: View {
     var body: some View {
         Text(emoji)
             // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
-            .font(.system(size: 13))
+            // dp-214：收编回 .captionText 角色（13pt regular，HIG Footnote）
+            .font(.captionText)
             .padding(.horizontal, 6)
             .frame(height: ChatReactionMetrics.badgeHeight)
             .background(

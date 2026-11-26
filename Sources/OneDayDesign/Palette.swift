@@ -231,8 +231,10 @@ public enum Palette {
     /// 审计 D1：旧派生 #101619 是带蓝灰的「灰雾」基底、
     /// 与 settingsBG 双基底并存（互比 1.03），自本版
     /// 基底身份归一为语义 base 锚）
+    /// dp-214：浅档 #FCFCFC→#FFFFFF（systemBackground
+    /// 逐值对齐，Δ2 口径收敛）
     public static let pageBG = appleColor(
-        light: 0xFCFCFC, dark: .systemBackground
+        light: 0xFFFFFF, dark: .systemBackground
     )
     /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗档
     /// secondarySystemBackground #1C1C1E——层级步对齐
@@ -263,8 +265,9 @@ public enum Palette {
     )
     /// 聊天表面（OpenMuse canvas #FCFCFC；暗档随页面
     /// 底同锚 systemBackground #000）
+    /// dp-214：浅档 #FCFCFC→#FFFFFF（与 pageBG 同步收敛）
     public static let chatSurface = appleColor(
-        light: 0xFCFCFC, dark: .systemBackground
+        light: 0xFFFFFF, dark: .systemBackground
     )
     /// 聊天页背景（台账 179，OB-I1，DESIGN §391）：只供
     /// 聊天页背景层现读——默认档与 chatSurface 逐值相
