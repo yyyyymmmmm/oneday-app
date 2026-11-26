@@ -36,7 +36,6 @@ struct MacChatView: View {
             MacApprovalDockView(
                 store: approvalStore, sessionID: conversation.sessionID
             )
-            Divider()
             composer
         }
         .task(id: conversation.sessionID) {
@@ -45,7 +44,7 @@ struct MacChatView: View {
         .onChange(of: statusStore.pendingApprovals) {
             Task { await approvalStore.refresh(session: session) }
         }
-        .background(Palette.chatBackground)
+        .background { ChatBackgroundSurface() }
         .toolbar { toolbarItems }
         .onDrop(of: [.fileURL, .image, .png, .jpeg], isTargeted: nil) {
             providers in
@@ -190,6 +189,9 @@ struct MacChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(conversation.messages, id: \.id) { message in
                         let stub = conversation.stubIDs[message.id]
+                        let opts = conversation.optionsCard(
+                            for: message, session: session
+                        )
                         VStack(alignment: .leading, spacing: 14) {
                             if stub != nil,
                                stub == conversation.unreadAnchorStubID {
@@ -197,13 +199,33 @@ struct MacChatView: View {
                             }
                             MacMessageRow(
                                 message: message,
+                                reactions: conversation.reactions(for: message),
+                                optionsState: opts.state,
+                                options: opts.options,
                                 isFindCurrent: stub != nil
                                     && stub == conversation
                                         .findCurrentStubID,
                                 isFindMatch: stub.map {
                                     conversation.findMatchIDs
                                         .contains($0)
-                                } ?? false
+                                } ?? false,
+                                onPickReaction: { emoji in
+                                    conversation.toggleReaction(
+                                        emoji: emoji, on: message,
+                                        from: session
+                                    )
+                                },
+                                onClearOwnReaction: {
+                                    conversation.clearReaction(
+                                        on: message, from: session
+                                    )
+                                },
+                                onSelectOption: { option in
+                                    conversation.selectOption(
+                                        option, from: session,
+                                        listStore: listStore
+                                    )
+                                }
                             )
                         }
                         .id(stub ?? UUID())
@@ -372,18 +394,23 @@ struct MacChatView: View {
                         )
                     }
                 } label: {
-                    Image(systemName: "paperclip")
-                        .font(.title3)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .padding(.bottom, 6)
                 .help("添加附件")
+
                 ZStack(alignment: .topLeading) {
                     if conversation.draftText.isEmpty {
-                        Text("发消息…（Return 发送，⇧Return 换行）")
-                            .font(.body)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 9)
+                        Text("消息（Return 发送，⇧Return 换行）")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 10)
                             .allowsHitTesting(false)
                     }
                     MacComposerView(
@@ -404,26 +431,27 @@ struct MacChatView: View {
                     )
                     .frame(height: composerHeight)
                 }
-                .background(
-                    Palette.fieldFill,
-                    in: RoundedRectangle(cornerRadius: 10)
-                )
                 .onChange(of: conversation.draftText) {
                     let lines = conversation.draftText
                         .components(separatedBy: "\n").count
                     composerHeight = min(
-                        120, max(44, CGFloat(lines) * 20 + 22)
+                        120, max(40, CGFloat(lines) * 20 + 20)
                     )
                     conversation.saveDraft()
                 }
+
                 if conversation.isGenerating {
                     Button {
                         conversation.stop(from: session)
                     } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.title2)
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Palette.danger, in: Circle())
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 6)
                     .help("停止生成（⌘.）")
                     .keyboardShortcut(".", modifiers: .command)
                 } else {
@@ -432,17 +460,40 @@ struct MacChatView: View {
                             from: session, listStore: listStore
                         )
                     } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(
+                                conversation.canSend
+                                    ? Palette.onPrimary : Palette.inkMuted
+                            )
+                            .frame(width: 30, height: 30)
+                            .background(
+                                conversation.canSend
+                                    ? Palette.primary : Palette.fillQuaternary,
+                                in: Circle()
+                            )
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                     .disabled(!conversation.canSend)
+                    .padding(.bottom, 6)
                     .help("发送")
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Palette.separator.opacity(0.45), lineWidth: 0.75)
+            }
+            .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 14)
     }
 
     private var attachmentChips: some View {

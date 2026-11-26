@@ -83,6 +83,21 @@ final class MacConversationStore {
     private let watermarkKey = "mac.readWatermark.v1"
     private let draftsKey = "mac.drafts.v1"
 
+    // 选项卡（mac-09，对位 #21）：复用 Core OptionsCardOverlay 单源
+    private let optionsOverlay = OptionsCardOverlay()
+    private var threadUUIDs: [String: UUID] = [:]
+    private(set) var optionsRevision = 0
+
+    // 表情反应（mac-09，对位 #22）：按服务端行 id 存乐观/回执镜像
+    private(set) var reactionOverrides: [Double: [MessageReaction]] = [:]
+
+    private func threadUUID(for sessionID: String) -> UUID {
+        if let existing = threadUUIDs[sessionID] { return existing }
+        let created = UUID()
+        threadUUIDs[sessionID] = created
+        return created
+    }
+
     // MARK: - 打开/切换会话
 
     func open(
@@ -119,6 +134,8 @@ final class MacConversationStore {
                 config: config, apiKey: key, id: sessionID
             )
             messages = fetched.filter { $0.displayKind != "hidden" }
+            reactionOverrides = [:]
+            seedOptionsCardIfNeeded(sessionID: sessionID, session: session)
             rebuildStubs()
             computeUnreadAnchor(sessionID: sessionID)
             if let last = messages.last {
@@ -623,5 +640,138 @@ final class MacConversationStore {
         }
         if findMatchIDs.isEmpty { return "无结果" }
         return "\(findCurrentIndex + 1)/\(findMatchIDs.count)"
+    }
+
+    // MARK: - 选项卡（mac-09，对位 #21；Core OptionsCardLogic 单源）
+
+    private func seedOptionsCardIfNeeded(
+        sessionID: String, session: SessionStore
+    ) {
+        guard CapabilityNegotiation.optionsCardAvailability(
+            session.capabilities
+        ) != .unavailable else { return }
+        guard let candidate = OptionsCardLogic.seedCandidate(
+            in: messages
+        ) else { return }
+        let tid = threadUUID(for: sessionID)
+        optionsOverlay.seed(
+            threadID: tid,
+            card: OptionsCardOverlay.Card(
+                serverRowID: candidate.serverRowID,
+                options: candidate.options
+            )
+        )
+        optionsRevision += 1
+    }
+
+    func optionsCard(
+        for message: SessionMessage, session: SessionStore
+    ) -> (state: OptionsCardState, options: [MessageOption]) {
+        let _ = optionsRevision
+        guard message.role == "assistant",
+              let sessionID,
+              let rowID = Int(exactly: message.id),
+              CapabilityNegotiation.optionsCardAvailability(
+                  session.capabilities
+              ) != .unavailable
+        else { return (.hidden, []) }
+        let tid = threadUUID(for: sessionID)
+        guard let card = optionsOverlay.card(for: tid),
+              card.serverRowID == rowID
+        else { return (.hidden, []) }
+        let lastAssistantID = messages.last(where: { $0.role == "assistant" })?.id
+        let isTailAssistant = (lastAssistantID == message.id)
+        let after = messages.drop(while: { $0.id != message.id }).dropFirst()
+        let hasUserAfter = after.contains(where: { $0.role == "user" })
+        let state = OptionsCardLogic.state(
+            card: card,
+            isTailAssistant: isTailAssistant,
+            hasUserAfter: hasUserAfter,
+            runInFlight: isGenerating,
+            isDemo: false
+        )
+        return (state, card.options.options)
+    }
+
+    func selectOption(
+        _ option: MessageOption, from session: SessionStore,
+        listStore: MacSessionListStore
+    ) {
+        guard !isGenerating, let sessionID else { return }
+        let tid = threadUUID(for: sessionID)
+        optionsOverlay.markSelected(threadID: tid, label: option.label)
+        optionsRevision += 1
+        Task {
+            await performSend(
+                text: option.sendText, attachments: [],
+                idempotencyKey: UUID().uuidString,
+                from: session, listStore: listStore
+            )
+        }
+    }
+
+    // MARK: - 表情反应（mac-09，对位 #22；Core MessageReactions 单源）
+
+    func reactions(for message: SessionMessage) -> [MessageReaction] {
+        reactionOverrides[message.id] ?? message.reactions
+    }
+
+    func toggleReaction(
+        emoji: String, on message: SessionMessage, from session: SessionStore
+    ) {
+        let current = reactions(for: message)
+        if MessageReactions.ownEmoji(in: current) == emoji {
+            clearReaction(on: message, from: session)
+        } else {
+            applyReaction(emoji: emoji, on: message, from: session)
+        }
+    }
+
+    func clearReaction(
+        on message: SessionMessage, from session: SessionStore
+    ) {
+        applyReaction(emoji: nil, on: message, from: session)
+    }
+
+    private func applyReaction(
+        emoji: String?, on message: SessionMessage, from session: SessionStore
+    ) {
+        guard let sessionID,
+              let rowID = Int(exactly: message.id), rowID > 0,
+              let config = session.config, let key = session.apiKey
+        else { return }
+        let previous = reactions(for: message)
+        reactionOverrides[message.id] = MessageReactions.applying(
+            own: emoji, to: previous, at: Date().timeIntervalSince1970
+        )
+        Task {
+            do {
+                let updated: ReactionUpdate
+                if let emoji {
+                    updated = try await session.chatClient.setReaction(
+                        config: config, apiKey: key,
+                        sessionID: sessionID, rowID: rowID, emoji: emoji
+                    )
+                } else {
+                    updated = try await session.chatClient.clearReaction(
+                        config: config, apiKey: key,
+                        sessionID: sessionID, rowID: rowID
+                    )
+                }
+                reactionOverrides[message.id] = updated.reactions
+            } catch let error as HermesError {
+                if case .unexpectedStatus(_, let code) = error,
+                   code == 404 || code == 405 {
+                    // 服务端未开放 reactionsWrite：按能力协商口径保留本机显示并明示
+                    sendError = "反应只在本机显示、服务端未开放持久化，刷新即丢"
+                } else {
+                    reactionOverrides[message.id] = previous
+                    sendError = error.userMessage
+                }
+            } catch {
+                reactionOverrides[message.id] = previous
+                sendError = error.localizedDescription
+            }
+        }
     }
 }

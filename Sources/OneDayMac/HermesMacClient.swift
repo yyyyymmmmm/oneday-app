@@ -2609,4 +2609,227 @@ struct HermesMacClient: Sendable {
             endpoint: "模型用量"
         )
     }
+
+    // MARK: - 消息反应与路由探针（mac-09，对位 #22；与 iOS 同契约）
+
+    private static func gatewayErrorCode(from data: Data) -> String? {
+        struct Body: Decodable {
+            struct Inner: Decodable { let code: String? }
+            let error: Inner?
+        }
+        return (try? JSONDecoder().decode(Body.self, from: data))?
+            .error?.code
+    }
+
+    /// 只读路由探针（能力协商与连接自检共用）：永不抛错
+    func routeProbe(
+        config: ServerConfig, apiKey: String?, path: String
+    ) async -> RouteProbeResult? {
+        var request = URLRequest(url: config.endpoint(path))
+        request.timeoutInterval = 15
+        if let apiKey {
+            request.setValue(
+                "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+            )
+        }
+        guard let (data, http) = try? await dataRequest(request)
+        else { return nil }
+        return RouteProbeResult(
+            status: http.statusCode,
+            errorCode: Self.gatewayErrorCode(from: data)
+        )
+    }
+
+    /// PUT /v1/reactions/{session_id}/{row_id} {emoji}
+    func setReaction(
+        config: ServerConfig, apiKey: String,
+        sessionID: String, rowID: Int, emoji: String
+    ) async throws -> ReactionUpdate {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/reactions/\(sessionID)/\(rowID)",
+            method: "PUT",
+            body: ["emoji": .string(emoji)]
+        )
+        return try decodeReactionUpdate(status: status, data: data)
+    }
+
+    /// DELETE /v1/reactions/{session_id}/{row_id}
+    func clearReaction(
+        config: ServerConfig, apiKey: String,
+        sessionID: String, rowID: Int
+    ) async throws -> ReactionUpdate {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/reactions/\(sessionID)/\(rowID)",
+            method: "DELETE"
+        )
+        return try decodeReactionUpdate(status: status, data: data)
+    }
+
+    private func decodeReactionUpdate(
+        status: Int, data: Data
+    ) throws -> ReactionUpdate {
+        guard (200...299).contains(status) else {
+            if Self.gatewayErrorCode(from: data) == "message_not_found" {
+                throw HermesError.reactionTargetGone
+            }
+            if status == 401 || status == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.unexpectedStatus(
+                endpoint: "反应", status: status
+            )
+        }
+        do {
+            return try decoder.decode(ReactionUpdate.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "反应")
+        }
+    }
+
+    // MARK: - 设置全集与诊断端点（棒 5 / mac-07，对位 #70/#75/#76/#82–#86）
+
+    /// GET /health/detailed（Bearer）：深度健康检查（连接自检 #82）
+    func healthDetailed(
+        config: ServerConfig, apiKey: String
+    ) async throws -> HealthDetailedResponse {
+        try await bearerGet(
+            config: config, apiKey: apiKey,
+            path: "/health/detailed", endpoint: "深度健康接口"
+        )
+    }
+
+    /// GET /v1/approvals（Bearer）：自检用强类型待批列表
+    func listApprovalsSummary(
+        config: ServerConfig, apiKey: String
+    ) async throws -> ApprovalsListResponse {
+        try await bearerGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/approvals", endpoint: "待批接口"
+        )
+    }
+
+    /// GET /v1/settings/registry（Bearer）：服务端设置注册表
+    func settingsRegistry(
+        config: ServerConfig, apiKey: String
+    ) async throws -> SettingsRegistryResponse {
+        try await bearerGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/settings/registry", endpoint: "设置注册表接口"
+        )
+    }
+
+    /// GET /api/logs?level=&search=&lines=：系统日志（#84）
+    func logs(
+        config: ServerConfig, apiKey: String,
+        level: String?, search: String?, lines: Int = 200
+    ) async throws -> LogsResponse {
+        var query = [URLQueryItem(name: "lines", value: String(lines))]
+        if let level, !level.isEmpty {
+            query.append(URLQueryItem(name: "level", value: level))
+        }
+        if let search, !search.isEmpty {
+            query.append(URLQueryItem(name: "search", value: search))
+        }
+        return try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/logs", query: query, endpoint: "日志接口"
+        )
+    }
+
+    /// GET /api/audio/voice-config：服务端语音配置（#70）
+    func voiceConfig(
+        config: ServerConfig, apiKey: String
+    ) async throws -> VoiceConfigResponse {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/audio/voice-config", endpoint: "语音配置"
+        )
+    }
+
+    /// GET /v1/auth/sessions：已签发登录会话（#75）
+    func listAuthSessions(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [AuthSessionSummary] {
+        let response: AuthSessionsListResponse = try await bearerGet(
+            config: config, apiKey: apiKey,
+            path: "/v1/auth/sessions", endpoint: "登录会话列表"
+        )
+        return response.data
+    }
+
+    /// DELETE /v1/auth/sessions/{id}：撤销设备会话（#75）
+    func revokeAuthSession(
+        config: ServerConfig, apiKey: String, sessionID: String
+    ) async throws {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = sessionID.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? sessionID
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/v1/auth/sessions/\(encoded)",
+            method: "DELETE", endpoint: "撤销登录会话"
+        )
+    }
+
+    /// POST /v1/enrollment/codes：签发一次性设备认领码（#76）
+    func issueEnrollmentCode(
+        config: ServerConfig, apiKey: String
+    ) async throws -> EnrollmentIssue {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/v1/enrollment/codes", method: "POST"
+        )
+        guard status == 200 else {
+            if Self.gatewayErrorCode(from: data) == "enrollment_too_many_pending" {
+                throw HermesError.enrollmentTooManyPending
+            }
+            if status == 401 || status == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.unexpectedStatus(endpoint: "认领码", status: status)
+        }
+        do {
+            return try decoder.decode(EnrollmentIssue.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "认领码")
+        }
+    }
+
+    /// POST /api/ops/doctor|security-audit|backup：两段式运维体检（#83）
+    func opsTrigger(
+        config: ServerConfig, apiKey: String, action: String
+    ) async throws -> OpsSpawnResponse {
+        let body: [String: JSONValue]? = (action == "backup") ? [:] : nil
+        return try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/ops/\(action)", method: "POST",
+            body: body, endpoint: "运维动作"
+        )
+    }
+
+    /// GET /api/actions/{name}/status?lines=：运维动作状态与日志（#83）
+    func opsActionStatus(
+        config: ServerConfig, apiKey: String, name: String, lines: Int = 200
+    ) async throws -> OpsActionStatus {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/actions/\(name)/status",
+            query: [URLQueryItem(name: "lines", value: String(lines))],
+            endpoint: "体检进度"
+        )
+    }
+
+    /// GET /api/ops/checkpoints：检查点列表（#83）
+    func opsCheckpoints(
+        config: ServerConfig, apiKey: String
+    ) async throws -> CheckpointsResponse {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/ops/checkpoints", endpoint: "检查点"
+        )
+    }
 }
