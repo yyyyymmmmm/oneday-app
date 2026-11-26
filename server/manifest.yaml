@@ -216,7 +216,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/write_gate_gateway.py
       mount_mode: ro
-      sha256: 4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
+      sha256: a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [write-gate-gateway-module, write-gate-routes, memories-routes]
       summary: 写闸网关模块（1.10.0 新增，断桥批二 bridge-retirement-spec-20261124 §3）：companion write_gate_bridge.py 业务逻辑拆壳入关，12 个公共函数对应桥的 12 条路由（status/pending 列表与详情/approve+reject/decisions/rules 增删查/memories 列表详情与 propose），状态路径原地 write-gate/ 三文件（rules.json/decisions.jsonl/anchors.json）不变，fail-closed 语义不变（上游模块不可用时 supported=False 写操作 409），清扫线程 5 秒间隔与桥同；api_server.py 挂 12 条 /v1 正口＋12 条保形口 /api/write-gate（迁移期路径保形 §5.2，App 清理后摘除）并在 connect() 调 start()。本模块即 App 侧写审批的裁决面（裁决经 handle_pending_subcommand 落 Hermes 本体暂存机器）；模块不可用时端点回 503、App 侧裁决暂不可用，Hermes 本体审批链（run 内等待、其他面作答）不受影响。全 handler 经 api_server @_require_auth 验 API_SERVER_KEY（凭据单源），桥独立钥 WRITE_GATE_BRIDGE_KEY 随批二应用退役。
@@ -417,7 +417,7 @@ components:
       sha256: 040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物（2.7.1 线原件，包 2.8.0 回填登记；与 companion/modules/ 退役副本逐字同件）
       provides: [state-db-schema-verify]
-      summary: state.db 只读指纹守卫（2.7.1 线原件、包 2.8.0 回填）：verify_state_db_schema 以只读 URI 打开 state.db、校验 sessions/messages 必需表列在位、回 sha256 指纹（前 16 位）；守卫缺席或校验不过时调用方 fail-soft 跳过本轮、不拦旧行为。包内自测 push_sender_and_schema_guard_selftest.py 覆盖。现行 instance 的两处接线（oneday_seg_delivery 开库前校验、write_gate_gateway._AnchorResolver._load 开库前校验）随 2.7.1 线文件在役；本包线同名两文件的接线对齐属全树对账待裁项（见 2.8.0 应用记录），本条只登记模块本体与挂载。
+      summary: state.db 只读指纹守卫（2.7.1 线原件、包 2.8.0 回填）：verify_state_db_schema 以只读 URI 打开 state.db、校验 sessions/messages 必需表列在位、回 sha256 指纹（前 16 位）；守卫缺席或校验不过时调用方 fail-soft 跳过本轮、不拦旧行为。包内自测 push_sender_and_schema_guard_selftest.py 覆盖。现行 instance 的两处接线（oneday_seg_delivery 开库前校验、write_gate_gateway._AnchorResolver._load 开库前校验）随 2.7.1 线文件在役；本包线同名两文件已于 2026-11-26 接线小包（司礼监裁 A）按 a2fecf5c 原文增量对齐接线（只入仓、随再下一个部署包上线），接线自检 db_schema_guard_wiring_selftest.py 覆盖。
     - name: credential_vault.py
       kind: module
       source: patches/credential_vault.py
@@ -480,7 +480,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_delivery.py
       mount_mode: ro
-      sha256: b369f9480295decb32f9944748dc9ad4d5c027d4b9541581b8e2da2f09ebb191
+      sha256: 1ec7bd11c4ee5585658ebe628fb3c9b54654d34d6668812a546147f518895820
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
