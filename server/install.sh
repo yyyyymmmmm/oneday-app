@@ -114,7 +114,7 @@ MODULES=(
   "oneday_seg_goals_facade.py|patches/oneday_seg_goals_facade.py|/opt/hermes/gateway/platforms/oneday_seg_goals_facade.py|f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352"
   "oneday_seg_ideas_gen.py|patches/oneday_seg_ideas_gen.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py|93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3"
   "oneday_seg_ideas_pool.py|patches/oneday_seg_ideas_pool.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_pool.py|762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4"
-  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|768bd29f4ff5d8c8e9408fbdc938241fa33d8cbb873551f090a100199fd5b801"
+  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|cd2679a66c6364c7527ee3ed6ae093b781b2213f8f5bd511d8fab08c9a95bd9f"
   "oneday_seg_library_mcp.py|patches/oneday_seg_library_mcp.py|/opt/hermes/gateway/platforms/oneday_seg_library_mcp.py|29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd"
   "oneday_seg_monitors.py|patches/oneday_seg_monitors.py|/opt/hermes/gateway/platforms/oneday_seg_monitors.py|fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07"
   "oneday_seg_sessions.py|patches/oneday_seg_sessions.py|/opt/hermes/gateway/platforms/oneday_seg_sessions.py|5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d"

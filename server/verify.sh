@@ -67,7 +67,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
   [oneday_seg_ideas_gen.py]=93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
   [oneday_seg_ideas_pool.py]=762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4
-  [oneday_seg_ledger.py]=768bd29f4ff5d8c8e9408fbdc938241fa33d8cbb873551f090a100199fd5b801
+  [oneday_seg_ledger.py]=cd2679a66c6364c7527ee3ed6ae093b781b2213f8f5bd511d8fab08c9a95bd9f
   [oneday_seg_library_mcp.py]=29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
   [oneday_seg_monitors.py]=fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
   [oneday_seg_sessions.py]=5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d
@@ -936,3 +936,10 @@ fi
 if grep -q 'odc-face-diag' "$PLUG_DIR/dist/index.js" 2>/dev/null; then ok "webdiag-asset" "数据卷插件资产含诊断面（odc-face-diag 锚点在位）"; else bad "webdiag-asset" "数据卷插件资产无诊断面锚点（install 3f 未同步棒 6 资产）"; fi
 if grep -q 'odc-lightbox' "$PLUG_DIR/dist/index.js" 2>/dev/null && grep -q 'odc-lightbox' "$PLUG_DIR/dist/style.css" 2>/dev/null; then ok "weblightbox-asset" "数据卷插件资产含图片大图查看（index.js 逻辑 + style.css 样式）"; else bad "weblightbox-asset" "数据卷插件资产缺大图查看件（棒 6 资产未同步全）"; fi
 unk "webbar6-browser" "棒 6 真浏览器目视（诊断面一键自检六项逐项出结果、崩溃报告真数据渲染、待批提醒开关与新增待批弹通知、动态/文件预览/头像图片点开大图与 Esc/点击关闭）属部署验收人工项；服务端等价链由部署单实测留据。会话置顶写口未补齐·遗留（浏览器可达的会话编辑走上游修订围栏协议、裸 PATCH 回 409 client_upgrade_required，见 web-plugins/oneday-console/BAR6-INVENTORY.md），不在本节探针范围"
+# ---- 42. 身份页流水换源（包 2.18.2, #61；队列 155）: 台账列表出口过滤系统轮运行记录 ----
+if [ -n "$API_KEY" ]; then
+  FEED_JOB_N=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger" | python3 -c 'import json,sys; d=json.load(sys.stdin); items=d.get("items") or []; print(sum(1 for i in items if isinstance(i, dict) and i.get("kind")=="job"))' 2>/dev/null || echo -1)
+  if [ "$FEED_JOB_N" = "0" ]; then ok "feed-source-swap" "GET /v1/oneday/ledger 列表内 job 件（系统轮逐次运行记录）= 0（服务端出口过滤在位，队列 155）"; else bad "feed-source-swap" "台账列表仍含 job 件 $FEED_JOB_N 条（期望 0；探针异常时值为 -1）"; fi
+else
+  unk "feed-source-swap" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi

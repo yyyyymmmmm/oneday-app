@@ -532,10 +532,29 @@ def _ledger_counts_view() -> dict:
     return view
 
 
+def _ledger_is_system_run(item) -> bool:
+    """A bridge-self system round's run record (queue 155,
+    identity-page alignment contract sec.5): the job items are
+    booked by _ledger_job_start for the bridge's own system
+    rounds (morning/ideas/briefing -- the rounds sj-05's
+    is_system classification covers). They are scheduled-task
+    run history, not session/work events, so the activity
+    stream must not carry them."""
+    return item.get("kind") == "job" \
+        and item.get("origin") == "bridge_self"
+
+
 def _ledger_list_view(since) -> dict:
     store = _ledger()
     now = _now()
     items = store.list_items() if since is None         else store.changes_since(since)
+    # Feed source swap (queue 155): the list exit serves the
+    # session-and-work event stream only. System-task runs are
+    # filtered HERE, at the server exit -- the items stay in
+    # the store (scheduled faces, job detail and the boot-time
+    # orphan settle still read them), clients just render.
+    items = [it for it in items
+             if not _ledger_is_system_run(it)]
     return {"items": items, "snapshotSeq": store.seq,
             "ledgerUpdatedAt": store.last_event_at,
             "collectorHeartbeatAt": store.collector_heartbeat_at,
