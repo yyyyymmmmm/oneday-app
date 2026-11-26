@@ -214,6 +214,88 @@ check("cron script source identifies system job",
       cron_proj.is_system_job({"name": "后台任务",
                                "script": "/opt/data/scripts/oneday-round-ideas.py"}))
 
+print("== title-human real fix (queue 173) ==")
+# derive from the decision summary alone: the live decisions file
+# carries target_name on none of its lines, the object only ever
+# lived in the summary text.
+check("derive from batch summary, one slug",
+      led.derive_title_human({
+          "op_kinds": ["create"],
+          "summary": "batch(1 ops: create) on approval-card-trial-1126"})
+      == "新建了 approval-card-trial-1126")
+check("derive from batch summary, two slugs",
+      led.derive_title_human({
+          "summary": "batch(4 ops: patch, patch, patch, patch) on "
+                     "hermes-agent, weekly-review-planning"})
+      == "修改了 hermes-agent、weekly-review-planning")
+check("derive mixed kinds -> 更新了",
+      led.derive_title_human({
+          "summary": "batch(2 ops: patch, create) on a-skill, b-skill"})
+      == "更新了 a-skill、b-skill")
+check("derive from memory apply summary",
+      led.derive_title_human({
+          "summary": "apply 1 op(s) to user profile: - add: 位于西安"})
+      == "新增了 用户档案")
+check("derive truncated slug stays empty (object unrecoverable)",
+      led.derive_title_human({
+          "op_kinds": ["create"],
+          "summary": "batch(1 ops: create) on approv…"}) == "")
+check("derive no facts stays empty",
+      led.derive_title_human({"op_kinds": ["patch"]}) == "")
+
+# Collector backfill: a legacy approval item born without a
+# headline heals from its surviving decision line; an item whose
+# line is gone (rotated away) is never guessed at.
+bf_store = led.LedgerStore(tmp / "backfill-ledger.jsonl")
+bf_store.create_or_merge({
+    "id": "appr:bf-heal", "kind": "approval", "source": "bridge",
+    "title": "batch(1 ops: create) on approv…",
+    "titleSource": "record_excerpt", "status": "completed",
+    "startedAt": now - 10, "origin": "reported"})
+bf_store.create_or_merge({
+    "id": "appr:bf-orphan", "kind": "approval", "source": "bridge",
+    "title": "batch(1 ops: create) on approv…",
+    "titleSource": "record_excerpt", "status": "completed",
+    "startedAt": now - 9, "origin": "reported"})
+bf_path = tmp / "bf-decisions.jsonl"
+bf_path.write_text(json.dumps({
+    "id": "bf-heal", "decision": "approved",
+    "summary": "batch(1 ops: create) on bf-skill",
+    "op_kinds": ["create"]}, ensure_ascii=False) + "\n",
+    encoding="utf-8")
+bf_collector = led.Collector(bf_store, decisions_path=bf_path,
+                             now_fn=lambda: now)
+bf_actions = {"created": 0, "settled": 0, "stale": 0}
+bf_collector._step_title_human(bf_actions, now)
+check("backfill heals from surviving decision line",
+      bf_store.get("appr:bf-heal").get("title_human")
+      == "新建了 bf-skill",
+      repr(bf_store.get("appr:bf-heal").get("title_human")))
+check("backfill never guesses an orphan's object",
+      not bf_store.get("appr:bf-orphan").get("title_human"))
+
+# schedule_display humanized at the projection source.
+check("schedule daily", cron_proj.humanize_schedule("30 7 * * *")
+      == ("每天 7:30", True))
+check("schedule step minutes",
+      cron_proj.humanize_schedule("*/30 * * * *") == ("每 30 分钟", True))
+check("schedule weekday", cron_proj.humanize_schedule("0 3 * * 0")
+      == ("每周日 3:00", True))
+check("schedule workdays", cron_proj.humanize_schedule("30 7 * * 1-5")
+      == ("工作日 7:30", True))
+check("schedule monthly", cron_proj.humanize_schedule("5 4 1 * *")
+      == ("每月 1 日 4:05", True))
+check("schedule dom+dow keeps raw",
+      cron_proj.humanize_schedule("0 9 1 * 1") == ("0 9 1 * 1", False))
+sched_proj = cron_proj.project_jobs(
+    [{"name": "x", "schedule_display": "30 7 * * *"},
+     {"name": "y", "schedule_display": "0 9 1 * 1"}])
+check("project_jobs renders human schedule",
+      sched_proj[0]["schedule_display"] == "每天 7:30")
+check("project_jobs marks unparseable schedule",
+      sched_proj[1]["schedule_display"] == "0 9 1 * 1"
+      and sched_proj[1].get("schedule_display_raw") == "0 9 1 * 1")
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)} 项: {FAILS}")

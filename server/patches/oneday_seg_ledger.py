@@ -262,6 +262,213 @@ def _ledger_monitor_reconcile() -> int:
         return 0
 
 
+# -- human headlines for run items (queue 173) -----------------------
+#
+# Run items are born from App reports whose titleSeed is the run's
+# first input text. For the bridge's own generation rounds that text
+# is the round's system instruction, so the book filled with prompt
+# excerpts as titles (probe 172: one prompt family held 261 of the
+# 404 served items, and title_human existed on exactly one). The
+# App cannot know better; the server can: the run's session carries
+# a real name in the Hermes state.db, and the rounds' instructions
+# name their own task in their first line. This pass — same cadence
+# and failure discipline as the monitor reconcile above — resolves
+# a human headline (and, for settled runs, the activity summary
+# from the session's last tool call) and stores it through
+# update_fields, so the heal is an event in the log and survives
+# restarts. Anything unresolvable stays untouched: a missing
+# headline is honest, an invented one is not. This is a headline
+# pass only — it never touches status, evidence or counts, so the
+# C-4 "no reconciler" discipline for terminal states is intact.
+
+_HUMANIZE_STATE_DB = Path(os.environ.get(
+    "HUMANIZE_STATE_DB", str(DATA_PATH.parent.parent / "state.db")))
+# Title healing is one batched session query plus one log event per
+# healed item, so it runs over every target each pass; the per-item
+# last-tool lookup for summaries is the expensive part and is capped
+# per pass (the backlog drains over the first passes after deploy).
+_HUMANIZE_SUMMARY_LOOKUPS_PER_PASS = 120
+
+# The bridge rounds' instructions name their own task in the first
+# line; the headline is that name, never the instruction body.
+_HUMANIZE_ROUND_HEADS = (
+    (("口味笔记整理者", "feed_reconcile"), "动态口味笔记整理"),
+    (("动态报社宪法", "feed_constitution"), "动态报社宪法"),
+    (("动态社交取材", "feed_social_material"), "动态社交取材"),
+    (("动态取材", "feed_material"), "动态取材"),
+    (("会话摘要器",), "会话摘要整理"),
+)
+
+
+def _humanize_round_name(title) -> str:
+    text = title if isinstance(title, str) else ""
+    for needles, name in _HUMANIZE_ROUND_HEADS:
+        if any(n in text for n in needles):
+            return name
+    return ""
+
+
+def _humanize_sane_session_title(title) -> str:
+    """A session title is a usable headline only when it reads like
+    a name for the task: even LLM-graded titles can be fragments
+    ('{ #13', '**亲口** #6'); those fail this gate and the caller
+    falls back to the round name or leaves the item untouched."""
+    if not isinstance(title, str):
+        return ""
+    t = title.strip()
+    if len(t) < 2 or len(t) > 80:
+        return ""
+    if t[0] in "{[#*\"'`>|-":
+        return ""
+    if "feed_" in t or "你是 OneDay" in t or "…" in t:
+        return ""
+    if not re.search(r"[一-鿿A-Za-z]{2,}", t):
+        return ""
+    return t
+
+
+def _humanize_session_rows(session_ids):
+    """{session_id: (title, title_source)} from the Hermes state.db,
+    opened read-only (the write-gate anchor resolver's precedent).
+    A missing db or missing rows are simply absent from the map."""
+    import sqlite3
+    out = {}
+    ids = [s for s in dict.fromkeys(session_ids) if s]
+    if not ids or not _HUMANIZE_STATE_DB.exists():
+        return out
+    try:
+        con = sqlite3.connect(
+            f"file:{_HUMANIZE_STATE_DB}?mode=ro", uri=True,
+            timeout=5)
+        try:
+            for i in range(0, len(ids), 200):
+                chunk = ids[i:i + 200]
+                marks = ",".join("?" * len(chunk))
+                for sid, title, src in con.execute(
+                        "SELECT id, title, title_source FROM sessions"
+                        f" WHERE id IN ({marks})", chunk):
+                    out[sid] = (title, src)
+        finally:
+            con.close()
+    except Exception:
+        return out
+    return out
+
+
+def _humanize_last_tool(session_id):
+    """(tool_name, preview) of the session's last tool call from
+    state.db messages, or None. The preview is the call's primary
+    argument — the same (tool, preview) pair the App-reported
+    activity derivation consumes."""
+    import sqlite3
+    if not session_id or not _HUMANIZE_STATE_DB.exists():
+        return None
+    try:
+        con = sqlite3.connect(
+            f"file:{_HUMANIZE_STATE_DB}?mode=ro", uri=True,
+            timeout=5)
+        try:
+            row = con.execute(
+                "SELECT tool_calls FROM messages WHERE session_id=?"
+                " AND tool_calls IS NOT NULL ORDER BY id DESC"
+                " LIMIT 1", (session_id,)).fetchone()
+        finally:
+            con.close()
+    except Exception:
+        return None
+    if not row or not row[0]:
+        return None
+    try:
+        calls = json.loads(row[0])
+    except Exception:
+        return None
+    if not isinstance(calls, list) or not calls:
+        return None
+    fn = (calls[-1] or {}).get("function") or {}
+    name = fn.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    args = fn.get("arguments")
+    preview = ""
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except Exception:
+            args = None
+    if isinstance(args, dict):
+        for key in ("path", "file_path", "query", "url", "command",
+                    "pattern", "name", "title", "prompt", "text",
+                    "input"):
+            val = args.get(key)
+            if isinstance(val, str) and val.strip():
+                preview = val.strip()
+                break
+        if not preview:
+            for val in args.values():
+                if isinstance(val, str) and val.strip():
+                    preview = val.strip()
+                    break
+    return name, preview
+
+
+def _ledger_humanize_reconcile() -> int:
+    """Fill missing human headlines / activity summaries on run
+    items from state.db session facts. Idempotent: an item is only
+    written when a field actually changes."""
+    healed = 0
+    try:
+        store = _ledger()
+        targets = []
+        for item in store.list_items():
+            if item.get("kind") != "run":
+                continue
+            need_title = not str(
+                item.get("title_human") or "").strip()
+            need_summary = (
+                item.get("status") in _ledger_mod.TERMINAL
+                and not str(item.get("summary") or "").strip())
+            if need_title or need_summary:
+                targets.append((item, need_title, need_summary))
+        if not targets:
+            return 0
+        rows = _humanize_session_rows(
+            [i.get("sessionId") for i, _, _ in targets])
+        lookups = 0
+        for item, need_title, need_summary in targets:
+            fields = {}
+            if need_title:
+                title = item.get("title") or ""
+                round_name = _humanize_round_name(title)
+                sess = rows.get(item.get("sessionId") or "")
+                sane = _humanize_sane_session_title(sess[0]) \
+                    if sess and sess[1] in ("llm", "user") else ""
+                if round_name:
+                    # An instruction excerpt is never the headline:
+                    # prefer the session's own sane name, else the
+                    # round's name from its own first line.
+                    fields["title_human"] = sane or round_name
+                elif item.get("titleSource") == "user_excerpt" \
+                        and sane and sane != title:
+                    fields["title_human"] = sane
+            if need_summary and lookups < \
+                    _HUMANIZE_SUMMARY_LOOKUPS_PER_PASS:
+                lookups += 1
+                last = _humanize_last_tool(item.get("sessionId"))
+                if last:
+                    summary = _ledger_mod.derive_activity_summary(
+                        last[0], last[1])
+                    if summary:
+                        fields["summary"] = summary
+            if fields:
+                store.update_fields(item["id"], fields,
+                                    by="collector")
+                healed += 1
+    except Exception as e:
+        _print(f"ledger humanize failed: {e!r}",
+               file=sys.stderr, flush=True)
+    return healed
+
+
 # -- Dashboard channel helpers (facade data reads) --------------------
 # (Pre-C-4 these also fed the ledger collector as its state
 # providers; the collector no longer reads Hermes-side state.
@@ -510,6 +717,9 @@ def _ledger_start_collector() -> None:
             # line -- a monitor-pass failure must not stall
             # the collector's zombie ladder above.
             _ledger_monitor_reconcile()
+            # Queue 173 headline pass: same cadence again, own
+            # failure line inside the pass itself.
+            _ledger_humanize_reconcile()
             time.sleep(LEDGER_COLLECTOR_SECONDS)
 
     threading.Thread(target=loop, daemon=True).start()

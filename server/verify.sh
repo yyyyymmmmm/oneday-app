@@ -943,3 +943,17 @@ if [ -n "$API_KEY" ]; then
 else
   unk "feed-source-swap" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
+# ---- 43. 人话标题真修复（包 2.18.4, #63；队列 173）: 派生/回填/接通标记 + cron 人话化行为 + 出口回读 ----
+if docker exec hermes grep -q "_parse_batch_summary" /opt/hermes/gateway/platforms/oneday_ledger_lib.py 2>/dev/null && docker exec hermes grep -q "_step_title_human" /opt/hermes/gateway/platforms/oneday_ledger_lib.py 2>/dev/null; then ok "title-human-derive" "oneday_ledger_lib 含决策 summary 解析派生与 Collector 回填步（队列 173 件 1）"; else bad "title-human-derive" "台账库缺 summary 解析派生/回填步（2.18.4 未应用）"; fi
+if docker exec hermes grep -q "_ledger_humanize_reconcile" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null; then ok "title-human-reconcile" "oneday_seg_ledger 含 run 人话接通 pass（队列 173 件 2/3）"; else bad "title-human-reconcile" "seg 缺 humanize pass（2.18.4 未应用）"; fi
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms.cron_projection import humanize_schedule as h; assert h("30 7 * * *") == ("每天 7:30", True); assert h("30 7 * * 1-5") == ("工作日 7:30", True); assert h("*/30 * * * *") == ("每 30 分钟", True); assert h("5 4 1 * *") == ("每月 1 日 4:05", True); assert h("0 9 1 * 1")[1] is False' 2>/dev/null; then ok "schedule-humanize" "cron_projection.humanize_schedule 行为自检通过（队列 173 件 4）"; else bad "schedule-humanize" "humanize_schedule 行为自检失败"; fi
+if [ -n "$API_KEY" ]; then
+  PROMPT_TITLES=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger" | python3 -c 'import json,sys; d=json.load(sys.stdin); items=d.get("items") or []; rend=[(i.get("title_human") or i.get("title") or "") for i in items if isinstance(i, dict)]; print(sum(1 for t in rend if "feed_reconc" in t or "feed_material" in t or "feed_constitution" in t or "会话摘要器" in t or "口味笔记整理者" in t))' 2>/dev/null || echo -1)
+  if [ "$PROMPT_TITLES" = "0" ]; then ok "title-human-exit" "台账出口渲染标题中指令原文当标题 = 0（队列 173 硬验收）"; else bad "title-human-exit" "出口仍有指令原文标题 $PROMPT_TITLES 件（期望 0；探针异常时值为 -1；回填 pass 未跑完时部署验收复验）"; fi
+  RAW_SCHED=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/api/jobs" | python3 -c 'import json,re,sys; d=json.load(sys.stdin); jobs=d.get("jobs") or []; pat=re.compile(r"^[0-9*/,\-]+( [0-9*/,\-]+){4}$"); print(sum(1 for j in jobs if isinstance(j, dict) and pat.match(str(j.get("schedule_display") or ""))))' 2>/dev/null || echo -1)
+  if [ "$RAW_SCHED" = "0" ]; then ok "schedule-human-exit" "/api/jobs 的 schedule_display 仍呈裸 cron 表达式 = 0（队列 173 硬验收）"; else bad "schedule-human-exit" "仍有 $RAW_SCHED 件 schedule_display 为裸表达式（期望 0；探针异常时值为 -1）"; fi
+else
+  unk "title-human-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+  unk "schedule-human-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "title-human-sampling" "approval 成品句/run 真任务名抽样与最新 60 件互不相同计数属部署验收回读（队列 173 交卷对照表）；verify 只读探针只锁指令原文归零与表达式归零两条"
