@@ -1,0 +1,13 @@
+{
+  "name": "oneday-console",
+  "label": "OneDay",
+  "description": "OneDay 自有功能面（批准/凭据/动态/目标/想法/枢纽）：与 App 同接口同语义，dashboard 官方插件形态（大活12 网页端对齐）",
+  "icon": "Layers",
+  "version": "0.1.0",
+  "tab": {
+    "path": "/oneday",
+    "position": "after:analytics"
+  },
+  "entry": "dist/index.js",
+  "css": "dist/style.css"
+}

@@ -1,0 +1,15 @@
+/* oneday-console plugin styles (棒 0 地基). Neutral, inherits dashboard
+   typography; no hard-coded theme colors beyond muted borders. */
+.odc-root { padding: 16px; max-width: 880px; }
+.odc-head h2 { margin: 0 0 4px; }
+.odc-sub { opacity: 0.75; margin: 0 0 16px; }
+.odc-card { border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 8px; padding: 12px 16px; }
+.odc-count { font-size: 15px; }
+.odc-list { list-style: none; margin: 12px 0; padding: 0; }
+.odc-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(127, 127, 127, 0.2); }
+.odc-row-meta { opacity: 0.6; font-size: 12px; white-space: nowrap; }
+.odc-empty { opacity: 0.7; }
+.odc-btn { margin-top: 8px; padding: 4px 14px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; cursor: pointer; }
+.odc-faces { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.odc-face { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.35); opacity: 0.65; }
+.odc-face-on { opacity: 1; border-style: solid; }

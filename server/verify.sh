@@ -792,3 +792,25 @@ unk "web-login-behavior" "python3 oneday_routes_selftest.py 在包内运行；�
 # ---- 32. 2.7.1 线三件回填（包 2.8.0, #47）: 指纹守卫哈希已并入第 2 节回读; 余两件为配置/宿主面探针 ----
 if grep -q '^platform_hints:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -q 'OneDay app, reached through the gateway' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null; then ok "platform-hint-config" "config.yaml 含 platform_hints.api_server.replace（OneDay 渲染口径，platform-hint-config-patch.py 已应用，包 2.8.0 回填登记）"; else bad "platform-hint-config" "config.yaml 缺 platform_hints 覆盖（上游纯文本提示将压制加粗口径，platform-hint-config-patch.py 未应用）"; fi
 if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-refresh-watcher" "宿主 crontab 含 prompt-refresh-watcher 看守行（包 2.8.0 回填登记）"; else unk "prompt-refresh-watcher" "当前用户 crontab 未见 prompt-refresh-watcher 行（看守装在 root crontab 时不可见，人工核）"; fi
+
+# ---- 33. 网页端插件地基（包 2.12.0, #52）: 资产哈希、名册(user 源)、资产路由、启用登记 ----
+DASHB="http://127.0.0.1:9119"
+PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
+if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
+for pair in "manifest.json c4a176759863cd6be3cbc4f68632f549878924839e316c3a342e61269b3ed54c" "dist/index.js d91c904b7bafa9442183bf13eee7dbcff92d543f6ac73a37e69e493ff9f97545" "dist/style.css 542aa02cc3934dfc7d7c19ab4838d724e18d0c1b7c524348d478130f6353732f"; do
+  set -- $pair
+  got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
+  if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
+done
+if grep -q -- '- oneday-console' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null; then ok "webplug-enabled" "config.yaml plugins.enabled 含 oneday-console（user 源 consent 闸已放行）"; else bad "webplug-enabled" "config.yaml plugins.enabled 未见 oneday-console（插件不会挂载，install 3f 确保未生效）"; fi
+REGPLUG=$(curl -s --max-time 5 "$DASHB/api/dashboard/plugins" | python3 -c 'import json,sys
+try:
+  d = json.load(sys.stdin)
+  hit = [p for p in d if p.get("name") == "oneday-console"]
+  print(hit[0].get("source", "") if hit else "absent")
+except Exception:
+  print("error")' 2>/dev/null || echo error)
+if [ "$REGPLUG" = "user" ]; then ok "webplug-registry" "GET /api/dashboard/plugins 名册含 oneday-console（source=user）"; else bad "webplug-registry" "名册状态: $REGPLUG（期望 user；absent 查启用登记、error 查 dashboard 9119 可达）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DASHB/dashboard-plugins/oneday-console/dist/index.js" || true)
+if [ "$code" = "200" ]; then ok "webplug-asset" "GET /dashboard-plugins/oneday-console/dist/index.js → 200（资产路由在位）"; else bad "webplug-asset" "资产路由应答 $code（期望 200）"; fi
+unk "webplug-browser" "真浏览器全链（登录 dashboard → OneDay 标签页渲染 → reveal 换钥 → 待批真数据上屏）属部署验收人工项；服务端等价链（web-login 200＋cookie 属性 Path=/ SameSite=Lax → reveal 200 钥长 64 → /v1/approvals 200）已于包 2.12.0 棒 0 实测留据"

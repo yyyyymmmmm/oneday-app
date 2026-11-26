@@ -830,6 +830,56 @@ print('model prefetched')
   log "语义模型预取完成"
 fi
 
+# ---------- 3f. 网页端插件资产（大活12，包 2.12.0，#52）：oneday-console ----------
+# 口径：插件住数据卷 plugins/ 目录（dashboard 官方插件机制 user 源），不在
+# 镜像内、上游升级不冲掉；本节幂等整目录同步三件资产（包内为真源）。
+# user 源插件须 config.yaml 的 plugins.enabled 含 oneday-console 才挂载
+# （上游 consent 闸 #46435），本节以文本级编辑幂等确保（只动 plugins 段的
+# enabled 列表、其余字节不变、改前在配置旁留时间戳备份）；配置缺失或锚点
+# 不合时只告警不中断（插件是增量面，verify 第 33 节会探出未启用状态）。
+if [ -d "$PKG_DIR/web-plugins/oneday-console" ]; then
+  pdst="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
+  mkdir -p "$pdst/dist"
+  cp "$PKG_DIR/web-plugins/oneday-console/dashboard/manifest.json" "$pdst/manifest.json"
+  cp "$PKG_DIR/web-plugins/oneday-console/dashboard/dist/index.js" "$pdst/dist/index.js"
+  cp "$PKG_DIR/web-plugins/oneday-console/dashboard/dist/style.css" "$pdst/dist/style.css"
+  chmod 644 "$pdst/manifest.json" "$pdst/dist/index.js" "$pdst/dist/style.css"
+  log "网页端插件 oneday-console：资产已同步至 data/plugins/oneday-console"
+  if [ -f "$DEPLOY_DIR/data/config.yaml" ]; then
+    cp "$DEPLOY_DIR/data/config.yaml" "$DEPLOY_DIR/data/config.yaml.bak-webplug-$(date +%Y%m%d%H%M%S)"
+    python3 - "$DEPLOY_DIR/data/config.yaml" <<'PYEOF' || log "警告：plugins.enabled 确保未完成（锚点不合），网页端插件暂不会挂载，人工核 config.yaml"
+import sys
+path = sys.argv[1]
+lines = open(path, encoding="utf-8").read().split("\n")
+pstart = next((i for i, ln in enumerate(lines) if ln.rstrip() == "plugins:"), None)
+if pstart is None:
+    sys.exit("no plugins block")
+pend = len(lines)
+for i in range(pstart + 1, len(lines)):
+    ln = lines[i]
+    if ln and not ln.startswith((" ", "#", "\t")) and ":" in ln:
+        pend = i
+        break
+eidx = next((i for i in range(pstart + 1, pend) if lines[i].rstrip() == "  enabled:"), None)
+if eidx is None:
+    sys.exit("no plugins.enabled")
+j = eidx + 1
+items = []
+while j < pend and lines[j].startswith("    - "):
+    items.append(lines[j].strip()[2:].strip())
+    j += 1
+if "oneday-console" not in items:
+    lines.insert(j, "    - oneday-console")
+    open(path, "w", encoding="utf-8").write("\n".join(lines))
+    print("plugins.enabled += oneday-console")
+else:
+    print("plugins.enabled already has oneday-console")
+PYEOF
+  else
+    log "警告：data/config.yaml 不存在，跳过 plugins.enabled 确保（首启生成配置后重跑本节或人工启用）"
+  fi
+fi
+
 # ---------- 4. 重启 hermes ----------
 log "重启 hermes 容器使挂载生效"
 if docker compose version >/dev/null 2>&1; then

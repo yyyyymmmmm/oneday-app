@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.11.0   # 双线收口（2026-11-26）：本线 2.8.0（web-login 桥＋凭据库 A+C＋2.7.1 三件回填）与对方线 2.8.0/2.9.0/2.10.0/2.10.1（台账标题与 cron 投影、批准卡多卡、消息附件同体）全量合并取并集；version_gate 与 db_schema_guard 网关接线自 2.7.1 线移回（审计 T-1/T-2）；全表哈希按收口实物复算、manifest/install/verify 三处对平；脱敏五件回填清单见 BACKFILL.md，未回填不许上生产。此前对方线版本：2.10.1（附件投影网关命名空间解析修复）、2.10.0（消息附件同体绑定）、2.9.0（批准卡待批多卡＋原子裁决）、2.8.0（台账 title_human＋cron is_system）。此前本线 2.8.0：面板密码登录桥＋2.7.1 线三件回填；2.7.0：凭据请求列表端点＋聊天 marker。
+version: 2.12.0   # 网页端插件地基（2026-11-26，大活12 棒 0）：新增 web-plugins/oneday-console（dashboard 官方插件路线 A 成立——名册接口 /api/dashboard/plugins、数据卷插件目录、reveal 凭据链三闸实测全过；插件住数据卷 plugins/ 不在镜像内，install 3f 幂等同步资产＋plugins.enabled 文本级确保，verify 第 33 节探针）；差集 #14 选项卡与 #2 聊天凭据卡在网页端记「功能对齐、形态差异」（dashboard 聊天是 xterm 终端面、嵌不进卡片，两件以独立待办面落地，棒 1 施工）。此前 2.11.0：双线收口（2026-11-26）：本线 2.8.0（web-login 桥＋凭据库 A+C＋2.7.1 三件回填）与对方线 2.8.0/2.9.0/2.10.0/2.10.1（台账标题与 cron 投影、批准卡多卡、消息附件同体）全量合并取并集；version_gate 与 db_schema_guard 网关接线自 2.7.1 线移回（审计 T-1/T-2）；全表哈希按收口实物复算、manifest/install/verify 三处对平；脱敏五件回填清单见 BACKFILL.md，未回填不许上生产。此前对方线版本：2.10.1（附件投影网关命名空间解析修复）、2.10.0（消息附件同体绑定）、2.9.0（批准卡待批多卡＋原子裁决）、2.8.0（台账 title_human＋cron is_system）。此前本线 2.8.0：面板密码登录桥＋2.7.1 线三件回填；2.7.0：凭据请求列表端点＋聊天 marker。
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -673,6 +673,24 @@ components:
       host_path: data/config.yaml          # 相对部署目录；属 instance 数据，不入包
       in_package: false
       summary: Hermes 主配置（键结构见 INVENTORY.md）；模型/提供方/MCP 等产品行为在此配置，值（含凭据）由部署者自己的保险库与配置管理负责，本包只登记结构。
+
+  web_plugins:
+    - name: oneday-console
+      kind: dashboard-plugin
+      source: web-plugins/oneday-console
+      host_path: data/plugins/oneday-console            # 相对部署目录；住数据卷、不在镜像内，上游升级不冲掉
+      container: hermes
+      container_path: /opt/data/plugins/oneday-console
+      discovery: dashboard 官方插件机制 user 源（<HERMES_HOME>/plugins/*/dashboard/manifest.json）；user 源须 config.yaml 的 plugins.enabled 含 oneday-console 才挂载（install 3f 文本级幂等确保、改前备份）
+      files:
+        - path: dashboard/manifest.json
+          sha256: c4a176759863cd6be3cbc4f68632f549878924839e316c3a342e61269b3ed54c
+        - path: dashboard/dist/index.js
+          sha256: d91c904b7bafa9442183bf13eee7dbcff92d543f6ac73a37e69e493ff9f97545
+        - path: dashboard/dist/style.css
+          sha256: 542aa02cc3934dfc7d7c19ab4838d724e18d0c1b7c524348d478130f6353732f
+      provides: [web-console-tab, web-approvals-read]
+      summary: 网页端 OneDay 控制台（大活12，包 2.12.0 棒 0 地基）：dashboard 原生标签页（/oneday，after:analytics），凭据流与 App 同构——页面以 dashboard 会话 cookie 调 POST /api/env/reveal 换 API_SERVER_KEY（只存 sessionStorage、关页即失）、Bearer 调现行网关接口，零新后端、无 plugin_api 后端（has_api=false）；逻辑核与形态壳分离（同源 fetch 现行接口），路线 B（同域 /oneday/ SPA）兜底时只换壳不换芯。棒 0 只交地基：标签页在位＋待批真数据一条走通（GET /v1/approvals）；批准处理动作、凭据库等功能面按棒 1 起逐棒销账。形态口径：差集 #14 选项卡、#2 聊天凭据请求卡记「功能对齐、形态差异」——dashboard 聊天为 xterm 终端面无法内嵌卡片，两件以独立待办面落地（功能不缺、形态留痕）。
 
 capabilities_registry: CAPABILITIES.md
 install: install.sh
