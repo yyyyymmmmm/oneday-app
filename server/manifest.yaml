@@ -4,6 +4,13 @@ version: 2.7.0   # 凭据请求列表端点＋聊天 marker（2026-11-26）：�
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
+config_migrations:
+  - name: credential-vault-toolset
+    source: credential-vault-toolset-config-patch.py
+    scope: platform_toolsets.api_server adds only credential_vault
+    version: 2.7.0
+    note: 2.7.0 was verified as packaged but never left applied; this same-version migration activates its credential-vault tools without a version bump.
+
 target:
   hermes_image: nousresearch/hermes-agent:v0.23.0
   hermes_version: "0.23.0"
