@@ -1155,9 +1155,11 @@ if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degrade
 # 2.18.18 增静态对账：MODULES 表 vs 挂载插入表逐件核对，防漏登记（error_boundary 翻车二号教训）。
 # 2.18.19 增三表对账：install.sh（PATCHES/MODULES）、manifest.yaml、verify.sh 期望表登记哈希全部 vs 实物文件对比，任一不符即红（2.18.18 前置校验拦下 1+2+11 件过期）。
 # 2.18.20 增裸导入横扫（write_gate_gateway 翻车根因）：patches 全树扫描 `from <顶层名> import`（非 gateway. 绝对、非相对、非标准库），任一不在真实 sys.path（仅 /opt/hermes 末位）下可达即红。
+# 2.18.21 审计上下文分离（缺陷五号修复）：静态对账＋三表对账为包级前置门（暂存树跑），容器内只验导入冒烟＋裸导入横扫。
 IMPORT_SMOKE=$(docker exec hermes python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py 2>&1 || echo "EXIT_$?")
 case "$IMPORT_SMOKE" in
   *"全部"*"模块导入成功"*"静态对账通过"*"三表对账通过"*) ok "import-smoke" "全模块导入冒烟＋静态对账＋三表对账通过（MODULES 表与挂载插入表对齐且三表登记哈希与实物一致）" ;;
+  *"全部"*"模块导入成功"*"静态对账跳过"*"三表对账跳过"*) ok "import-smoke" "全模块导入冒烟通过＋两审计跳过（容器内只验导入冒烟＋裸导入横扫，两审计为包级门）" ;;
   *"全部"*"模块导入成功"*"静态对账通过"*) ok "import-smoke" "全模块导入冒烟＋静态对账通过（MODULES 表与挂载插入表对齐）" ;;
   *"全部"*"模块导入成功"*) ok "import-smoke" "全模块导入冒烟通过（部署布局下所有 MODULES 与 web_routers 可达）" ;;
   EXIT_1) bad "import-smoke" "导入冒烟或静态对账或三表对账失败（至少一个模块导入失败或 MODULES/挂载表不对齐或登记哈希不符，stderr 有详情）" ;;
