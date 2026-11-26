@@ -89,7 +89,7 @@ PATCHES=(
 MODULES=(
   "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
   "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|aa503b2a0ffaec4d6806d22ef8a9e7b5cf156d6396cdfc45d64c790eedd6e884"
-  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|07d21daaf2803cc0f1aa978b6993bd2b5de64824f9369ddbdfab819ebdda95fc"
+  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|f34b259e7cd766f5b6e7b3ef290d603a59be77e133f6051b843d363bae3d5479"
   "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
@@ -105,7 +105,7 @@ MODULES=(
   "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|5f348b5583ed47bae0d272556c6d9c75382be4cf2cfebf68069baaf216f51105"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
-  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|26502c276202a1ef385a38b6c5813c254465c059c7b324f04ffd37805d9e94cf"
+  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|7a3c5fcc664e175b1a214fda343dee0a38fcb142079c2ecf8a5aeccc1ec5fdc2"
   "oneday_memory.py|patches/oneday_memory.py|/opt/hermes/gateway/platforms/oneday_memory.py|43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44"
   "system_prompt.py|patches/system_prompt.py|/opt/hermes/agent/system_prompt.py|7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f"
   "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227"
