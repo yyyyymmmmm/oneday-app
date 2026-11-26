@@ -117,6 +117,12 @@ def humanize_schedule(expr):
         mm = minute[1][0]
         return (f"每 {hour[1]} 小时" if mm == 0
                 else f"每 {hour[1]} 小时的 {mm:02d} 分"), True
+    if minute[0] == "list" and hour[0] == "any" and dom[0] == "any" \
+            and month[0] == "any" and dow[0] == "any":
+        # Fixed minute(s) of every hour ('5 * * * *', queue 183:
+        # the hourly evaluation round kept its raw expression).
+        mins = "、".join(str(v) for v in minute[1])
+        return f"每小时第 {mins} 分钟", True
     if minute[0] != "list" or hour[0] != "list":
         return expr, False
     times = [f"{h}:{m:02d}" for h in hour[1] for m in minute[1]]

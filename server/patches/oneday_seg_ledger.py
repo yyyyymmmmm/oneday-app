@@ -296,6 +296,7 @@ _HUMANIZE_ROUND_HEADS = (
     (("动态报社宪法", "feed_constitution"), "动态报社宪法"),
     (("动态社交取材", "feed_social_material"), "动态社交取材"),
     (("动态取材", "feed_material"), "动态取材"),
+    (("点子生成器", "ideas_gen"), "点子生成"),
     (("会话摘要器",), "会话摘要整理"),
 )
 
