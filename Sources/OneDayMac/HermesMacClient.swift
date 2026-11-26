@@ -699,4 +699,34 @@ struct HermesMacClient: Sendable {
             throw HermesError.decodingFailed(endpoint: "文件上传")
         }
     }
+
+    // MARK: - 档案与身份（棒 1，对位 #65）
+
+    /// GET /api/profiles/active：当前档案名
+    func activeProfile(
+        config: ServerConfig, apiKey: String
+    ) async throws -> ActiveProfileResponse {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles/active", endpoint: "当前档案"
+        )
+    }
+
+    /// GET /api/profiles/{name}/soul：档案人设正文
+    /// （profile 名按单个 path segment 百分号编码，
+    /// 与 iOS soulPath 同口径）
+    func profileSoul(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws -> ProfileSoulDocument {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? name
+        return try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles/\(encoded)/soul",
+            endpoint: "档案人设"
+        )
+    }
 }

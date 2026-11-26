@@ -22,8 +22,14 @@ final class SessionStore {
     private(set) var config: ServerConfig?
     private(set) var modelID: String?
     private(set) var modelCount = 0
+    /// 可用模型全清单（棒 1 模型选择器 #17 消费）
+    private(set) var availableModels: [String] = []
     private(set) var hermesVersion: String?
     private(set) var capabilities: CapabilitiesResponse?
+    /// 当前档案名与智能体名（棒 1 设置通用节 #65 身份
+    /// 消费；连上后经档案面读取，读不到留 nil 不冒充）
+    private(set) var activeProfileName: String?
+    private(set) var agentDisplayName: String?
     var lastError: String?
 
     private let client = HermesMacClient()
@@ -33,6 +39,20 @@ final class SessionStore {
     var isConnecting: Bool {
         if case .connecting = phase { return true }
         return false
+    }
+
+    /// 聊天主链共用通道（棒 1）：功能面 Store 经此取
+    /// 客户端与登录密钥，不另持第二套凭据
+    var chatClient: HermesMacClient { client }
+
+    var apiKey: String? {
+        MacKeychain.read(account: MacCredentialKey.apiKey)
+    }
+
+    /// 短时票据能力位（设置服务器节 #75 呈现：服务端
+    /// 广告 features.short_lived_tokens 的直读结果）
+    var shortLivedTokensSupported: Bool? {
+        capabilities?.shortLivedTokensSupported
     }
 
     /// 能力位摘要（壳层状态面用）：服务端广告的
@@ -59,9 +79,11 @@ final class SessionStore {
             self.config = config
             self.modelID = ids.first
             self.modelCount = ids.count
+            self.availableModels = ids
             self.capabilities = caps
             self.hermesVersion = status?.version
             phase = .connected
+            await loadIdentity()
         } catch {
             phase = .signedOut
         }
@@ -103,9 +125,11 @@ final class SessionStore {
             self.config = config
             self.modelID = ids.first
             self.modelCount = ids.count
+            self.availableModels = ids
             self.capabilities = caps
             self.hermesVersion = status?.version ?? health.version
             phase = .connected
+            await loadIdentity()
         } catch let error as HermesError {
             lastError = error.userMessage
             phase = .signedOut
@@ -115,14 +139,36 @@ final class SessionStore {
         }
     }
 
+    /// 身份读取（#65）：当前档案 → 人设正文 → 智能体
+    /// 名（Core AgentName.resolve 同口径）；任一段读
+    /// 不到如实留空，设置面回落缺省名，不编造
+    private func loadIdentity() async {
+        guard let config, let key = apiKey else { return }
+        let profile = try? await client.activeProfile(
+            config: config, apiKey: key
+        )
+        activeProfileName = profile?.name
+        if let name = profile?.name {
+            let soul = try? await client.profileSoul(
+                config: config, apiKey: key, name: name
+            )
+            agentDisplayName = AgentName.resolve(
+                soulContent: soul?.content
+            )
+        }
+    }
+
     /// 断开连接：清 Keychain 三件套，回登录页
     func disconnect() {
         MacKeychain.deleteAllCredentials()
         config = nil
         modelID = nil
         modelCount = 0
+        availableModels = []
         hermesVersion = nil
         capabilities = nil
+        activeProfileName = nil
+        agentDisplayName = nil
         lastError = nil
         phase = .signedOut
     }
