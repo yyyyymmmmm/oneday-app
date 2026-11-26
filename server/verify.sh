@@ -20,14 +20,14 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=a493afb2dc3ab1121716ddd8dc41aec5fc72ab566b94cc6ea216895bcf7464c6
+  [api_server.py]=4cfb9ac47d22c887da49f27feafaed5f6346d7e4c6514c01acc06718373a3e49
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
 declare -A WANT_SHA_EXTRA=(
   [approval_projection.py]=fbebf958392225c46eb34dcc62a673949b0d68fc314537144f25902e56e2c7ff
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
-  [api_server_runs.py]=79edb80b9a07f6d339609de1bad4b14d59104bd98817121a99bfd19dc7399d8a
+  [api_server_runs.py]=3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
@@ -54,8 +54,8 @@ declare -A WANT_SHA_EXTRA=(
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=ed95fcaf15a04abce54a68443e69d455ab3f9ba0cee3b42db4d292e2624e52f0
-  [credential_vault_tool.py]=ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
+  [credential_vault.py]=0677d383ab59874bc22f033f53941a66dc67ffcca86218c1b341f83db7f0e150
+  [credential_vault_tool.py]=a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
@@ -77,6 +77,7 @@ declare -A WANT_SHA_EXTRA=(
   [web_routers_ops.py]=ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481
   [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
+  [vault_request_pending.py]=327cade5ce93c412db0eb962af81c2ed0707eef07d546df00268e38b19f3da48
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done
 declare -A CPATH=(
@@ -135,6 +136,7 @@ declare -A CPATH=(
   [web_routers_ops.py]=/opt/hermes/hermes_cli/web_routers/ops.py
   [options_pending.py]=/opt/hermes/gateway/platforms/options_pending.py
   [present_options_tool.py]=/opt/hermes/tools/present_options_tool.py
+  [vault_request_pending.py]=/opt/hermes/gateway/platforms/vault_request_pending.py
 )
 
 MEM_PCT=$(free | awk '/^Mem:/ {printf "%d", ($2 > 0) ? ($3 * 100 / $2) : 0}')
@@ -145,7 +147,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -913,3 +915,14 @@ else
 fi
 unk "webbar5-dashfaces" "会话消息与反应读面（/api/sessions、/api/sessions/{id}/messages）、语音（/api/audio/voice-config、/api/audio/speak）走 dashboard 会话 cookie，服务端探针无会话不代测；反应写面（PUT/DELETE /v1/reactions）为写型探针、不在 verify 内代跑，部署验收以真浏览器登录态实测留据"
 unk "webbar5-browser" "棒 5 真浏览器目视（工具集启停往返复原、反应设置/撤回往返回读、播报实播、听写出字、身份头像廊渲染、设备/电脑/设置三面真数据、搜索跨面命中与锚点跳转）属部署验收人工项；服务端等价链由部署单实测留据。差集 #19 引用回复未销账·遗留（终端面约束），不在本节探针范围"
+
+# ---- 40. 凭据请求结构化直出＋落盘（包 2.17.2, #59）: 能力位 + 模块在位 + 请求存档形状（只读探针） ----
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"vault_request_block": true'*) ok "vault-block-capability-flag" "features.vault_request_block=true（结构化块下发在位）" ;; *) bad "vault-block-capability-flag" "capabilities 未见 vault_request_block 位" ;; esac
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import vault_request_pending as m; assert m.validate_block({"type": "vault_request", "request_id": "vreq_probe", "service": "probe", "domain": "probe.test", "reason": "probe", "fields": ["password"], "status": "pending"}) is not None' 2>/dev/null; then ok "vault-pending-module" "容器内 vault_request_pending 可导入且 validate_block 形状自洽"; else bad "vault-pending-module" "容器内 vault_request_pending 导入或形状自检失败"; fi
+if docker exec hermes test -f /opt/data/vault/requests.json 2>/dev/null; then
+  if docker exec hermes python3 -c 'import json; d = json.load(open("/opt/data/vault/requests.json")); assert isinstance(d, dict) and isinstance(d.get("requests"), dict)' 2>/dev/null; then ok "vault-requests-store" "请求存档 /opt/data/vault/requests.json 在位且形状合法（落盘生效）"; else bad "vault-requests-store" "请求存档形状非法"; fi
+else
+  unk "vault-requests-store" "请求存档尚未生成（2.17.2 上线后尚无新请求落盘；部署验收真链造请求后复验）"
+fi
+unk "vault-block-behavior" "结构化块全链（run 内 request_credential → 终态 attach → 消息 vault_request 字段回读）与落盘跨重启（造请求→重启网关→仍可列）属部署验收真链，verify 只读探针不代跑"

@@ -65,10 +65,25 @@ def _request(args):
         return err
     try:
         from gateway.platforms import credential_vault as _vault
+        session_id = get_session_env("HERMES_SESSION_ID", "")
+        scope = _scope()
         result = _vault.create_request(
             (args or {}).get("service", ""), (args or {}).get("domain", ""),
             (args or {}).get("reason", ""), (args or {}).get("fields"),
-            get_session_env("HERMES_SESSION_ID", ""), _scope())
+            session_id, scope)
+        # Structured delivery (2.17.2): park the request id so the runs
+        # patch can stamp the canonical vault_request block onto the
+        # turn's final assistant message at terminal state (the same
+        # park -> attach path as option cards). Parking is best-effort:
+        # the request itself is already durable in the vault, and the
+        # body marker below stays as the archive fallback, so a parking
+        # failure must never fail the request.
+        try:
+            from gateway.platforms import vault_request_pending as _pending
+            _pending.put(session_id, get_session_env("HERMES_SESSION_KEY", ""),
+                         result["request_id"], scope)
+        except Exception:
+            pass
         result["marker"] = f"[[vreq:{result['request_id']}]]"
         return json.dumps(result, ensure_ascii=False)
     except Exception:
