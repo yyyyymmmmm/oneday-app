@@ -142,15 +142,17 @@ final class ChatSendMechanism451PinTests: XCTestCase {
         let sharedOutboxRetry = OutboxRetryStore(persisted: true)
         let sharedSessionLedger = SessionLedger(persisted: true)
         let sharedRunLedger = RunLedgerStore(persisted: true)
+        let testAPIKey = "sendmech-pin-key"
 
         let appState = AppState(
             client: ScriptedRunsClient(
                 recorder: CatalogCallRecorder(), runs: script
             ),
-            demoMode: .connected,
+            demoMode: .off,
             outboxRetryStorage: sharedOutboxRetry,
             sessionLedgerStorage: sharedSessionLedger,
-            runLedgerStorage: sharedRunLedger
+            runLedgerStorage: sharedRunLedger,
+            apiKeyProvider: { testAPIKey }
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sessionLedger.setMainServerSessionID(
@@ -163,12 +165,12 @@ final class ChatSendMechanism451PinTests: XCTestCase {
             config: try XCTUnwrap(
                 ServerConfig(rawInput: "https://sendmechpin.test")
             ),
-            apiKey: "sendmech-pin-key"
+            apiKey: testAPIKey
         )
 
-        XCTAssertNotNil(
-            appState.apiKey,
-            "演示态 apiKey 应返回假值 demo-api-key"
+        XCTAssertEqual(
+            appState.apiKey, testAPIKey,
+            "注入的 apiKey 应从 apiKeyProvider 读到"
         )
         return appState
     }

@@ -160,27 +160,27 @@ final class ChatFailKeepPinTests: XCTestCase {
         window.layoutIfNeeded()
     }
 
-    /// 已连接装配：演示态＋connectDirect 落位
-    /// config——drainOutboxIfNeeded 的守卫（!isDemo、
-    /// config/apiKey 非空）由此全过。演示态下 apiKey
-    /// 返回假值 "demo-api-key"、不读钥匙串（测试进程
-    /// 钥匙串读回为 nil），与 SmokeGateMigrationTests
-    /// 同口径
+    /// 已连接装配：真实路径（demoMode: .off）＋注入
+    /// 内存钥匙串替身（预置 apiKey）＋落盘存储注入＋脚本桩
+    /// client——drainOutboxIfNeeded 守卫全过（!isDemo
+    /// 过、apiKey 从注入读到非空）
     private func makeConnectedAppState(
         mainThreadID: UUID
     ) async throws -> AppState {
         let sharedOutboxRetry = OutboxRetryStore(persisted: true)
         let sharedSessionLedger = SessionLedger(persisted: true)
         let sharedRunLedger = RunLedgerStore(persisted: true)
+        let testAPIKey = "failkeep-test-key"
 
         let appState = AppState(
             client: CountingCatalogClient(
                 recorder: CatalogCallRecorder()
             ),
-            demoMode: .connected,
+            demoMode: .off,
             outboxRetryStorage: sharedOutboxRetry,
             sessionLedgerStorage: sharedSessionLedger,
-            runLedgerStorage: sharedRunLedger
+            runLedgerStorage: sharedRunLedger,
+            apiKeyProvider: { testAPIKey }
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sideChats.setLastThreadID(mainThreadID)
@@ -190,12 +190,12 @@ final class ChatFailKeepPinTests: XCTestCase {
             config: try XCTUnwrap(
                 ServerConfig(rawInput: "https://failkeep.test")
             ),
-            apiKey: "failkeep-test-key"
+            apiKey: testAPIKey
         )
 
-        XCTAssertNotNil(
-            appState.apiKey,
-            "演示态 apiKey 应返回假值 demo-api-key"
+        XCTAssertEqual(
+            appState.apiKey, testAPIKey,
+            "注入的 apiKey 应从 apiKeyProvider 读到"
         )
         return appState
     }

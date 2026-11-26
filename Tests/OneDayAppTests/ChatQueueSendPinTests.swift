@@ -142,15 +142,17 @@ final class ChatQueueSendPinTests: XCTestCase {
         let sharedOutboxRetry = OutboxRetryStore(persisted: true)
         let sharedSessionLedger = SessionLedger(persisted: true)
         let sharedRunLedger = RunLedgerStore(persisted: true)
+        let testAPIKey = "queue-pin-test-key"
 
         let appState = AppState(
             client: CountingCatalogClient(
                 recorder: CatalogCallRecorder()
             ),
-            demoMode: .connected,
+            demoMode: .off,
             outboxRetryStorage: sharedOutboxRetry,
             sessionLedgerStorage: sharedSessionLedger,
-            runLedgerStorage: sharedRunLedger
+            runLedgerStorage: sharedRunLedger,
+            apiKeyProvider: { testAPIKey }
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sideChats.setLastThreadID(mainThreadID)
@@ -160,12 +162,12 @@ final class ChatQueueSendPinTests: XCTestCase {
             config: try XCTUnwrap(
                 ServerConfig(rawInput: "https://queuepin.test")
             ),
-            apiKey: "queue-pin-test-key"
+            apiKey: testAPIKey
         )
 
-        XCTAssertNotNil(
-            appState.apiKey,
-            "演示态 apiKey 应返回假值 demo-api-key"
+        XCTAssertEqual(
+            appState.apiKey, testAPIKey,
+            "注入的 apiKey 应从 apiKeyProvider 读到"
         )
         return appState
     }
