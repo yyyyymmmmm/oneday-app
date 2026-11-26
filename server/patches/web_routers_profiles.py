@@ -1128,7 +1128,9 @@ async def export_profile_endpoint(name: str, body: ProfileExport):
     with _profile_errors("POST /api/profiles/%s/export failed", name):
         result = await run_in_threadpool(
             profiles_mod.export_profile, name, output, extra_files=body.extra_files or None)
-    return {"ok": True}
+    # dp-238: return resource name for user reference (not absolute path)
+    archive_name = Path(output).name if output else "profile-export.zip"
+    return {"ok": True, "archive": archive_name}
 
 
 @router.post("/api/profiles/import")
