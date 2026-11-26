@@ -313,7 +313,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/front_gateway.py
       mount_mode: ro
-      sha256: 1cee4a55480ff5183965dbcab4b3d8ba648d67998ffb9a4cbdfeba95c419d695
+      sha256: 5f348b5583ed47bae0d272556c6d9c75382be4cf2cfebf68069baaf216f51105
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物（行为本体自 companion front_bridge.py 平移，原件存续、逐字直采）
       provides: [front-connections-read, front-gateway-channels-read]
       summary: 前台只读面入关（2.3.0 新增，断桥批四）：companion front 桥（8650）的只读两面拆壳——GET /front/connections（登记文件只读投影，状态家 /opt/data/front/connections.json 自宿主旧桥目录平移）与 GET /front/gateway-channels（NewAPI 渠道只读聚合，读进程 env NEWAPI_BASE_URL/NEWAPI_ADMIN_TOKEN/NEWAPI_ADMIN_USER_ID，未配齐回诚实 503 newapi_not_configured）；写面（连接增删改、登记写口）随 companion 面板退役不入关——写口在网关面不存在（404）。鉴权单钥 API_SERVER_KEY。模块导入即 start()。2026-11-26 用户亲裁改判 C-2（写操作搬回网关，就这样）：写面全量入关——连接 CRUD＋凭据提交（Simular 走 MCP initialize 验活、VPS 走 SSH/WinRM/TCP 真探针，验活不过不覆盖旧配置）＋验活＋断开＋删除（内置项禁删）＋SSH Ed25519 密钥对生成（私钥只存服务端、只回公钥＋安装命令）；四类 provider：simular_box／vps_ssh／vps_agent／reverse_node。reverse_node 反向配对补全（包 2.18.11，队列 164）：配对令牌＋命令、按令牌鉴权下发的真安装脚本（GET agent-install.sh/.ps1，脚本本体在本模块内、装心跳代理并首报到）＋节点回连面（POST nodes/{id}/checkin 令牌自验、落 node 状态），conn_public 出 node（online/lastSeenAt/hostname，非密），verify_connection 改查真回连（未回连/心跳超时如实报不通）；conn_public 另出 meta 非密展示字段（host/port/username/osType/authType/publicKey/mcpUrl），秘密值永不出关。裁定来历（C-2 原文与改判）记本模块文件头。包内自测 identity_front_gateway_selftest.py 21 项全过（含 front 两面）。
@@ -445,7 +445,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/overview_gateway.py
       mount_mode: ro
-      sha256: ee7d4bb2fc39d8527c9bd91106d78f4639a20f3fe5c8a411b8f5c223277841a1
+      sha256: 44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [overview-face, overview-notifications, overview-failure-sources]
       summary: 总览面入关（1.19.0 新增，断桥批三）：自 companion overview_bridge.py 拆壳平移——/api/overview-bridge/* 保形面（health/summary/notifications）＋MCP 门面 /overview-mcp（overview_summary 工具）；哨兵改读网关面 runs 终态列表（同进程）；来源侧根治（用户 2026-11-24 六报第 6 条）：流水线 run_* 伪会话的完成不再生成通知（占当日完成通知 62.5%），失败仍生成。数据源 /opt/data/overview（自 hermes/overview-data 整迁）。2.4.0 新增 G1 任务侧失败两源（cron_failed 按 cron_incidents 开放事故聚合、kanban_failed 按任务最新终态 run；读时聚合、born unread、计入未读、cron_since/kanban_since 基线防回灌、error 一行去敏投影），provides 增 overview-failure-sources。
