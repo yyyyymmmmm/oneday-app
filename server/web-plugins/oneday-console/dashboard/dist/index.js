@@ -5,7 +5,10 @@
  * + 棒 2 内容三面 (feed activity/posts, ideas, goals)
  * + 棒 3 枢纽面 (work ledger / audit / grants / cron)
  * + 棒 4 管理面 (memory layers/insights/learning graph, file library,
- *   monitors, MCP connectors, delegation routing): registers as
+ *   monitors, MCP connectors, delegation routing)
+ * + 棒 5 P2 面 (toolsets, message reactions, TTS speak, dictation,
+ *   identity, devices, computer status, structured settings,
+ *   cross-face search): registers as
  * a native dashboard tab via window.__HERMES_PLUGINS__ and renders
  * with the plugin SDK's React.
  *
@@ -35,6 +38,23 @@
  *   GET  /api/mcp/catalog ; POST /api/mcp/catalog/install
  *   GET  /api/delegation/routing ; PUT /api/delegation/backend ;
  *   PUT  /api/delegation/backends/model_map|profile_routes
+ *   GET  /v1/toolsets ; PUT /v1/toolsets/{name}     (bar 5, Bearer)
+ *   GET  /v1/settings/registry                      (bar 5, read-only face)
+ *   GET  /v1/identity/name|avatar ; GET avatar/image?id=  (bar 5, Bearer;
+ *                                                  image bytes via blob)
+ *   GET  /api/device-bridge/health|device/sync/status   (bar 5, Bearer)
+ *   GET  /v1/push/tokens ; GET /v1/auth/sessions    (bar 5, devices face)
+ *   PUT|DELETE /v1/reactions/{session}/{row}        (bar 5, reactions)
+ *   --- dashboard-session faces (bar 5) ---
+ *   GET  /api/sessions ; GET /api/sessions/{id}/messages  (reactions read:
+ *                                                  display_metadata.reactions)
+ *   GET  /api/audio/voice-config ; POST /api/audio/speak  (TTS, data_url)
+ * Dictation uses the browser Web Speech API only; server-side
+ * transcription is NOT wired into this plugin (legacy item, stated
+ * on the face). Quote-reply (gap #19) is verified infeasible here:
+ * the dashboard chat is an xterm terminal surface, the plugin cannot
+ * compose a quote structure into it and owns no send path — left
+ * explicitly 未销账·遗留 (conclusion recorded on the reactions face).
  * Delegation api_key values are masked previews from the server (the
  * App contract: the client never holds the real key); they round-trip
  * in memory only, are rendered as "已存密钥" placeholders, and a newly
@@ -320,7 +340,40 @@
       var body = { profiles: profiles };
       if (def) body["default"] = def;
       return dashJson("PUT", "/api/delegation/backends/profile_routes", body);
-    }
+    },
+    // ---- bar 5: P2 faces ----
+    fetchToolsets: function () { return apiJson("GET", "/v1/toolsets"); },
+    setToolsetEnabled: function (name, enabled) {
+      return apiJson("PUT", "/v1/toolsets/" + encodeURIComponent(name), { enabled: enabled });
+    },
+    fetchSettingsRegistry: function () { return apiJson("GET", "/v1/settings/registry"); },
+    fetchIdentityName: function () { return apiJson("GET", "/v1/identity/name"); },
+    fetchIdentityAvatar: function () { return apiJson("GET", "/v1/identity/avatar"); },
+    fetchAvatarImageBlob: function (id) {
+      return api("GET", "/v1/identity/avatar/image?id=" + encodeURIComponent(id))
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("头像图片应答 " + resp.status);
+          return resp.blob();
+        });
+    },
+    fetchDeviceHealth: function () { return apiJson("GET", "/api/device-bridge/health"); },
+    fetchDeviceSyncStatus: function () { return apiJson("GET", "/api/device-bridge/device/sync/status"); },
+    fetchPushTokens: function () { return apiJson("GET", "/v1/push/tokens"); },
+    fetchAuthSessions: function () { return apiJson("GET", "/v1/auth/sessions"); },
+    fetchDashSessions: function () { return dashJson("GET", "/api/sessions"); },
+    fetchDashMessages: function (sessionId) {
+      return dashJson("GET", "/api/sessions/" + encodeURIComponent(sessionId) + "/messages");
+    },
+    setReaction: function (sessionId, rowId, emoji) {
+      return apiJson("PUT", "/v1/reactions/" + encodeURIComponent(sessionId) + "/" +
+        encodeURIComponent(rowId), { emoji: emoji });
+    },
+    clearReaction: function (sessionId, rowId) {
+      return apiJson("DELETE", "/v1/reactions/" + encodeURIComponent(sessionId) + "/" +
+        encodeURIComponent(rowId));
+    },
+    fetchVoiceConfig: function () { return dashJson("GET", "/api/audio/voice-config"); },
+    speak: function (text) { return dashJson("POST", "/api/audio/speak", { text: text }); }
   };
   window.__ONEDAY_CONSOLE_CORE__ = Core;
 
@@ -2936,6 +2989,769 @@
     return faceShell("委派", "与 App 智能体委派面同一数据源（dashboard /api/delegation/routing）：后端切换、模型路线、档案路线同口，成败以回读为准。模型路线里的密钥只是服务端脱敏预览——永不显示明文，留空保存即保留已存密钥。", face, load, body);
   }
 
+  // ---------------- bar 5 faces ----------------
+  function settle(p) {
+    return p.then(function (v) { return { ok: true, v: v }; },
+      function (e) { return { ok: false, e: (e && e.message) || String(e) }; });
+  }
+
+  // ---- #15 toolsets face ----
+  function ToolsetsFace() {
+    var facePair = useFace(Core.fetchToolsets);
+    var face = facePair[0];
+    var load = facePair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState(null);
+    var note = notePair[0];
+    var setNote = notePair[1];
+
+    function toggle(ts) {
+      setBusy(ts.name);
+      setNote(null);
+      Core.setToolsetEnabled(ts.name, !ts.enabled).then(function () {
+        setBusy("");
+        setNote({ kind: "done", text: "已" + (!ts.enabled ? "启用" : "停用") + "「" + (ts.label || ts.name) + "」（以回读为准）" });
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote({ kind: "error", text: "切换失败：" + ((err && err.message) || String(err)) + "（请看回读）" });
+        load();
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var list = (face.data && Array.isArray(face.data.data)) ? face.data.data : [];
+      var parts = [];
+      parts.push(h("p", { key: "count", className: "odc-count" },
+        "工具集共 ", h("strong", null, String(list.length)), " 个（api_server 平台，与 App 设置同一接口）。切换对新会话生效，进行中的会话不变。"));
+      if (note) {
+        parts.push(h("p", { key: "note", className: note.kind === "error" ? "odc-error" : "odc-done" }, note.text));
+      }
+      if (!list.length) parts.push(h("p", { key: "empty", className: "odc-empty" }, "暂无工具集。"));
+      list.forEach(function (ts) {
+        var meta = [];
+        meta.push(ts.name);
+        if (ts.description) meta.push(ts.description);
+        if (Array.isArray(ts.tools)) meta.push(ts.tools.length + " 个工具");
+        var kids = [
+          h("span", { key: "t", className: "odc-row-title" }, ts.label || ts.name),
+          h("span", { key: "m", className: "odc-row-meta" }, meta.join(" · ")),
+          h("span", { key: "acts", className: "odc-actions" },
+            h("span", { key: "cfg", className: "odc-chip" }, ts.configured ? "已配置" : "未配置"),
+            h("button", {
+              key: "tg",
+              className: ts.enabled ? "odc-chip odc-chip-btn odc-chip-on" : "odc-chip odc-chip-btn",
+              disabled: busy === ts.name,
+              onClick: function () { toggle(ts); }
+            }, busy === ts.name ? "切换中…" : (ts.enabled ? "已启用（点按停用）" : "已停用（点按启用）")))
+        ];
+        parts.push(h("div", { key: ts.name, className: "odc-row odc-row-card" }, kids));
+      });
+      body = parts;
+    }
+    return faceShell("工具集", "与 App 设置里的工具集开关全集同一数据源（GET/PUT /v1/toolsets）：这里启停的是 api_server 平台集，手机会话实际用的就是这一套。", face, load, body);
+  }
+
+  // ---- #23 structured settings face (read-only) ----
+  var SETTINGS_SURFACE_WORDS = {
+    top: "置顶", agent: "智能体", serverAndWorkspace: "服务器与工作区",
+    preferences: "偏好", support: "支持", chat: "聊天", hub: "枢纽"
+  };
+  var SETTINGS_WRITABLE_WORDS = {
+    none: "仅查看", user: "可在 App 修改", agent: "智能体可改", both: "App 与智能体可改"
+  };
+  function settingValueText(rec) {
+    var v = rec.value;
+    if (v === null || v === undefined) return "未设置";
+    if (typeof v === "boolean") return v ? "开" : "关";
+    if (typeof v === "number") return String(v);
+    if (typeof v === "string") {
+      if (/key|secret|token|password|credential/i.test(rec.key || "")) return "••••（不在网页端显示）";
+      return v.length > 80 ? v.slice(0, 80) + "…" : v;
+    }
+    return "（结构化值，见 App）";
+  }
+
+  function SettingsFace() {
+    var facePair = useFace(Core.fetchSettingsRegistry);
+    var face = facePair[0];
+    var load = facePair[1];
+    var body = null;
+    if (face.phase === "ready") {
+      var records = (face.data && Array.isArray(face.data.records)) ? face.data.records : [];
+      var groups = {};
+      var order = [];
+      records.forEach(function (rec) {
+        var s = rec.surface || "其他";
+        if (!groups[s]) { groups[s] = []; order.push(s); }
+        groups[s].push(rec);
+      });
+      var parts = [];
+      parts.push(h("p", { key: "count", className: "odc-count" },
+        "注册表共 ", h("strong", null, String(records.length)), " 条（版本 " + (face.data.version != null ? face.data.version : "?") + "，与 App 设置注册表同一数据源）。"));
+      order.forEach(function (s) {
+        parts.push(h("p", { key: "g-" + s, className: "odc-summary-head" },
+          (SETTINGS_SURFACE_WORDS[s] || s) + "（" + groups[s].length + " 条）"));
+        groups[s].forEach(function (rec) {
+          var meta = [];
+          if (rec.destination) meta.push("去向 " + rec.destination);
+          meta.push(SETTINGS_WRITABLE_WORDS[rec.writable_by] || "仅查看");
+          parts.push(h("div", { key: rec.key, className: "odc-row" },
+            h("span", { key: "t" },
+              h("span", { className: "odc-row-title" }, rec.title || rec.key),
+              h("span", { className: "odc-row-meta" }, " " + meta.join(" · "))),
+            h("span", { key: "v", className: "odc-chip" }, settingValueText(rec))));
+        });
+      });
+      if (!records.length) parts.push(h("p", { key: "empty", className: "odc-empty" }, "注册表暂无记录。"));
+      body = parts;
+    }
+    return faceShell("结构化设置", "本面只读呈现（GET /v1/settings/registry）：修改请在 App 设置或对应功能面进行，本面不冒充可写。密钥类条目的值不在网页端显示。", face, load, body);
+  }
+
+  // ---- #22 identity face ----
+  function IdentityFace() {
+    var facePair = useFace(function () {
+      return Promise.all([Core.fetchIdentityName(), Core.fetchIdentityAvatar()]);
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var urlsPair = hooks.useState({});
+    var urls = urlsPair[0];
+    var setUrls = urlsPair[1];
+
+    hooks.useEffect(function () {
+      if (face.phase !== "ready" || !face.data) return;
+      var avatar = face.data[1] || {};
+      (avatar.items || []).forEach(function (it) {
+        if (urls[it.id]) return;
+        Core.fetchAvatarImageBlob(it.id).then(function (blob) {
+          var u = URL.createObjectURL(blob);
+          setUrls(function (prev) {
+            var n = {};
+            for (var k in prev) n[k] = prev[k];
+            n[it.id] = u;
+            return n;
+          });
+        }).catch(function () { /* keep placeholder */ });
+      });
+    }, [face.phase]);
+
+    var body = null;
+    if (face.phase === "ready") {
+      var name = face.data[0] || {};
+      var avatar2 = face.data[1] || {};
+      var items = Array.isArray(avatar2.items) ? avatar2.items : [];
+      var parts = [];
+      parts.push(h("p", { key: "name", className: "odc-count" },
+        "当前名称：", h("strong", null, name.soulName || "（未设置）")));
+      var nmeta = [];
+      if (name.source) nmeta.push("来源 " + name.source);
+      if (name.updatedAt) nmeta.push("更新于 " + fmtTs(name.updatedAt));
+      if (nmeta.length) parts.push(h("p", { key: "nmeta", className: "odc-row-meta" }, nmeta.join(" · ")));
+      if (name.note) parts.push(h("p", { key: "note", className: "odc-sub" }, name.note));
+      parts.push(h("p", { key: "ah", className: "odc-summary-head" },
+        "头像（共 " + items.length + " 个，当前一个已标注）"));
+      if (!items.length) {
+        parts.push(h("p", { key: "aempty", className: "odc-empty" }, "暂无头像记录。"));
+      } else {
+        parts.push(h("div", { key: "agrid", className: "odc-avatar-grid" },
+          items.map(function (it) {
+            var meta = [];
+            if (it.kind) meta.push(it.kind);
+            if (it.source) meta.push(it.source);
+            if (it.createdAt) meta.push(fmtTsShort(it.createdAt));
+            return h("div", { key: it.id, className: "odc-avatar-cell" },
+              urls[it.id]
+                ? h("img", { className: it.current ? "odc-avatar odc-avatar-on" : "odc-avatar", src: urls[it.id], alt: it.id })
+                : h("div", { className: it.current ? "odc-avatar odc-avatar-on odc-avatar-ph" : "odc-avatar odc-avatar-ph" }, "…"),
+              h("span", { className: "odc-row-meta" }, (it.current ? "当前 · " : "") + meta.join(" · ")));
+          })));
+      }
+      body = parts;
+    }
+    return faceShell("身份", "与 dashboard 的 Profiles 分工：Profiles 管档案与 Soul 编辑，本面呈 OneDay 身份面（名称与头像）的当前状态。改名走 App 或 Soul 面——网关的名称写口已退役，本面只读。", face, load, body);
+  }
+
+  // ---- #20 devices face (status aggregation only) ----
+  function DevicesFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        settle(Core.fetchDeviceHealth()),
+        settle(Core.fetchDeviceSyncStatus()),
+        settle(Core.fetchPushTokens()),
+        settle(Core.fetchAuthSessions())
+      ]);
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var body = null;
+    if (face.phase === "ready") {
+      var health = face.data[0];
+      var sync = face.data[1];
+      var tokens = face.data[2];
+      var sessions = face.data[3];
+      var parts = [];
+      // device channel
+      parts.push(h("p", { key: "h1", className: "odc-summary-head" }, "设备通道"));
+      if (health.ok) {
+        var hv = health.v || {};
+        parts.push(h("div", { key: "hv", className: "odc-row" },
+          h("span", { className: "odc-row-title" }, hv.service || "device-bridge"),
+          h("span", { className: hv.sessionOnline ? "odc-chip odc-chip-on" : "odc-chip" },
+            hv.sessionOnline ? "设备会话在线" : "设备会话离线")));
+      } else {
+        parts.push(h("p", { key: "he", className: "odc-error" }, "通道状态读取失败：" + health.e));
+      }
+      // sync datasets
+      parts.push(h("p", { key: "h2", className: "odc-summary-head" }, "数据同步"));
+      if (sync.ok) {
+        var datasets = (sync.v && sync.v.datasets) || {};
+        var keys = Object.keys(datasets);
+        if (!keys.length) parts.push(h("p", { key: "se", className: "odc-empty" }, "暂无同步数据集。"));
+        keys.forEach(function (k) {
+          var d = datasets[k] || {};
+          var meta = [];
+          if (d.freshness) meta.push(d.freshness);
+          if (d.item_count != null) meta.push(d.item_count + " 条");
+          if (d.permission_state) meta.push("权限 " + d.permission_state);
+          if (d.auth_range) meta.push("范围 " + d.auth_range);
+          if (d.syncing) meta.push("同步中");
+          if (d.pending_write) meta.push("有待写");
+          var kids = [
+            h("span", { key: "t" },
+              h("span", { className: "odc-row-title" }, d.label || k),
+              h("span", { className: "odc-row-meta" }, " " + meta.join(" · "))),
+            h("span", { key: "s", className: d.expired ? "odc-chip odc-st-failed" : "odc-chip odc-st-done" },
+              d.expired ? "已过期" : (d.synced ? "已同步" : "未同步"))
+          ];
+          if (d.last_error) kids.push(h("span", { key: "err", className: "odc-error" }, "最近错误：" + d.last_error));
+          parts.push(h("div", { key: "ds-" + k, className: "odc-row odc-row-card" }, kids));
+        });
+      } else {
+        parts.push(h("p", { key: "se2", className: "odc-error" }, "同步状态读取失败：" + sync.e));
+      }
+      // push tokens
+      parts.push(h("p", { key: "h3", className: "odc-summary-head" }, "推送设备"));
+      if (tokens.ok) {
+        var tv = tokens.v || {};
+        var tlist = Array.isArray(tv.data) ? tv.data : [];
+        parts.push(h("p", { key: "tc", className: "odc-sub" },
+          "已登记 " + tlist.length + " 台 · APNs " + (tv.apns_configured ? "已配置" : "未配置") + "（令牌只显示服务端脱敏预览）"));
+        tlist.forEach(function (t, i) {
+          var meta = [];
+          if (t.environment) meta.push(t.environment);
+          if (t.bundle_id) meta.push(t.bundle_id);
+          if (t.app_version) meta.push("App " + t.app_version);
+          if (t.updated_at) meta.push("更新 " + fmtTs(t.updated_at));
+          parts.push(h("div", { key: "tk-" + i, className: "odc-row" },
+            h("span", { className: "odc-row-title" }, t.token_preview || "（令牌）"),
+            h("span", { className: "odc-row-meta" }, meta.join(" · "))));
+        });
+      } else {
+        parts.push(h("p", { key: "te", className: "odc-error" }, "推送设备读取失败：" + tokens.e));
+      }
+      // auth sessions
+      parts.push(h("p", { key: "h4", className: "odc-summary-head" }, "设备登录会话"));
+      if (sessions.ok) {
+        var slist = (sessions.v && Array.isArray(sessions.v.data)) ? sessions.v.data : [];
+        if (!slist.length) parts.push(h("p", { key: "sn", className: "odc-empty" }, "暂无设备会话。"));
+        slist.forEach(function (s2, i) {
+          var meta = [];
+          if (s2.app_version) meta.push("App " + s2.app_version);
+          if (s2.last_used_at) meta.push("最近使用 " + fmtTs(s2.last_used_at));
+          parts.push(h("div", { key: "ss-" + i, className: "odc-row" },
+            h("span", { className: "odc-row-title" }, s2.device_name || s2.session_id || "（设备）"),
+            h("span", { className: s2.revoked ? "odc-chip odc-st-failed" : "odc-chip odc-st-done" },
+              s2.revoked ? "已撤销" : "有效")));
+          if (meta.length) {
+            parts.push(h("p", { key: "ssm-" + i, className: "odc-row-meta" }, meta.join(" · ")));
+          }
+        });
+      } else {
+        parts.push(h("p", { key: "se3", className: "odc-error" }, "设备会话读取失败：" + sessions.e));
+      }
+      body = parts;
+    }
+    return faceShell("设备", "只做状态聚合呈现（设备通道／数据同步／推送设备／登录会话）：与 App 智能体设备面同一数据源，不做远程控制。", face, load, body);
+  }
+
+  // ---- #21 computer face (status aggregation only) ----
+  function ComputerFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        settle(Core.fetchHealth()),
+        settle(Core.fetchCapabilities()),
+        settle(Core.fetchDeviceHealth()),
+        settle(Core.fetchJobs())
+      ]);
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var body = null;
+    if (face.phase === "ready") {
+      var health = face.data[0];
+      var caps = face.data[1];
+      var dev = face.data[2];
+      var jobs = face.data[3];
+      var cells = [];
+      if (health.ok && health.v) {
+        cells.push({ k: "gw", label: "网关", value: health.v.status || "ok" });
+        if (health.v.version) cells.push({ k: "gv", label: "网关版本", value: String(health.v.version) });
+      } else {
+        cells.push({ k: "gw", label: "网关", value: "读取失败" });
+      }
+      if (caps.ok && caps.v && caps.v.features) {
+        var feat = caps.v.features;
+        var on = Object.keys(feat).filter(function (k) { return feat[k] === true; }).length;
+        cells.push({ k: "feat", label: "已开功能位", value: on + " / " + Object.keys(feat).length });
+      }
+      if (dev.ok && dev.v) {
+        cells.push({ k: "dev", label: "设备会话", value: dev.v.sessionOnline ? "在线" : "离线" });
+      }
+      if (jobs.ok) {
+        var jlist = Array.isArray(jobs.v) ? jobs.v : (jobs.v && Array.isArray(jobs.v.jobs) ? jobs.v.jobs : []);
+        cells.push({ k: "jobs", label: "定时任务", value: String(jlist.length) + " 个" });
+      }
+      var parts = [];
+      parts.push(h("div", { key: "cells", className: "odc-counts" },
+        cells.map(function (c) {
+          return h("div", { key: c.k, className: "odc-count-cell" },
+            h("div", { className: "odc-count-num" }, c.value),
+            h("div", { className: "odc-row-meta" }, c.label));
+        })));
+      parts.push(h("p", { key: "note", className: "odc-sub" },
+        "电脑的终端与工作区在 dashboard 聊天页（上游面，比本面更强）：本面只聚合状态，不做远程控制。"));
+      parts.push(h("p", { key: "links", className: "odc-actions" },
+        h("a", { className: "odc-btn", href: "/" }, "打开 dashboard 聊天／工作区"),
+        h("a", { className: "odc-btn", href: "/files" }, "打开服务器文件页"),
+        h("a", { className: "odc-btn", href: "/system" }, "打开系统页")));
+      body = parts;
+    }
+    return faceShell("电脑", "盒子状态聚合（网关健康／功能位／设备会话／定时任务）＋会话面链接聚合：只呈状态，不复刻终端。", face, load, body);
+  }
+
+  // ---- #16 reactions face ----
+  var REACTION_PALETTE = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉"];
+  var ROLE_WORDS = { user: "用户", assistant: "助手", tool: "工具", system: "系统" };
+  function parseReactions(m) {
+    var meta = m && m.display_metadata;
+    if (typeof meta === "string") {
+      try { meta = JSON.parse(meta); } catch (e) { meta = null; }
+    }
+    var rs = (meta && Array.isArray(meta.reactions)) ? meta.reactions : [];
+    return rs.filter(function (r) { return r && typeof r.emoji === "string" && r.emoji; });
+  }
+
+  function ReactionsFace() {
+    var sessPair = useFace(Core.fetchDashSessions);
+    var sess = sessPair[0];
+    var sessLoad = sessPair[1];
+    var selPair = hooks.useState("");
+    var sel = selPair[0];
+    var setSel = selPair[1];
+    var msgPair = hooks.useState({ phase: "idle", data: null, error: "" });
+    var msgs = msgPair[0];
+    var setMsgs = msgPair[1];
+    var openPair = hooks.useState("");
+    var openId = openPair[0];
+    var setOpenId = openPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState(null);
+    var note = notePair[0];
+    var setNote = notePair[1];
+
+    function loadMessages(sid) {
+      setMsgs({ phase: "loading", data: null, error: "" });
+      Core.fetchDashMessages(sid).then(function (d) {
+        setMsgs({ phase: "ready", data: d, error: "" });
+      }).catch(function (e) {
+        setMsgs({ phase: "error", data: null, error: (e && e.message) || String(e) });
+      });
+    }
+    function choose(sid) {
+      setSel(sid);
+      setOpenId("");
+      setNote(null);
+      if (sid) loadMessages(sid);
+      else setMsgs({ phase: "idle", data: null, error: "" });
+    }
+    function react(m, emoji) {
+      var mine = parseReactions(m).filter(function (r) { return r.author === "user"; })[0];
+      setBusy(String(m.id));
+      setNote(null);
+      var p = (mine && mine.emoji === emoji)
+        ? Core.clearReaction(sel, m.id)
+        : Core.setReaction(sel, m.id, emoji);
+      p.then(function () {
+        setBusy("");
+        setNote({ kind: "done", text: "反应已更新（以回读为准）" });
+        loadMessages(sel);
+      }).catch(function (err) {
+        setBusy("");
+        setNote({ kind: "error", text: "反应失败：" + ((err && err.message) || String(err)) });
+      });
+    }
+    function clearMine(m) {
+      setBusy(String(m.id));
+      setNote(null);
+      Core.clearReaction(sel, m.id).then(function () {
+        setBusy("");
+        setNote({ kind: "done", text: "已撤回你的反应（以回读为准）" });
+        loadMessages(sel);
+      }).catch(function (err) {
+        setBusy("");
+        setNote({ kind: "error", text: "撤回失败：" + ((err && err.message) || String(err)) });
+      });
+    }
+
+    var body = null;
+    if (sess.phase === "ready") {
+      var sessions = (sess.data && Array.isArray(sess.data.sessions)) ? sess.data.sessions : [];
+      var parts = [];
+      parts.push(h("label", { key: "pick", className: "odc-field" }, h("span", null, "选一个会话看消息与反应（最近 20 个，共 " + (sess.data.total != null ? sess.data.total : sessions.length) + " 个）"),
+        h("select", {
+          value: sel,
+          onChange: function (ev) { choose(ev.target.value); }
+        },
+          [h("option", { key: "", value: "" }, "（请选择会话）")].concat(sessions.map(function (s) {
+            var label = s.display_name || s.title || s.id;
+            return h("option", { key: s.id, value: s.id },
+              label + (s.message_count != null ? " · " + s.message_count + " 条" : ""));
+          })))));
+      if (note) {
+        parts.push(h("p", { key: "note", className: note.kind === "error" ? "odc-error" : "odc-done" }, note.text));
+      }
+      if (msgs.phase === "loading") {
+        parts.push(h("p", { key: "ml", className: "odc-empty" }, "正在读消息……"));
+      } else if (msgs.phase === "error") {
+        parts.push(h("p", { key: "me", className: "odc-error" }, "消息读取失败：" + msgs.error));
+      } else if (msgs.phase === "ready") {
+        var list = (msgs.data && Array.isArray(msgs.data.messages)) ? msgs.data.messages : [];
+        var shown = list.slice(-60);
+        if (!shown.length) parts.push(h("p", { key: "mn", className: "odc-empty" }, "这个会话暂无消息。"));
+        shown.forEach(function (m) {
+          var rs = parseReactions(m);
+          var mine = rs.filter(function (r) { return r.author === "user"; })[0];
+          var content = (typeof m.content === "string") ? m.content : "";
+          var kids = [
+            h("span", { key: "h" },
+              h("span", { className: "odc-row-title" }, ROLE_WORDS[m.role] || (m.role || "消息")),
+              h("span", { className: "odc-row-meta" }, " " + fmtTs(m.timestamp))),
+            h("span", { key: "c", className: "odc-preview" },
+              content ? (content.length > 160 ? content.slice(0, 160) + "…" : content) : "（无文本内容）")
+          ];
+          if (rs.length) {
+            kids.push(h("span", { key: "rs", className: "odc-chips" },
+              rs.map(function (r, i) {
+                return h("span", { key: i, className: "odc-chip" },
+                  r.emoji + " " + (r.author === "user" ? "我" : "助手"));
+              })));
+          }
+          var acts = [];
+          if (mine) {
+            acts.push(h("button", {
+              key: "mine", className: "odc-btn odc-btn-text", disabled: busy === String(m.id),
+              onClick: function () { clearMine(m); }
+            }, "你的反应：" + mine.emoji + "，点按撤回"));
+          }
+          acts.push(h("button", {
+            key: "open", className: "odc-btn odc-btn-small",
+            onClick: function () { setOpenId(openId === String(m.id) ? "" : String(m.id)); }
+          }, openId === String(m.id) ? "收起表情盘" : "加反应"));
+          kids.push(h("span", { key: "acts", className: "odc-actions" }, acts));
+          if (openId === String(m.id)) {
+            kids.push(h("span", { key: "pal", className: "odc-chips" },
+              REACTION_PALETTE.map(function (e) {
+                return h("button", {
+                  key: e, className: "odc-emoji-btn", disabled: busy === String(m.id),
+                  onClick: function () { react(m, e); }
+                }, e);
+              })));
+          }
+          parts.push(h("div", { key: String(m.id), className: "odc-row odc-row-card" }, kids));
+        });
+      }
+      parts.push(h("p", { key: "q19", className: "odc-warn" },
+        "引用回复核查结论（差集 #19）：未销账·遗留。dashboard 聊天是 xterm 终端面，插件无法往终端画布组装引用结构、也没有自有发送面把引用随消息送出；待上游聊天面形态变化或路线 B 独立聊天面再议。"));
+      body = parts;
+    }
+    return faceShell("消息反应", "聊天是终端面、嵌不了反应条，反应在本面集中查看与设置：与 App 同一存储（消息 display_metadata.reactions），表情盘与 App 同一套八个。选会话 → 选消息 → 点表情即设置，再点同一个即撤回。", sess, sessLoad, body);
+  }
+
+  // ---- #17 TTS speak face ----
+  var speechAudio = null;
+  function SpeechFace() {
+    var facePair = useFace(Core.fetchVoiceConfig);
+    var face = facePair[0];
+    var load = facePair[1];
+    var textPair = hooks.useState("");
+    var text = textPair[0];
+    var setText = textPair[1];
+    var busyPair = hooks.useState(false);
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var playPair = hooks.useState(false);
+    var playing = playPair[0];
+    var setPlaying = playPair[1];
+    var notePair = hooks.useState(null);
+    var note = notePair[0];
+    var setNote = notePair[1];
+
+    function stopAudio() {
+      if (speechAudio) {
+        try { speechAudio.pause(); speechAudio.currentTime = 0; } catch (e) { /* noop */ }
+      }
+      setPlaying(false);
+    }
+    function speakNow() {
+      var t = (text || "").trim();
+      if (!t) { setNote({ kind: "error", text: "先输入要播报的文字。" }); return; }
+      setBusy(true);
+      setNote(null);
+      Core.speak(t).then(function (resp) {
+        setBusy(false);
+        if (!resp || resp.ok === false || !resp.data_url) {
+          setNote({ kind: "error", text: "播报未成功：" + ((resp && (resp.error || resp.message)) || "服务端未返回音频") });
+          return;
+        }
+        stopAudio();
+        var a = new Audio(resp.data_url);
+        speechAudio = a;
+        a.onended = function () { setPlaying(false); };
+        var pr = a.play();
+        if (pr && pr.catch) pr.catch(function (e) {
+          setPlaying(false);
+          setNote({ kind: "error", text: "浏览器未能播放：" + ((e && e.message) || String(e)) });
+        });
+        setPlaying(true);
+        setNote({ kind: "done", text: "正在播报（合成 provider：" + (resp.provider || "未知") + "，以服务端回执为准）" });
+      }).catch(function (err) {
+        setBusy(false);
+        setNote({ kind: "error", text: "播报失败：" + ((err && err.message) || String(err)) });
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var vc = face.data || {};
+      var parts = [];
+      var vmeta = [];
+      if (vc.tts) vmeta.push("播报模式 " + (vc.tts.mode || "?") + (vc.tts.reason ? "（" + vc.tts.reason + "）" : ""));
+      if (vc.stt) vmeta.push("听写模式 " + (vc.stt.mode || "?"));
+      if (vmeta.length) parts.push(h("p", { key: "vc", className: "odc-sub" }, vmeta.join(" · ")));
+      parts.push(h("label", { key: "ta", className: "odc-field" }, h("span", null, "要播报的文字"),
+        h("textarea", {
+          rows: 4, value: text, placeholder: "输入文字，点播报即合成播放",
+          onChange: function (ev) { setText(ev.target.value); }
+        })));
+      parts.push(h("span", { key: "acts", className: "odc-actions" },
+        h("button", { className: "odc-btn odc-btn-primary", disabled: busy, onClick: speakNow },
+          busy ? "合成中…" : "播报"),
+        h("button", { className: "odc-btn", disabled: !playing, onClick: stopAudio }, "停止")));
+      if (note) {
+        parts.push(h("p", { key: "note", className: note.kind === "error" ? "odc-error" : "odc-done" }, note.text));
+      }
+      body = parts;
+    }
+    return faceShell("语音播报", "与 App 播报同一端点（dashboard /api/audio/speak）：输入文字 → 服务端合成 → 本页播放。聊天内播报在终端面里做不了，集中在本面。", face, load, body);
+  }
+
+  // ---- #18 dictation face (browser Web Speech API only) ----
+  var dictationRec = null;
+  function DictationFace() {
+    var textPair = hooks.useState("");
+    var text = textPair[0];
+    var setText = textPair[1];
+    var recPair = hooks.useState(false);
+    var recOn = recPair[0];
+    var setRecOn = recPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    var supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    var fakeFace = { phase: "ready", data: null, error: "" };
+
+    function toggle() {
+      if (recOn) {
+        if (dictationRec) { try { dictationRec.stop(); } catch (e) { /* noop */ } }
+        return;
+      }
+      if (!supported) {
+        setNote("当前浏览器不支持 Web Speech 识别（Chrome 系浏览器支持较好）。");
+        return;
+      }
+      var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      var rec = new Ctor();
+      rec.lang = "zh-CN";
+      rec.interimResults = false;
+      rec.continuous = true;
+      rec.onresult = function (ev) {
+        var add = "";
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) add += ev.results[i][0].transcript;
+        }
+        if (add) {
+          setText(function (prev) { return (prev ? prev + "\n" : "") + add; });
+        }
+      };
+      rec.onend = function () { setRecOn(false); };
+      rec.onerror = function (ev) {
+        setNote("识别出错：" + (ev.error || "未知"));
+        setRecOn(false);
+      };
+      dictationRec = rec;
+      setNote("");
+      try {
+        rec.start();
+        setRecOn(true);
+      } catch (e) {
+        setNote("识别启动失败：" + ((e && e.message) || String(e)));
+      }
+    }
+
+    var body = [
+      h("label", { key: "ta", className: "odc-field" }, h("span", null, "听写文本（识别结果逐句追加，也可直接编辑）"),
+        h("textarea", {
+          rows: 5, value: text, placeholder: "点开始听写，对着麦克风说话",
+          onChange: function (ev) { setText(ev.target.value); }
+        })),
+      h("span", { key: "acts", className: "odc-actions" },
+        h("button", { className: recOn ? "odc-btn odc-btn-primary" : "odc-btn", onClick: toggle },
+          recOn ? "停止听写" : "开始听写"),
+        h("button", {
+          className: "odc-btn odc-btn-text",
+          onClick: function () { setText(""); }
+        }, "清空")),
+      note ? h("p", { key: "note", className: "odc-warn" }, note) : null,
+      h("p", { key: "legacy", className: "odc-warn" },
+        "说明：本面听写用浏览器 Web Speech API 起步，识别在浏览器侧进行、可用性取决于浏览器；服务端转写尚未接入本面（遗留）。")
+    ];
+    return faceShell("听写", "插件面自有输入框＋浏览器原生语音识别：与 App 输入框听写对位，网页端先以浏览器识别落地。", fakeFace, function () { setNote(""); }, body);
+  }
+
+  // ---- #24 cross-face search (pure frontend aggregation) ----
+  function arrOf(d, keys) {
+    if (Array.isArray(d)) return d;
+    if (!d || typeof d !== "object") return [];
+    for (var i = 0; i < keys.length; i++) {
+      if (Array.isArray(d[keys[i]])) return d[keys[i]];
+    }
+    return [];
+  }
+
+  function SearchFace() {
+    var qPair = hooks.useState("");
+    var q = qPair[0];
+    var setQ = qPair[1];
+    var runPair = hooks.useState({ phase: "idle", groups: null });
+    var run = runPair[0];
+    var setRun = runPair[1];
+    var fakeFace = { phase: "ready", data: null, error: "" };
+
+    function collect(promise, faceId, label, rowsFn, titleFn, metaFn, bodyFn) {
+      return promise.then(function (d) {
+        var rows = [];
+        rowsFn(d).forEach(function (r) {
+          var title = titleFn(r) || "";
+          var meta = metaFn ? (metaFn(r) || "") : "";
+          var b = bodyFn ? (bodyFn(r) || "") : "";
+          rows.push({ title: title, meta: meta, b: b });
+        });
+        return { faceId: faceId, label: label, rows: rows };
+      }).catch(function () {
+        return { faceId: faceId, label: label, rows: null };
+      });
+    }
+
+    function runSearch() {
+      var needle = (q || "").trim().toLowerCase();
+      if (!needle) return;
+      setRun({ phase: "loading", groups: null });
+      function hit(s) { return typeof s === "string" && s.toLowerCase().indexOf(needle) >= 0; }
+      var jobs = [
+        collect(Core.fetchGoals(), "odc-face-goals", "目标",
+          function (d) { return arrOf(d, ["goals", "items", "data"]); },
+          function (r) { return r.title || r.name; }, function (r) { return r.status; }, null),
+        collect(Core.fetchIdeas(), "odc-face-ideas", "想法",
+          function (d) { return arrOf(d, ["ideas", "items", "data"]); },
+          function (r) { return r.title || r.name; }, function (r) { return r.status; },
+          function (r) { return r.summary || r.body; }),
+        collect(Core.fetchFeed(), "odc-face-feed", "动态",
+          function (d) { return arrOf(d, ["posts", "items", "data"]); },
+          function (r) { return r.title; }, function (r) { return r.source_name || r.kind; },
+          function (r) { return r.body || r.content; }),
+        collect(Core.fetchFileLibrary(), "odc-face-files", "文件库",
+          function (d) { return arrOf(d, ["files", "items", "data"]); },
+          function (r) { return r.name || r.title; }, function (r) { return r.path; }, null),
+        collect(Core.fetchMonitors(), "odc-face-monitors", "监控",
+          function (d) { return arrOf(d, ["monitors", "items", "data"]); },
+          function (r) { return r.name; }, function (r) { return r.url; }, null),
+        collect(Core.fetchLedger(), "odc-face-hub", "枢纽台账",
+          function (d) { return arrOf(d, ["items", "data", "entries"]); },
+          function (r) { return r.title_human || r.title || r.summary; },
+          function (r) { return r.status; }, null),
+        collect(Core.fetchVaultEntries(), "odc-face-entries", "凭据库（只搜名目）",
+          function (d) { return arrOf(d, ["entries", "data", "items"]); },
+          function (r) { return r.name || r.title; },
+          function (r) { return r.service || r.domain; }, null),
+        collect(Core.fetchToolsets(), "odc-face-toolsets", "工具集",
+          function (d) { return arrOf(d, ["data", "toolsets", "items"]); },
+          function (r) { return r.label || r.name; }, function (r) { return r.description; }, null)
+      ];
+      Promise.all(jobs).then(function (groups) {
+        var out = groups.map(function (g) {
+          if (!g.rows) return { faceId: g.faceId, label: g.label, failed: true, hits: [] };
+          var hits = g.rows.filter(function (r) { return hit(r.title) || hit(r.meta) || hit(r.b); });
+          return { faceId: g.faceId, label: g.label, failed: false, hits: hits.slice(0, 8), total: hits.length };
+        });
+        setRun({ phase: "ready", groups: out });
+      });
+    }
+
+    var parts = [
+      h("span", { key: "bar", className: "odc-actions" },
+        h("input", {
+          className: "odc-search-input", type: "text", value: q,
+          placeholder: "搜目标／想法／动态／文件／监控／台账／凭据名目／工具集",
+          onChange: function (ev) { setQ(ev.target.value); },
+          onKeyDown: function (ev) { if (ev.key === "Enter") runSearch(); }
+        }),
+        h("button", { className: "odc-btn odc-btn-primary", disabled: run.phase === "loading", onClick: runSearch },
+          run.phase === "loading" ? "搜索中…" : "搜索"))
+    ];
+    if (run.phase === "ready" && run.groups) {
+      var anyHit = false;
+      run.groups.forEach(function (g) {
+        if (g.failed) {
+          parts.push(h("p", { key: "g-" + g.faceId, className: "odc-error" }, g.label + "：读取失败，本组未搜。"));
+          return;
+        }
+        if (!g.hits.length) return;
+        anyHit = true;
+        var kids = [h("p", { key: "h", className: "odc-summary-head" }, g.label + "（命中 " + g.total + " 条）")];
+        g.hits.forEach(function (r, i) {
+          kids.push(h("div", { key: "r" + i, className: "odc-row" },
+            h("span", { className: "odc-row-title" }, r.title || "（无标题）"),
+            h("span", { className: "odc-row-meta" }, r.meta || "")));
+        });
+        kids.push(h("span", { key: "go", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-small",
+            onClick: function () { scrollToFace(g.faceId); }
+          }, "去" + g.label + "面看")));
+        parts.push(h("div", { key: "g-" + g.faceId }, kids));
+      });
+      if (!anyHit) parts.push(h("p", { key: "none", className: "odc-empty" }, "没有命中。换个词试试。"));
+    }
+    return faceShell("全局搜索", "纯前端聚合：实时拉取本控制台各面已有列表接口再跨面匹配，不新造后端。凭据库只搜名目与服务，凭据值永不参与搜索。", fakeFace, runSearch, parts);
+  }
+
   // ---------------- page ----------------
   var NAV_ITEMS = [
     { id: "odc-face-approvals", label: "批准" },
@@ -2952,7 +3768,16 @@
     { id: "odc-face-files", label: "文件库" },
     { id: "odc-face-monitors", label: "监控" },
     { id: "odc-face-connectors", label: "连接器" },
-    { id: "odc-face-delegation", label: "委派" }
+    { id: "odc-face-delegation", label: "委派" },
+    { id: "odc-face-toolsets", label: "工具集" },
+    { id: "odc-face-reactions", label: "反应" },
+    { id: "odc-face-speech", label: "播报" },
+    { id: "odc-face-dictation", label: "听写" },
+    { id: "odc-face-identity", label: "身份" },
+    { id: "odc-face-devices", label: "设备" },
+    { id: "odc-face-computer", label: "电脑" },
+    { id: "odc-face-settings", label: "设置" },
+    { id: "odc-face-search", label: "搜索" }
   ];
 
   function scrollToFace(id) {
@@ -2965,7 +3790,7 @@
       h("div", { key: "head", className: "odc-head" },
         h("h2", null, "OneDay 控制台"),
         h("p", { className: "odc-sub" },
-          "棒 4：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览）走同源会话 cookie；各面与 App 同一数据源。")),
+          "棒 5：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）＋工具集、消息反应、语音播报、听写、身份、设备、电脑、结构化设置、全局搜索（棒 5）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览、会话消息、语音）走同源会话 cookie；各面与 App 同一数据源。")),
       h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
       h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
       h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
@@ -2981,6 +3806,15 @@
       h("div", { key: "w-monitors", id: "odc-face-monitors", className: "odc-anchor" }, h(MonitorsFace, null)),
       h("div", { key: "w-connectors", id: "odc-face-connectors", className: "odc-anchor" }, h(ConnectorsFace, null)),
       h("div", { key: "w-delegation", id: "odc-face-delegation", className: "odc-anchor" }, h(DelegationFace, null)),
+      h("div", { key: "w-toolsets", id: "odc-face-toolsets", className: "odc-anchor" }, h(ToolsetsFace, null)),
+      h("div", { key: "w-reactions", id: "odc-face-reactions", className: "odc-anchor" }, h(ReactionsFace, null)),
+      h("div", { key: "w-speech", id: "odc-face-speech", className: "odc-anchor" }, h(SpeechFace, null)),
+      h("div", { key: "w-dictation", id: "odc-face-dictation", className: "odc-anchor" }, h(DictationFace, null)),
+      h("div", { key: "w-identity", id: "odc-face-identity", className: "odc-anchor" }, h(IdentityFace, null)),
+      h("div", { key: "w-devices", id: "odc-face-devices", className: "odc-anchor" }, h(DevicesFace, null)),
+      h("div", { key: "w-computer", id: "odc-face-computer", className: "odc-anchor" }, h(ComputerFace, null)),
+      h("div", { key: "w-settings", id: "odc-face-settings", className: "odc-anchor" }, h(SettingsFace, null)),
+      h("div", { key: "w-search", id: "odc-face-search", className: "odc-anchor" }, h(SearchFace, null)),
       h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
         NAV_ITEMS.map(function (n) {
           return h("button", {
