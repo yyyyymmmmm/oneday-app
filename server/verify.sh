@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb
+  [api_server.py]=5f5822b68d1e9c0025a3482d3b0502457d8602ea1c9b693993696f9a1cecabef
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -49,7 +49,7 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
   [cron_projection.py]=4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
-  [api_server_oneday_routes.py]=3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c
+  [api_server_oneday_routes.py]=355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
