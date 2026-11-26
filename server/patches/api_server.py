@@ -578,6 +578,31 @@ def _options_from_display_metadata(meta: Any) -> dict[str, Any]:
     return projected
 
 
+def _canonical_vault_field_order(fields: Any) -> list[str]:
+    """Canonical request-card field order (account, password, rest).
+
+    The single source lives in ``credential_vault.canonical_field_order``;
+    the local mirror only covers import layouts where the gateway
+    package is not importable (same pattern as vault_request_pending).
+    Applied at projection so blocks persisted before 2.18.3 -- or written
+    by any other path -- still reach the client account-first."""
+    try:
+        from gateway.platforms.credential_vault import canonical_field_order
+        return canonical_field_order(fields)
+    except ImportError:
+        def rank(field: str) -> int:
+            name = field.strip().lower()
+            if name in ("username", "account", "email", "用户名", "账号"):
+                return 0
+            if name in ("password", "密码"):
+                return 1
+            return 2
+
+        unique = [f for f in dict.fromkeys(fields)
+                  if isinstance(f, str) and f]
+        return sorted(unique, key=rank)
+
+
 def _vault_request_from_display_metadata(meta: Any) -> dict[str, Any]:
     """Well-formed vault-request block from a message row's
     display_metadata (the ``vault_request`` key, written by the
@@ -585,6 +610,9 @@ def _vault_request_from_display_metadata(meta: Any) -> dict[str, Any]:
     Shape-checked mirror of the stored payload: an object whose
     ``type`` is ``vault_request`` carrying the contract fields
     (request_id / service / domain / reason / fields / status).
+    ``fields`` is re-ordered canonically at projection (account before
+    password; hermes-deploy 2.18.3), so a stored block whose fields were
+    persisted in any other order still renders as a proper login form.
     Tolerant of a JSON-string metadata value; anything malformed
     projects as {}."""
     if isinstance(meta, str):
@@ -617,7 +645,7 @@ def _vault_request_from_display_metadata(meta: Any) -> dict[str, Any]:
         "service": service,
         "domain": payload.get("domain") if isinstance(payload.get("domain"), str) else "",
         "reason": payload.get("reason") if isinstance(payload.get("reason"), str) else "",
-        "fields": list(fields),
+        "fields": _canonical_vault_field_order(fields),
         "status": status,
     }
     expires_at = payload.get("expires_at")

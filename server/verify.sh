@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=4cfb9ac47d22c887da49f27feafaed5f6346d7e4c6514c01acc06718373a3e49
+  [api_server.py]=80c3e5dfb5f52d56f4a3d22a7b40ecb12bed063651e01a7cd5036e4e62afee0d
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
@@ -54,7 +54,7 @@ declare -A WANT_SHA_EXTRA=(
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=0677d383ab59874bc22f033f53941a66dc67ffcca86218c1b341f83db7f0e150
+  [credential_vault.py]=7ade5a34876d35f20af8dff964e7cca0e2cb4a05ff2b5cd0e372425872e7373e
   [credential_vault_tool.py]=a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
@@ -77,7 +77,7 @@ declare -A WANT_SHA_EXTRA=(
   [web_routers_ops.py]=ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481
   [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
-  [vault_request_pending.py]=327cade5ce93c412db0eb962af81c2ed0707eef07d546df00268e38b19f3da48
+  [vault_request_pending.py]=edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done
 declare -A CPATH=(
