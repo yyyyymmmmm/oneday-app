@@ -3025,8 +3025,10 @@
     if (face.phase === "ready") {
       var list = (face.data && Array.isArray(face.data.data)) ? face.data.data : [];
       var parts = [];
+      var enabledN = 0, configuredN = 0;
+      list.forEach(function (ts) { if (ts.enabled) enabledN++; if (ts.configured) configuredN++; });
       parts.push(h("p", { key: "count", className: "odc-count" },
-        "工具集共 ", h("strong", null, String(list.length)), " 个（api_server 平台，与 App 设置同一接口）。切换对新会话生效，进行中的会话不变。"));
+        "工具集共 ", h("strong", null, String(list.length)), " 个（api_server 平台，与 App 设置同一接口）。已启用 " + enabledN + " · 已停用 " + (list.length - enabledN) + "（按启停开关计）；已配置 " + configuredN + "（凭据/参数齐全，与启停是两回事）。切换对新会话生效，进行中的会话不变。"));
       if (note) {
         parts.push(h("p", { key: "note", className: note.kind === "error" ? "odc-error" : "odc-done" }, note.text));
       }
@@ -3113,6 +3115,30 @@
   }
 
   // ---- #22 identity face ----
+  // App 预置头像目录（OneDayCore AgentAvatarPreset 色板与
+  // BotCharacterSpec 渐变同口径）：preset 条目服务端只有
+  // presetId、无图片字节（_read_avatar_image 对 kind!=image
+  // 回 400），网页端本地按 presetId 给渐变色＋符号渲染，
+  // 不发取图请求。partner 在 App 是相伴资产图，网页端以
+  // 同色系符号格近似呈现。
+  var AVATAR_PRESETS = {
+    "blob-blue": { sym: "☺", cls: "odc-preset-blob-blue" },
+    "cat-violet": { sym: "🐱", cls: "odc-preset-cat-violet" },
+    "bear-amber": { sym: "🐻", cls: "odc-preset-bear-amber" },
+    "bot-cyan": { sym: "🤖", cls: "odc-preset-bot-cyan" },
+    "sprout-green": { sym: "🌱", cls: "odc-preset-sprout-green" },
+    "star-pink": { sym: "⭐", cls: "odc-preset-star-pink" },
+    "blob-coral": { sym: "☺", cls: "odc-preset-blob-coral" },
+    "bot-slate": { sym: "🤖", cls: "odc-preset-bot-slate" },
+    "paw": { sym: "🐾", cls: "odc-preset-sym" },
+    "sparkles": { sym: "✨", cls: "odc-preset-sym" },
+    "atom": { sym: "⚛", cls: "odc-preset-sym" },
+    "partner": { sym: "🐶", cls: "odc-preset-partner" }
+  };
+  function avatarPreset(presetId) {
+    return AVATAR_PRESETS[presetId] || AVATAR_PRESETS["blob-blue"];
+  }
+
   function IdentityFace() {
     var facePair = useFace(function () {
       return Promise.all([Core.fetchIdentityName(), Core.fetchIdentityAvatar()]);
@@ -3122,12 +3148,16 @@
     var urlsPair = hooks.useState({});
     var urls = urlsPair[0];
     var setUrls = urlsPair[1];
+    var failedPair = hooks.useState({});
+    var failed = failedPair[0];
+    var setFailed = failedPair[1];
 
     hooks.useEffect(function () {
       if (face.phase !== "ready" || !face.data) return;
       var avatar = face.data[1] || {};
       (avatar.items || []).forEach(function (it) {
-        if (urls[it.id]) return;
+        if (it.kind !== "image") return; // preset 本地渲染，不取图
+        if (urls[it.id] || failed[it.id]) return;
         Core.fetchAvatarImageBlob(it.id).then(function (blob) {
           var u = URL.createObjectURL(blob);
           setUrls(function (prev) {
@@ -3136,7 +3166,14 @@
             n[it.id] = u;
             return n;
           });
-        }).catch(function () { /* keep placeholder */ });
+        }).catch(function () {
+          setFailed(function (prev) {
+            var n = {};
+            for (var k in prev) n[k] = prev[k];
+            n[it.id] = true;
+            return n;
+          });
+        });
       });
     }, [face.phase]);
 
@@ -3162,12 +3199,23 @@
           items.map(function (it) {
             var meta = [];
             if (it.kind) meta.push(it.kind);
+            if (it.kind === "preset" && it.presetId) meta.push(it.presetId);
             if (it.source) meta.push(it.source);
             if (it.createdAt) meta.push(fmtTsShort(it.createdAt));
+            var on = it.current ? " odc-avatar-on" : "";
+            var cell;
+            if (it.kind === "preset") {
+              var p = avatarPreset(it.presetId);
+              cell = h("div", { className: "odc-avatar odc-avatar-preset " + p.cls + on }, p.sym);
+            } else if (urls[it.id]) {
+              cell = h("img", { className: "odc-avatar" + on, src: urls[it.id], alt: it.id });
+            } else if (failed[it.id]) {
+              cell = h("div", { className: "odc-avatar odc-avatar-ph odc-avatar-fail" + on }, "图片加载失败");
+            } else {
+              cell = h("div", { className: "odc-avatar odc-avatar-ph" + on }, "…");
+            }
             return h("div", { key: it.id, className: "odc-avatar-cell" },
-              urls[it.id]
-                ? h("img", { className: it.current ? "odc-avatar odc-avatar-on" : "odc-avatar", src: urls[it.id], alt: it.id })
-                : h("div", { className: it.current ? "odc-avatar odc-avatar-on odc-avatar-ph" : "odc-avatar odc-avatar-ph" }, "…"),
+              cell,
               h("span", { className: "odc-row-meta" }, (it.current ? "当前 · " : "") + meta.join(" · ")));
           })));
       }

@@ -71,3 +71,18 @@
 .odc-emoji-btn { font-size: 18px; line-height: 1.4; padding: 2px 9px; background: transparent; border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; cursor: pointer; }
 .odc-emoji-btn:disabled { opacity: 0.5; cursor: default; }
 .odc-search-input { flex: 1; min-width: 220px; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; font: inherit; }
+/* bar 5 fix (plugin 0.6.1): preset avatar local tiles — gradient
+   colors mirror the App BotCharacterSpec top/bottom pairs;
+   symbol discs share one slate plate. Image failure state. */
+.odc-avatar-preset { display: flex; align-items: center; justify-content: center; font-size: 30px; line-height: 1; color: #fff; }
+.odc-preset-blob-blue { background: linear-gradient(180deg, #57a6ff, #2e6beb); }
+.odc-preset-cat-violet { background: linear-gradient(180deg, #a670fc, #733dd9); }
+.odc-preset-bear-amber { background: linear-gradient(180deg, #fcb840, #e67a1f); }
+.odc-preset-bot-cyan { background: linear-gradient(180deg, #29cce0, #0d8fb8); }
+.odc-preset-sprout-green { background: linear-gradient(180deg, #38d68c, #129e61); }
+.odc-preset-star-pink { background: linear-gradient(180deg, #fa73ad, #d63880); }
+.odc-preset-blob-coral { background: linear-gradient(180deg, #ff7d59, #e0472e); }
+.odc-preset-bot-slate { background: linear-gradient(180deg, #61738f, #2e3b52); }
+.odc-preset-sym { background: linear-gradient(180deg, #8a93a5, #5b6474); }
+.odc-preset-partner { background: linear-gradient(180deg, #fcb840, #e67a1f); }
+.odc-avatar-fail { font-size: 11px; color: #c0392b; opacity: 1; text-align: center; padding: 4px; }

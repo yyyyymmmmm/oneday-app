@@ -889,8 +889,8 @@ fi
 unk "webbar4-dashfaces" "学习图谱（/api/learning/*）、连接器（/api/mcp/*）、委派（/api/delegation/*）、文件预览字节（/api/files/download）走 dashboard 会话 cookie，服务端探针无会话不代测；部署验收以真浏览器登录态实测留据（与 App 同文件双向对账）"
 unk "webbar4-browser" "棒 4 真浏览器目视（记忆分层/洞察/图谱节点编辑回读、文件库预览与 App 同文件对账、监控造单往返删净、连接器开关/测试回读、委派后端切换往返与路线保存回读）属部署验收人工项；服务端等价链由部署单实测留据"
 
-# ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
-if grep -q '"version": "0.6.0"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.6.0（棒 5）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.6.0（install 3f 未同步棒 5 资产）"; fi
+# ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57；插件版本期望随 0.6.1 修复同步，包 2.17.1 队列 130）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
+if grep -q '"version": "0.6.1"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.6.1（棒 5 修复）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.6.1（install 3f 未同步棒 5 修复资产）"; fi
 if [ -n "$API_KEY" ]; then
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/toolsets" || true)
   if [ "$code" = "200" ]; then ok "webtoolsets-list" "GET /v1/toolsets → 200（工具集面数据源）"; else bad "webtoolsets-list" "toolsets 应答 $code（期望 200）"; fi
