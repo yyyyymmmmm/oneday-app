@@ -48,6 +48,7 @@ from hermes_cli.web_models import (
     ProfileSoulUpdate, ProfileDescriptionUpdate, ProfileModelUpdate, ProfileDescribeAuto,
     SessionPrScanBody)
 from hermes_cli.web_server_profiles import _config_profile_scope, _hermes_home_scope
+from .error_boundary import error_response, not_found as boundary_not_found
 
 # Same logger the handlers used before extraction (identical logger object).
 _log = logging.getLogger("hermes_cli.web_server")
@@ -190,14 +191,17 @@ def _profile_errors(log_msg: str, *args, not_found=(FileNotFoundError,),
     except HTTPException:
         raise
     except not_found as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        status, body = boundary_not_found()
+        raise HTTPException(status_code=status, detail=body)
     except bad_request as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        status, body = error_response(e, status=400)
+        raise HTTPException(status_code=status, detail=body)
     except ProfileIdentitySettlementPending:
         raise
     except Exception as e:
         _log.exception(log_msg, *args)
-        raise HTTPException(status_code=500, detail=str(e))
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
 
 
 async def _read_off_loop(read, label: str, errors):
@@ -205,7 +209,8 @@ async def _read_off_loop(read, label: str, errors):
     try:
         return await run_in_threadpool(read)
     except errors as e:
-        raise HTTPException(status_code=500, detail=f"Could not read {label}: {e}")
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
 
 
 def _best_effort(log_msg: str, *args, fn, default=None):
@@ -1041,7 +1046,8 @@ async def update_profile_soul(name: str, body: ProfileSoulUpdate):
         await run_in_threadpool(_run)
     except OSError as e:
         _log.exception("PUT /api/profiles/%s/soul failed", name)
-        raise HTTPException(status_code=500, detail=f"Could not write SOUL.md: {e}")
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
     return {"ok": True}
 
 
@@ -1113,9 +1119,11 @@ async def export_profile_endpoint(name: str, body: ProfileExport):
         try:
             output = str(profiles_mod.get_profile_export_path(name))
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            status, body = error_response(exc, status=400)
+            raise HTTPException(status_code=status, detail=body)
         except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Could not create export directory: {exc}")
+            status, body = error_response(exc)
+            raise HTTPException(status_code=status, detail=body)
 
     with _profile_errors("POST /api/profiles/%s/export failed", name):
         result = await run_in_threadpool(
