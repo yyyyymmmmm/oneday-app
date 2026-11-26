@@ -44,7 +44,9 @@ LEDGER_DEVICE_AUDIT_PATH = Path(os.environ.get(
     "LEDGER_DEVICE_AUDIT_PATH", "/opt/device-data/audit.jsonl"))
 LEDGER_SKIP_SESSIONS = {
     s for s in os.environ.get(
-        "LEDGER_SKIP_SESSIONS", GEN_SESSION_ID).split(",") if s}
+        "LEDGER_SKIP_SESSIONS",
+        GEN_SESSION_ID + ",oneday-title-summary").split(",")
+    if s}
 WRITE_GATE_BASE = os.environ.get(
     "WRITE_GATE_BASE", "http://127.0.0.1:8642/api/write-gate").rstrip("/")
 WRITE_GATE_BRIDGE_KEY = os.environ.get("API_SERVER_KEY") or \
@@ -706,6 +708,10 @@ def _ledger_start_collector() -> None:
         store, tz=_sched_tz(),
         decisions_path=LEDGER_DECISIONS_PATH,
         device_audit_path=LEDGER_DEVICE_AUDIT_PATH)
+    # Queue 193: the title engine's worker drains its queue on
+    # its own thread; starting it here ties its life to the
+    # collector's without sharing the collector's cadence.
+    _title_start_worker()
 
     def loop():
         while True:
@@ -724,6 +730,12 @@ def _ledger_start_collector() -> None:
             # Queue 176 activity classification pass: same
             # cadence again, own failure line inside the pass.
             _ledger_activity_reconcile()
+            # Queue 193 title engine: enqueue newly closed
+            # threads for model summarising, same cadence, own
+            # failure line inside the pass. The worker thread
+            # (started below) drains the queue asynchronously --
+            # this loop never waits on the model.
+            _title_enqueue_reconcile()
             time.sleep(LEDGER_COLLECTOR_SECONDS)
 
     threading.Thread(target=loop, daemon=True).start()
@@ -737,6 +749,7 @@ def _ledger_counts_view() -> dict:
     view["ledgerUpdatedAt"] = store.last_event_at
     view["serverNow"] = now
     view["degraded"] = bool(store.degraded_reason)
+    view["titleEngine"] = _title_engine_stats()
     if _ledger_collector is not None:
         view["collector"] = {
             "lastRunAt": _ledger_collector.state.get("lastRunAt"),
@@ -850,6 +863,421 @@ def _ledger_threads_view(cursor, limit) -> dict:
             "snapshotSeq": store.seq,
             "ledgerUpdatedAt": store.last_event_at,
             "serverNow": _now()}
+
+
+# -- title engine: model headlines at thread close (queue 193) --
+#
+# Bar 2 of the activity-feed rework (proposal sec.3). When a
+# thread closes, its on-record material is queued and a cheap-
+# tier model -- configured SEPARATELY from the generation rounds
+# (ONEDAY_TITLE_MODEL, default claude-sonnet-4-6; the rounds'
+# deepseek pool is not this engine's channel) -- writes the
+# thread's headline asynchronously. The exits never wait: the
+# thread shelves with its rule-derived headline (173/183, now
+# the standing fallback) and is renamed in place when the
+# summary lands (titleHumanSource="model" on the written member;
+# assemble_threads prefers it). The pure half -- prompt, output
+# gates, fingerprint, queue state machine -- is title_engine.py
+# (_title_mod); this section is the gateway-bound half: queue
+# persistence, material assembly, the /v1/runs submission (the
+# generation rounds' own route), the write-back and the worker.
+#
+# Cost + failure discipline (all enforced in _title_mod):
+# one summary per close (queue key = threadId + close
+# fingerprint); bounded attempts per enqueue, bounded requeues
+# after a cooldown; a dead channel degrades to the rule headline
+# with the entry resting as failed -- never a blank title, never
+# a blocked exit. Submissions/successes/failures are cumulative
+# counters in the queue file and surface on the counts view.
+
+TITLE_MODEL = os.environ.get(
+    "ONEDAY_TITLE_MODEL", "claude-sonnet-4-6")
+TITLE_SESSION_ID = "oneday-title-summary"
+TITLE_QUEUE_PATH = Path(os.environ.get(
+    "TITLE_QUEUE_PATH",
+    str(LEDGER_PATH.parent / "title-summary-queue.json")))
+TITLE_POLL_SECONDS = 5
+TITLE_TIMEOUT_SECONDS = 240
+TITLE_ENQUEUE_PER_PASS = 20
+TITLE_WORKER_IDLE_SECONDS = 5
+TITLE_RETRY_PAUSE_SECONDS = 30
+
+_title_queue_lock = threading.Lock()
+_title_queue_state = None
+_title_worker_started = False
+
+
+def _title_queue_load() -> dict:
+    """The persisted queue state, loaded once and kept in
+    memory; every mutation saves through _title_queue_save.
+    A missing or corrupt file starts a fresh state -- the
+    engineStartedAt stamp it records is what keeps pre-engine
+    closes out of this bar (the stock backfill is bar 3)."""
+    global _title_queue_state
+    if _title_queue_state is not None:
+        return _title_queue_state
+    state = None
+    try:
+        raw = TITLE_QUEUE_PATH.read_text(encoding="utf-8")
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict) \
+                and isinstance(parsed.get("entries"), dict) \
+                and isinstance(parsed.get("counters"), dict):
+            state = parsed
+    except Exception:
+        state = None
+    if state is None:
+        state = _title_mod.new_state(_now())
+        _title_queue_state = state
+        _title_queue_save()
+    else:
+        _title_queue_state = state
+    return _title_queue_state
+
+
+def _title_queue_save() -> None:
+    """Atomic write (tmp + rename, 0600) -- same discipline as
+    the vault's stores. Caller holds _title_queue_lock."""
+    try:
+        TITLE_QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = TITLE_QUEUE_PATH.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(_title_queue_state, ensure_ascii=False),
+            encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        tmp.replace(TITLE_QUEUE_PATH)
+    except Exception as e:
+        _print(f"title queue save failed: {e!r}",
+               file=sys.stderr, flush=True)
+
+
+def _title_first_user_text(session_id) -> str:
+    """The session's first user message from state.db (read-only,
+    the humanize pass's precedent) -- the intent of record for a
+    run thread. Empty when the session or its messages are gone:
+    an absent intent is honest, an invented one is not."""
+    import sqlite3
+    if not session_id or not _HUMANIZE_STATE_DB.exists():
+        return ""
+    try:
+        con = sqlite3.connect(
+            f"file:{_HUMANIZE_STATE_DB}?mode=ro", uri=True,
+            timeout=5)
+        try:
+            row = con.execute(
+                "SELECT content FROM messages WHERE session_id=?"
+                " AND role='user' ORDER BY id LIMIT 1",
+                (session_id,)).fetchone()
+        finally:
+            con.close()
+    except Exception:
+        return ""
+    if not row or row[0] is None:
+        return ""
+    content = row[0]
+    if isinstance(content, str) and content.lstrip().startswith("["):
+        try:
+            content = json.loads(content)
+        except Exception:
+            pass
+    return _ledger_message_text(content).strip()
+
+
+def _title_step_line(step) -> str:
+    """One condensed step line for the prompt: verb + object,
+    with the failure mark where the record carries one. Shapes
+    are _ledger_thread_steps' own (run tool calls, approval ops,
+    history transitions)."""
+    if not isinstance(step, dict):
+        return ""
+    if step.get("tool"):
+        line = str(step["tool"])
+        preview = str(step.get("preview") or "").strip()
+        if preview:
+            line += "：" + preview[:60]
+        if step.get("ok") is False:
+            line += "（失败）"
+        if step.get("failReason"):
+            line += "（失败）"
+        return line
+    if step.get("action"):
+        line = str(step["action"])
+        if step.get("object"):
+            line += " " + str(step["object"])
+        if step.get("result"):
+            line += f"（{step['result']}）"
+        return line
+    if step.get("summary"):
+        return str(step["summary"])
+    return ""
+
+
+def _title_thread_material(thread, store):
+    """(intent, step_lines, outcome, write_target_id) for one
+    closed thread, assembled only from data already on record
+    (proposal sec.3 inputs). The write target is the member the
+    assembly's representative rule would pick (latest end, then
+    id) -- the engine writes its two fields onto that one member
+    and assemble_threads prefers the model-carrying member from
+    then on."""
+    members = []
+    for iid in thread.get("itemIds") or []:
+        detail = store.detail(iid)
+        if detail is not None:
+            members.append(detail)
+    if not members:
+        return "", [], "", None
+    target = max(members, key=lambda m: (
+        m.get("endedAt") or m.get("startedAt") or 0,
+        str(m.get("id") or "")))
+    proto = thread.get("prototype")
+    intent = ""
+    if proto == "run":
+        for m in members:
+            intent = _title_first_user_text(m.get("sessionId"))
+            if intent:
+                break
+        if not intent:
+            seed = str(target.get("title") or "")
+            if seed and not _activity_mod.is_instruction_head(seed):
+                intent = seed
+    elif proto == "approval":
+        intent = str(target.get("title_human")
+                     or target.get("title") or "")
+    else:
+        intent = str(target.get("title") or "")
+    step_lines = []
+    for m in members:
+        for step in _ledger_thread_steps(m):
+            line = _title_step_line(step)
+            if line:
+                step_lines.append(line)
+            if len(step_lines) >= _title_mod.STEP_LINES_CAP:
+                break
+        if len(step_lines) >= _title_mod.STEP_LINES_CAP:
+            break
+    status = str(thread.get("status") or "")
+    outcome = {"completed": "成功完成", "failed": "失败",
+               "cancelled": "已取消"}.get(status, status or "已结束")
+    for m in members:
+        if m.get("failReason"):
+            outcome += f"；失败原因：{m['failReason']}"
+            break
+    return intent, step_lines, outcome, target.get("id")
+
+
+def _title_submit_run(prompt: str, idem_key: str) -> tuple:
+    """(run_id, error): submit one title summary run on the
+    generation rounds' own route (/v1/runs), with the title
+    model -- never GEN_MODEL. Stateless first; if the gateway
+    insists on a session, the dedicated title session is ensured
+    and the submit retried bound to it (that session is in
+    LEDGER_SKIP_SESSIONS, so its own ledger record classifies
+    as a system round and never enters the feed)."""
+    headers = {"Authorization": f"Bearer {HERMES_API_KEY}",
+               "Idempotency-Key": idem_key}
+    status, payload, raw = _http_json(
+        HERMES_BASE_URL + "/v1/runs", method="POST",
+        body={"input": prompt, "model": TITLE_MODEL},
+        headers=headers, timeout=60)
+    if status in (200, 201, 202) and isinstance(payload, dict) \
+            and payload.get("run_id"):
+        return payload["run_id"], None
+    if status == 400 and "session" in raw.lower():
+        _http_json(
+            HERMES_BASE_URL + "/api/sessions", method="POST",
+            body={"id": TITLE_SESSION_ID,
+                  "title": "活动标题汇总（自动）"},
+            headers={"Authorization": f"Bearer {HERMES_API_KEY}"},
+            timeout=30)
+        status, payload, raw = _http_json(
+            HERMES_BASE_URL + "/v1/runs", method="POST",
+            body={"input": prompt, "model": TITLE_MODEL,
+                  "session_id": TITLE_SESSION_ID},
+            headers=headers, timeout=60)
+        if status in (200, 201, 202) \
+                and isinstance(payload, dict) \
+                and payload.get("run_id"):
+            return payload["run_id"], None
+    return None, f"提交标题汇总失败（HTTP {status}）{raw[:120]}"
+
+
+def _title_poll_run(run_id: str) -> tuple:
+    """(output, error): poll a title run to a terminal state,
+    the ideas rounds' poll shape with the title budget."""
+    headers = {"Authorization": f"Bearer {HERMES_API_KEY}"}
+    deadline = _now() + TITLE_TIMEOUT_SECONDS
+    while _now() < deadline:
+        status, payload, _ = _http_json(
+            HERMES_BASE_URL + f"/v1/runs/{run_id}",
+            headers=headers, timeout=30)
+        if status == 200 and isinstance(payload, dict):
+            state = str(payload.get("status", ""))
+            if state == "completed":
+                return str(payload.get("output") or ""), None
+            if state in ("failed", "cancelled", "interrupted"):
+                return None, f"标题汇总运行终态 {state}"
+        time.sleep(TITLE_POLL_SECONDS)
+    return None, f"标题汇总运行超时（>{TITLE_TIMEOUT_SECONDS}s）"
+
+
+def _title_enqueue_reconcile() -> int:
+    """Enqueue newly closed threads for model summarising.
+    Runs on the collector cadence with its own failure line.
+    Only closes at/after the engine's first boot are enqueued
+    (older stock is bar 3's backfill, by the proposal's own
+    staging); in-progress threads wait for their close."""
+    enqueued = 0
+    try:
+        store = _ledger()
+        state = _title_queue_load()
+        started = state.get("engineStartedAt") or 0
+        items = [_ledger_mod.item_view(it)
+                 for it in store.items.values()]
+        by_id = {it.get("id"): it for it in items}
+        threads = _activity_mod.assemble_threads(
+            items, LEDGER_SKIP_SESSIONS)
+        with _title_queue_lock:
+            for thread in threads:
+                if enqueued >= TITLE_ENQUEUE_PER_PASS:
+                    break
+                if thread["inProgress"] \
+                        or not thread.get("endedAt"):
+                    continue
+                if thread["endedAt"] < started:
+                    continue
+                fp = _title_mod.fingerprint(thread)
+                members = [by_id.get(iid) for iid in
+                           thread.get("itemIds") or []]
+                if any(m and m.get("titleHumanSource") == "model"
+                       and m.get("titleFingerprint") == fp
+                       for m in members):
+                    continue
+                if _title_mod.enqueue(
+                        state, thread["threadId"], fp, _now()):
+                    enqueued += 1
+            if enqueued:
+                _title_queue_save()
+    except Exception as e:
+        _print(f"title enqueue failed: {e!r}",
+               file=sys.stderr, flush=True)
+    return enqueued
+
+
+def _title_worker_loop() -> None:
+    """Drain the summary queue, newest close first. One entry at
+    a time: submit, poll, gate-check, write back onto the target
+    member. Every failure path lands in the queue state (bounded
+    attempts, then rested) -- the loop itself never dies on a
+    bad entry, and the exits never wait on it."""
+    while True:
+        try:
+            state = _title_queue_load()
+            with _title_queue_lock:
+                _title_mod.sweep_requeues(state, _now())
+                entry = _title_mod.pick_next(state)
+                if entry is not None:
+                    _title_queue_save()
+            if entry is None:
+                time.sleep(TITLE_WORKER_IDLE_SECONDS)
+                continue
+            key = entry["key"]
+            store = _ledger()
+            items = [_ledger_mod.item_view(it)
+                     for it in store.items.values()]
+            threads = _activity_mod.assemble_threads(
+                items, LEDGER_SKIP_SESSIONS)
+            thread = None
+            for cand in threads:
+                if cand["threadId"] == entry["threadId"]:
+                    thread = cand
+                    break
+            if thread is None or thread["inProgress"] \
+                    or _title_mod.fingerprint(thread) \
+                    != entry["fingerprint"]:
+                # The close this entry was queued for is gone or
+                # has moved on (new members, reopened): the entry
+                # is superseded, not failed. A newer close
+                # enqueues under its own fingerprint.
+                with _title_queue_lock:
+                    _title_mod.record_success(state, key, _now())
+                    _title_queue_save()
+                continue
+            intent, step_lines, outcome, target_id = \
+                _title_thread_material(thread, store)
+            if target_id is None:
+                with _title_queue_lock:
+                    _title_mod.record_failure(
+                        state, key, "线程成员已不在账", _now())
+                    _title_queue_save()
+                continue
+            prompt = _title_mod.build_prompt(
+                intent, step_lines, outcome)
+            run_id, err = _title_submit_run(prompt, key)
+            if run_id is None:
+                with _title_queue_lock:
+                    _title_mod.record_failure(
+                        state, key, err or "提交失败", _now())
+                    _title_queue_save()
+                time.sleep(TITLE_RETRY_PAUSE_SECONDS)
+                continue
+            with _title_queue_lock:
+                _title_mod.record_attempt(state, key, run_id,
+                                          _now())
+                _title_queue_save()
+            output, err = _title_poll_run(run_id)
+            parsed = None
+            if err is None:
+                parsed = _title_mod.parse_summary_output(output)
+                if parsed is None:
+                    err = "模型输出未过三关机械检"
+            if parsed is None:
+                with _title_queue_lock:
+                    _title_mod.record_failure(
+                        state, key, err or "汇总失败", _now())
+                    _title_queue_save()
+                time.sleep(TITLE_RETRY_PAUSE_SECONDS)
+                continue
+            title, summary = parsed
+            store.update_fields(
+                target_id,
+                {"title_human": title, "summary": summary,
+                 "titleHumanSource": "model",
+                 "titleFingerprint": entry["fingerprint"],
+                 "titleModel": TITLE_MODEL,
+                 "titleSummarizedAt": _now()},
+                by="title-engine")
+            with _title_queue_lock:
+                _title_mod.record_success(state, key, _now())
+                _title_queue_save()
+        except Exception as e:
+            _print(f"title worker failed: {e!r}",
+                   file=sys.stderr, flush=True)
+            time.sleep(TITLE_WORKER_IDLE_SECONDS)
+
+
+def _title_start_worker() -> None:
+    global _title_worker_started
+    if _title_worker_started:
+        return
+    _title_worker_started = True
+    _title_queue_load()
+    threading.Thread(target=_title_worker_loop, daemon=True).start()
+
+
+def _title_engine_stats() -> dict:
+    """The monitoring face's window on the engine: configured
+    model, queue depth by state, cumulative submission audit
+    counters (queue 193 acceptance: 调用量与失败数入审计可查)."""
+    try:
+        state = _title_queue_load()
+        out = _title_mod.stats(state)
+    except Exception:
+        out = {"submitted": 0, "succeeded": 0, "failedAttempts": 0,
+               "pending": 0, "done": 0, "failed": 0, "awaiting": 0}
+    out["model"] = TITLE_MODEL
+    return out
+
 
 
 def _thread_call_parts(call):

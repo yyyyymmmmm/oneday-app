@@ -63,6 +63,11 @@ try:
 except ImportError:  # direct / selftest loading
     import activity_feed as _activity_mod
 
+try:
+    from gateway.platforms import title_engine as _title_mod
+except ImportError:  # direct / selftest loading
+    import title_engine as _title_mod
+
 import logging as _logging
 
 logger = _logging.getLogger(__name__)

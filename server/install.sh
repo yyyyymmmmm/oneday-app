@@ -100,7 +100,7 @@ MODULES=(
   "oneday_semantic.py|patches/oneday_semantic.py|/opt/hermes/gateway/platforms/oneday_semantic.py|930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1"
   "skill_admission_gate.py|patches/skill_admission_gate.py|/opt/hermes/tools/skill_admission_gate.py|e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7"
   "skill_manager_tool.py|patches/skill_manager_tool.py|/opt/hermes/tools/skill_manager_tool.py|693b9a716fafad83b14c33ed971256b5f918e2eaccd70cc9c6d23297c9f29693"
-  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|f663fc6ea03828c7c47075bf48ce02669814f95718630795c0cdc821caf8a1bc"
+  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|66d49851aa1cc8e8b57908ca6549b3f7a97150be34d8a8ce964c24ac40189dcd"
   "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b"
   "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09"
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
@@ -114,7 +114,7 @@ MODULES=(
   "oneday_seg_goals_facade.py|patches/oneday_seg_goals_facade.py|/opt/hermes/gateway/platforms/oneday_seg_goals_facade.py|f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352"
   "oneday_seg_ideas_gen.py|patches/oneday_seg_ideas_gen.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py|93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3"
   "oneday_seg_ideas_pool.py|patches/oneday_seg_ideas_pool.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_pool.py|762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4"
-  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|8b215da980ed6cd8d2c9f394e16ec046700395f9d492a55db123b9fc0a9b1352"
+  "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|61c29fb80e62e4c1c58615ee4214f1790a9a8c7aa1a0595593e446addb251a84"
   "oneday_seg_library_mcp.py|patches/oneday_seg_library_mcp.py|/opt/hermes/gateway/platforms/oneday_seg_library_mcp.py|29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd"
   "oneday_seg_monitors.py|patches/oneday_seg_monitors.py|/opt/hermes/gateway/platforms/oneday_seg_monitors.py|fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07"
   "oneday_seg_sessions.py|patches/oneday_seg_sessions.py|/opt/hermes/gateway/platforms/oneday_seg_sessions.py|5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d"
@@ -133,7 +133,8 @@ MODULES=(
   "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ade5a34876d35f20af8dff964e7cca0e2cb4a05ff2b5cd0e372425872e7373e"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
   "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583"
-  "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|cf190020b08fa4c0126c2b8e15ce4153556a1ec779158f7a1ec44a022e2595a1"
+  "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|5d665b658299cd7bd9c331b3cec894b290eb93c9caaec13ea20a63c1aea9cab9"
+  "title_engine.py|patches/title_engine.py|/opt/hermes/gateway/platforms/title_engine.py|cf2dcdf6593f99f3aa3d89839aa0514956abeb4acff4efc895f1e1785d836ae2"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
@@ -274,6 +275,7 @@ grep -q "credential_vault.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_
 grep -q "credential_vault_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "vault_request_pending.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "activity_feed.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "title_engine.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -561,6 +563,9 @@ specs = [
     ("activity_feed.py",
      "      - ./patches/activity_feed.py:/opt/hermes/gateway/platforms/activity_feed.py:ro",
      "./patches/vault_request_pending.py:/opt/hermes/gateway/platforms/vault_request_pending.py:ro"),
+    ("title_engine.py",
+     "      - ./patches/title_engine.py:/opt/hermes/gateway/platforms/title_engine.py:ro",
+     "./patches/activity_feed.py:/opt/hermes/gateway/platforms/activity_feed.py:ro"),
     ("identity_gateway.py",
      "      - ./patches/identity_gateway.py:/opt/hermes/gateway/platforms/identity_gateway.py:ro",
      "./patches/present_options_tool.py:/opt/hermes/tools/present_options_tool.py:ro"),
@@ -692,6 +697,7 @@ PYEOF
   grep -q "present_options_tool.py" "$compose_file" || die "compose present_options_tool mount line write failed"
   grep -q "vault_request_pending.py" "$compose_file" || die "compose vault_request_pending mount line write failed"
   grep -q "activity_feed.py" "$compose_file" || die "compose activity_feed mount line write failed"
+  grep -q "title_engine.py" "$compose_file" || die "compose title_engine mount line write failed"
   log "compose 已加模块挂载行"
 fi
 

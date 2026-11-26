@@ -45,7 +45,7 @@ declare -A WANT_SHA_EXTRA=(
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
   [oneday_semantic.py]=930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
-  [oneday_gateway.py]=f663fc6ea03828c7c47075bf48ce02669814f95718630795c0cdc821caf8a1bc
+  [oneday_gateway.py]=66d49851aa1cc8e8b57908ca6549b3f7a97150be34d8a8ce964c24ac40189dcd
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
@@ -67,7 +67,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
   [oneday_seg_ideas_gen.py]=93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
   [oneday_seg_ideas_pool.py]=762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4
-  [oneday_seg_ledger.py]=8b215da980ed6cd8d2c9f394e16ec046700395f9d492a55db123b9fc0a9b1352
+  [oneday_seg_ledger.py]=61c29fb80e62e4c1c58615ee4214f1790a9a8c7aa1a0595593e446addb251a84
   [oneday_seg_library_mcp.py]=29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
   [oneday_seg_monitors.py]=fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
   [oneday_seg_sessions.py]=5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d
@@ -78,7 +78,8 @@ declare -A WANT_SHA_EXTRA=(
   [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
   [vault_request_pending.py]=edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583
-  [activity_feed.py]=cf190020b08fa4c0126c2b8e15ce4153556a1ec779158f7a1ec44a022e2595a1
+  [activity_feed.py]=5d665b658299cd7bd9c331b3cec894b290eb93c9caaec13ea20a63c1aea9cab9
+  [title_engine.py]=cf2dcdf6593f99f3aa3d89839aa0514956abeb4acff4efc895f1e1785d836ae2
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done
 declare -A CPATH=(
@@ -139,6 +140,7 @@ declare -A CPATH=(
   [present_options_tool.py]=/opt/hermes/tools/present_options_tool.py
   [vault_request_pending.py]=/opt/hermes/gateway/platforms/vault_request_pending.py
   [activity_feed.py]=/opt/hermes/gateway/platforms/activity_feed.py
+  [title_engine.py]=/opt/hermes/gateway/platforms/title_engine.py
 )
 
 MEM_PCT=$(free | awk '/^Mem:/ {printf "%d", ($2 > 0) ? ($3 * 100 / $2) : 0}')
@@ -986,4 +988,22 @@ if [ -n "$API_KEY" ]; then
 else
   unk "activity-threads-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
   unk "activity-list-filtered" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+
+# ---- 46. 活动流标题引擎（包 2.18.7, #66；队列 193）: 引擎模块行为 + 胶水标记 + 计数面/线程出口回读 ----
+if docker exec hermes python3 -c 'import sys; sys.path.insert(0, "/opt/hermes"); from gateway.platforms import title_engine as t; p=t.build_prompt("查内存", ["terminal：free -m"], "成功完成"); assert "三条硬约束" in p and "反例" in p; assert t.parse_summary_output("检查服务器内存\n占用 52%，正常")==("检查服务器内存","占用 52%，正常"); assert t.parse_summary_output("你是 OneDay 的点子生成器\n生成了卡") is None; assert t.parse_summary_output("处理了 run 任务\n跑完了") is None; th={"threadId":"thread:run:r1","itemIds":["run:r1"],"endedAt":200,"status":"completed"}; assert t.fingerprint(th)==t.fingerprint(dict(th)); assert t.fingerprint(dict(th, endedAt=201))!=t.fingerprint(th); st=t.new_state(1000); assert t.enqueue(st,"thread:run:r1","fp1",1000) and not t.enqueue(st,"thread:run:r1","fp1",1001); assert t.pick_next(st)["threadId"]=="thread:run:r1"' 2>/dev/null; then ok "title-engine-behavior" "title_engine 行为自检通过（提示词三关＋输出门＋指纹＋队列幂等，队列 193）"; else bad "title-engine-behavior" "title_engine 行为自检失败（2.18.7 未应用）"; fi
+if docker exec hermes grep -q "_title_enqueue_reconcile" /opt/hermes/gateway/platforms/oneday_seg_ledger.py 2>/dev/null && docker exec hermes grep -q "title_engine" /opt/hermes/gateway/platforms/oneday_gateway.py 2>/dev/null; then ok "title-engine-marks" "入队 pass 与引擎导入标记在位（队列 193）"; else bad "title-engine-marks" "入队 pass 或引擎导入标记缺失（2.18.7 未应用）"; fi
+if [ -n "$API_KEY" ]; then
+  TE46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/summary" | python3 -c 'import json,sys; d=json.load(sys.stdin); te=d.get("titleEngine") or {}; print("%s:%s" % (te.get("model"), te.get("awaiting")))' 2>/dev/null || echo -1)
+  if [ "$TE46" = "-1" ]; then
+    bad "title-engine-stats" "标题引擎计数探针异常（值 -1）"
+  else
+    TEM=$(echo "$TE46" | cut -d: -f1)
+    if [ "$TEM" = "claude-sonnet-4-6" ]; then ok "title-engine-stats" "计数面 titleEngine 在位：模型 $TEM、待补 $($TE46 | cut -d: -f2)（队列 193）"; else bad "title-engine-stats" "计数面 titleEngine 异常（值 $TE46）"; fi
+  fi
+  TS46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/threads?limit=200" | python3 -c 'import json,sys; d=json.load(sys.stdin); th=d.get("threads") or []; print(sum(1 for t in th if "titleSource" not in t))' 2>/dev/null || echo -1)
+  if [ "$TS46" = "0" ]; then ok "title-source-field" "线程出口 titleSource 字段全覆盖（队列 193）"; else bad "title-source-field" "线程出口缺 titleSource 的线程数 $TS46（期望 0；探针异常时值为 -1）"; fi
+else
+  unk "title-engine-stats" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+  unk "title-source-field" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
