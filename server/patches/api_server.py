@@ -89,6 +89,7 @@ _CAPABILITY_ENDPOINTS = (
     ("write_gate_rules_list", ("GET", "/v1/write-gate/rules")),
     ("write_gate_rules_create", ("POST", "/v1/write-gate/rules")),
     ("write_gate_rules_delete", ("DELETE", "/v1/write-gate/rules/{rule_id}")),
+    ("approval_history", ("GET", "/v1/approval-history", "approval_history")),
     ("memories_list", ("GET", "/v1/memories")),
     ("memory_detail", ("GET", "/v1/memories/{entry_id}")),
     ("memory_propose", ("POST", "/v1/memories/propose")),
@@ -1952,6 +1953,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             ("POST", "/v1/approvals/{request_id}", self._handle_resolve_approval),
             ("GET", "/v1/grants", self._handle_list_grants),
             ("POST", "/v1/grants/revoke", self._handle_revoke_grant),
+            ("GET", "/v1/approval-history", self._handle_list_approval_history),
             ("POST", "/v1/diagnostics/crash-reports", self._handle_post_crash_reports),
             ("GET", "/v1/diagnostics/crash-reports", self._handle_list_crash_reports),
             *_oneday_http_routes(self),
@@ -3040,6 +3042,36 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         return web.json_response(payload)
 
     @_require_auth
+    async def _handle_list_approval_history(self, request: web.Request) -> web.Response:
+        """GET /v1/approval-history -- unified approval decision history.
+
+        Local patch (approval bar 1, queue 182; proposal 177 section
+        2.1): served from the approval_history module, which folds the
+        exec approval ledger and the write-gate decision log into one
+        read-only timeline with per-source reconciliation counts. The
+        projection never sits in a decision chain; when both sources
+        are unreadable it answers an explicit 503 instead of a fake
+        empty list.
+        """
+        try:
+            from gateway.platforms import approval_history as _ah
+        except Exception:
+            return _error_response(
+                "approval history module unavailable", 503,
+                code="approval_history_unavailable")
+        try:
+            limit = int(request.query.get("limit", "200"))
+        except Exception:
+            limit = 200
+        try:
+            payload = await asyncio.to_thread(_ah.list_approval_history, limit)
+        except Exception:
+            return _error_response(
+                "approval history sources unavailable", 503,
+                code="approval_history_unavailable")
+        return web.json_response(payload)
+
+    @_require_auth
     async def _handle_post_crash_reports(self, request: web.Request) -> web.Response:
         """POST /v1/diagnostics/crash-reports -- ingest privacy-gated
         crash records (demand-ledger 131).
@@ -3770,6 +3802,13 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # the credential vault, polling sync, unified inbox.
             # Advertised once the patch is applied.
             "mail_gateway": True,
+            # Local patch (approval bar 1, queue 182): the unified
+            # approval-history read surface (approval_history module)
+            # is part of this listener's code; advertised once the
+            # patch is applied. The endpoint reads the two decision
+            # ledgers from disk per call and answers an explicit 503
+            # when both are unreadable -- never a fake empty list.
+            "approval_history": True,
             # Local patch (hermes-deploy 2.8.0): the panel web-login
             # bridge (api_server_oneday_routes) is part of this
             # listener's code; advertised once the patch is applied.

@@ -219,14 +219,18 @@ def assemble_threads(items, skip_sessions=()) -> list:
         titled = [m for m in members
                   if str(m.get("title_human") or "").strip()]
         # A model-summarised headline (queue 193: titleHumanSource
-        # == "model") outranks every rule-derived one, whichever
-        # member carries it -- the engine writes onto one member
-        # and the thread speaks with that member's headline and
-        # summary. Among equals the latest-ending member wins,
-        # exactly as before.
+        # == "model"; queue 200: "model_backfill" for headlines
+        # bar 3's stock pass wrote) outranks every rule-derived
+        # one, whichever member carries it -- the engine writes
+        # onto one member and the thread speaks with that member's
+        # headline and summary. A live close's own summary ranks
+        # above a backfilled one. Among equals the latest-ending
+        # member wins, exactly as before.
         title_rep = max(
             titled, key=lambda m: (
-                1 if m.get("titleHumanSource") == "model" else 0,
+                2 if m.get("titleHumanSource") == "model"
+                else 1 if m.get("titleHumanSource")
+                == "model_backfill" else 0,
                 m.get("endedAt") or m.get("startedAt") or 0,
                 str(m.get("id") or ""))) \
             if titled else rep
@@ -242,17 +246,22 @@ def assemble_threads(items, skip_sessions=()) -> list:
             or title_rep.get("title") or "",
             "title_human": title_rep.get("title_human"),
             # Provenance of the headline the thread speaks with:
-            # "model" (queue 193 engine), "rule_fallback" (the
-            # 173/183 derivations), or "raw" (only the seed title
-            # exists). Additive field -- the client's render
-            # precedence (title_human first) is unchanged.
+            # "model" (queue 193 engine, at the close itself),
+            # "model_backfill" (queue 200 stock pass), "rule_
+            # fallback" (the 173/183 derivations), or "raw"
+            # (only the seed title exists). Additive field --
+            # the client's render precedence (title_human
+            # first) is unchanged.
             "titleSource": (
                 "model" if title_rep.get("titleHumanSource")
                 == "model"
+                else "model_backfill" if title_rep.get(
+                    "titleHumanSource") == "model_backfill"
                 else "rule_fallback" if title_rep.get("title_human")
                 else "raw"),
             "summary": title_rep.get("summary")
-            if title_rep.get("titleHumanSource") == "model"
+            if title_rep.get("titleHumanSource")
+            in ("model", "model_backfill")
             else rep.get("summary"),
             "status": rep.get("status"),
             "inProgress": in_progress,

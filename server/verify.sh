@@ -20,13 +20,14 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=dcb67c352f45e0b96f96a1dc45ca9d5400682a38cff828bafd46e644c40bf7cf
+  [api_server.py]=8a2037f74583f2ea7a494ef0e60cd2759079ae61c7c043c6dec30c45cb67aaad
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
 declare -A WANT_SHA_EXTRA=(
-  [approval_projection.py]=fbebf958392225c46eb34dcc62a673949b0d68fc314537144f25902e56e2c7ff
+  [approval_projection.py]=e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
+  [approval_history.py]=00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d
   [api_server_runs.py]=3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
   [mail_gateway.py]=c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e
@@ -68,7 +69,7 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
   [oneday_seg_ideas_gen.py]=93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
   [oneday_seg_ideas_pool.py]=762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4
-  [oneday_seg_ledger.py]=f74ce763301a60e4331eb4e467637086c30f73095b89857dbf643afbf930c278
+  [oneday_seg_ledger.py]=c935d4907db546f6517f23d2e9b12510747bd2e7dc5156a65a5bb816ff4ca3e5
   [oneday_seg_library_mcp.py]=29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
   [oneday_seg_monitors.py]=fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
   [oneday_seg_sessions.py]=5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d
@@ -79,14 +80,15 @@ declare -A WANT_SHA_EXTRA=(
   [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
   [vault_request_pending.py]=edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583
-  [activity_feed.py]=5d665b658299cd7bd9c331b3cec894b290eb93c9caaec13ea20a63c1aea9cab9
-  [title_engine.py]=cf2dcdf6593f99f3aa3d89839aa0514956abeb4acff4efc895f1e1785d836ae2
+  [activity_feed.py]=0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85
+  [title_engine.py]=3b648327907466446030a7f9fe3dab3f9d23c30fd225085fcf4efe879d463135
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done
 declare -A CPATH=(
   [api_server.py]=/opt/hermes/gateway/platforms/api_server.py
   [approval_projection.py]=/opt/hermes/gateway/platforms/approval_projection.py
   [grant_projection.py]=/opt/hermes/gateway/platforms/grant_projection.py
+  [approval_history.py]=/opt/hermes/gateway/platforms/approval_history.py
   [hermes_state_portability.py]=/opt/hermes/hermes_state_portability.py
   [web_routers_sessions.py]=/opt/hermes/hermes_cli/web_routers/sessions.py
   [api_server_runs.py]=/opt/hermes/gateway/platforms/api_server_runs.py
@@ -1023,3 +1025,46 @@ else
   unk "title-source-field" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "mail-behavior" "真邮箱全链（手动添加→测试→入库→首同步→统一收件箱回读→换密→删账号吊销凭据）与真实服务器 wire/TLS 互通属部署验收真链：包内自测以注入式假服务器整圈代跑（mail_gateway_selftest.py 61 项），verify 只读探针不代跑；验收主账号须用自建/测试邮箱（拟案口径）"
+
+# ---- 48. 批准机制棒 1（包 2.18.9, #68；队列 182）: exec 事件补源 + 统一只读投影 /v1/approval-history ----
+for name in approval_history.py; do
+  got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
+  if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
+done
+if docker exec hermes grep -q "record_guard_event" /opt/hermes/gateway/platforms/approval_projection.py 2>/dev/null && docker exec hermes grep -q "install_guard_hooks" /opt/hermes/gateway/platforms/approval_projection.py 2>/dev/null; then ok "guard-event-capture" "approval_projection 含守卫事件补源（记录器＋钩子装卸，队列 182 件 1）"; else bad "guard-event-capture" "approval_projection 缺守卫事件补源（2.18.9 未应用）"; fi
+if docker exec hermes python3 -c '
+import json, os, sys, tempfile
+sys.path.insert(0, "/opt/hermes")
+tmp = tempfile.mkdtemp(prefix="verify46-")
+led = os.path.join(tmp, "ledger.jsonl"); dec = os.path.join(tmp, "decisions.jsonl")
+rec = {"request_id": "req-v46", "session_key": "s", "run_id": None, "session_id": None, "source": "queue", "answerable": True, "command": "ls", "description": "", "pattern_keys": [], "choices": ["once"], "status": "answered", "choice": "once", "created_at": 100.0, "expires_at": 400.0, "decided_at": 110.0}
+grd = dict(rec, request_id="evt-v46", source="guard", event_kind="cron_deny", gate="command", answerable=False, choice="deny", scopes=None, guard_context="cron", created_at=120.0, decided_at=120.0)
+with open(led, "w", encoding="utf-8") as fh:
+    fh.write(json.dumps({"v": 1, "event": "decided", "ts": 110.0, "record": rec}) + "\n")
+    fh.write(json.dumps({"v": 1, "event": "guard_event", "ts": 120.0, "record": grd}) + "\n")
+with open(dec, "w", encoding="utf-8") as fh:
+    fh.write(json.dumps({"id": "wg-v46", "subsystem": "memory", "action": "add", "summary": "add", "origin": "foreground", "created_at": "2026-11-26T00:00:00+00:00", "decided_at": "2026-11-26T00:01:00+00:00", "decision": "approved", "op": "add"}) + "\n")
+os.environ["HERMES_APPROVAL_LEDGER_PATH"] = led
+os.environ["HERMES_WRITEGATE_DECISIONS_PATH"] = dec
+from gateway.platforms import approval_history as ah
+h = ah.list_approval_history()
+assert h["total"] == 3 and h["reconciled"] is True, h
+assert h["sources"]["exec"]["ledger_records"] == 2 == h["sources"]["exec"]["projected"], h["sources"]
+assert h["sources"]["exec"]["guard_events"] == 1 and h["sources"]["exec"]["parked"] == 1, h["sources"]
+assert h["sources"]["writegate"]["decision_rows"] == 1 == h["sources"]["writegate"]["projected"], h["sources"]
+' 2>/dev/null; then ok "approval-history-reconcile" "approval_history 对账行为自检通过（折叠 2＋写闸 1、逐源对平、guard/parked 分账，队列 182 件 2）"; else bad "approval-history-reconcile" "approval_history 对账行为自检失败"; fi
+if [ -n "$API_KEY" ]; then
+  HIST46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/approval-history?limit=500" | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d.get("sources") or {}; e=s.get("exec") or {}; w=s.get("writegate") or {}; ok_eq = d.get("reconciled") is True and e.get("projected") == e.get("ledger_records") and w.get("projected") == w.get("decision_rows") and d.get("total") == (e.get("projected",0) + w.get("projected",0)); print("%s:%s:%s:%s" % (d.get("total"), e.get("ledger_records"), w.get("decision_rows"), ok_eq))' 2>/dev/null || echo -1)
+  if [ "$HIST46" = "-1" ]; then
+    bad "approval-history-exit" "统一历史出口探针异常（值 -1）"
+  else
+    H_TOT=$(echo "$HIST46" | cut -d: -f1); H_EXEC=$(echo "$HIST46" | cut -d: -f2); H_WG=$(echo "$HIST46" | cut -d: -f3); H_OK=$(echo "$HIST46" | cut -d: -f4)
+    if [ "$H_OK" = "True" ]; then ok "approval-history-exit" "GET /v1/approval-history 对账成立：共 $H_TOT 条（exec 底账 $H_EXEC＋写闸底账 $H_WG，逐源对平、防 0=0 假绿口径在位）"; else bad "approval-history-exit" "统一历史出口对账不成立（值 $HIST46）"; fi
+  fi
+  CAP46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/capabilities" | python3 -c 'import json,sys; d=json.load(sys.stdin); f=(d.get("features") or {}).get("approval_history"); e=(d.get("endpoints") or {}).get("approval_history") or {}; print("%s:%s" % (f, e.get("path")))' 2>/dev/null || echo -1)
+  if [ "$CAP46" = "True:/v1/approval-history" ]; then ok "approval-history-capability" "capabilities 含 features.approval_history=true 与端点登记"; else bad "approval-history-capability" "capabilities 缺 approval_history 位（值 $CAP46）"; fi
+else
+  unk "approval-history-exit" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+  unk "approval-history-capability" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "guard-event-live" "守卫事件真链（cron 真跑一次危险命令被即时拒绝后账本新增 guard_event 行）属部署验收回读；verify 只锁分类/记录/对账行为与出口对账式"

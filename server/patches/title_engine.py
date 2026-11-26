@@ -23,6 +23,13 @@ ledger/state.db, the /v1/runs submission, the write-back, the
 worker thread) lives in oneday_seg_ledger.py, which imports this
 module as _title_mod, exactly as it imports activity_feed.
 
+Bar 3 (queue 200, package 2.18.9) extends the same queue with
+the stock backfill: pre-engine closes are enqueued flagged
+backfill=True, and their write-backs carry the provenance
+"model_backfill" (MODEL_SOURCES) instead of "model", per the
+proposal's stock strategy. No second queue, no second gate --
+the backfill is this state machine with a flag on the entry.
+
 Three gates for a model headline (user-ruled 2026-11-26 18:19):
 no garbled text, real distinctiveness, and a reader can tell at
 a glance WHO did WHAT to WHAT. The prompt writes the gates as
@@ -51,6 +58,18 @@ REQUEUE_COOLDOWN_SECONDS = 1800
 
 INTENT_CAP = 300
 STEP_LINES_CAP = 20
+
+# Provenance values that count as "this headline came from the
+# model": "model" for a summary written at the thread's own
+# close, "model_backfill" for one written by bar 3's stock
+# backfill (queue 200; proposal sec.3 -- backfilled headlines
+# are marked so the stock pass stays distinguishable from live
+# closes in the book and on the exit).
+MODEL_SOURCES = ("model", "model_backfill")
+
+
+def is_model_source(value) -> bool:
+    return value in MODEL_SOURCES
 
 # Internal vocabulary that must never surface in a headline
 # (proposal prompt rule 1). Latin terms match case-insensitively
@@ -221,9 +240,11 @@ def new_state(now) -> dict:
             "engineStartedAt": now}
 
 
-def enqueue(state, thread_id, fp, now) -> bool:
+def enqueue(state, thread_id, fp, now, backfill=False) -> bool:
     """Idempotent: True only when a new entry was created. A key
-    already pending or done is left exactly as it is."""
+    already pending or done is left exactly as it is. Entries
+    fed by bar 3's stock backfill carry backfill=True so the
+    write-back can mark their provenance model_backfill."""
     key = queue_key(thread_id, fp)
     if key in state["entries"]:
         return False
@@ -231,7 +252,8 @@ def enqueue(state, thread_id, fp, now) -> bool:
         "key": key, "threadId": thread_id, "fingerprint": fp,
         "state": "pending", "attempts": 0, "requeues": 0,
         "enqueuedAt": now, "lastAttemptAt": None,
-        "doneAt": None, "lastError": None, "runId": None}
+        "doneAt": None, "lastError": None, "runId": None,
+        "backfill": bool(backfill)}
     return True
 
 
@@ -312,9 +334,18 @@ def pending_count(state) -> int:
 
 def stats(state) -> dict:
     counts = {"pending": 0, "done": 0, "failed": 0}
+    backfill = {"pending": 0, "done": 0, "failed": 0}
     for e in state["entries"].values():
         counts[e["state"]] = counts.get(e["state"], 0) + 1
+        if e.get("backfill"):
+            backfill[e["state"]] = \
+                backfill.get(e["state"], 0) + 1
     out = dict(state["counters"])
     out.update(counts)
     out["awaiting"] = counts["pending"] + counts["failed"]
+    # Bar 3 (queue 200): the stock backfill's own ledger line --
+    # how many stock closes it has fed, landed and rested, and
+    # the stamp of the sweep that found the stock pool empty.
+    out["backfill"] = backfill
+    out["backfillDoneAt"] = state.get("backfillDoneAt")
     return out
