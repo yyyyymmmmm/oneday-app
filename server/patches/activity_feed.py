@@ -218,10 +218,17 @@ def assemble_threads(items, skip_sessions=()) -> list:
                                  str(m.get("id") or "")))
         titled = [m for m in members
                   if str(m.get("title_human") or "").strip()]
+        # A model-summarised headline (queue 193: titleHumanSource
+        # == "model") outranks every rule-derived one, whichever
+        # member carries it -- the engine writes onto one member
+        # and the thread speaks with that member's headline and
+        # summary. Among equals the latest-ending member wins,
+        # exactly as before.
         title_rep = max(
-            titled, key=lambda m: (m.get("endedAt")
-                                   or m.get("startedAt") or 0,
-                                   str(m.get("id") or ""))) \
+            titled, key=lambda m: (
+                1 if m.get("titleHumanSource") == "model" else 0,
+                m.get("endedAt") or m.get("startedAt") or 0,
+                str(m.get("id") or ""))) \
             if titled else rep
         counts = {}
         for m in members:
@@ -234,7 +241,19 @@ def assemble_threads(items, skip_sessions=()) -> list:
             "title": title_rep.get("title_human")
             or title_rep.get("title") or "",
             "title_human": title_rep.get("title_human"),
-            "summary": rep.get("summary"),
+            # Provenance of the headline the thread speaks with:
+            # "model" (queue 193 engine), "rule_fallback" (the
+            # 173/183 derivations), or "raw" (only the seed title
+            # exists). Additive field -- the client's render
+            # precedence (title_human first) is unchanged.
+            "titleSource": (
+                "model" if title_rep.get("titleHumanSource")
+                == "model"
+                else "rule_fallback" if title_rep.get("title_human")
+                else "raw"),
+            "summary": title_rep.get("summary")
+            if title_rep.get("titleHumanSource") == "model"
+            else rep.get("summary"),
             "status": rep.get("status"),
             "inProgress": in_progress,
             "scheduled": proto == "job",
