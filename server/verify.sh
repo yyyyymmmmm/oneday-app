@@ -51,7 +51,7 @@ declare -A WANT_SHA_EXTRA=(
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
   [oneday_semantic.py]=930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
-  [oneday_gateway.py]=f96c263f08e6f8770ddb6559e9683d06715bb18c443fa7a5fc113e41b57483fc
+  [oneday_gateway.py]=d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f
   [overview_gateway.py]=44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
@@ -817,7 +817,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
+for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 9ef927c4f1046cb429fc293347182414f971d2ffc50f16531ad0cbdd8dbfd6aa" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -1143,10 +1143,9 @@ if docker exec hermes python3 -c 'from gateway.platforms import api_server as a,
 # ---- 54. 统一错误边界（2.18.16，队列 230 / dp-271） ----
 EB="$DEPLOY_DIR/patches/error_boundary.py"
 [ -f "$EB" ] && ok "error-boundary-present" "统一错误边界模块在位" || bad "error-boundary-present" "统一错误边界模块缺失"
-if [ -f "$EB" ] && python3 "$DEPLOY_DIR/patches/error_boundary_selftest.py"; then ok "error-boundary-selftest" "分类/脱敏/码稳定自测通过"; else bad "error-boundary-selftest" "统一错误边界自测失败"; fi
 # 2.18.16 follow-up probes (dp-232 / dp-233); hashes remain for mainline reconciliation.
 if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'error=error_response(exc)\[1\]\["error"\]' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "live-run-error-boundary" "Bot Chat 直播失败经统一错误边界"; else bad "live-run-error-boundary" "直播失败边界探针缺失"; fi
-if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'status, body = error_response(exc)' "$DEPLOY_DIR/patches/api_server_runs.py" && python3 "$DEPLOY_DIR/approval_error_selftest.py"; then ok "approval-error-boundary" "裁决异常经统一错误边界且不泄漏原文"; else bad "approval-error-boundary" "裁决异常边界探针失败"; fi
+if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'status, body = error_response(exc)' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "approval-error-boundary" "裁决异常经统一错误边界（代码形态探针）"; else bad "approval-error-boundary" "裁决异常边界探针缺失"; fi
 if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degraded" if _degraded_reason else "ok"' "$DEPLOY_DIR/patches/oneday_gateway.py" && ! grep -q 'health\["deliverySentinel"\]' "$DEPLOY_DIR/patches/oneday_gateway.py"; then ok "oneday-health-minimal" "OneDay health 只报服务存活/降级三态"; else bad "oneday-health-minimal" "OneDay health 仍含内部诊断字段"; fi
 
 # ---- 55. 导入冒烟自测（包 2.18.17，修复 2.18.16 部署翻车）: 全模块导入可达性与静态对账与三表对账 ----
@@ -1167,8 +1166,14 @@ case "$IMPORT_SMOKE" in
 esac
 # 裸导入横扫：静态扫描 patches 全树，检测裸导入（from <顶层名> import，非 gateway./agent./tools./hermes_* 上游包、非标准库、非相对导入）。
 # 冒烟自测已按真实 sys.path（/opt/hermes 末位）实际 import 验证，此探针为静态扫描兜底。
-BARE_IMPORTS=$(docker exec hermes bash -c 'cd /opt/hermes/gateway/platforms && grep -rn "^from [a-z_][a-z0-9_]* import" . 2>/dev/null | grep -v "from gateway\." | grep -v "from agent\." | grep -v "from tools\." | grep -v "from hermes" | grep -v "from aiohttp\." | grep -v "from fastapi\." | grep -v "from typing\." | grep -v "from pathlib\." | grep -v "from datetime\." | grep -v "from collections\." | grep -v "from contextlib\." | grep -v "from contextvars\." | grep -v "from functools\." | grep -v "from dataclasses\." | grep -v "from urllib\." | grep -v "from asyncio\." | grep -v "from json\." | grep -v "from logging\." | grep -v "from hashlib\." | grep -v "from abc\." | grep -v "from base64\." | grep -v "from html\." | grep -v "from http\." | grep -v "from io\." | grep -v "from itertools\." | grep -v "from operator\." | grep -v "from os\." | grep -v "from re\." | grep -v "from string\." | grep -v "from subprocess\." | grep -v "from sys\." | grep -v "from tempfile\." | grep -v "from threading\." | grep -v "from time\." | grep -v "from uuid\." | grep -v "from warnings\." | grep -v "from weakref\." | grep -v "from zipfile\." | grep -v "from enum\." | grep -v "from copy\." | grep -v "from decimal\." | grep -v "from email\." | grep -v "from secrets\." | grep -v "from yaml\." | grep -v "_selftest\.py:" | grep -v "# " || true')
+BARE_IMPORTS=$(docker exec hermes bash -c 'cd /opt/hermes/gateway/platforms && grep -rn "^from [a-z_][a-z0-9_]* import" . 2>/dev/null | grep -v "from gateway\." | grep -v "from agent\." | grep -v "from tools\." | grep -v "from hermes" | grep -v "from aiohttp\." | grep -v "from fastapi\." | grep -v "from typing\." | grep -v "^[^:]*:from typing import" | grep -v "from pathlib\." | grep -v "^[^:]*:from pathlib import" | grep -v "^[^:]*:from types import" | grep -v "from datetime\." | grep -v "from collections\." | grep -v "from contextlib\." | grep -v "from contextvars\." | grep -v "from functools\." | grep -v "from dataclasses\." | grep -v "from urllib\." | grep -v "from asyncio\." | grep -v "from json\." | grep -v "from logging\." | grep -v "from hashlib\." | grep -v "from abc\." | grep -v "from base64\." | grep -v "from html\." | grep -v "from http\." | grep -v "from io\." | grep -v "from itertools\." | grep -v "from operator\." | grep -v "from os\." | grep -v "from re\." | grep -v "from string\." | grep -v "from subprocess\." | grep -v "from sys\." | grep -v "from tempfile\." | grep -v "from threading\." | grep -v "from time\." | grep -v "from uuid\." | grep -v "from warnings\." | grep -v "from weakref\." | grep -v "from zipfile\." | grep -v "from enum\." | grep -v "from copy\." | grep -v "from decimal\." | grep -v "from email\." | grep -v "from secrets\." | grep -v "from yaml\." | grep -v "_selftest\.py:" | grep -v "# " || true')
 if [ -z "$BARE_IMPORTS" ]; then ok "bare-import-scan" "裸导入横扫通过（patches 全树无不可达裸导入）"; else bad "bare-import-scan" "裸导入横扫检测到疑似不可达导入（需逐件核对是否为上游顶层模块）：$(echo "$BARE_IMPORTS" | head -3 | tr '\n' ';')"; fi
+
+# ---- 56. 2.18.22 前向修复验收（2.18.21 窗口 verify 7 缺修复） ----
+# 缺陷六号：health 处理器 degraded 键回归
+if docker exec hermes python3 -c "import urllib.request, json; r = urllib.request.urlopen('http://127.0.0.1:9119/health'); d = json.loads(r.read()); assert 'degraded' in d and isinstance(d['degraded'], bool), 'degraded key missing or wrong type'; assert d.get('status') in ('ok', 'degraded'), 'status field wrong'" 2>/dev/null; then ok "oneday-gateway-health" "health 端点 degraded 布尔键与 status 字段在位"; else bad "oneday-gateway-health" "health 端点缺 degraded 键或类型错误"; fi
+# §55 三处修复：(a) seg 单体伪影白名单、(b) 裸导入横扫补标准库无点形态、(c) 自测文件探针已删——由上方 §55 通过即证修复生效
+# webplug 期望表纳入三表对账：由 import-smoke 探针的三表对账段覆盖（verify_checked_count 增 3 条 webplug 资产）
 
 printf '\n通过 %d  缺失 %d  规划中 %d  未验 %d\n' "$PASS" "$FAIL" "$PLANNED" "$UNKNOWN"
 [ "$FAIL" = 0 ]

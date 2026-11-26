@@ -89,7 +89,7 @@ PATCHES=(
 MODULES=(
   "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
   "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|aa503b2a0ffaec4d6806d22ef8a9e7b5cf156d6396cdfc45d64c790eedd6e884"
-  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|7625c455a05abad27d63da3a05a97f553de944bb16a2a40070f35ef24819512a"
+  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|94a8b835e5fd6d763ab7c20b3b9a9dd0ceadade945fde158979dd9b5f4ca1404"
   "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
@@ -115,7 +115,7 @@ MODULES=(
   "oneday_semantic.py|patches/oneday_semantic.py|/opt/hermes/gateway/platforms/oneday_semantic.py|930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1"
   "skill_admission_gate.py|patches/skill_admission_gate.py|/opt/hermes/tools/skill_admission_gate.py|e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7"
   "skill_manager_tool.py|patches/skill_manager_tool.py|/opt/hermes/tools/skill_manager_tool.py|693b9a716fafad83b14c33ed971256b5f918e2eaccd70cc9c6d23297c9f29693"
-  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|f96c263f08e6f8770ddb6559e9683d06715bb18c443fa7a5fc113e41b57483fc"
+  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f"
   "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8"
   "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09"
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
