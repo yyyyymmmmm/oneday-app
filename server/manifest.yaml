@@ -83,7 +83,7 @@ components:
       container: hermes
       container_path: /opt/hermes/tools/react_to_message_tool.py
       mount_mode: ro
-      sha256: 3fd1d4c6e30467e1e4d87447bf54e164a23b733a78f500100eef21368683bdd3
+      sha256: 703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
       upstream_baseline_sha256: 8b4a14deeb0c8635bb2ae46ba116803cef836e2cc1488c2069e29882b3e27598   # 2026-11-24 入包时从未挂载补丁的镜像内同路径文件回读核验（容器内回读与包内基底三方一致）；应用时落盘为部署目录 patches/react_to_message_tool.py.orig
       diff_lines_vs_upstream: 159
       provides: [agent-self-reactions]
@@ -491,7 +491,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_feed.py
       mount_mode: ro
-      sha256: 8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
+      sha256: b305c244437ff0e061c4a76a24a8be32e0da9831b9ebb7eaa55dd8d50956f39a
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。2.6.0：配图自托管（生成时下载落 /opt/data/oneday/media/feed、帖子引用公网自家地址、sourceUrl 置空解开 App 列表封面抑制）＋候选页无图时 Tavily 搜图兜底（过探活＋形状双门）；落地段无图兜底（尊重编辑 dropImage）；自测 feed_media_selftest.py 18 项；能力 #44。
@@ -546,7 +546,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py
       mount_mode: ro
-      sha256: 07232bc019d9086b0102a8646c5b1b1d8ae1f54a084661b1ed525774c5569bc4
+      sha256: 7f2d33df2e80b0fa7ec4f761ad957c0892723bb8ca09781d0f2dd7bfbcfc148d
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.5.0 摘要轮幂等键改轮次 epoch（ideas-sum-{int(_now())}）：原内容寻址键 sha256(sid:messageCount) 在同队列异载荷（改名/摘录漂移/提示词升级）时跨轮撞键 409 且永久毒化该队列，照主生成键与 feed 同型收尾。
