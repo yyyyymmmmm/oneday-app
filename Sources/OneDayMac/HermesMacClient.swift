@@ -2599,8 +2599,8 @@ struct HermesMacClient: Sendable {
     /// GET /api/analytics/models?days=
     func hubModelAnalytics(
         config: ServerConfig, apiKey: String, days: Int = 30
-    ) async throws -> JSONValue {
-        try await hubJSON(
+    ) async throws -> ModelAnalytics {
+        try await hubRequest(
             config: config, apiKey: apiKey,
             path: "/api/analytics/models",
             query: [URLQueryItem(
