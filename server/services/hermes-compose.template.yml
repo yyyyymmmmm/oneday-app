@@ -39,6 +39,10 @@ services:
       - API_SERVER_ENABLED=true
       - API_SERVER_HOST=0.0.0.0
       - API_SERVER_KEY=${API_SERVER_KEY}
+      # Browser origins allowed through the gateway CORS middleware
+      # (hermes-deploy 2.12.1): the dashboard's own origin only -- the
+      # web console plugin rides it; foreign origins stay 403.
+      - API_SERVER_CORS_ORIGINS=https://hermes.didichou.site
       - HERMES_API_KEY=${API_SERVER_KEY}
       - DEVICE_DATA_DIR=/opt/data/device
       - NEWAPI_BASE_URL=${NEWAPI_BASE_URL:-}

@@ -880,6 +880,46 @@ PYEOF
   fi
 fi
 
+# ---------- 3g. 网页端 CORS 来源确保（包 2.12.1，#52 修复） ----------
+# 根因（2026-11-26 真浏览器复验实查）：网关上游 cors_middleware 对带
+# Origin 的浏览器请求先查 API_SERVER_CORS_ORIGINS 白名单，未登记即回
+# 空体 403（在 reveal/approvals 任何 handler 之前）；非浏览器客户端无
+# Origin 故服务端等价链测不出。本节把本站 dashboard 来源以文本级编辑
+# 幂等写入现行 compose 的 hermes environment（锚点 API_SERVER_KEY 行），
+# 改前备份；reveal 自身两道闸（key 白名单＋dashboard 会话回验）不动，
+# 外部 Origin 仍 403。锚点不合只告警不中断，verify 第 34 节会探出。
+if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
+  if grep -q 'API_SERVER_CORS_ORIGINS=' "$DEPLOY_DIR/docker-compose.yml"; then
+    log "网页端 CORS 来源：compose 已登记 API_SERVER_CORS_ORIGINS，跳过"
+  else
+    compose_file="$DEPLOY_DIR/docker-compose.yml"
+    cbak="$compose_file.bak-$(date +%Y%m%d)-corsorigins"
+    if [ ! -f "$cbak" ]; then
+      cp -a "$compose_file" "$cbak"
+      log "已备份: docker-compose.yml.bak-$(date +%Y%m%d)-corsorigins"
+    fi
+    if python3 - "$compose_file" <<'PYEOF'
+import sys
+path = sys.argv[1]
+lines = open(path, encoding="utf-8").read().split("\n")
+anchor = next((i for i, ln in enumerate(lines)
+               if ln.strip().startswith("- API_SERVER_KEY=")), None)
+if anchor is None:
+    sys.exit("no API_SERVER_KEY env anchor")
+indent = lines[anchor][:len(lines[anchor]) - len(lines[anchor].lstrip())]
+lines.insert(anchor + 1, indent + "- API_SERVER_CORS_ORIGINS=https://hermes.didichou.site")
+open(path, "w", encoding="utf-8").write("\n".join(lines))
+print("API_SERVER_CORS_ORIGINS inserted after API_SERVER_KEY")
+PYEOF
+    then
+      COMPOSE_CHANGED=1
+      log "网页端 CORS 来源：已登记 https://hermes.didichou.site 至 compose environment"
+    else
+      log "警告：CORS 来源登记未完成（锚点不合），网页端插件在浏览器内仍会被网关 CORS 闸拦，人工核 docker-compose.yml"
+    fi
+  fi
+fi
+
 # ---------- 4. 重启 hermes ----------
 log "重启 hermes 容器使挂载生效"
 if docker compose version >/dev/null 2>&1; then

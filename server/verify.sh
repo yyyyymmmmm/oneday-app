@@ -813,4 +813,11 @@ except Exception:
 if [ "$REGPLUG" = "user" ]; then ok "webplug-registry" "GET /api/dashboard/plugins 名册含 oneday-console（source=user）"; else bad "webplug-registry" "名册状态: $REGPLUG（期望 user；absent 查启用登记、error 查 dashboard 9119 可达）"; fi
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$DASHB/dashboard-plugins/oneday-console/dist/index.js" || true)
 if [ "$code" = "200" ]; then ok "webplug-asset" "GET /dashboard-plugins/oneday-console/dist/index.js → 200（资产路由在位）"; else bad "webplug-asset" "资产路由应答 $code（期望 200）"; fi
-unk "webplug-browser" "真浏览器全链（登录 dashboard → OneDay 标签页渲染 → reveal 换钥 → 待批真数据上屏）属部署验收人工项；服务端等价链（web-login 200＋cookie 属性 Path=/ SameSite=Lax → reveal 200 钥长 64 → /v1/approvals 200）已于包 2.12.0 棒 0 实测留据"
+unk "webplug-browser" "真浏览器全链（登录 dashboard → OneDay 标签页渲染 → reveal 换钥 → 待批真数据上屏）属部署验收人工项；服务端等价链（web-login 200＋cookie 属性 Path=/ SameSite=Lax → reveal 200 钥长 64 → /v1/approvals 200）已于包 2.12.0 棒 0 实测留据；浏览器 Origin 闸已由包 2.12.1 修复并由第 34 节行为探针把关（等价链无 Origin、测不出此闸）"
+
+# ---- 34. 网页端 CORS 来源（包 2.12.1, #52 修复）: compose 登记 + Origin 行为探针 ----
+if grep -q 'API_SERVER_CORS_ORIGINS=https://hermes.didichou.site' "$DEPLOY_DIR/docker-compose.yml" 2>/dev/null; then ok "webcors-compose" "docker-compose.yml hermes environment 已登记本站来源（install 3g）"; else bad "webcors-compose" "compose 未见 API_SERVER_CORS_ORIGINS 本站登记（install 3g 未生效，浏览器内插件会被网关 CORS 闸空体 403）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST http://127.0.0.1:8642/api/env/reveal -H 'Origin: https://hermes.didichou.site' -H 'Content-Type: application/json' -d '{"key":"API_SERVER_KEY"}' || true)
+if [ "$code" = "401" ]; then ok "webcors-site-origin" "本站 Origin POST /api/env/reveal（无会话）→ 401（已过 CORS 闸、由会话闸应答）"; else bad "webcors-site-origin" "本站 Origin reveal 应答 $code（期望 401；403＝CORS 白名单未生效，查容器 env 与网关重启）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST http://127.0.0.1:8642/api/env/reveal -H 'Origin: https://foreign.invalid' -H 'Content-Type: application/json' -d '{"key":"API_SERVER_KEY"}' || true)
+if [ "$code" = "403" ]; then ok "webcors-foreign-origin" "外部 Origin POST /api/env/reveal → 403（CORS 闸对未登记来源保持拦截）"; else bad "webcors-foreign-origin" "外部 Origin reveal 应答 $code（期望 403；非 403＝白名单口径被放宽，须回滚核查）"; fi
