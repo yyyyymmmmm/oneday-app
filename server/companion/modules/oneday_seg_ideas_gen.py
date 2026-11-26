@@ -34,7 +34,7 @@
 # (~/workspace/hermes-deploy/oneday_bridge.py, IDEAS_GEN_PROMPT).
 
 HERMES_BASE_URL = os.environ.get(
-    "HERMES_BASE_URL", "https://hermes.example.com").rstrip("/")
+    "HERMES_BASE_URL", "https://hermes.didichou.site").rstrip("/")
 HERMES_API_KEY = os.environ.get("HERMES_API_KEY", "")
 HERMES_DASH_USER = os.environ.get("HERMES_DASH_USER", "")
 HERMES_DASH_PASSWORD = os.environ.get("HERMES_DASH_PASSWORD", "")

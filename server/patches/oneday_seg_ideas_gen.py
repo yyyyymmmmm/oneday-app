@@ -34,7 +34,7 @@
 # (~/workspace/hermes-deploy/oneday_bridge.py, IDEAS_GEN_PROMPT).
 
 HERMES_BASE_URL = os.environ.get(
-    "HERMES_BASE_URL", "https://hermes.example.com").rstrip("/")
+    "HERMES_BASE_URL", "https://hermes.didichou.site").rstrip("/")
 #: Dashboard (9119) channel base (batch 3): the cookie-login
 #: surfaces (/auth/*, /api/cron/*, /api/plugins/*) are a different
 #: process than the gateway (8642) surfaces (/v1/*, /api/sessions).
