@@ -89,6 +89,7 @@ PATCHES=(
 MODULES=(
   "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
   "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|aa503b2a0ffaec4d6806d22ef8a9e7b5cf156d6396cdfc45d64c790eedd6e884"
+  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|424c94907e7dffdc5c105818a699917e3ea3c7957da15c8c28ef750fa8a7f156"
   "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
@@ -266,6 +267,7 @@ grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MO
 grep -q "device_gateway_catalog.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_enrollment.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_support.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "import_smoke_selftest.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_feed_helpers.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "identity_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "front_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -462,6 +464,9 @@ specs = [
     ("api_server_support.py",
      "      - ./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
+    ("import_smoke_selftest.py",
+     "      - ./patches/import_smoke_selftest.py:/opt/hermes/gateway/platforms/import_smoke_selftest.py:ro",
+     "./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro"),
     ("react_to_message_tool.py",
      "      - ./patches/react_to_message_tool.py:/opt/hermes/tools/react_to_message_tool.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
@@ -721,6 +726,7 @@ PYEOF
   grep -q "device_gateway_catalog.py" "$compose_file" || die "compose device_gateway_catalog mount line write failed"
   grep -q "api_server_enrollment.py" "$compose_file" || die "compose api_server_enrollment mount line write failed"
   grep -q "api_server_support.py" "$compose_file" || die "compose api_server_support mount line write failed"
+  grep -q "import_smoke_selftest.py" "$compose_file" || die "compose import_smoke_selftest mount line write failed"
   grep -q "oneday_feed_helpers.py" "$compose_file" || die "compose oneday_feed_helpers mount line write failed"
   grep -q "identity_gateway.py" "$compose_file" || die "compose identity_gateway mount line write failed"
   grep -q "front_gateway.py" "$compose_file" || die "compose front_gateway mount line write failed"

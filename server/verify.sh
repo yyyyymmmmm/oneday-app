@@ -1148,3 +1148,16 @@ if [ -f "$EB" ] && python3 "$DEPLOY_DIR/patches/error_boundary_selftest.py"; the
 if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'error=error_response(exc)\[1\]\["error"\]' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "live-run-error-boundary" "Bot Chat 直播失败经统一错误边界"; else bad "live-run-error-boundary" "直播失败边界探针缺失"; fi
 if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'status, body = error_response(exc)' "$DEPLOY_DIR/patches/api_server_runs.py" && python3 "$DEPLOY_DIR/approval_error_selftest.py"; then ok "approval-error-boundary" "裁决异常经统一错误边界且不泄漏原文"; else bad "approval-error-boundary" "裁决异常边界探针失败"; fi
 if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degraded" if _degraded_reason else "ok"' "$DEPLOY_DIR/patches/oneday_gateway.py" && ! grep -q 'health\["deliverySentinel"\]' "$DEPLOY_DIR/patches/oneday_gateway.py"; then ok "oneday-health-minimal" "OneDay health 只报服务存活/降级三态"; else bad "oneday-health-minimal" "OneDay health 仍含内部诊断字段"; fi
+
+# ---- 55. 导入冒烟自测（包 2.18.17，修复 2.18.16 部署翻车）: 全模块导入可达性 ----
+# 静态级证据在第 2 节哈希回读（import_smoke_selftest.py）。
+# 冒烟自测按 install.sh MODULES 挂载表逐模块 import，任一失败即包内缺陷不可部署。
+IMPORT_SMOKE=$(docker exec hermes python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py 2>&1 || echo "EXIT_$?")
+case "$IMPORT_SMOKE" in
+  *"全部"*"模块导入成功"*) ok "import-smoke" "全模块导入冒烟通过（部署布局下所有 MODULES 与 web_routers 可达）" ;;
+  EXIT_1) bad "import-smoke" "导入冒烟失败（至少一个模块导入失败，stderr 有详情）" ;;
+  *) bad "import-smoke" "导入冒烟探针异常：$IMPORT_SMOKE" ;;
+esac
+
+printf '\n通过 %d  缺失 %d  规划中 %d  未验 %d\n' "$PASS" "$FAIL" "$PLANNED" "$UNKNOWN"
+[ "$FAIL" = 0 ]
