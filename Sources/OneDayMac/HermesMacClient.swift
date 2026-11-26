@@ -1142,4 +1142,386 @@ struct HermesMacClient: Sendable {
             throw HermesError.decodingFailed(endpoint: "凭据请求")
         }
     }
+    // MARK: - 桥面：动态/想法/目标/文件库（棒 3，对位 #2/#3/#4/#5/#34–#38/#10）
+
+    /// oneday-bridge 通用口：与 iOS OneDayBridgeClient
+    /// 同前缀（/api/oneday-bridge）、同 Bearer（登录密
+    /// 钥一把，服务器内部换桥钥）、同 DTO（Core 单源，
+    /// 不另立第二形）。零新后端。
+    private func bridgeRequest<T: Decodable>(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String = "GET", query: [URLQueryItem] = [],
+        body: [String: JSONValue]? = nil, endpoint: String
+    ) async throws -> T {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey, path: path,
+            method: method, query: query, body: body
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: status
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    private static let bridgeBase = "/api/oneday-bridge"
+
+    // MARK: 动态（#2/#34）
+
+    /// GET /feed?days=30：近 30 天帖流（晨报＋汇编双
+    /// 生产者同流，kind 在帖上分型）
+    func feedPosts(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [BridgeFeedPost] {
+        let response: BridgeFeedPostsResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/feed",
+            query: [URLQueryItem(name: "days", value: "30")],
+            endpoint: "动态列表"
+        )
+        return response.items
+    }
+
+    /// POST /feed/{id}/read：已读落服务端真源，回执全形
+    func feedMarkRead(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> BridgeFeedPost {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/feed/\(id)/read",
+            method: "POST", endpoint: "标记已读"
+        )
+    }
+
+    /// POST /feed/{id}/like {liked}：幂等，回执全形为
+    /// 点赞态唯一真源
+    func feedSetLiked(
+        config: ServerConfig, apiKey: String, id: String,
+        liked: Bool
+    ) async throws -> BridgeFeedPost {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/feed/\(id)/like",
+            method: "POST",
+            body: try encodeBody(BridgeFeedLikeRequest(liked: liked)),
+            endpoint: "点赞"
+        )
+    }
+
+    /// POST /feed/{id}/signal {type:"discuss"}：引用建
+    /// 聊后发一记讨论信号（弱信号记账，无 note 不带）
+    func feedDiscussSignal(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let _: BridgeOKResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/feed/\(id)/signal",
+            method: "POST",
+            body: try encodeBody(
+                BridgeFeedSignalRequest(type: "discuss", note: nil)
+            ),
+            endpoint: "讨论信号"
+        )
+    }
+
+    /// GET /meta/brief：动态简报全文（当前生效全文）
+    func feedBrief(
+        config: ServerConfig, apiKey: String
+    ) async throws -> BridgeBriefDoc {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/meta/brief",
+            endpoint: "动态简报"
+        )
+    }
+
+    /// PUT /meta/brief {text}：保存简报，回执为保存后全文
+    func saveFeedBrief(
+        config: ServerConfig, apiKey: String, text: String
+    ) async throws -> BridgeBriefDoc {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/meta/brief",
+            method: "PUT",
+            body: try encodeBody(BridgeBriefSaveRequest(text: text)),
+            endpoint: "保存简报"
+        )
+    }
+
+    /// POST /feed/generate：手动起一轮调研（在跑时桥
+    /// 回 409，文案由调用方原样呈现）
+    func generateFeed(
+        config: ServerConfig, apiKey: String
+    ) async throws {
+        let _: BridgeOKResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/feed/generate",
+            method: "POST", endpoint: "生成动态"
+        )
+    }
+
+    // MARK: 想法（#3/#35）
+
+    /// GET /ideas：点子全集
+    func ideas(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [BridgeIdea] {
+        let response: BridgeIdeasResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ideas", endpoint: "点子列表"
+        )
+        return response.items
+    }
+
+    /// POST /ideas：新建点子（用户手建）
+    func createIdea(
+        config: ServerConfig, apiKey: String,
+        request body: BridgeIdeaCreateRequest
+    ) async throws -> BridgeIdea {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ideas", method: "POST",
+            body: try encodeBody(body), endpoint: "新建点子"
+        )
+    }
+
+    /// DELETE /ideas/{id}
+    func deleteIdea(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let _: BridgeOKResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ideas/\(id)",
+            method: "DELETE", endpoint: "删除点子"
+        )
+    }
+
+    /// PATCH /ideas/{id}：状态流转（忽略/恢复），桥侧
+    /// 状态机把关，非法流转回 400 原样上抛
+    func patchIdea(
+        config: ServerConfig, apiKey: String, id: String,
+        request body: BridgeIdeaPatchRequest
+    ) async throws -> BridgeIdea {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ideas/\(id)",
+            method: "PATCH", body: try encodeBody(body),
+            endpoint: "更新点子"
+        )
+    }
+
+    /// GET /ideas/generation：生成管道账面（上次/下次
+    /// 运行与近轮记录）；端点不存在时上抛，调用方降级
+    func ideasGeneration(
+        config: ServerConfig, apiKey: String
+    ) async throws -> BridgeGenerationInfo {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ideas/generation",
+            endpoint: "生成记录"
+        )
+    }
+
+    // MARK: 目标（#4/#36）
+
+    /// GET /goals：目标全集
+    func goals(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [BridgeGoal] {
+        let response: BridgeGoalsResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals", endpoint: "目标列表"
+        )
+        return response.items
+    }
+
+    /// POST /goals：新建目标
+    func createGoal(
+        config: ServerConfig, apiKey: String,
+        request body: BridgeGoalCreateRequest
+    ) async throws -> BridgeGoal {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals", method: "POST",
+            body: try encodeBody(body), endpoint: "新建目标"
+        )
+    }
+
+    /// PATCH /goals/{id}：标题/备注全量编辑
+    func patchGoal(
+        config: ServerConfig, apiKey: String, id: String,
+        request body: BridgeGoalPatchRequest
+    ) async throws -> BridgeGoal {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(id)",
+            method: "PATCH", body: try encodeBody(body),
+            endpoint: "保存目标"
+        )
+    }
+
+    /// PATCH /goals/{id} {status}：状态流转（完成/重开等）
+    func patchGoalStatus(
+        config: ServerConfig, apiKey: String, id: String,
+        status: GoalStatus
+    ) async throws -> BridgeGoal {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(id)",
+            method: "PATCH",
+            body: try encodeBody(
+                BridgeGoalStatusPatchRequest(status: status)
+            ),
+            endpoint: "目标状态"
+        )
+    }
+
+    /// DELETE /goals/{id}
+    func deleteGoal(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let _: BridgeOKResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(id)",
+            method: "DELETE", endpoint: "删除目标"
+        )
+    }
+
+    /// GET /goals/{id}/entries：进展条目流（升序）
+    func goalEntries(
+        config: ServerConfig, apiKey: String, goalID: String
+    ) async throws -> [BridgeGoalEntry] {
+        let response: BridgeGoalEntriesResponse =
+            try await bridgeRequest(
+                config: config, apiKey: apiKey,
+                path: "\(Self.bridgeBase)/goals/\(goalID)/entries",
+                endpoint: "进展记录"
+            )
+        return response.items
+    }
+
+    /// POST /goals/{id}/entries：追加一条进展
+    func createGoalEntry(
+        config: ServerConfig, apiKey: String, goalID: String,
+        request body: BridgeGoalEntryCreateRequest
+    ) async throws -> BridgeGoalEntry {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(goalID)/entries",
+            method: "POST", body: try encodeBody(body),
+            endpoint: "记录进展"
+        )
+    }
+
+    /// DELETE /goals/{id}/entries/{eid}：删单条纠错
+    func deleteGoalEntry(
+        config: ServerConfig, apiKey: String, goalID: String,
+        entryID: String
+    ) async throws {
+        let _: BridgeOKResponse = try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(goalID)"
+                + "/entries/\(entryID)",
+            method: "DELETE", endpoint: "删除进展"
+        )
+    }
+
+    /// GET /goals/{id}/briefings：目标简报信件（最新在前）
+    func goalBriefings(
+        config: ServerConfig, apiKey: String, goalID: String
+    ) async throws -> [BridgeBriefing] {
+        let response: BridgeBriefingsResponse =
+            try await bridgeRequest(
+                config: config, apiKey: apiKey,
+                path: "\(Self.bridgeBase)/goals/\(goalID)/briefings",
+                endpoint: "目标简报"
+            )
+        return response.items
+    }
+
+    /// POST /goals/{id}/briefings/{bid}/opened：打开信
+    /// 件记一记（台账看「写了没看」），回执为盖过记录
+    /// 的简报全形
+    func markBriefingOpened(
+        config: ServerConfig, apiKey: String, goalID: String,
+        briefingID: String
+    ) async throws -> BridgeBriefing {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/goals/\(goalID)"
+                + "/briefings/\(briefingID)/opened",
+            method: "POST", endpoint: "简报打开记录"
+        )
+    }
+
+    // MARK: 文件库与文件字节（#5/#37/#38）
+
+    /// GET /file-library：文件页聚合读面（产出根走查、
+    /// 准入、去重、排序全在服务端，客户端只消费单流）
+    func fileLibrary(
+        config: ServerConfig, apiKey: String
+    ) async throws -> FileLibraryPage {
+        try await bridgeRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/file-library",
+            endpoint: "文件库"
+        )
+    }
+
+    /// GET /api/files/download?path=：原文件字节（网关
+    /// 面 Bearer，与 iOS 同路）；预览/打开/导出共用此口
+    func fileDownload(
+        config: ServerConfig, apiKey: String, path: String
+    ) async throws -> Data {
+        var request = URLRequest(
+            url: authedURL(
+                config: config, path: "/api/files/download",
+                query: [URLQueryItem(name: "path", value: path)]
+            )
+        )
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200...299:
+            return data
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "文件下载", status: http.statusCode
+            )
+        }
+    }
+
+    // MARK: 全局搜索·会话段（#10）
+
+    /// GET /api/sessions/search?q=&limit=：服务端会话
+    /// 全文搜索（与 iOS 全局搜索同口径）
+    func searchSessions(
+        config: ServerConfig, apiKey: String, query: String,
+        limit: Int = 50
+    ) async throws -> [SessionSearchHit] {
+        let response: SessionSearchResponse = try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/sessions/search",
+            query: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ],
+            endpoint: "会话搜索"
+        )
+        return response.results
+    }
 }
