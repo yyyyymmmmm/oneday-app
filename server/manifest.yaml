@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.8.0   # 面板密码登录桥入关＋2.7.1 线三件回填（2026-11-26）：api_server_oneday_routes 新增 POST /api/companion/web-login（scrypt 验 password.json＋失败限流＋dashboard cookie 透传）与 POST /api/env/reveal（会话校验＋白名单只放 API_SERVER_KEY）；install.sh 增面板密码文件只读挂载确保（源文件存在才挂）。db_schema_guard.py（state.db 指纹守卫模块）＋platform-hint-config-patch.py（平台提示覆盖迁移）＋services/prompt-refresh/prompt-refresh-watcher.sh（主线提示词刷新看守）自 2.7.1 线（a2fecf5c）移植入包并对齐 manifest/install/verify 登记；三件已在现行 instance 在役（经该线应用），回填只入仓对齐、不改行为。此前 2.7.0：凭据请求列表端点＋聊天 marker（服务端新增 GET /v1/vault/requests，工具回执带 [[vreq:...]]，提示词要求 marker 单独成行；不含 B 项）。
+version: 2.11.0   # 双线收口（2026-11-26）：本线 2.8.0（web-login 桥＋凭据库 A+C＋2.7.1 三件回填）与对方线 2.8.0/2.9.0/2.10.0/2.10.1（台账标题与 cron 投影、批准卡多卡、消息附件同体）全量合并取并集；version_gate 与 db_schema_guard 网关接线自 2.7.1 线移回（审计 T-1/T-2）；全表哈希按收口实物复算、manifest/install/verify 三处对平；脱敏五件回填清单见 BACKFILL.md，未回填不许上生产。此前对方线版本：2.10.1（附件投影网关命名空间解析修复）、2.10.0（消息附件同体绑定）、2.9.0（批准卡待批多卡＋原子裁决）、2.8.0（台账 title_human＋cron is_system）。此前本线 2.8.0：面板密码登录桥＋2.7.1 线三件回填；2.7.0：凭据请求列表端点＋聊天 marker。
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -28,18 +28,18 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server.py
       mount_mode: ro
-      sha256: 5f5822b68d1e9c0025a3482d3b0502457d8602ea1c9b693993696f9a1cecabef
+      sha256: a493afb2dc3ab1121716ddd8dc41aec5fc72ab566b94cc6ea216895bcf7464c6
       upstream_baseline_sha256: 73175d668c0c683209ad047191921fe899e84b8a429470081a718ae7d163d3f6   # 部署目录 patches/api_server.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 1576
-      provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes]
-      summary: 网关面（8642）补丁：设备配对认领（POST /v1/enrollment/codes 出码、/claim 一次性认领，码哈希+设备指纹存储）、消息反应写入（PUT/DELETE /v1/reactions/{session_id}/{row_id}）、网关面消息的 reactions 投影（_reactions_from_display_metadata）；1.2.0 新增待批聚合（批 2，2026-11-22）：GET /v1/approvals 跨会话聚合＋POST /v1/approvals/{request_id} 按 request_id 全局回执寻址，行为本体在 approval_projection 模块，本文件只挂路由与启动钩子。1.3.0 新增授权账本（批 5，2026-11-22）：GET /v1/grants 统一授权清单＋POST /v1/grants/revoke exec 授权撤销，行为本体在 grant_projection 模块，本文件只挂路由与启动钩子。1.4.0 新增工具集启停（批 34-S，2026-11-22）：PUT /v1/toolsets/{name} 复用上游 tools_config 机器写 api_server 平台启停（上游 9119 写口只写 cli 平台、对手机会话不生效），config-only 集（stt）镜像写自家 config 节 enabled，未知集 400 unknown_toolset；行为本体即本文件内 _apply_toolset_toggle_api_server（无独立模块）。1.7.0 新增崩溃上报端点（总表 131，2026-11-23）：POST /v1/diagnostics/crash-reports 收已过 App 隐私门的白名单崩溃记录、GET /v1/diagnostics/crash-reports 回读，行为本体在 crash_reports 模块，本文件只挂路由与 handler。1.8.0 新增 capabilities 探知位（总表 202，2026-11-24）：features.self_reactions=true（补丁在位即声明；是否产反应由 instance config 的 display.agent_self_reactions 闸另控，默认关），行为本体在 react_to_message_tool 补丁与 api_server_runs 的终态 attach，本文件只加该一位。1.9.0 新增文件加工两端点（断桥批一，2026-11-24）：GET /v1/files/spreadsheet 与 GET /v1/media/rendition（行为本体在 fileproc_gateway 模块）＋同 handler 的 /api/fileproc-bridge/* 保形挂载（已发货 App 零改动），本文件只挂路由与 handler；本文件 1.9.0 件为 1.8.0 件与批一变更集的三方并集合并（两线改动零交叠：自反应 +7 行、批一 +78 行，merged 哈希即本条登记值）。1.10.0 新增写闸网关挂载（断桥批二，2026-11-24）：12 条 /v1/write-gate 路由（status/pending/decide/decisions/rules）＋3 条 /v1/memories 路由（行为本体在 write_gate_gateway 模块）＋同 handler 的 /api/write-gate/* 保形挂载 12 条（迁移期路径保形，已发货 App 零改动），connect() 增 write_gate_gateway.start() 启动钩子（对位本体 1.9.0 锚点手工接），_handle_revoke_grant 注释更新写闸授权单一写者自桥改为本模块；本文件 1.10.0 件为 1.9.0 件与批二变更集的增量叠加（新增 220 行、删 2 行；批二副本 api_server_runs.py 为旧基线未带回，runs 文件零改动）。1.11.0 新增 OneDay 记忆机制服务面（§439，2026-11-24）：4 条 /v1/memory/* 路由（layers/search/insights/reconcile-check）＋能力端点表 4 行＋features.oneday_memory 位，行为本体在 oneday_memory 模块，本文件只挂路由与 handler；本件为 1.10.0 件之上的纯增量（新增 112 行、删 0 行，与自设一期（顺延 1.12.0）的 +29 行落点不重叠，本件即以 1.10.0 本体为底叠加、哈希按合并结果重算）。1.13.0 新增设置注册表只读下发（AI 自主设置权一期，DESIGN §435，2026-11-24）：GET /v1/settings/registry 只读端点＋capabilities 位 features.settings_registry=true（补丁在位即声明；端点纯只读、无任何写路径，AI 写面属二期另行翻闸），行为本体在 settings_registry 模块，本文件只挂路由、能力位与 handler；本文件 1.13.0 件为 1.12.0 件＋29 行纯增（路由 1＋能力端点表 1＋features 位与注记 6＋handler 21），零删改（剥离四处增量后哈希回 1.12.0 登记值 e2e786d6 已验）。1.14.0 新增记忆语义检索分发（§445，2026-11-24）：_handle_memory_search 读 mode 查询参数，mode=semantic|hybrid 时分发 oneday_semantic 模块（hybrid_search/semantic_search），其余维持 keyword 缺省路；模块不可用回 503 oneday_semantic_unavailable（与 §439 同形）；本件为 1.13.0 件＋21 行纯增（handler docstring +3、mode 分发 +18），零删改。 1.19.0 新增断桥批三挂载（2026-11-24）：/api/oneday-bridge/* 66 路由与 /api/overview-bridge/* 保形面（行为本体在 oneday_gateway / overview_gateway 模块）＋能力端点表 8 行＋features.oneday_bridge / features.overview_bridge 两位＋connect() 双启动钩子；本件为 1.18.0 件＋117 行纯增、零删改（重基时对生产件全量增量重放，含批三副本缺失的 library_mcp 分发支承接 #26）。2.0.0 新增断桥批五挂载（2026-11-25）：GET/POST /api/device-bridge/{tail} 与 POST /api/device-mcp（行为本体在 device_gateway 模块，引擎在工作线程执行、应答保桥的扁平 JSON 形）＋能力端点表与 features.device_bridge 位；路由故意不挂 @_require_auth——模块自验单钥且 /health 免钥（同桥口径），本件为 1.23.0 件之上的设备面增量，哈希按合并结果重算。2.2.0 新增选择框投影与能力位（§441 潜伏，2026-11-25）：消息投影增 options 字段（_options_from_display_metadata 读 display_metadata 的 options 键、形状校验后投影，与 reactions 同点位同口径、投影前捕获防 hidden 降级丢字段）＋features.options_card=true（补丁在位即声明；是否产卡由 instance config 的 display.options_card 闸另控，默认关＝潜伏），行为本体在 present_options_tool／options_pending 两模块与 api_server_runs 的终态 attach；本件自 1.23.0 预制件三方合并入 2.1.0（features 字典与 2.0.0 device_bridge 位并集消解、两旗并存），相对 2.1.0 件纯增 56 行、零删改。 2.3.0 新增断桥批四挂载（2026-11-25）：GET/POST /api/identity-bridge/{tail} 通配挂载（正口 /v1/identity/name、/v1/identity/avatar）＋保形口五方法＋POST /mcp/identity（MCP JSON-RPC 门面、模块进程内直调、进程内密钥永不出关）＋front 只读两面（/v1/front/connections、/v1/front/gateway-channels）＋features.identity_bridge／front 面两位＋connect() 双 start 钩子，行为本体在 identity_gateway／front_gateway 两模块；本件为 2.2.0 件＋126 行纯增、零删改。 2.5.0 新增设置写面挂载（§435 二期，2026-11-25）：POST /v1/settings/entries、GET /v1/settings/events、POST /v1/settings/revoke 三路由＋features.settings_admin 位（随 instance config 的 settings.agent_admin 总闸取值、非补丁在位即声明）＋能力端点表三行，行为本体在 settings_admin 模块，本文件只挂路由、能力位与 handler。
+      provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes, cron-system-projection, version-gate, message-attachments-projection]
+      summary: 网关面（8642）补丁：设备配对认领（POST /v1/enrollment/codes 出码、/claim 一次性认领，码哈希+设备指纹存储）、消息反应写入（PUT/DELETE /v1/reactions/{session_id}/{row_id}）、网关面消息的 reactions 投影（_reactions_from_display_metadata）；1.2.0 新增待批聚合（批 2，2026-11-22）：GET /v1/approvals 跨会话聚合＋POST /v1/approvals/{request_id} 按 request_id 全局回执寻址，行为本体在 approval_projection 模块，本文件只挂路由与启动钩子。1.3.0 新增授权账本（批 5，2026-11-22）：GET /v1/grants 统一授权清单＋POST /v1/grants/revoke exec 授权撤销，行为本体在 grant_projection 模块，本文件只挂路由与启动钩子。1.4.0 新增工具集启停（批 34-S，2026-11-22）：PUT /v1/toolsets/{name} 复用上游 tools_config 机器写 api_server 平台启停（上游 9119 写口只写 cli 平台、对手机会话不生效），config-only 集（stt）镜像写自家 config 节 enabled，未知集 400 unknown_toolset；行为本体即本文件内 _apply_toolset_toggle_api_server（无独立模块）。1.7.0 新增崩溃上报端点（总表 131，2026-11-23）：POST /v1/diagnostics/crash-reports 收已过 App 隐私门的白名单崩溃记录、GET /v1/diagnostics/crash-reports 回读，行为本体在 crash_reports 模块，本文件只挂路由与 handler。1.8.0 新增 capabilities 探知位（总表 202，2026-11-24）：features.self_reactions=true（补丁在位即声明；是否产反应由 instance config 的 display.agent_self_reactions 闸另控，默认关），行为本体在 react_to_message_tool 补丁与 api_server_runs 的终态 attach，本文件只加该一位。1.9.0 新增文件加工两端点（断桥批一，2026-11-24）：GET /v1/files/spreadsheet 与 GET /v1/media/rendition（行为本体在 fileproc_gateway 模块）＋同 handler 的 /api/fileproc-bridge/* 保形挂载（已发货 App 零改动），本文件只挂路由与 handler；本文件 1.9.0 件为 1.8.0 件与批一变更集的三方并集合并（两线改动零交叠：自反应 +7 行、批一 +78 行，merged 哈希即本条登记值）。1.10.0 新增写闸网关挂载（断桥批二，2026-11-24）：12 条 /v1/write-gate 路由（status/pending/decide/decisions/rules）＋3 条 /v1/memories 路由（行为本体在 write_gate_gateway 模块）＋同 handler 的 /api/write-gate/* 保形挂载 12 条（迁移期路径保形，已发货 App 零改动），connect() 增 write_gate_gateway.start() 启动钩子（对位本体 1.9.0 锚点手工接），_handle_revoke_grant 注释更新写闸授权单一写者自桥改为本模块；本文件 1.10.0 件为 1.9.0 件与批二变更集的增量叠加（新增 220 行、删 2 行；批二副本 api_server_runs.py 为旧基线未带回，runs 文件零改动）。1.11.0 新增 OneDay 记忆机制服务面（§439，2026-11-24）：4 条 /v1/memory/* 路由（layers/search/insights/reconcile-check）＋能力端点表 4 行＋features.oneday_memory 位，行为本体在 oneday_memory 模块，本文件只挂路由与 handler；本件为 1.10.0 件之上的纯增量（新增 112 行、删 0 行，与自设一期（顺延 1.12.0）的 +29 行落点不重叠，本件即以 1.10.0 本体为底叠加、哈希按合并结果重算）。1.13.0 新增设置注册表只读下发（AI 自主设置权一期，DESIGN §435，2026-11-24）：GET /v1/settings/registry 只读端点＋capabilities 位 features.settings_registry=true（补丁在位即声明；端点纯只读、无任何写路径，AI 写面属二期另行翻闸），行为本体在 settings_registry 模块，本文件只挂路由、能力位与 handler；本文件 1.13.0 件为 1.12.0 件＋29 行纯增（路由 1＋能力端点表 1＋features 位与注记 6＋handler 21），零删改（剥离四处增量后哈希回 1.12.0 登记值 e2e786d6 已验）。1.14.0 新增记忆语义检索分发（§445，2026-11-24）：_handle_memory_search 读 mode 查询参数，mode=semantic|hybrid 时分发 oneday_semantic 模块（hybrid_search/semantic_search），其余维持 keyword 缺省路；模块不可用回 503 oneday_semantic_unavailable（与 §439 同形）；本件为 1.13.0 件＋21 行纯增（handler docstring +3、mode 分发 +18），零删改。 1.19.0 新增断桥批三挂载（2026-11-24）：/api/oneday-bridge/* 66 路由与 /api/overview-bridge/* 保形面（行为本体在 oneday_gateway / overview_gateway 模块）＋能力端点表 8 行＋features.oneday_bridge / features.overview_bridge 两位＋connect() 双启动钩子；本件为 1.18.0 件＋117 行纯增、零删改（重基时对生产件全量增量重放，含批三副本缺失的 library_mcp 分发支承接 #26）。2.0.0 新增断桥批五挂载（2026-11-25）：GET/POST /api/device-bridge/{tail} 与 POST /api/device-mcp（行为本体在 device_gateway 模块，引擎在工作线程执行、应答保桥的扁平 JSON 形）＋能力端点表与 features.device_bridge 位；路由故意不挂 @_require_auth——模块自验单钥且 /health 免钥（同桥口径），本件为 1.23.0 件之上的设备面增量，哈希按合并结果重算。2.2.0 新增选择框投影与能力位（§441 潜伏，2026-11-25）：消息投影增 options 字段（_options_from_display_metadata 读 display_metadata 的 options 键、形状校验后投影，与 reactions 同点位同口径、投影前捕获防 hidden 降级丢字段）＋features.options_card=true（补丁在位即声明；是否产卡由 instance config 的 display.options_card 闸另控，默认关＝潜伏），行为本体在 present_options_tool／options_pending 两模块与 api_server_runs 的终态 attach；本件自 1.23.0 预制件三方合并入 2.1.0（features 字典与 2.0.0 device_bridge 位并集消解、两旗并存），相对 2.1.0 件纯增 56 行、零删改。 2.3.0 新增断桥批四挂载（2026-11-25）：GET/POST /api/identity-bridge/{tail} 通配挂载（正口 /v1/identity/name、/v1/identity/avatar）＋保形口五方法＋POST /mcp/identity（MCP JSON-RPC 门面、模块进程内直调、进程内密钥永不出关）＋front 只读两面（/v1/front/connections、/v1/front/gateway-channels）＋features.identity_bridge／front 面两位＋connect() 双 start 钩子，行为本体在 identity_gateway／front_gateway 两模块；本件为 2.2.0 件＋126 行纯增、零删改。 2.5.0 新增设置写面挂载（§435 二期，2026-11-25）：POST /v1/settings/entries、GET /v1/settings/events、POST /v1/settings/revoke 三路由＋features.settings_admin 位（随 instance config 的 settings.agent_admin 总闸取值、非补丁在位即声明）＋能力端点表三行，行为本体在 settings_admin 模块，本文件只挂路由、能力位与 handler。2.11.0 收口：消息投影增 attachments（经 oneday_gateway._delivery_index 解析、2.10.1 命名空间口径）；capabilities 的 version_gate 块（min 0.50.125／recommended 0.51.0，env ONEDAY_MIN_APP_VERSION／ONEDAY_RECOMMENDED_APP_VERSION 可覆盖）自 2.7.1 线移回（审计 T-2，此前 main 整块丢失且无退役记录）；cron 列表投影接线（cron_projection）随对方线合入。
     - name: api_server_runs.py
       source: patches/api_server_runs.py
       host_path: patches/api_server_runs.py
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server_runs.py
       mount_mode: ro
-      sha256: bc5a5b36025eb4932b820bfddb3bd70140f2a6546d330cfd696813693ab4d9e3
+      sha256: 79edb80b9a07f6d339609de1bad4b14d59104bd98817121a99bfd19dc7399d8a
       upstream_baseline_sha256: 6f29c01f5d44d1456041df819080d6e0ed8dc9f3f0215afce094e9ab610c295f   # 应用时从未挂载补丁的镜像内同路径文件回读核验后落盘为部署目录 patches/api_server_runs.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 868
       provides: [runs-client-message-id, runs-terminal-list, self-reactions-attach, run-activity-registry, options-attach]
@@ -50,7 +50,7 @@ components:
       container: hermes
       container_path: /opt/hermes/hermes_cli/web_routers/sessions.py
       mount_mode: ro
-      sha256: d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
+      sha256: 215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
       upstream_baseline_sha256: 542496f484d94462e797cc21af9e0236315d4888993500bdcc89cca926ab9b2c
       diff_lines_vs_upstream: 113
       provides: [reactions-projection-history, rewind-route, options-projection-history]
@@ -83,7 +83,7 @@ components:
       container: hermes
       container_path: /opt/hermes/tools/react_to_message_tool.py
       mount_mode: ro
-      sha256: 3fd1d4c6e30467e1e4d87447bf54e164a23b733a78f500100eef21368683bdd3
+      sha256: 703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
       upstream_baseline_sha256: 8b4a14deeb0c8635bb2ae46ba116803cef836e2cc1488c2069e29882b3e27598   # 2026-11-24 入包时从未挂载补丁的镜像内同路径文件回读核验（容器内回读与包内基底三方一致）；应用时落盘为部署目录 patches/react_to_message_tool.py.orig
       diff_lines_vs_upstream: 159
       provides: [agent-self-reactions]
@@ -172,10 +172,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/options_pending.py
       mount_mode: ro
-      sha256: 1b354709c9b568fdf4b84d91ba235289482dbbe556891e43d68f028109bfb784
+      sha256: 546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [options-pending-store, options-validate, options-attach-rmw]
-      summary: 选择框待挂存储＋校验单源＋落库原语（2.2.0 新增，总表 203／§441，2026-11-25；预制原号 1.12.0 占位、随合并终定 2.2.0）：进程内字典＋锁（每会话至多一条、后写覆盖），承载 present_options 登记的待挂选项 {options, run_key, at}；validate_options 为工具写侧与 attach 侧共读的校验单源（项数 2–6、label ≤60 字、send_text ≤500 字、剥控制字符、send_text 缺省补 label、按 send_text 去重、去重后 <2 判无效）；attach_options 按 SessionDB.set_message_reaction 同款原语对目标行 display_metadata 做单事务 RMW、只写 options 键（{v:1, options, at}），其余键逐字保留（容器内真 SessionDB 实测：reactions＋投递标记保全、跨会话行拒绝）。刻意不落盘，理由同 self_reaction_pending。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
+      summary: 选择框待挂存储＋校验单源＋落库原语（2.2.0 新增，总表 203／§441，2026-11-25；预制原号 1.12.0 占位、随合并终定 2.2.0）：进程内字典＋锁（每会话至多一条、后写覆盖），承载 present_options 登记的待挂选项 {options, run_key, at}；validate_options 为工具写侧与 attach 侧共读的校验单源（项数 2–6、label ≤60 字、send_text ≤500 字、剥控制字符、send_text 缺省补 label、按 send_text 去重、去重后 <2 判无效）；attach_options 按 SessionDB.set_message_reaction 同款原语对目标行 display_metadata 做单事务 RMW、只写 options 键（{v:1, options, at}），其余键逐字保留（容器内真 SessionDB 实测：reactions＋投递标记保全、跨会话行拒绝）。2.9.0（对方线）改 (session_id, run_key, card_id) 多卡并存＋裁决落账与摘卡同锁原子化，2.11.0 收口入包。刻意不落盘，理由同 self_reaction_pending。install.sh 中本文件走 MODULES 通道，应用语义与全文件补丁同。
     - name: present_options_tool.py
       kind: module
       source: patches/present_options_tool.py
@@ -216,7 +216,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/write_gate_gateway.py
       mount_mode: ro
-      sha256: 4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
+      sha256: a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [write-gate-gateway-module, write-gate-routes, memories-routes]
       summary: 写闸网关模块（1.10.0 新增，断桥批二 bridge-retirement-spec-20261124 §3）：companion write_gate_bridge.py 业务逻辑拆壳入关，12 个公共函数对应桥的 12 条路由（status/pending 列表与详情/approve+reject/decisions/rules 增删查/memories 列表详情与 propose），状态路径原地 write-gate/ 三文件（rules.json/decisions.jsonl/anchors.json）不变，fail-closed 语义不变（上游模块不可用时 supported=False 写操作 409），清扫线程 5 秒间隔与桥同；api_server.py 挂 12 条 /v1 正口＋12 条保形口 /api/write-gate（迁移期路径保形 §5.2，App 清理后摘除）并在 connect() 调 start()。本模块即 App 侧写审批的裁决面（裁决经 handle_pending_subcommand 落 Hermes 本体暂存机器）；模块不可用时端点回 503、App 侧裁决暂不可用，Hermes 本体审批链（run 内等待、其他面作答）不受影响。全 handler 经 api_server @_require_auth 验 API_SERVER_KEY（凭据单源），桥独立钥 WRITE_GATE_BRIDGE_KEY 随批二应用退役。
@@ -326,7 +326,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_gateway.py
       mount_mode: ro
-      sha256: 0bde3bc5225ca56f672ae4ccc35a6405786f153e59b57db0687590ff77277922
+      sha256: 82755461e014e89bf1ebd8d96cb68501d77edb747185d3cc3b04db4f1b17434b
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-bridge-face, oneday-ledger, ledger-summary-inject, oneday-feed, oneday-ideas, oneday-goals, oneday-cron-rounds, oneday-file-library, library-mcp-face]
       summary: OneDay 面入关（1.19.0 新增，断桥批三）：自 companion oneday_bridge.py 拆壳平移——核心（状态存储/目标/动态/点子/台账/交付/文件库/monitors/traces/会话门面）逐字承接，进程壳换网关面：start() 由 api_server connect() 钩子调、dispatch() 承接 /api/oneday-bridge/* 66 路由、鉴权归一网关 API_SERVER_KEY（桥钥 ONEDAY_BRIDGE_KEY 退役）；业务分段以 _load_segment 汇入同一命名空间（platforms/ 同目录 16 段，含批三重基补齐的 library_mcp 段与网关 library 分发支，#26 读面不失）。C-3：内部 Dashboard 调用改会话令牌 Bearer（HERMES_DASH_AUTH_MODE 可回退密码登录）；#47：feed 小时评估与点子到期清理改引擎 cron 两轮（feed-evaluate 5 * * * *／ideas-expire 15 3 * * *），kanban 轮询留 reconcile 循环（G-3b 延迟验收）；简报润色加 reconcile 兜底触发＋pending 语义拆分（从未扩写报 idle）。数据源 /opt/data/oneday（自桥 data 整迁）。
@@ -348,7 +348,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_ledger_lib.py
       mount_mode: ro
-      sha256: 01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
+      sha256: 5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [ledger-pdf-render, ledger-summary-settle]
       summary: 台账 PDF 渲染库（1.19.0 新增，断桥批三）：自 companion modules/oneday_ledger_lib.py 逐字平移（与桥内 ledger.py 同源双生），供 oneday_gateway 台账导出渲染；随附字体在 platforms/assets/NotoSansSC-subset.ttf。
@@ -359,7 +359,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/cron_projection.py
       mount_mode: ro
-      sha256: 4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
+      sha256: 0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6
       upstream_baseline_sha256: null
       provides: [cron-system-job-projection]
       summary: Cron job 列表 is_system 纯投影模块。
@@ -480,10 +480,10 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_delivery.py
       mount_mode: ro
-      sha256: b369f9480295decb32f9944748dc9ad4d5c027d4b9541581b8e2da2f09ebb191
+      sha256: 08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
-      summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
+      summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.11.0 收口：并入对方线 2.10.0 的附件同体绑定（登记/标记时按 session_id＋message_id 锚定、存量 marker 幂等回填）与本线 deliver_file ingest 增量（合并取并集）；_sentinel_pass 开库前 db_schema_guard 校验自 2.7.1 线移回（审计 T-1，接线只留网关件）。
     - name: oneday_seg_feed.py
       kind: module
       source: patches/oneday_seg_feed.py
@@ -491,7 +491,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_feed.py
       mount_mode: ro
-      sha256: 8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
+      sha256: b305c244437ff0e061c4a76a24a8be32e0da9831b9ebb7eaa55dd8d50956f39a
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。2.6.0：配图自托管（生成时下载落 /opt/data/oneday/media/feed、帖子引用公网自家地址、sourceUrl 置空解开 App 列表封面抑制）＋候选页无图时 Tavily 搜图兜底（过探活＋形状双门）；落地段无图兜底（尊重编辑 dropImage）；自测 feed_media_selftest.py 18 项；能力 #44。
@@ -546,7 +546,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py
       mount_mode: ro
-      sha256: 07232bc019d9086b0102a8646c5b1b1d8ae1f54a084661b1ed525774c5569bc4
+      sha256: 7f2d33df2e80b0fa7ec4f761ad957c0892723bb8ca09781d0f2dd7bfbcfc148d
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.5.0 摘要轮幂等键改轮次 epoch（ideas-sum-{int(_now())}）：原内容寻址键 sha256(sid:messageCount) 在同队列异载荷（改名/摘录漂移/提示词升级）时跨轮撞键 409 且永久毒化该队列，照主生成键与 feed 同型收尾。
@@ -579,7 +579,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_library_mcp.py
       mount_mode: ro
-      sha256: 1a286edb6cd068a451e1e0f184ed9acabdf3eeecc3111a4a3527063ec9316d66
+      sha256: 29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
