@@ -647,7 +647,7 @@ try:
     names = [t.get("name") for t in lst["result"]["tools"]]
 except Exception:
     pass
-out.append("library-tools=%s" % ("ok" if names == ["library_list"]
+out.append("library-tools=%s" % ("ok" if names == ["library_list", "deliver_file"]
                                  else "bad"))
 call = mcp({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
             "params": {"name": "library_list",
@@ -672,7 +672,7 @@ case "$B3" in *ledger=ok*) ok "oneday-gateway-ledger" "网关台账 items 总数
 case "$B3" in *rounds=9*) ok "oneday-cron-rounds" "cron 登记表 OneDay 作业 9 条（系统轮 6＝原 4＋批三 #47 feed-evaluate/ideas-expire，另记忆日结/周体检/目标日结提炼 3）" ;; *) bad "oneday-cron-rounds" "探针: $B3（期望 rounds=9）" ;; esac
 case "$B3" in *ping-noauth=ok*) ok "oneday-cron-ping-auth" "内部回调 ping 无钥 401（回调钥在位）" ;; *) bad "oneday-cron-ping-auth" "探针: $B3" ;; esac
 case "$B3" in *summary=ok*) ok "overview-gateway-summary" "网关 overview summary 应答且 hermesUp=true（包 1.19.0）" ;; *) bad "overview-gateway-summary" "探针: $B3" ;; esac
-case "$B3" in *library-tools=ok*) ok "library-mcp-tools" "网关 /library-mcp tools/list 恰 [library_list]（#26 读面入关不失）" ;; *) bad "library-mcp-tools" "探针: $B3" ;; esac
+case "$B3" in *library-tools=ok*) ok "library-mcp-tools" "网关 /library-mcp tools/list 恰 [library_list, deliver_file]（#26 读面入关不失；deliver_file 为投递工具、与 library_list 同批在役——期望口径据 2.11.0 上线实测修正，2026-11-26 队列 87）" ;; *) bad "library-mcp-tools" "探针: $B3" ;; esac
 case "$B3" in *library-deep=ok*) ok "library-deep-equality" "library tools/call 与 GET /file-library 条目逐条深等（#26 复验）" ;; *) bad "library-deep-equality" "探针: $B3" ;; esac
 unk "oneday-gateway-write-behavior" "写型探针（cron feed 轮手动回调落账、台账 PDF 导出、C-3 password 模式回退演练）默认不跑; 人工验收路径见 CAPABILITIES.md #31"
 unk "overview-pipeline-filter" "流水线 run_* 完成通知来源侧过滤的行为证据需应用后自然轮观察（静态级已由 overview_gateway 哈希回读把关）; 人工验收路径见 CAPABILITIES.md #32"
@@ -797,7 +797,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 0e130068eb5f9498a8c1295a27152ceb8eb7bfc36f68fa796d7205c73831bb3e" "dist/index.js e46bc263bcfadbcb54b180d16e380e4f4f824215ec40321e9eefc95d374218fb" "dist/style.css b7e8fcb88126c60d3c63ab60b1aa0d4ed1456aa6ea57e2182fdd8cd18ed1bbad"; do
+for pair in "manifest.json 22c45395028a5d898d62215a273b690bb666f579071435d40fd735a2af3c5ff9" "dist/index.js 8e2b1cf5025c3349b77951ab74216f42b9824e4ea1cccdc192edce0610512a92" "dist/style.css d92cd4e545f062a9017529bdcdbf762266bdcb61307b7caf4d9e0cfa7a0d3726"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -870,3 +870,21 @@ else
   unk "webbar3-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "webbar3-browser" "棒 3 真浏览器目视（枢纽台账计数与条目下钻、审计决策时间线、规矩逐条撤销后回读、定时任务系统标记）属部署验收人工项；服务端等价链由部署单实测留据"
+
+# ---- 38. 网页端棒 4 管理面（包 2.16.0, #56）: 记忆/文件库/监控数据源只读探针（网关 Bearer 面）+ dashboard 会话面人工项 ----
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/memory/layers" || true)
+  if [ "$code" = "200" ]; then ok "webmemory-layers" "GET /v1/memory/layers → 200（记忆面分层清单数据源）"; else bad "webmemory-layers" "memory layers 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/memory/insights" || true)
+  if [ "$code" = "200" ]; then ok "webmemory-insights" "GET /v1/memory/insights → 200（记忆面提炼洞察数据源）"; else bad "webmemory-insights" "memory insights 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/api/oneday-bridge/file-library" || true)
+  if [ "$code" = "200" ]; then ok "webfiles-library" "GET /api/oneday-bridge/file-library → 200（文件库数据源，网关直连）"; else bad "webfiles-library" "file-library 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/api/oneday-bridge/monitors" || true)
+  if [ "$code" = "200" ]; then ok "webmonitors-list" "GET /api/oneday-bridge/monitors → 200（监控面数据源，网关直连）"; else bad "webmonitors-list" "monitors 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 -H "Authorization: Bearer $API_KEY" "https://hermes.didichou.site/api/oneday-bridge/file-library" || true)
+  if [ "$code" = "200" ]; then ok "webfiles-public" "公网 GET /api/oneday-bridge/file-library（Bearer）→ 200（nginx oneday-bridge 桥钥互换接线在位，文件库/监控面公网可达）"; else bad "webfiles-public" "公网 file-library 应答 $code（期望 200；非 200＝nginx bridge-auth 接线缺失）"; fi
+else
+  unk "webbar4-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "webbar4-dashfaces" "学习图谱（/api/learning/*）、连接器（/api/mcp/*）、委派（/api/delegation/*）、文件预览字节（/api/files/download）走 dashboard 会话 cookie，服务端探针无会话不代测；部署验收以真浏览器登录态实测留据（与 App 同文件双向对账）"
+unk "webbar4-browser" "棒 4 真浏览器目视（记忆分层/洞察/图谱节点编辑回读、文件库预览与 App 同文件对账、监控造单往返删净、连接器开关/测试回读、委派后端切换往返与路线保存回读）属部署验收人工项；服务端等价链由部署单实测留据"

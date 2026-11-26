@@ -3,7 +3,9 @@
  *
  * 棒 0 地基 + 棒 1 功能面 (approvals decide + credential vault)
  * + 棒 2 内容三面 (feed activity/posts, ideas, goals)
- * + 棒 3 枢纽面 (work ledger / audit / grants / cron): registers as
+ * + 棒 3 枢纽面 (work ledger / audit / grants / cron)
+ * + 棒 4 管理面 (memory layers/insights/learning graph, file library,
+ *   monitors, MCP connectors, delegation routing): registers as
  * a native dashboard tab via window.__HERMES_PLUGINS__ and renders
  * with the plugin SDK's React.
  *
@@ -21,6 +23,24 @@
  *   GET  /api/jobs                                (cron user-visible projection;
  *                                                  nginx exact location -> gateway)
  *   GET  /health ; GET /v1/capabilities           (hub connection band)
+ *   GET  /v1/memory/layers ; GET /v1/memory/insights   (bar 4, Bearer)
+ *   GET  /api/oneday-bridge/file-library          (bar 4, Bearer via nginx
+ *                                                  bridge-auth swap)
+ *   GET  /api/oneday-bridge/monitors[/{id}/changes]    (bar 4, Bearer)
+ *   --- dashboard-session faces (bar 4): plain same-origin fetch, the
+ *   dashboard cookie is the credential, no Bearer is sent ---
+ *   GET  /api/learning/graph ; GET|PUT|DELETE /api/learning/node
+ *   GET  /api/files/download?path=                (preview bytes)
+ *   GET  /api/mcp/servers ; PUT .../enabled ; POST .../test
+ *   GET  /api/mcp/catalog ; POST /api/mcp/catalog/install
+ *   GET  /api/delegation/routing ; PUT /api/delegation/backend ;
+ *   PUT  /api/delegation/backends/model_map|profile_routes
+ * Delegation api_key values are masked previews from the server (the
+ * App contract: the client never holds the real key); they round-trip
+ * in memory only, are rendered as "已存密钥" placeholders, and a newly
+ * typed key exists only in the submit body. MCP catalog env values and
+ * monitor/file data follow the same rule: values go out in request
+ * bodies, never render back, never persist.
  * Route B (standalone SPA under /oneday/) reuses the same core verbatim;
  * only this shell would change. No credentials are ever baked into this
  * file; the revealed key lives in sessionStorage only (tab-scoped,
@@ -115,6 +135,37 @@
     });
   }
 
+  // Dashboard-session channel (bar 4): the dashboard's own /api/*
+  // faces (learning, mcp, delegation, files) authenticate with the
+  // dashboard session cookie, not the gateway Bearer. Plain
+  // same-origin fetch; a 401 means the dashboard session is gone.
+  function dashJson(method, path, body) {
+    var opts = { method: method, credentials: "same-origin", headers: {} };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(path, opts).then(function (resp) {
+      if (resp.status === 401) {
+        var err = new Error("dashboard 会话未登录或已过期，请先登录面板再打开本页");
+        err.code = "no_session";
+        throw err;
+      }
+      return resp.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+        if (!resp.ok) {
+          var msg = (data && (data.error || data.detail || data.message)) ||
+            (path + " 应答 " + resp.status);
+          var err2 = new Error(typeof msg === "string" ? msg : path + " 应答 " + resp.status);
+          err2.status = resp.status;
+          throw err2;
+        }
+        return data;
+      });
+    });
+  }
+
   var Core = {
     revealKey: revealKey,
     fetchApprovals: function () { return apiJson("GET", "/v1/approvals"); },
@@ -202,6 +253,73 @@
     fetchHealth: function () {
       return fetch("/health").then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; });
+    },
+    // ---- bar 4: management faces ----
+    fetchMemoryLayers: function () { return apiJson("GET", "/v1/memory/layers"); },
+    fetchMemoryInsights: function () { return apiJson("GET", "/v1/memory/insights"); },
+    fetchLearningGraph: function () { return dashJson("GET", "/api/learning/graph"); },
+    fetchLearningNode: function (id) {
+      return dashJson("GET", "/api/learning/node?id=" + encodeURIComponent(id));
+    },
+    saveLearningNode: function (id, content) {
+      return dashJson("PUT", "/api/learning/node", { id: id, content: content });
+    },
+    deleteLearningNode: function (id) {
+      return dashJson("DELETE", "/api/learning/node", { id: id });
+    },
+    fetchFileLibrary: function () { return apiJson("GET", "/api/oneday-bridge/file-library"); },
+    fetchFileBlob: function (path) {
+      return fetch("/api/files/download?path=" + encodeURIComponent(path), {
+        credentials: "same-origin"
+      }).then(function (resp) {
+        if (!resp.ok) throw new Error("download 应答 " + resp.status);
+        return resp.blob();
+      });
+    },
+    fetchMonitors: function () { return apiJson("GET", "/api/oneday-bridge/monitors"); },
+    fetchMonitorChanges: function (id) {
+      return apiJson("GET", "/api/oneday-bridge/monitors/" + encodeURIComponent(id) + "/changes");
+    },
+    createMonitor: function (body) { return apiJson("POST", "/api/oneday-bridge/monitors", body); },
+    checkMonitor: function (id) {
+      return apiJson("POST", "/api/oneday-bridge/monitors/" + encodeURIComponent(id) + "/check", {});
+    },
+    pauseMonitor: function (id) {
+      return apiJson("POST", "/api/oneday-bridge/monitors/" + encodeURIComponent(id) + "/pause", {});
+    },
+    resumeMonitor: function (id) {
+      return apiJson("POST", "/api/oneday-bridge/monitors/" + encodeURIComponent(id) + "/resume", {});
+    },
+    deleteMonitor: function (id) {
+      return apiJson("DELETE", "/api/oneday-bridge/monitors/" + encodeURIComponent(id));
+    },
+    readMonitorChange: function (id, changeId) {
+      return apiJson("POST", "/api/oneday-bridge/monitors/" + encodeURIComponent(id) +
+        "/changes/" + encodeURIComponent(changeId) + "/read", {});
+    },
+    fetchMcpServers: function () { return dashJson("GET", "/api/mcp/servers"); },
+    setMcpServerEnabled: function (name, enabled) {
+      return dashJson("PUT", "/api/mcp/servers/" + encodeURIComponent(name) + "/enabled",
+        { enabled: enabled });
+    },
+    testMcpServer: function (name) {
+      return dashJson("POST", "/api/mcp/servers/" + encodeURIComponent(name) + "/test", {});
+    },
+    fetchMcpCatalog: function () { return dashJson("GET", "/api/mcp/catalog"); },
+    installMcpCatalog: function (body) { return dashJson("POST", "/api/mcp/catalog/install", body); },
+    fetchDelegation: function () { return dashJson("GET", "/api/delegation/routing"); },
+    setDelegationBackend: function (backend) {
+      return dashJson("PUT", "/api/delegation/backend", { backend: backend });
+    },
+    setDelegationModelMap: function (options, def) {
+      var body = { options: options };
+      if (def) body["default"] = def;
+      return dashJson("PUT", "/api/delegation/backends/model_map", body);
+    },
+    setDelegationProfileRoutes: function (profiles, def) {
+      var body = { profiles: profiles };
+      if (def) body["default"] = def;
+      return dashJson("PUT", "/api/delegation/backends/profile_routes", body);
     }
   };
   window.__ONEDAY_CONSOLE_CORE__ = Core;
@@ -1657,6 +1775,1167 @@
     return faceShell("定时任务", "用户可见口径（网关 /api/jobs 投影：系统任务带标记，与 App 定时任务面同一分类）。只读总览；建改与启停在 dashboard 的 Cron 页办。", face, load, body);
   }
 
+  // ---------------- memory face (bar 4, gap #8) ----------------
+  var MEMORY_LAYER_TITLES = {
+    core: "核心长期记忆", memory: "核心长期记忆",
+    user: "用户画像", profile: "用户画像",
+    episodic: "情景记忆", episodes: "情景记忆",
+    semantic: "事实与知识", facts: "事实与知识",
+    procedural: "行为规则", rules: "行为规则",
+    insights: "提炼洞察",
+    projects: "项目与目标", goals: "项目与目标",
+    scratch: "工作暂存", working: "工作暂存"
+  };
+  var INSIGHT_STATUS_WORDS = { active: "生效中", candidate: "候选中", retired: "已退役" };
+  function fmtBytes(n) {
+    if (n == null) return "";
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1024 / 1024).toFixed(1) + " MB";
+  }
+  function learningNodeContent(data) {
+    if (!data) return null;
+    if (typeof data === "string") return data;
+    var keys = ["content", "text", "body"];
+    for (var i = 0; i < keys.length; i++) {
+      if (typeof data[keys[i]] === "string") return data[keys[i]];
+    }
+    if (data.node && typeof data.node === "object") {
+      for (var j = 0; j < keys.length; j++) {
+        if (typeof data.node[keys[j]] === "string") return data.node[keys[j]];
+      }
+    }
+    return null;
+  }
+
+  function MemoryFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        Core.fetchMemoryLayers(),
+        Core.fetchMemoryInsights().catch(function () { return null; }),
+        Core.fetchLearningGraph().catch(function () { return null; })
+      ]).then(function (r) { return { layers: r[0], insights: r[1], graph: r[2] }; });
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var selPair = hooks.useState(null);
+    var sel = selPair[0];
+    var setSel = selPair[1];
+    var draftPair = hooks.useState("");
+    var draft = draftPair[0];
+    var setDraft = draftPair[1];
+    var busyPair = hooks.useState(false);
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+
+    function openNode(node) {
+      setSel({ node: node, content: null, loading: true });
+      setNote("");
+      Core.fetchLearningNode(node.id).then(function (data) {
+        var content = learningNodeContent(data);
+        setSel({ node: node, content: content, loading: false });
+        setDraft(content || "");
+      }).catch(function (err) {
+        setSel({ node: node, content: null, loading: false });
+        setNote("节点全文没读出来：" + ((err && err.message) || String(err)));
+      });
+    }
+    function saveNode() {
+      if (!sel) return;
+      setBusy(true);
+      Core.saveLearningNode(sel.node.id, draft).then(function () {
+        setBusy(false);
+        setNote("已保存（以回读为准）。");
+        load();
+        openNode(sel.node);
+      }).catch(function (err) {
+        setBusy(false);
+        setNote("保存失败：" + ((err && err.message) || String(err)));
+      });
+    }
+    function removeNode() {
+      if (!sel) return;
+      setBusy(true);
+      Core.deleteLearningNode(sel.node.id).then(function () {
+        setBusy(false);
+        setSel(null);
+        setNote("已删除（以回读为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy(false);
+        setNote("删除失败：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data || {};
+      var layers = (d.layers && d.layers.layers) || [];
+      var insights = [];
+      if (d.insights) {
+        insights = d.insights.insights || d.insights.data || d.insights.items ||
+          (Array.isArray(d.insights) ? d.insights : []);
+      }
+      var graph = d.graph || {};
+      var nodes = graph.nodes || [];
+      var skillNodes = nodes.filter(function (n) { return n.kind === "skill"; });
+      var memoryNodes = nodes.filter(function (n) { return n.kind === "memory"; });
+      var stats = graph.stats || {};
+      var parts = [];
+      parts.push(h("p", { key: "lc", className: "odc-count" },
+        "记忆分层 " + layers.length + " 层 · 洞察 " + insights.length + " 条 · 学习图谱节点 " +
+        nodes.length + "（技能 " + skillNodes.length + " · 记忆 " + memoryNodes.length +
+        "） · 记忆卡 " + ((graph.memory || graph.memories || graph.cards || []).length) + " 张"));
+      if (!layers.length) {
+        parts.push(h("p", { key: "le", className: "odc-empty" }, "暂无分层记忆。"));
+      } else {
+        parts.push(h("div", { key: "layers", className: "odc-counts" }, layers.map(function (l) {
+          return h("div", { key: l.layer, className: "odc-count-cell" },
+            h("span", { className: "odc-count-num" }, String(l.entries != null ? l.entries : 0)),
+            h("span", null, (MEMORY_LAYER_TITLES[String(l.layer || "").toLowerCase()] || l.layer) +
+              " · " + (l.files || 0) + " 个文件 · " + fmtBytes(l.bytes || 0) +
+              (l.provenance_coverage != null
+                ? " · 出处覆盖 " + Math.round(l.provenance_coverage * 100) + "%" : "") +
+              (l.newest_mtime ? " · 最新 " + l.newest_mtime : "")));
+        })));
+      }
+      parts.push(h("p", { key: "ih", className: "odc-summary-head" }, "提炼洞察（ExpeL 账本）"));
+      if (!insights.length) {
+        parts.push(h("p", { key: "ie", className: "odc-empty" }, "暂无洞察。"));
+      } else {
+        parts.push(h("ul", { key: "il", className: "odc-list" }, insights.map(function (it) {
+          var meta = [];
+          meta.push(INSIGHT_STATUS_WORDS[it.status] || it.status || "");
+          if (it.scope) meta.push("范围 " + it.scope);
+          meta.push("赞成 " + (it.votes_up || 0) + " · 反对 " + (it.votes_down || 0) +
+            " · 复发 " + (it.relapse_count || 0));
+          if (it.last) meta.push("最近 " + it.last);
+          return h("li", { key: it.id, className: "odc-row odc-row-card" },
+            h("span", { className: "odc-row-title" }, it.rule || it.id),
+            h("p", { className: "odc-row-meta" }, meta.join(" · ")));
+        })));
+      }
+      parts.push(h("p", { key: "gh", className: "odc-summary-head" },
+        "学习图谱（技能 " + skillNodes.length + " · 记忆 " + memoryNodes.length +
+        " · 边 " + ((graph.edges || []).length) + "）"));
+      if (stats.learned_skills != null || stats.memory_nodes != null) {
+        parts.push(h("p", { key: "gs", className: "odc-row-meta" },
+          "服务端统计：学到的技能 " + (stats.learned_skills != null ? stats.learned_skills : "—") +
+          " · 记忆节点 " + (stats.memory_nodes != null ? stats.memory_nodes : "—") +
+          " · 已关联 " + (stats.linked_nodes != null ? stats.linked_nodes : "—")));
+      }
+      function nodeRow(n) {
+        var meta = [];
+        if (n.category) meta.push(n.category);
+        if (n.useCount) meta.push("用过 " + n.useCount + " 次");
+        if (n.state) meta.push(n.state);
+        if (n.createdBy) meta.push("来自 " + n.createdBy);
+        if (n.timestamp) meta.push(fmtTs(n.timestamp));
+        return h("li", { key: n.id, className: "odc-row" },
+          h("span", null,
+            h("span", { className: "odc-row-title" }, n.label || n.id),
+            h("p", { className: "odc-row-meta" }, meta.join(" · "))),
+          h("span", { className: "odc-chips" },
+            n.pinned ? h("span", { key: "pin", className: "odc-st" }, "已置顶") : null,
+            h("button", {
+              key: "open", className: "odc-btn odc-btn-text",
+              onClick: function () { openNode(n); }
+            }, "全文／编辑")));
+      }
+      if (skillNodes.length) {
+        parts.push(h("p", { key: "skh", className: "odc-summary-head" }, "学到的技能"));
+        parts.push(h("ul", { key: "skl", className: "odc-list" }, skillNodes.map(nodeRow)));
+      }
+      if (memoryNodes.length) {
+        parts.push(h("p", { key: "mmh", className: "odc-summary-head" }, "记忆节点"));
+        parts.push(h("ul", { key: "mml", className: "odc-list" }, memoryNodes.map(nodeRow)));
+      }
+      if (!nodes.length) {
+        parts.push(h("p", { key: "ge", className: "odc-empty" }, "学习图谱暂无节点。"));
+      }
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      if (sel) {
+        parts.push(h("div", { key: "detail", className: "odc-detail" },
+          h("p", { className: "odc-summary-head" }, "节点全文 · " + (sel.node.label || sel.node.id)),
+          sel.loading
+            ? h("p", null, "正在读全文……")
+            : (sel.content == null
+              ? h("p", { className: "odc-warn" }, "服务端没给出全文（回执无 content 字段），不冒充已读到。")
+              : h("label", { className: "odc-field" }, h("span", null, "内容（保存走 PUT /api/learning/node，与 App 同一口）"),
+                h("textarea", {
+                  rows: 8, value: draft,
+                  onChange: function (ev) { setDraft(ev.target.value); }
+                }))),
+          h("span", { className: "odc-actions" },
+            h("button", {
+              className: "odc-btn odc-btn-primary", disabled: busy || sel.loading || sel.content == null,
+              onClick: saveNode
+            }, busy ? "处理中…" : "保存"),
+            h("button", {
+              className: "odc-btn odc-btn-text", disabled: busy,
+              onClick: removeNode
+            }, "删除节点"),
+            h("button", {
+              className: "odc-btn odc-btn-text",
+              onClick: function () { setSel(null); }
+            }, "收起"))));
+      }
+      body = parts;
+    }
+    return faceShell("记忆", "与 App 智能体记忆面同一数据源：分层清单（GET /v1/memory/layers）、提炼洞察账本（/v1/memory/insights）、学习图谱（/api/learning/graph，节点全文走 /api/learning/node 可编辑/删除，与 App 同一口）。只呈现 App 同口径可见内容。", face, load, body);
+  }
+
+  // ---------------- file library face (bar 4, gap #9) ----------------
+  // Pin + open-history are client-local stores in the App too
+  // (pinStore / FileOpenHistoryStore never leave the device); the web
+  // face mirrors that with localStorage, scoped to this browser.
+  function lsGet(key, fallback) {
+    try {
+      var v = window.localStorage.getItem(key);
+      return v ? JSON.parse(v) : fallback;
+    } catch (e) { return fallback; }
+  }
+  function lsSet(key, v) {
+    try { window.localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* private mode */ }
+  }
+  var PIN_KEY = "oneday-console.file-pins";
+  var HISTORY_KEY = "oneday-console.file-history";
+
+  function FilesFace() {
+    var facePair = useFace(Core.fetchFileLibrary);
+    var face = facePair[0];
+    var load = facePair[1];
+    var pinsPair = hooks.useState(function () { return lsGet(PIN_KEY, []); });
+    var pins = pinsPair[0];
+    var setPins = pinsPair[1];
+    var histPair = hooks.useState(function () { return lsGet(HISTORY_KEY, []); });
+    var hist = histPair[0];
+    var setHist = histPair[1];
+    var prevPair = hooks.useState(null);
+    var prev = prevPair[0];
+    var setPrev = prevPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+
+    function togglePin(path) {
+      var next = pins.indexOf(path) >= 0
+        ? pins.filter(function (p) { return p !== path; })
+        : [path].concat(pins);
+      setPins(next);
+      lsSet(PIN_KEY, next);
+    }
+    function closePreview() {
+      if (prev && prev.url) { try { URL.revokeObjectURL(prev.url); } catch (e) { /* noop */ } }
+      setPrev(null);
+    }
+    function openItem(item) {
+      var entry = { path: item.path, name: item.name, at: Date.now() };
+      var nextHist = [entry].concat(hist.filter(function (x) { return x.path !== item.path; })).slice(0, 30);
+      setHist(nextHist);
+      lsSet(HISTORY_KEY, nextHist);
+      closePreview();
+      setPrev({ item: item, kind: "loading", url: null, text: null });
+      setNote("");
+      Core.fetchFileBlob(item.path).then(function (blob) {
+        var mime = item.mime_type || blob.type || "";
+        if (mime.indexOf("image/") === 0) {
+          setPrev({ item: item, kind: "image", url: URL.createObjectURL(blob), text: null });
+        } else if (mime === "application/pdf") {
+          setPrev({ item: item, kind: "pdf", url: URL.createObjectURL(blob), text: null });
+        } else if (mime.indexOf("text/") === 0 || /json|xml|markdown/.test(mime)) {
+          blob.text().then(function (text) {
+            setPrev({ item: item, kind: "text", url: null, text: text });
+          });
+        } else {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = item.name || "download";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* noop */ } }, 4000);
+          setPrev({ item: item, kind: "downloaded", url: null, text: null });
+        }
+      }).catch(function (err) {
+        setPrev({ item: item, kind: "error", url: null, text: null });
+        setNote("预览没取回来：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data || {};
+      var items = d.items || [];
+      var parts = [];
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "交付物共 " + (d.total != null ? d.total : items.length) + " 件（服务端聚合下发，与 App 文件库同一函数同一集）" +
+        (d.truncated ? " · 服务端报告已截断" : "")));
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      if (prev) {
+        var pk = [h("p", { key: "ph", className: "odc-summary-head" },
+          "预览 · " + (prev.item.name || prev.item.path))];
+        if (prev.kind === "loading") pk.push(h("p", { key: "pl" }, "正在取文件……"));
+        if (prev.kind === "image") pk.push(h("img", { key: "pi", className: "odc-img", src: prev.url, alt: prev.item.name || "" }));
+        if (prev.kind === "pdf") pk.push(h("iframe", { key: "pp", className: "odc-preview", src: prev.url, title: prev.item.name || "pdf" }));
+        if (prev.kind === "text") pk.push(h("pre", { key: "pt", className: "odc-entry-body" }, prev.text));
+        if (prev.kind === "downloaded") pk.push(h("p", { key: "pd" }, "此类型不在页内预览，已触发下载。"));
+        if (prev.kind === "error") pk.push(h("p", { key: "pe", className: "odc-error" }, "预览失败（见上方提示）。"));
+        pk.push(h("span", { key: "pc", className: "odc-actions" },
+          h("button", { className: "odc-btn odc-btn-text", onClick: closePreview }, "关闭预览")));
+        parts.push(h("div", { key: "prev", className: "odc-detail" }, pk));
+      }
+      if (hist.length) {
+        parts.push(h("p", { key: "hh", className: "odc-summary-head" }, "打开历史（本浏览器本地记录，与 App 同口径）"));
+        parts.push(h("ul", { key: "hl", className: "odc-list" }, hist.slice(0, 8).map(function (x) {
+          var found = items.filter(function (i) { return i.path === x.path; })[0];
+          return h("li", { key: x.path, className: "odc-row" },
+            h("span", null,
+              h("span", { className: "odc-row-title" }, x.name || x.path),
+              h("p", { className: "odc-row-meta" }, new Date(x.at).toLocaleString())),
+            found ? h("button", {
+              className: "odc-btn odc-btn-text",
+              onClick: function () { openItem(found); }
+            }, "再打开") : h("span", { className: "odc-row-meta" }, "已不在库中"));
+        })));
+      }
+      if (!items.length) {
+        parts.push(h("p", { key: "e", className: "odc-empty" }, "文件库暂无交付物。"));
+      } else {
+        var sorted = items.slice().sort(function (a, b) {
+          var pa = pins.indexOf(a.path) >= 0 ? 0 : 1;
+          var pb = pins.indexOf(b.path) >= 0 ? 0 : 1;
+          return pa - pb;
+        });
+        parts.push(h("ul", { key: "list", className: "odc-list" }, sorted.map(function (item) {
+          var pinned = pins.indexOf(item.path) >= 0;
+          var meta = [];
+          if (item.source) meta.push("来源 " + item.source);
+          if (item.size != null) meta.push(fmtBytes(item.size));
+          if (item.mtime) meta.push(fmtTs(item.mtime));
+          if (item.mime_type) meta.push(item.mime_type);
+          return h("li", { key: item.path, className: "odc-row" },
+            h("span", null,
+              h("span", { className: "odc-row-title" }, (pinned ? "［置顶］" : "") + (item.name || item.path)),
+              h("p", { className: "odc-row-meta" }, meta.join(" · "))),
+            h("span", { className: "odc-actions" },
+              h("button", {
+                className: "odc-btn odc-btn-text",
+                onClick: function () { togglePin(item.path); }
+              }, pinned ? "取消置顶" : "置顶"),
+              h("button", {
+                className: "odc-btn odc-btn-small",
+                onClick: function () { openItem(item); }
+              }, "预览")));
+        })));
+      }
+      body = parts;
+    }
+    return faceShell("文件库", "交付物库（GET /api/oneday-bridge/file-library 服务端聚合，与 App 同一函数）：预览走 dashboard 文件通道 /api/files/download，与 App 打开同一文件同源对账；置顶与打开历史是本机本地记录（App 同为本地存储）。与 dashboard 的 Files 服务器文件浏览器分工并存、不合并。", face, load, body);
+  }
+
+  // ---------------- monitors face (bar 4, gap #10) ----------------
+  var MONITOR_RESULT_WORDS = { changed: "有变化", unchanged: "无变化", failed: "检查失败" };
+  var MONITOR_FREQ = [
+    { v: "manual", label: "手动检查", text: "手动检查", interval: null },
+    { v: "hourly", label: "每小时", text: "每小时检查", interval: 3600 },
+    { v: "daily", label: "每天", text: "每天检查", interval: 86400 }
+  ];
+  function MonitorsFace() {
+    var facePair = useFace(Core.fetchMonitors);
+    var face = facePair[0];
+    var load = facePair[1];
+    var formPair = hooks.useState(null);
+    var form = formPair[0];
+    var setForm = formPair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    var openPair = hooks.useState("");
+    var openId = openPair[0];
+    var setOpenId = openPair[1];
+    var chgPair = hooks.useState(null);
+    var chg = chgPair[0];
+    var setChg = chgPair[1];
+    var confirmPair = hooks.useState("");
+    var confirmId = confirmPair[0];
+    var setConfirmId = confirmPair[1];
+
+    function act(id, fn, doneMsg) {
+      setBusy(id);
+      setNote("");
+      fn().then(function () {
+        setBusy("");
+        if (doneMsg) setNote(doneMsg);
+        load();
+        if (openId === id) loadChanges(id);
+      }).catch(function (err) {
+        setBusy("");
+        setNote("操作没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        load();
+      });
+    }
+    function loadChanges(id) {
+      setChg({ id: id, loading: true, items: null });
+      Core.fetchMonitorChanges(id).then(function (data) {
+        setChg({ id: id, loading: false, items: (data && data.items) || [] });
+      }).catch(function (err) {
+        setChg({ id: id, loading: false, items: null });
+        setNote("变化记录没读出来：" + ((err && err.message) || String(err)));
+      });
+    }
+    function toggleOpen(m) {
+      if (openId === m.id) { setOpenId(""); setChg(null); }
+      else { setOpenId(m.id); loadChanges(m.id); }
+    }
+    function create() {
+      var name = ((form && form.name) || "").trim();
+      var target = ((form && form.target) || "").trim();
+      if (!name) { setNote("请填写监测名称。"); return; }
+      if (!target) { setNote("请填写要盯的链接。"); return; }
+      if (target.indexOf("http://") !== 0 && target.indexOf("https://") !== 0) {
+        setNote("链接要以 http:// 或 https:// 开头。");
+        return;
+      }
+      var freq = MONITOR_FREQ.filter(function (f) { return f.v === (form.freq || "manual"); })[0];
+      var body = { name: name, target: target, scheduleText: freq.text };
+      if (freq.interval) body.intervalSeconds = freq.interval;
+      setBusy("create");
+      setNote("");
+      Core.createMonitor(body).then(function () {
+        setBusy("");
+        setForm(null);
+        setNote("已新建（以回读列表为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("新建失败：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var items = (face.data && face.data.items) || [];
+      var parts = [];
+      var unreadTotal = items.reduce(function (s, m) { return s + (m.unreadChanges || 0); }, 0);
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "共 " + items.length + " 个监测 · 未读变化 " + unreadTotal + " 条"));
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      if (form) {
+        parts.push(h("div", { key: "form", className: "odc-form" },
+          h("label", { className: "odc-field" }, h("span", null, "名称"),
+            h("input", {
+              type: "text", value: form.name || "",
+              onChange: function (ev) { setForm(Object.assign({}, form, { name: ev.target.value })); }
+            })),
+          h("label", { className: "odc-field" }, h("span", null, "要盯的链接（http/https）"),
+            h("input", {
+              type: "text", value: form.target || "",
+              onChange: function (ev) { setForm(Object.assign({}, form, { target: ev.target.value })); }
+            })),
+          h("label", { className: "odc-field" }, h("span", null, "频率"),
+            h("select", {
+              value: form.freq || "manual",
+              onChange: function (ev) { setForm(Object.assign({}, form, { freq: ev.target.value })); }
+            }, MONITOR_FREQ.map(function (f) {
+              return h("option", { key: f.v, value: f.v }, f.label);
+            }))),
+          h("span", { className: "odc-actions" },
+            h("button", {
+              className: "odc-btn odc-btn-primary", disabled: busy === "create", onClick: create
+            }, busy === "create" ? "提交中…" : "新建监测"),
+            h("button", {
+              className: "odc-btn odc-btn-text",
+              onClick: function () { setForm(null); }
+            }, "取消"))));
+      } else {
+        parts.push(h("span", { key: "new", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-secondary",
+            onClick: function () { setForm({ name: "", target: "", freq: "manual" }); }
+          }, "＋ 新建监测")));
+      }
+      if (!items.length) {
+        parts.push(h("p", { key: "e", className: "odc-empty" }, "暂无监测（0 件也是真数据）。"));
+      } else {
+        parts.push(h("ul", { key: "list", className: "odc-list" }, items.map(function (m) {
+          var meta = [];
+          if (m.scheduleText) meta.push(m.scheduleText);
+          if (m.lastCheckedAt) {
+            meta.push("最近检查 " + fmtTs(m.lastCheckedAt) + " · " +
+              (MONITOR_RESULT_WORDS[m.lastResult] || (m.lastResult ? m.lastResult + "（未识别态）" : "未检查")));
+          } else meta.push("从未检查");
+          if (m.lastError) meta.push("失败原因：" + m.lastError);
+          if (m.latestChangeSummary) {
+            meta.push("最近变化：" + m.latestChangeSummary +
+              (m.latestChangeAt ? "（" + fmtTs(m.latestChangeAt) + "）" : ""));
+          }
+          var kids = [
+            h("div", { key: "hd", className: "odc-actions", style: { justifyContent: "space-between" } },
+              h("span", { className: "odc-row-title" }, m.name || m.id),
+              h("span", { className: "odc-chips" },
+                m.enabled
+                  ? h("span", { key: "on", className: "odc-st odc-st-done" }, "启用中")
+                  : h("span", { key: "off", className: "odc-st odc-st-failed" }, "已暂停"),
+                (m.unreadChanges || 0) > 0
+                  ? h("span", { key: "un", className: "odc-st odc-st-pending" }, "未读变化 " + m.unreadChanges)
+                  : null)),
+            h("p", { key: "mt", className: "odc-row-meta" }, meta.join(" · ")),
+            h("p", { key: "tg", className: "odc-cmd" }, m.target || ""),
+            h("span", { key: "ac", className: "odc-actions" },
+              h("button", {
+                className: "odc-btn odc-btn-small", disabled: busy === m.id,
+                onClick: function () { act(m.id, function () { return Core.checkMonitor(m.id); }, "已检查（以回读为准）。"); }
+              }, "立即检查"),
+              m.enabled
+                ? h("button", {
+                  className: "odc-btn odc-btn-small", disabled: busy === m.id,
+                  onClick: function () { act(m.id, function () { return Core.pauseMonitor(m.id); }, "已暂停（以回读为准）。"); }
+                }, "暂停")
+                : h("button", {
+                  className: "odc-btn odc-btn-small", disabled: busy === m.id,
+                  onClick: function () { act(m.id, function () { return Core.resumeMonitor(m.id); }, "已恢复（以回读为准）。"); }
+                }, "恢复"),
+              h("button", {
+                className: "odc-btn odc-btn-small",
+                onClick: function () { toggleOpen(m); }
+              }, openId === m.id ? "收起变化" : "变化记录"),
+              confirmId === m.id
+                ? h("button", {
+                  className: "odc-btn odc-btn-small", disabled: busy === m.id,
+                  onClick: function () {
+                    setConfirmId("");
+                    act(m.id, function () { return Core.deleteMonitor(m.id); }, "已删除（连同其变化记录）。");
+                  }
+                }, "确认删除")
+                : h("button", {
+                  className: "odc-btn odc-btn-text",
+                  onClick: function () { setConfirmId(m.id); }
+                }, "删除"))
+          ];
+          if (openId === m.id) {
+            if (!chg || chg.loading) {
+              kids.push(h("p", { key: "cl" }, "正在读变化记录……"));
+            } else if (chg.items && chg.items.length) {
+              kids.push(h("ul", { key: "cl", className: "odc-list" }, chg.items.map(function (c) {
+                return h("li", { key: c.id, className: "odc-row" },
+                  h("span", null,
+                    h("span", { className: "odc-row-title" }, c.summary || c.id),
+                    h("p", { className: "odc-row-meta" },
+                      fmtTs(c.detectedAt) + (c.read ? " · 已读" : " · 未读") +
+                      (c.before ? " · 前：" + String(c.before).slice(0, 80) : "") +
+                      (c.after ? " · 后：" + String(c.after).slice(0, 80) : ""))),
+                  !c.read ? h("button", {
+                    className: "odc-btn odc-btn-text", disabled: busy === m.id,
+                    onClick: function () {
+                      act(m.id, function () { return Core.readMonitorChange(m.id, c.id); }, "已标已读。");
+                    }
+                  }, "标已读") : null);
+              })));
+            } else if (chg.items) {
+              kids.push(h("p", { key: "ce", className: "odc-empty" }, "暂无变化记录。"));
+            }
+          }
+          return h("li", { key: m.id, className: "odc-row odc-row-card" }, kids);
+        })));
+      }
+      body = parts;
+    }
+    return faceShell("监控", "与 App 智能体监控面同一数据源（GET /api/oneday-bridge/monitors）：盯网页变化、检出留痕。立即检查/暂停/恢复/删除/新建与 App 同口，成败以回读为准。", face, load, body);
+  }
+
+  // ---------------- connectors face (bar 4, gap #11) ----------------
+  function mcpIsSecretEnv(name) {
+    var n = String(name || "").toUpperCase();
+    return ["KEY", "TOKEN", "SECRET", "PASSWORD", "AUTH"].some(function (k) {
+      return n.indexOf(k) >= 0;
+    });
+  }
+  function mcpTestVerdict(data) {
+    if (!data) return { ok: false, text: "测试回执为空，不判成功。" };
+    var msg = data.message || data.error || "";
+    if (typeof data.ok === "boolean") {
+      return { ok: data.ok, text: (data.ok ? "测试通过" : "测试未通过") +
+        (data.tool_count != null ? " · 工具 " + data.tool_count + " 个" : "") +
+        (msg ? " · " + msg : "") };
+    }
+    var st = String(data.status || "").toLowerCase();
+    if (["ok", "success", "succeeded", "connected", "healthy"].indexOf(st) >= 0) {
+      return { ok: true, text: "测试通过 · 状态 " + data.status +
+        (data.tool_count != null ? " · 工具 " + data.tool_count + " 个" : "") +
+        (msg ? " · " + msg : "") };
+    }
+    return { ok: false, text: "回执无明确成功信号（状态 " + (data.status || "未知") + "）" +
+      (msg ? " · " + msg : "") + "，不判成功。" };
+  }
+  function ConnectorsFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        Core.fetchMcpServers(),
+        Core.fetchMcpCatalog().catch(function () { return null; })
+      ]).then(function (r) { return { servers: r[0], catalog: r[1] }; });
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    var testPair = hooks.useState({});
+    var testMap = testPair[0];
+    var setTestMap = testPair[1];
+    var queryPair = hooks.useState("");
+    var query = queryPair[0];
+    var setQuery = queryPair[1];
+    var instPair = hooks.useState(null);
+    var inst = instPair[0];
+    var setInst = instPair[1];
+
+    function toggleServer(s) {
+      setBusy("srv:" + s.name);
+      setNote("");
+      Core.setMcpServerEnabled(s.name, !s.enabled).then(function () {
+        setBusy("");
+        setNote("「" + s.name + "」已" + (!s.enabled ? "启用" : "停用") + "（以回读为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("开关没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        load();
+      });
+    }
+    function testServer(s) {
+      setBusy("test:" + s.name);
+      Core.testMcpServer(s.name).then(function (data) {
+        setBusy("");
+        var v = mcpTestVerdict(data);
+        var next = Object.assign({}, testMap);
+        next[s.name] = v.text;
+        setTestMap(next);
+      }).catch(function (err) {
+        setBusy("");
+        var next = Object.assign({}, testMap);
+        next[s.name] = "测试请求失败：" + ((err && err.message) || String(err));
+        setTestMap(next);
+      });
+    }
+    function submitInstall() {
+      if (!inst) return;
+      var env = {};
+      (inst.entry.required_env || []).forEach(function (f) {
+        var v = (inst.env && inst.env[f.name]) || "";
+        if (String(v).trim()) env[f.name] = v;
+      });
+      var body = { name: inst.entry.name, env: env, enable: !!inst.enable };
+      setBusy("install");
+      setNote("");
+      Core.installMcpCatalog(body).then(function (data) {
+        setBusy("");
+        setInst(null);
+        var bg = data && data.background === true;
+        setNote("「" + body.name + "」" + (bg ? "已开始后台安装" : "安装请求已受理") +
+          "；落定状态以目录回读为准（正在重读）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("安装没成：" + ((err && err.message) || String(err)));
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data || {};
+      var servers = Array.isArray(d.servers) ? d.servers
+        : ((d.servers && (d.servers.servers || d.servers.items)) || []);
+      var entries = (d.catalog && d.catalog.entries) || [];
+      var diagnostics = (d.catalog && d.catalog.diagnostics) || [];
+      var parts = [];
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "已装服务 " + servers.length + " 个 · 目录条目 " + entries.length + " 条" +
+        (diagnostics.length ? " · 诊断 " + diagnostics.length + " 条" : "")));
+      diagnostics.forEach(function (dg, i) {
+        parts.push(h("p", { key: "dg" + i, className: "odc-error" },
+          (dg.source ? dg.source + "：" : "") + (dg.message || "")));
+      });
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      parts.push(h("p", { key: "sh", className: "odc-summary-head" }, "已装的 MCP 服务"));
+      if (!servers.length) {
+        parts.push(h("p", { key: "se", className: "odc-empty" }, "暂无已装服务。"));
+      } else {
+        parts.push(h("ul", { key: "sl", className: "odc-list" }, servers.map(function (s) {
+          var origin = s.source === "plugin"
+            ? "插件预置" + (s.plugin ? " · " + s.plugin : "")
+            : "手动配置";
+          var endpoint = s.url || s.command || "";
+          return h("li", { key: s.name, className: "odc-row odc-row-card" },
+            h("div", { className: "odc-actions", style: { justifyContent: "space-between" } },
+              h("span", { className: "odc-row-title" }, s.name),
+              h("span", { className: "odc-st " + (s.enabled ? "odc-st-done" : "odc-st-failed") },
+                s.enabled ? "已启用" : "已停用")),
+            h("p", { className: "odc-row-meta" },
+              origin + (s.transport ? " · 传输 " + s.transport : "")),
+            endpoint ? h("p", { className: "odc-cmd" }, endpoint) : null,
+            testMap[s.name] ? h("p", { className: "odc-row-meta" }, testMap[s.name]) : null,
+            s.source === "plugin"
+              ? h("p", { className: "odc-row-meta" }, "插件预置服务由插件管理，服务端不接受开关修改（实测 409 原话），本面只测连通。")
+              : null,
+            h("span", { className: "odc-actions" },
+              s.source === "plugin" ? null : h("button", {
+                className: "odc-btn odc-btn-small", disabled: busy === "srv:" + s.name,
+                onClick: function () { toggleServer(s); }
+              }, s.enabled ? "停用" : "启用"),
+              h("button", {
+                className: "odc-btn odc-btn-small", disabled: busy === "test:" + s.name,
+                onClick: function () { testServer(s); }
+              }, busy === "test:" + s.name ? "测试中…" : "测试连接")));
+        })));
+      }
+      parts.push(h("p", { key: "ch", className: "odc-summary-head" }, "连接器目录（可安装）"));
+      parts.push(h("label", { key: "cq", className: "odc-field" }, h("span", null, "搜索目录"),
+        h("input", {
+          type: "text", value: query,
+          onChange: function (ev) { setQuery(ev.target.value); }
+        })));
+      var q = query.trim().toLowerCase();
+      var shown = entries.filter(function (e) {
+        if (!q) return true;
+        return (e.name || "").toLowerCase().indexOf(q) >= 0 ||
+          (e.description || "").toLowerCase().indexOf(q) >= 0;
+      });
+      if (!shown.length) {
+        parts.push(h("p", { key: "ce", className: "odc-empty" }, "目录里没有匹配的条目。"));
+      } else {
+        parts.push(h("ul", { key: "cl", className: "odc-list" }, shown.map(function (e) {
+          var state = !e.installed ? "未安装" : (e.enabled ? "已安装 · 已启用" : "已安装 · 未启用");
+          var meta = [];
+          meta.push("状态 " + state);
+          if (e.transport) meta.push("传输 " + e.transport);
+          if (e.auth_type) meta.push("鉴权 " + e.auth_type);
+          if (e.source) meta.push("来源 " + e.source);
+          if (e.connector_slug) meta.push("连接器 " + e.connector_slug);
+          var kids = [
+            h("span", { key: "t", className: "odc-row-title" }, e.name),
+            h("p", { key: "m", className: "odc-row-meta" }, meta.join(" · ")),
+            e.description ? h("p", { key: "d", className: "odc-row-meta" }, e.description) : null,
+            (e.command || e.url)
+              ? h("p", { key: "c", className: "odc-cmd" }, (e.command || "") + (e.url ? " " + e.url : ""))
+              : null,
+            (e.required_env || []).length
+              ? h("p", { key: "env", className: "odc-row-meta" },
+                "所需配置：" + e.required_env.map(function (f) {
+                  return f.name + (f.required ? "（必填）" : "（可选）");
+                }).join("、"))
+              : null
+          ];
+          if (e.needs_install) {
+            kids.push(h("span", { key: "a", className: "odc-actions" },
+              h("button", {
+                className: "odc-btn odc-btn-small",
+                onClick: function () {
+                  setInst({ entry: e, env: {}, enable: true });
+                }
+              }, "安装…")));
+          }
+          if (inst && inst.entry.name === e.name) {
+            kids.push(h("div", { key: "form", className: "odc-form" },
+              (e.required_env || []).map(function (f) {
+                return h("label", { key: f.name, className: "odc-field" },
+                  h("span", null, (f.prompt || f.name) + (f.required ? "（必填）" : "（可选）")),
+                  h("input", {
+                    type: mcpIsSecretEnv(f.name) ? "password" : "text",
+                    value: (inst.env && inst.env[f.name]) || "",
+                    autoComplete: "off",
+                    onChange: function (ev) {
+                      var env = Object.assign({}, inst.env);
+                      env[f.name] = ev.target.value;
+                      setInst({ entry: inst.entry, env: env, enable: inst.enable });
+                    }
+                  }));
+              }),
+              h("label", { className: "odc-field" },
+                h("span", null, "装完立即启用"),
+                h("input", {
+                  type: "checkbox", checked: !!inst.enable,
+                  onChange: function (ev) {
+                    setInst({ entry: inst.entry, env: inst.env, enable: ev.target.checked });
+                  }
+                })),
+              h("p", { className: "odc-row-meta" },
+                "密钥类字段只随本次安装请求发出，不回显、不落盘；安装多为后台进行，成败以目录回读为准。"),
+              h("span", { className: "odc-actions" },
+                h("button", {
+                  className: "odc-btn odc-btn-primary", disabled: busy === "install",
+                  onClick: submitInstall
+                }, busy === "install" ? "提交中…" : "开始安装"),
+                h("button", {
+                  className: "odc-btn odc-btn-text",
+                  onClick: function () { setInst(null); }
+                }, "取消"))));
+          }
+          return h("li", { key: e.name, className: "odc-row odc-row-card" }, kids);
+        })));
+      }
+      body = parts;
+    }
+    return faceShell("连接器", "与 App 智能体连接器面同一数据源（dashboard /api/mcp/servers 与 /api/mcp/catalog）：已装服务开关/测试、目录安装同口。目录密钥只在安装请求里出现一次，不回显不落盘。", face, load, body);
+  }
+
+  // ---------------- delegation face (bar 4, gap #12) ----------------
+  // api_key on a model route is a MASKED PREVIEW from the server (App
+  // contract: the client never holds the real key). It round-trips
+  // untouched in memory, renders only as a placeholder, and a newly
+  // typed key replaces it in the submit body only. Unmodeled fields
+  // ride along in `extras` (the raw option object) and are written
+  // back unchanged.
+  function DelegationFace() {
+    var facePair = useFace(Core.fetchDelegation);
+    var face = facePair[0];
+    var load = facePair[1];
+    var busyPair = hooks.useState("");
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    var mdPair = hooks.useState(null);
+    var md = mdPair[0];
+    var setMd = mdPair[1];
+    var keysPair = hooks.useState({});
+    var keyInputs = keysPair[0];
+    var setKeyInputs = keysPair[1];
+    var pdPair = hooks.useState(null);
+    var pd = pdPair[0];
+    var setPd = pdPair[1];
+
+    function switchBackend(name) {
+      setBusy("backend");
+      setNote("");
+      Core.setDelegationBackend(name).then(function () {
+        setBusy("");
+        setNote("已切换委派后端（以回读为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("切换没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        load();
+      });
+    }
+    function editModelField(i, field, value) {
+      var options = md.options.slice();
+      options[i] = Object.assign({}, options[i], (function () {
+        var o = {}; o[field] = value; return o;
+      })());
+      setMd({ options: options, "default": md["default"] });
+    }
+    function saveModelMap() {
+      var errs = [];
+      var seen = {};
+      md.options.forEach(function (o, i) {
+        var nm = String(o.name || "").trim();
+        if (!nm) errs.push("第 " + (i + 1) + " 条缺名称");
+        else if (seen[nm]) errs.push("名称重复：" + nm);
+        seen[nm] = true;
+        if (!String(o.description || "").trim()) errs.push("「" + (nm || i + 1) + "」缺说明");
+        if (!String(o.model || "").trim()) errs.push("「" + (nm || i + 1) + "」缺模型");
+        if (!String(o.provider || "").trim() && !String(o.base_url || "").trim()) {
+          errs.push("「" + (nm || i + 1) + "」服务商与接口地址至少填一个");
+        }
+      });
+      var def = md["default"] || "";
+      if (def && !seen[def]) errs.push("默认路线不在名单内：" + def);
+      if (errs.length) { setNote("先补齐：" + errs.join("；")); return; }
+      var options = md.options.map(function (o, i) {
+        var out = Object.assign({}, o);
+        var nk = keyInputs[i];
+        if (nk && String(nk).trim()) out.api_key = nk;
+        return out;
+      });
+      setBusy("modelmap");
+      setNote("");
+      Core.setDelegationModelMap(options, def || null).then(function () {
+        setBusy("");
+        setMd(null);
+        setKeyInputs({});
+        setNote("模型路线已保存（以回读为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("保存没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        load();
+      });
+    }
+    function saveProfileRoutes(profiles) {
+      var errs = [];
+      var seen = {};
+      pd.profiles.forEach(function (r, i) {
+        var nm = String(r.name || "").trim();
+        if (!nm) errs.push("第 " + (i + 1) + " 条没选档案");
+        else if (profiles.indexOf(nm) < 0) errs.push("档案不在名单内：" + nm);
+        else if (seen[nm]) errs.push("档案重复：" + nm);
+        seen[nm] = true;
+      });
+      var def = pd["default"] || "";
+      if (def && !seen[def]) errs.push("默认档案路线不在名单内：" + def);
+      if (errs.length) { setNote("先补齐：" + errs.join("；")); return; }
+      setBusy("profmap");
+      setNote("");
+      Core.setDelegationProfileRoutes(pd.profiles, def || null).then(function () {
+        setBusy("");
+        setPd(null);
+        setNote("档案路线已保存（以回读为准）。");
+        load();
+      }).catch(function (err) {
+        setBusy("");
+        setNote("保存没成：" + ((err && err.message) || String(err)) + "（已按服务端真值重读）");
+        load();
+      });
+    }
+
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data || {};
+      var backends = d.backends || [];
+      var modelMap = d.model_map || { options: [], "default": "" };
+      var profileRoutes = d.profile_routes || { profiles: [], "default": "" };
+      var profiles = (d.profiles || []).map(function (p) {
+        return typeof p === "string" ? p : (p && p.name) || String(p);
+      });
+      var parts = [];
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "当前后端：" + (d.configured || "未配置") + " · 后端 " + backends.length +
+        " 个 · 模型路线 " + ((modelMap.options || []).length) + " 条 · 档案路线 " +
+        ((profileRoutes.profiles || []).length) + " 条 · 档案 " + profiles.length + " 个"));
+      if (d.blocked_reason) {
+        parts.push(h("p", { key: "blk", className: "odc-error" }, "委派被拦：" + d.blocked_reason));
+      }
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      parts.push(h("p", { key: "bh", className: "odc-summary-head" }, "委派后端"));
+      if (!backends.length) {
+        parts.push(h("p", { key: "be", className: "odc-empty" }, "服务端没报后端名单。"));
+      } else {
+        parts.push(h("ul", { key: "bl", className: "odc-list" }, backends.map(function (b) {
+          var current = b.name === d.configured;
+          return h("li", { key: b.name, className: "odc-row odc-row-card" },
+            h("div", { className: "odc-actions", style: { justifyContent: "space-between" } },
+              h("span", { className: "odc-row-title" }, (b.label || b.name) + (b.builtin ? "（内置）" : "")),
+              current
+                ? h("span", { className: "odc-st odc-st-done" }, "当前")
+                : h("span", { className: "odc-st " + (b.available ? "odc-st-pending" : "odc-st-failed") },
+                  b.available ? "可用" : "不可用")),
+            b.description ? h("p", { className: "odc-row-meta" }, b.description) : null,
+            (!b.available && b.reason) ? h("p", { className: "odc-row-meta" }, "不可用原因：" + b.reason) : null,
+            (!current && b.available)
+              ? h("span", { className: "odc-actions" },
+                h("button", {
+                  className: "odc-btn odc-btn-small", disabled: busy === "backend",
+                  onClick: function () { switchBackend(b.name); }
+                }, "切换到这个后端"))
+              : null);
+        })));
+      }
+      // ---- model routes ----
+      parts.push(h("p", { key: "mh", className: "odc-summary-head" }, "模型路线（子任务用哪个模型）"));
+      if (!md) {
+        var opts = modelMap.options || [];
+        if (!opts.length) {
+          parts.push(h("p", { key: "me", className: "odc-empty" }, "暂无模型路线（空集也是真数据）。"));
+        } else {
+          parts.push(h("ul", { key: "ml", className: "odc-list" }, opts.map(function (o) {
+            var meta = [];
+            if (o.provider) meta.push("服务商 " + o.provider);
+            if (o.model) meta.push("模型 " + o.model);
+            if (o.base_url) meta.push(o.base_url);
+            if (o.api_mode) meta.push("模式 " + o.api_mode);
+            if (o.reasoning_effort) meta.push("思考档 " + o.reasoning_effort);
+            if (o.service_tier) meta.push("服务档 " + o.service_tier);
+            meta.push(o.api_key ? "密钥已存（脱敏预览，不显示）" : "未存密钥");
+            return h("li", { key: o.name, className: "odc-row" },
+              h("span", null,
+                h("span", { className: "odc-row-title" },
+                  o.name + (modelMap["default"] === o.name ? "（默认）" : "")),
+                h("p", { className: "odc-row-meta" }, (o.description || "") + (o.description ? " · " : "") + meta.join(" · "))));
+          })));
+        }
+        parts.push(h("span", { key: "medit", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-secondary",
+            onClick: function () {
+              setMd({
+                options: (modelMap.options || []).map(function (o) { return Object.assign({}, o); }),
+                "default": modelMap["default"] || ""
+              });
+              setKeyInputs({});
+            }
+          }, "编辑模型路线")));
+      } else {
+        var mfields = [
+          ["name", "名称"], ["description", "说明"], ["provider", "服务商"],
+          ["model", "模型"], ["base_url", "接口地址"], ["api_mode", "接口模式"],
+          ["reasoning_effort", "思考档"], ["service_tier", "服务档"]
+        ];
+        var mkids = md.options.map(function (o, i) {
+          return h("div", { key: "mo" + i, className: "odc-form" },
+            mfields.map(function (f) {
+              return h("label", { key: f[0], className: "odc-field" }, h("span", null, f[1]),
+                h("input", {
+                  type: "text", value: o[f[0]] || "",
+                  onChange: function (ev) { editModelField(i, f[0], ev.target.value); }
+                }));
+            }),
+            h("label", { className: "odc-field" },
+              h("span", null, "接口密钥（留空＝保留已存；已存的只是脱敏预览，永不显示明文）"),
+              h("input", {
+                type: "password", value: keyInputs[i] || "", autoComplete: "off",
+                placeholder: o.api_key ? "已存密钥（脱敏）" : "未存密钥",
+                onChange: function (ev) {
+                  var next = Object.assign({}, keyInputs);
+                  next[i] = ev.target.value;
+                  setKeyInputs(next);
+                }
+              })),
+            h("span", { className: "odc-actions" },
+              h("button", {
+                className: "odc-btn odc-btn-text",
+                onClick: function () {
+                  var options = md.options.slice();
+                  options.splice(i, 1);
+                  setMd({ options: options, "default": md["default"] });
+                }
+              }, "删这条")));
+        });
+        mkids.push(h("label", { key: "mdef", className: "odc-field" }, h("span", null, "默认路线"),
+          h("select", {
+            value: md["default"] || "",
+            onChange: function (ev) { setMd({ options: md.options, "default": ev.target.value }); }
+          },
+            [h("option", { key: "", value: "" }, "（不设默认）")].concat(md.options.map(function (o) {
+              return h("option", { key: o.name || "", value: o.name || "" }, o.name || "（未命名）");
+            })))));
+        mkids.push(h("span", { key: "mact", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-secondary",
+            onClick: function () {
+              setMd({
+                options: md.options.concat([{
+                  name: "", description: "", provider: "", model: "", base_url: "",
+                  api_mode: "", reasoning_effort: "", service_tier: "", api_key: ""
+                }]),
+                "default": md["default"]
+              });
+            }
+          }, "＋ 加一条"),
+          h("button", {
+            className: "odc-btn odc-btn-primary", disabled: busy === "modelmap", onClick: saveModelMap
+          }, busy === "modelmap" ? "保存中…" : "保存模型路线"),
+          h("button", {
+            className: "odc-btn odc-btn-text",
+            onClick: function () { setMd(null); setKeyInputs({}); }
+          }, "取消")));
+        parts.push(h("div", { key: "mform" }, mkids));
+      }
+      // ---- profile routes ----
+      parts.push(h("p", { key: "ph2", className: "odc-summary-head" }, "档案路线（哪个档案走哪条）"));
+      if (!pd) {
+        var prs = profileRoutes.profiles || [];
+        if (!prs.length) {
+          parts.push(h("p", { key: "pe2", className: "odc-empty" }, "暂无档案路线（空集也是真数据）。"));
+        } else {
+          parts.push(h("ul", { key: "pl2", className: "odc-list" }, prs.map(function (r) {
+            return h("li", { key: r.name, className: "odc-row" },
+              h("span", null,
+                h("span", { className: "odc-row-title" },
+                  r.name + (profileRoutes["default"] === r.name ? "（默认）" : "")),
+                r.description ? h("p", { className: "odc-row-meta" }, r.description) : null));
+          })));
+        }
+        parts.push(h("span", { key: "pedit", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-secondary",
+            onClick: function () {
+              setPd({
+                profiles: (profileRoutes.profiles || []).map(function (r) {
+                  return { name: r.name || "", description: r.description || "" };
+                }),
+                "default": profileRoutes["default"] || ""
+              });
+            }
+          }, "编辑档案路线")));
+      } else {
+        var pkids = pd.profiles.map(function (r, i) {
+          return h("div", { key: "pr" + i, className: "odc-form" },
+            h("label", { className: "odc-field" }, h("span", null, "档案"),
+              h("select", {
+                value: r.name || "",
+                onChange: function (ev) {
+                  var list = pd.profiles.slice();
+                  list[i] = { name: ev.target.value, description: list[i].description };
+                  setPd({ profiles: list, "default": pd["default"] });
+                }
+              },
+                [h("option", { key: "", value: "" }, "（选择档案）")].concat(profiles.map(function (p) {
+                  return h("option", { key: p, value: p }, p);
+                })))),
+            h("label", { className: "odc-field" }, h("span", null, "说明"),
+              h("input", {
+                type: "text", value: r.description || "",
+                onChange: function (ev) {
+                  var list = pd.profiles.slice();
+                  list[i] = { name: list[i].name, description: ev.target.value };
+                  setPd({ profiles: list, "default": pd["default"] });
+                }
+              })),
+            h("span", { className: "odc-actions" },
+              h("button", {
+                className: "odc-btn odc-btn-text",
+                onClick: function () {
+                  var list = pd.profiles.slice();
+                  list.splice(i, 1);
+                  setPd({ profiles: list, "default": pd["default"] });
+                }
+              }, "删这条")));
+        });
+        pkids.push(h("label", { key: "pdef", className: "odc-field" }, h("span", null, "默认档案路线"),
+          h("select", {
+            value: pd["default"] || "",
+            onChange: function (ev) { setPd({ profiles: pd.profiles, "default": ev.target.value }); }
+          },
+            [h("option", { key: "", value: "" }, "（不设默认）")].concat(pd.profiles.map(function (r) {
+              return h("option", { key: r.name || "", value: r.name || "" }, r.name || "（未选）");
+            })))));
+        pkids.push(h("span", { key: "pact", className: "odc-actions" },
+          h("button", {
+            className: "odc-btn odc-btn-secondary",
+            onClick: function () {
+              setPd({
+                profiles: pd.profiles.concat([{ name: "", description: "" }]),
+                "default": pd["default"]
+              });
+            }
+          }, "＋ 加一条"),
+          h("button", {
+            className: "odc-btn odc-btn-primary", disabled: busy === "profmap",
+            onClick: function () { saveProfileRoutes(profiles); }
+          }, busy === "profmap" ? "保存中…" : "保存档案路线"),
+          h("button", {
+            className: "odc-btn odc-btn-text",
+            onClick: function () { setPd(null); }
+          }, "取消")));
+        parts.push(h("div", { key: "pform" }, pkids));
+      }
+      body = parts;
+    }
+    return faceShell("委派", "与 App 智能体委派面同一数据源（dashboard /api/delegation/routing）：后端切换、模型路线、档案路线同口，成败以回读为准。模型路线里的密钥只是服务端脱敏预览——永不显示明文，留空保存即保留已存密钥。", face, load, body);
+  }
+
   // ---------------- page ----------------
   var NAV_ITEMS = [
     { id: "odc-face-approvals", label: "批准" },
@@ -1668,7 +2947,12 @@
     { id: "odc-face-hub", label: "枢纽" },
     { id: "odc-face-audit", label: "审计" },
     { id: "odc-face-grants", label: "规矩" },
-    { id: "odc-face-cron", label: "定时任务" }
+    { id: "odc-face-cron", label: "定时任务" },
+    { id: "odc-face-memory", label: "记忆" },
+    { id: "odc-face-files", label: "文件库" },
+    { id: "odc-face-monitors", label: "监控" },
+    { id: "odc-face-connectors", label: "连接器" },
+    { id: "odc-face-delegation", label: "委派" }
   ];
 
   function scrollToFace(id) {
@@ -1681,7 +2965,7 @@
       h("div", { key: "head", className: "odc-head" },
         h("h2", null, "OneDay 控制台"),
         h("p", { className: "odc-sub" },
-          "棒 3：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；各面与 App 同一数据源。")),
+          "棒 4：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览）走同源会话 cookie；各面与 App 同一数据源。")),
       h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
       h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
       h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
@@ -1692,6 +2976,11 @@
       h("div", { key: "w-audit", id: "odc-face-audit", className: "odc-anchor" }, h(AuditFace, null)),
       h("div", { key: "w-grants", id: "odc-face-grants", className: "odc-anchor" }, h(GrantsFace, null)),
       h("div", { key: "w-cron", id: "odc-face-cron", className: "odc-anchor" }, h(CronFace, null)),
+      h("div", { key: "w-memory", id: "odc-face-memory", className: "odc-anchor" }, h(MemoryFace, null)),
+      h("div", { key: "w-files", id: "odc-face-files", className: "odc-anchor" }, h(FilesFace, null)),
+      h("div", { key: "w-monitors", id: "odc-face-monitors", className: "odc-anchor" }, h(MonitorsFace, null)),
+      h("div", { key: "w-connectors", id: "odc-face-connectors", className: "odc-anchor" }, h(ConnectorsFace, null)),
+      h("div", { key: "w-delegation", id: "odc-face-delegation", className: "odc-anchor" }, h(DelegationFace, null)),
       h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
         NAV_ITEMS.map(function (n) {
           return h("button", {

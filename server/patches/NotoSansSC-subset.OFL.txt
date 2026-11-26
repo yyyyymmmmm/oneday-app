@@ -1,0 +1,15 @@
+字体注记（OFL attribution note）
+================================
+
+文件：NotoSansSC-subset.ttf
+内容：Noto Sans SC（思源黑体简体中文）子集化字体，仅含台账 PDF 渲染所需字形。
+来源：Google Fonts / Noto 字体家族（Noto Sans SC）。
+许可：SIL Open Font License, Version 1.1（OFL-1.1）
+      https://openfontlicense.org/open-font-license-official-text/
+版权：Copyright 2014-2021 Adobe（Source Han Sans / Noto Sans CJK 项目）与
+      Google LLC；字体软件按 OFL-1.1 条款授权使用、分发与再子集化，
+      保留字体名称权利归原作者所有。
+
+本注记随部署包 2.16.0 起与字体同行登记（队列 91：字体正式入包，
+不再靠部署暂存手工补入）。子集化不改变许可状态；对外分发本包时
+请连同本注记一并保留。
