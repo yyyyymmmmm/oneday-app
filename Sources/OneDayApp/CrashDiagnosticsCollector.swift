@@ -76,6 +76,38 @@ final class CrashDiagnosticsCollector: NSObject, MXMetricManagerSubscriber,
 
     // MARK: - MXMetricManagerSubscriber
 
+    /// 系统性能指标回报（MetricKit 官方通道）：记录冷启动耗时、滚动卡顿率（Hitch Time Ratio）
+    /// 与内存峰值，替代手搓常驻帧率探针；同时预留外部 APM（如 Sentry）转发钩子。
+    func didReceive(_ payloads: [MXMetricPayload]) {
+        var summaries: [String] = []
+        for payload in payloads {
+            var parts: [String] = []
+            if let launch = payload.applicationLaunchMetrics?.histogrammedTimeToFirstDraw {
+                let buckets = launch.bucketEnumerator.allObjects.compactMap { $0 as? MXHistogramBucket<UnitDuration> }
+                if let first = buckets.first {
+                    let ms = first.bucketStart.converted(to: .milliseconds).value
+                    parts.append(String(format: "firstDraw≈%.0fms", ms))
+                }
+            }
+            if let anim = payload.animationMetrics {
+                let ratio = anim.scrollHitchTimeRatio.value
+                parts.append(String(format: "hitchRatio=%.2fms/s", ratio))
+            }
+            if let mem = payload.memoryMetrics {
+                let peakMB = mem.peakMemoryUsage.converted(to: .megabytes).value
+                parts.append(String(format: "peakMem=%.1fMB", peakMB))
+            }
+            if !parts.isEmpty {
+                summaries.append(parts.joined(separator: " | "))
+            }
+        }
+        if !summaries.isEmpty {
+            let line = summaries.joined(separator: " ; ")
+            UserDefaults.standard.set(line, forKey: "oneday.metrickit.lastMetricSummary")
+            ChatDiagTrace.record("MetricKit: \(line)")
+        }
+    }
+
     func didReceive(_ payloads: [MXDiagnosticPayload]) {
         var records: [CrashReportRecord] = []
         for payload in payloads {
