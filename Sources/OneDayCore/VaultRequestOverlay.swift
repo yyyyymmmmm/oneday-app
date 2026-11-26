@@ -91,10 +91,12 @@ public struct VaultCardHeightInput: Equatable, Sendable {
     /// spacingM（16）；详情段：域名行 22＋spacingS
     /// （12）＋reason 段落（非空时 3 行×16≈54）；
     /// pending 态加 spacingM、每字段「标签＋输入
-    /// 框」51＋字段间 spacingM、按钮行 38；终态加
-    /// 一行状态注记 33；status＝"missing" 是标记
-    /// 兜底的「已处理或已过期」灰行（非卡本体）、
-    /// 只一行 20）
+    /// 框」49（标签 12 + spacingMicro 2 + 输入框
+    /// 文本 15 + 输入框纵边距 20）＋字段间 spacingM、
+    /// 按钮行 39（文本 15 + padding 20 + 系统样式
+    /// 额外边距 4）；终态加一行状态注记 33；status
+    /// ＝"missing" 是标记兜底的「已处理或已过期」
+    /// 灰行（非卡本体）、只一行 20）
     public var estimatedHeight: Double {
         if status == "missing" {
             return 20
@@ -114,7 +116,7 @@ public struct VaultCardHeightInput: Equatable, Sendable {
         let reasonHeight = 54.0  // 3 行限行段落约 54
         let detailWithReason = detailSection + 12 + reasonHeight
         let fields = Double(max(fieldCount, 0))
-        return base + detailWithReason + 16 + 38 + fields * 51
+        return base + detailWithReason + 16 + 39 + fields * 49
             + max(fields - 1, 0) * 16
     }
 }
