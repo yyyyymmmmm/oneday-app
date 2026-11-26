@@ -4391,6 +4391,25 @@ def _feed_generation_view() -> dict:
                      and not p.get("archivedAt")
                      and (p.get("expiresAt") is None
                           or p["expiresAt"] > now))
+        # dp-240: collect user-facing summary from internal history
+        history_summary = []
+        for rec in gen["history"]:
+            status = rec.get("status", "unknown")
+            at = rec.get("at", 0)
+            published = rec.get("published", 0)
+            error = rec.get("error", "")
+            if error:
+                reason = error[:100]
+            elif status == "skipped":
+                reason = "本轮跳过"
+            else:
+                reason = ""
+            history_summary.append({
+                "status": status,
+                "at": at,
+                "published": published,
+                "reason": reason,
+            })
         return {
             "assembly": {
                 "date": feed["digestDate"],
@@ -4412,7 +4431,7 @@ def _feed_generation_view() -> dict:
                 "nextRunAt": gen["nextRunAt"],
                 "nextEditionBAt": gen["nextRunAtB"],
                 "running": _research,
-                "history": list(gen["history"]),
+                "history": history_summary,
             },
             # rev2 S1.10: the quota policy is part of the
             # ledger -- which tier is active, why, and how

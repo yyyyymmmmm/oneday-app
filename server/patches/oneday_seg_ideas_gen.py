@@ -1570,9 +1570,24 @@ def _start_generation(trigger: str) -> bool:
 def _generation_view() -> dict:
     with _lock:
         gen = _gen_meta_locked()
+        # dp-240: collect user-facing summary from internal history
+        history_summary = []
+        for rec in gen["history"]:
+            at = rec.get("at", 0)
+            generated = rec.get("generated", 0)
+            error = rec.get("error", "")
+            if error:
+                reason = error[:100]
+            else:
+                reason = ""
+            history_summary.append({
+                "at": at,
+                "generated": generated,
+                "reason": reason,
+            })
         return {
             "lastRunAt": gen["lastRunAt"],
             "nextRunAt": gen["nextRunAt"],
             "running": _generating,
-            "history": list(gen["history"]),
+            "history": history_summary,
         }
