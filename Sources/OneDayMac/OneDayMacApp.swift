@@ -1,9 +1,11 @@
 import SwiftUI
+import OneDayCore
 
 /// OneDay macOS 客户端入口（原生 SwiftUI，非
 /// Catalyst）：主窗口按连接态在登录页与三栏主窗之间
 /// 切换；设置走 macOS 标准 Settings 场景（⌘,）；
-/// 菜单栏状态项常驻（M1 基础形态，棒 1）。
+/// 菜单栏状态项常驻（M1）；外观模式与界面语言由根
+/// 层统一消费 AppStorage 单源即时生效（棒 5）。
 @main
 struct OneDayMacApp: App {
     @State private var session = SessionStore()
@@ -12,8 +14,29 @@ struct OneDayMacApp: App {
     /// 准面独立窗、菜单栏三处共用同一份状态
     @State private var approvalStore = MacApprovalStore()
     @State private var vaultStore = MacVaultStore()
-    /// 速记窗控制器（棒 3，M2）：全局热键 ⌥Space 唤出
+    /// 速记窗控制器（棒 3，M2；棒 5 支持设置页改键）
     @State private var quickEntry = MacQuickEntryController()
+
+    @AppStorage(AppearanceStorageKeys.appearanceMode)
+    private var appearanceModeRaw = "system"
+    @AppStorage(LanguageStorageKeys.appLanguage)
+    private var appLanguageRaw = AppLanguagePreference.system.rawValue
+
+    private var preferredScheme: ColorScheme? {
+        switch appearanceModeRaw {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
+    private var preferredLocale: Locale {
+        let pref = AppLanguagePreference(rawValue: appLanguageRaw) ?? .system
+        if let id = pref.localeIdentifier {
+            return Locale(identifier: id)
+        }
+        return .autoupdatingCurrent
+    }
 
     init() {
         // 通知分类/动作/代理先装配（授权等首次待批
@@ -28,6 +51,8 @@ struct OneDayMacApp: App {
                 .environment(statusStore)
                 .environment(approvalStore)
                 .environment(vaultStore)
+                .preferredColorScheme(preferredScheme)
+                .environment(\.locale, preferredLocale)
                 .task {
                     await session.restore()
                     statusStore.start(session: session)
@@ -61,6 +86,8 @@ struct OneDayMacApp: App {
             MacApprovalsWindowView(store: approvalStore)
                 .environment(session)
                 .environment(approvalStore)
+                .preferredColorScheme(preferredScheme)
+                .environment(\.locale, preferredLocale)
         }
         .windowResizability(.contentMinSize)
 
@@ -68,6 +95,8 @@ struct OneDayMacApp: App {
             MacMenuBarView()
                 .environment(session)
                 .environment(statusStore)
+                .preferredColorScheme(preferredScheme)
+                .environment(\.locale, preferredLocale)
         } label: {
             MenuBarLabel()
                 .environment(statusStore)
@@ -75,8 +104,10 @@ struct OneDayMacApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            MacSettingsView()
+            MacSettingsView(quickEntry: quickEntry)
                 .environment(session)
+                .preferredColorScheme(preferredScheme)
+                .environment(\.locale, preferredLocale)
         }
     }
 }

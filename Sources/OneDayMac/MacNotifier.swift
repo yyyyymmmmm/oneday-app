@@ -57,8 +57,14 @@ final class MacNotifier: NSObject, UNUserNotificationCenterDelegate,
     // MARK: - 新待批检测与投递（状态轮询喂入）
 
     /// 轮询每轮把当前待批 id 集喂进来：新出现的才发
-    /// 通知（已见集落 UserDefaults，重启不重发旧账）
+    /// 通知（已见集落 UserDefaults，重启不重发旧账）；
+    /// 受 Core 通知分级开关 notify.category.approval.enabled 门控
     func notePending(exec: [MacExecApproval], gate: [WriteGateRecord]) {
+        if let stored = UserDefaults.standard.object(
+            forKey: "notify.category.approval.enabled"
+        ) as? Bool, !stored {
+            return
+        }
         var seen = Set(
             UserDefaults.standard.stringArray(forKey: Self.seenKey) ?? []
         )

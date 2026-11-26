@@ -203,3 +203,50 @@
 | 35 想法采纳（棒 3 顺延） | ✅ 已落 | 详情面采纳钮接通：看板建卡→回写 taskId→回执替换；已转任务在详情明示任务 id |
 
 未落/遗留（明示）：①第 41 号电脑操控交互面（桌面/文件/终端远程操控）未落，见该行；②第 43 号邮件面无数据源（服务端未长出，iOS 同），见该行；③正登实测与 24 面真数据全链未验——等现行密码递达后在已登录态补验（与棒 1–3 遗留同门；本棒各面在未登录态按连接页落点，未假装验过）；④截图自验仍被 macOS 屏幕录制权限墙挡住（同棒 1–3 口径），以构建零 error＋启动存活无崩溃＋代码路径确定性代偿；⑤本地尖 95b1963d 起 Mac 线全部提交仍待 Mac git 推送通道打通后推送（osxkeychain 非交互读不到，同前棒）。
+
+## UI 量测对位表（mac-09 聊天补全＋棒 5 mac-07 设置全集，动工基线）
+
+对照标杆：macOS 系统设置（Sequoia/Tahoe 双栏 Grouped Form）、Telegram macOS 与用户提供的桌面端参考图。
+
+| 界面要素 | 字号 / 字重 | 间距 / 尺寸 / 圆角 | 颜色 / 对比度（WCAG AA ≥ 4.5:1） |
+|---|---|---|---|
+| 聊天助手消息卡片 | 正文 14pt Regular（Markdown 走 MacMarkdownView） | 宽上限 740pt；内边距 14H / 12V；圆角 16pt；行间 14pt | 底 `Palette.bubbleFill`（浅 `#E9EAEC` / 暗 `#2C2C2E`），主墨 `Palette.ink`（浅 `#11191C` 对比 >14:1 / 暗 `#FFFFFF` >13:1） |
+| 聊天用户气泡 | 正文 14pt Regular | 左留白 ≥60pt；内边距 14H / 10V；圆角 16pt | 底 `Palette.userBubbleFill`，字 `Palette.userBubbleText`（均过 4.5:1 对比度闸） |
+| 气泡旁悬停动作条 | 图标 12–13pt Regular | 胶囊高 30pt；按钮热区 26×26pt；与气泡间距 8pt | 底 `Palette.surface @ 95%`，描边 `Palette.separator @ 45%` 0.5pt，图标 `Palette.inkSecondary`（≥5.2:1） |
+| 反应药丸 / AI 角标 | Emoji 13pt（pill）/ 12pt（角标） | pill 高 26pt、角标高 22pt；底角悬出 14pt；行底预留 12pt | 底 `Palette.surface`，描边 `Palette.pageBG` 1.5pt，自选态轻染 `Palette.primaryTint` |
+| 聊天内嵌选项卡 | 项文 13pt Medium；回执 12pt Regular | 项高 ≥36pt；项间 6pt；圆角 12pt；最大宽 420pt | 底 `Palette.surface`（悬停 `Palette.primaryTint`），主墨 `Palette.ink`，次墨 `Palette.inkSecondary`（≥4.85:1） |
+| 底部悬浮胶囊输入舱 | 输入正文 14pt Regular | 外胶囊圆角 22pt；内边距 12H / 6V；左右圆钮 30×30pt；外边距 18H / 14B | 底 `Palette.surface`，描边 `Palette.separator @ 45%` 0.75pt，软影 `black @ 6%` r8 y2 |
+| 设置窗双栏骨架 | 侧栏项 13pt Regular；分组表单项 13pt；页脚说明 11pt | 窗口 740×540pt 起；左侧栏 196pt（184–230pt）；图标块 22×22pt 圆角 5pt | 原生 `.listStyle(.sidebar)` + `.formStyle(.grouped)`，全系统语义色与 `Palette` 同步 |
+
+## 聊天补全小棒对位表销账（mac-09：#21 选项卡＋#22 表情反应）
+
+基线：`main @ 3ce107bc`，分支：`feat/mac-batons-5-9`。
+
+| 行 | 状态 | 证据 |
+|---|---|---|
+| 21 选择框（选项卡） | ✅ 代码已落（待本机真构建＋正登补验） | `MacOptionsCardView.swift` + `MacConversationStore` 复用 Core `OptionsCardOverlay`/`OptionsCardLogic`/`OptionsCardState` 单源；受 `CapabilityNegotiation.optionsCardAvailability` 门控；支持 live 点选提交 `sendText`、selected 单行回执、expired 置灰摘要 |
+| 22 表情反应＋AI 自反应 | ✅ 代码已落（待本机真构建＋正登补验） | `MacReactionViews.swift` + `MacMessageRow.swift` + `HermesMacClient`（`PUT/DELETE /v1/reactions/{session_id}/{row_id}`＋`routeProbe`）；复用 Core `MessageReactions`/`ReactionEmojiCatalog`/`AISelfReactionDecision`；桌面悬停浮条（受 `ChatReactionsFloatingBarFeature` 开关门控）＋右键子菜单双入口；用户药丸点按撤回、AI 角标（受 `ChatReactionsAISelfFeature` 门控）不可点；服务端未开放 404/405 时按能力协商降级为本机显示并明示 |
+
+## 棒 5 对位表销账（mac-07：设置全集与诊断＋M2 热键录制器）
+
+基线：`main @ 3ce107bc`，分支：`feat/mac-batons-5-9`。凭据纪律核查：全包只用 `MacKeychain` 一把主钥，设置与诊断任何界面均不展示明文密码/密钥（全掩码 `••••••••••••`）。
+
+| 行 | 状态 | 证据 |
+|---|---|---|
+| 65/66 通用与语言 | ✅ 代码已落（待本机真构建＋正登补验） | `MacSettingsView.swift` 升级为 macOS 原生双栏 `NavigationSplitView` + `SettingsCatalog.search` 顶部搜索；通用页含身份卡、语言四档（直绑 `LanguageStorageKeys.appLanguage`，`OneDayMacApp` 根层注入 `.locale` 即时生效） |
+| M2 速记窗热键改键录制器 | ✅ 代码已落（待本机真构建＋实测） | `MacQuickEntry.swift` 新增 `MacHotKeyBinding` 持久化与热重绑；`MacHotKeyRecorderRow` 通过原生 `NSEvent.addLocalMonitorForEvents` 录制修饰键组合并支持一键恢复 `⌥Space` |
+| 67 外观 | ✅ 代码已落（待本机真构建） | `MacSettingsAppearancePane.swift` 直绑 Core `AppearanceStorageKeys` 全五键（外观模式/聊天主题/强调色/背景/文字大小）＋单数据源实时预览；`OneDayMacApp` 根层应用 `.preferredColorScheme` 即时生效 |
+| 68/69/70/91 通知、互动、语音与推送就绪 | ✅ 代码已落（待本机真构建＋正登补验） | `MacSettingsNotificationsPane.swift` 接 Core `NotificationTier` 四开关（联动 `MacNotifier.swift`）、本机通知授权状态与 APNs 现状、互动两开关（AI 自反应受 `SelfReactionsSettingsRowPolicy` 能力门控）、语音自动朗读与 `/api/audio/voice-config` 状态 |
+| 74/75/76 服务器、登录会话与添加设备 | ✅ 代码已落（待本机真构建＋正登补验） | `MacSettingsServerPane.swift` 展示服务器信息、全掩码凭据、短时票据能力位、`/v1/auth/sessions` 清单与撤销、`/v1/enrollment/codes` 一次性认领码签发、二次确认断开连接 |
+| 82/83/84/85/86 诊断与日志全集 | ✅ 代码已落（待本机真构建＋正登补验） | `MacSettingsDiagnosticsPane.swift` 含连接自检（复用 Core `SelfCheckReportBuilder` 并发只读探活）、运维体检与存档（doctor/security-audit/backup/checkpoints）、系统日志（`/api/logs` 筛选/搜索/复制）、聊天与能力协商诊断＋脱敏摘要复制、设置注册表只读检视 |
+| 87/88/89 帮助、关于与法律文档 | ✅ 代码已落（待本机真构建） | `MacSettingsAboutPane.swift` 含连接帮助、GitHub 外链、Core `ReleaseNotes` 更新说明、直读 `Bundle.main` 真版本号、隐私政策与用户协议全文 Sheet |
+
+## 棒 6 核查结论（mac-08：推送增强·条件棒）
+
+1. **服务端推送发送面核查结论：已原生支持 macOS，无需改服务端代码。**
+   - `server/patches/push_tokens.py`（`POST /v1/push/tokens`）接受任意非空 `bundle_id`（上限 160 字符）与 `environment`（`sandbox`/`production`），天然兼容 `site.didichou.oneday.mac`。
+   - `server/patches/push_sender.py:147` 发送 APNs 时动态读取每条已登记 token 自带的 `bundle_id` 作为 `apns-topic`（`"apns-topic": str(row.get("bundle_id") or cfg["topic"])`），并非硬编码 iOS bundleId。
+2. **红线阻断结论（停工报结论，不自行开通）：**
+   - `server/patches/push_sender.py:13-16` 明载服务端发送 APNs 需配置 Apple `.p8` 私钥（`APNS_KEY_PATH`/`APNS_KEY_ID`/`APNS_TEAM_ID`），且 macOS 客户端申请 APNs deviceToken 必须具备含 `com.apple.developer.aps-environment` 权益的签名描述文件——两者均**强制依赖付费 Apple Developer Program 账号**（$99/年）。
+   - 依「不许花钱、不许绑卡」红线，**棒 6 暂不开工、不改签名权益**；Mac 端继续由棒 2 已落地的 **M3 本地通知（带批准/拒绝动作按钮）** 保底，并在棒 5「设置 → 通知与互动 → 推送就绪状态」中如实呈现。
+

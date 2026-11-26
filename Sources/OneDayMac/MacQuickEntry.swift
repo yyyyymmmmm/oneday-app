@@ -3,13 +3,111 @@ import AppKit
 import Carbon
 import OneDayCore
 
-/// 速记窗（棒 3，对位 M2）：全局快捷键 ⌥Space 唤出
-/// 的置顶小窗（Claude Quick Entry / ChatGPT
-/// Companion Window 通例形态）——写一句话发送即起
-/// 一条新会话，任务在服务端继续跑；可在主窗打开跟
-/// 进。热键经 Carbon RegisterEventHotKey 注册（系
-/// 统级、无三方依赖）。热键改键（录制器）未落，见
-/// 对位表销账说明。
+/// 速记窗热键持久化模型（棒 5 / mac-07 补齐 M2 改键录制器）：
+/// 默认 ⌥Space（kVK_Space + optionKey）；用户可在「设置 → 通用」
+/// 录制新快捷键，立即卸载旧热键并重绑，落盘 UserDefaults。
+struct MacHotKeyBinding: Equatable, Sendable {
+    var keyCode: UInt32
+    var carbonModifiers: UInt32
+
+    static let `default` = MacHotKeyBinding(
+        keyCode: UInt32(kVK_Space),
+        carbonModifiers: UInt32(optionKey)
+    )
+
+    private static let keyCodeDefaultsKey = "mac.quickEntry.keyCode.v1"
+    private static let modifiersDefaultsKey = "mac.quickEntry.modifiers.v1"
+
+    static func load(defaults: UserDefaults = .standard) -> MacHotKeyBinding {
+        guard defaults.object(forKey: keyCodeDefaultsKey) != nil,
+              defaults.object(forKey: modifiersDefaultsKey) != nil
+        else { return .default }
+        let code = UInt32(defaults.integer(forKey: keyCodeDefaultsKey))
+        let mods = UInt32(defaults.integer(forKey: modifiersDefaultsKey))
+        guard mods != 0 else { return .default }
+        return MacHotKeyBinding(keyCode: code, carbonModifiers: mods)
+    }
+
+    func save(defaults: UserDefaults = .standard) {
+        defaults.set(Int(keyCode), forKey: Self.keyCodeDefaultsKey)
+        defaults.set(Int(carbonModifiers), forKey: Self.modifiersDefaultsKey)
+    }
+
+    static func reset(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: keyCodeDefaultsKey)
+        defaults.removeObject(forKey: modifiersDefaultsKey)
+    }
+
+    static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
+        var result: UInt32 = 0
+        if flags.contains(.command) { result |= UInt32(cmdKey) }
+        if flags.contains(.option) { result |= UInt32(optionKey) }
+        if flags.contains(.control) { result |= UInt32(controlKey) }
+        if flags.contains(.shift) { result |= UInt32(shiftKey) }
+        return result
+    }
+
+    var displayString: String {
+        var parts = ""
+        if (carbonModifiers & UInt32(controlKey)) != 0 { parts += "⌃" }
+        if (carbonModifiers & UInt32(optionKey)) != 0 { parts += "⌥" }
+        if (carbonModifiers & UInt32(shiftKey)) != 0 { parts += "⇧" }
+        if (carbonModifiers & UInt32(cmdKey)) != 0 { parts += "⌘" }
+        parts += Self.keyName(for: keyCode)
+        return parts
+    }
+
+    private static func keyName(for keyCode: UInt32) -> String {
+        switch Int(keyCode) {
+        case kVK_Space: return "Space"
+        case kVK_Return: return "↩"
+        case kVK_Tab: return "⇥"
+        case kVK_Escape: return "⎋"
+        case kVK_Delete: return "⌫"
+        case kVK_ANSI_A: return "A"
+        case kVK_ANSI_B: return "B"
+        case kVK_ANSI_C: return "C"
+        case kVK_ANSI_D: return "D"
+        case kVK_ANSI_E: return "E"
+        case kVK_ANSI_F: return "F"
+        case kVK_ANSI_G: return "G"
+        case kVK_ANSI_H: return "H"
+        case kVK_ANSI_I: return "I"
+        case kVK_ANSI_J: return "J"
+        case kVK_ANSI_K: return "K"
+        case kVK_ANSI_L: return "L"
+        case kVK_ANSI_M: return "M"
+        case kVK_ANSI_N: return "N"
+        case kVK_ANSI_O: return "O"
+        case kVK_ANSI_P: return "P"
+        case kVK_ANSI_Q: return "Q"
+        case kVK_ANSI_R: return "R"
+        case kVK_ANSI_S: return "S"
+        case kVK_ANSI_T: return "T"
+        case kVK_ANSI_U: return "U"
+        case kVK_ANSI_V: return "V"
+        case kVK_ANSI_W: return "W"
+        case kVK_ANSI_X: return "X"
+        case kVK_ANSI_Y: return "Y"
+        case kVK_ANSI_Z: return "Z"
+        case kVK_ANSI_0: return "0"
+        case kVK_ANSI_1: return "1"
+        case kVK_ANSI_2: return "2"
+        case kVK_ANSI_3: return "3"
+        case kVK_ANSI_4: return "4"
+        case kVK_ANSI_5: return "5"
+        case kVK_ANSI_6: return "6"
+        case kVK_ANSI_7: return "7"
+        case kVK_ANSI_8: return "8"
+        case kVK_ANSI_9: return "9"
+        default: return "Key(\(keyCode))"
+        }
+    }
+}
+
+/// 速记窗（棒 3，对位 M2；棒 5 补齐热键改键录制器）：
+/// 全局快捷键（默认 ⌥Space，可在设置页修改）唤出置顶小窗，
+/// 写一句话发送即起一条新会话，任务在服务端继续跑。
 @MainActor
 final class MacQuickEntryController {
     static weak var shared: MacQuickEntryController?
@@ -18,35 +116,57 @@ final class MacQuickEntryController {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private(set) var session: SessionStore?
+    private(set) var binding: MacHotKeyBinding = MacHotKeyBinding.load()
 
     func bind(session: SessionStore) {
         self.session = session
         Self.shared = self
     }
 
-    // MARK: - 全局热键（⌥Space）
+    // MARK: - 全局热键注册与热重绑
 
     func registerHotKey() {
-        guard hotKeyRef == nil else { return }
-        var spec = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
-        InstallEventHandler(
-            GetApplicationEventTarget(),
-            { _, _, _ in
-                Task { @MainActor in
-                    MacQuickEntryController.shared?.toggle()
-                }
-                return noErr
-            },
-            1, &spec, nil, &handlerRef
-        )
+        if handlerRef == nil {
+            var spec = EventTypeSpec(
+                eventClass: OSType(kEventClassKeyboard),
+                eventKind: UInt32(kEventHotKeyPressed)
+            )
+            InstallEventHandler(
+                GetApplicationEventTarget(),
+                { _, _, _ in
+                    Task { @MainActor in
+                        MacQuickEntryController.shared?.toggle()
+                    }
+                    return noErr
+                },
+                1, &spec, nil, &handlerRef
+            )
+        }
+        applyBinding(binding)
+    }
+
+    func updateHotKey(_ newBinding: MacHotKeyBinding) {
+        binding = newBinding
+        newBinding.save()
+        applyBinding(newBinding)
+    }
+
+    func resetHotKey() {
+        MacHotKeyBinding.reset()
+        binding = .default
+        applyBinding(.default)
+    }
+
+    private func applyBinding(_ target: MacHotKeyBinding) {
+        if let existing = hotKeyRef {
+            UnregisterEventHotKey(existing)
+            hotKeyRef = nil
+        }
         let hotKeyID = EventHotKeyID(
             signature: OSType(0x4F44_4159), id: 1
         )
         RegisterEventHotKey(
-            UInt32(kVK_Space), UInt32(optionKey), hotKeyID,
+            target.keyCode, target.carbonModifiers, hotKeyID,
             GetApplicationEventTarget(), 0, &hotKeyRef
         )
     }
