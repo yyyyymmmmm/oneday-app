@@ -1056,7 +1056,7 @@ def _propose_memory(body: dict):
         entry = next((e for e in entries
                       if e["id"] == entry_id and e["target"] == target), None)
         if entry is None:
-            return 404, {"error": "这条记忆已不存在"}
+            return not_found("这条记忆已不存在")
         if base != entry["digest"]:
             return 409, {"error": "这条记忆已经变了，请刷新后重新编辑"}
         old_text = entry["_text"]
@@ -1490,11 +1490,11 @@ def get_memory(entry_id):
         if not SUPPORTED:
             return unavailable()
         if not MEM_ENTRY_ID_RE.match(entry_id):
-            return 404, {"error": "这条记忆已不存在"}
+            return not_found("这条记忆已不存在")
         entries, _store = _mem_snapshot()
         entry = next((e for e in entries if e["id"] == entry_id), None)
         if entry is None:
-            return 404, {"error": "这条记忆已不存在"}
+            return not_found("这条记忆已不存在")
         return 200, {"entry": _entry_public(entry, detail=True)}
     except Exception as e:
         return error_response(e)
