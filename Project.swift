@@ -1,6 +1,13 @@
 import ProjectDescription
 
 let iOS26 = DeploymentTargets.iOS("26.0")
+// Mac 端地基（拟案《OneDay macOS 客户端》棒 0/席位棒 1）：
+// Core/Design 改多平台共用、新增 OneDayMac 原生目标；
+// iOS 目标定义一字不动
+let macOS26 = DeploymentTargets.macOS("26.0")
+let corePlatforms = DeploymentTargets.multiplatform(
+    iOS: "26.0", macOS: "26.0"
+)
 
 let project = Project(
     name: "OneDay",
@@ -14,10 +21,10 @@ let project = Project(
     targets: [
         .target(
             name: "OneDayCore",
-            destinations: .iOS,
+            destinations: [.iPhone, .iPad, .mac],
             product: .framework,
             bundleId: "site.didichou.oneday.core",
-            deploymentTargets: iOS26,
+            deploymentTargets: corePlatforms,
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
             // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
@@ -25,10 +32,10 @@ let project = Project(
         ),
         .target(
             name: "OneDayDesign",
-            destinations: .iOS,
+            destinations: [.iPhone, .iPad, .mac],
             product: .framework,
             bundleId: "site.didichou.oneday.design",
-            deploymentTargets: iOS26,
+            deploymentTargets: corePlatforms,
             infoPlist: .default,
             sources: ["Sources/OneDayDesign/**"],
             dependencies: [.target(name: "OneDayCore")]
@@ -139,6 +146,35 @@ let project = Project(
             ]
         ),
         .target(
+            // OneDay macOS 客户端（原生 SwiftUI，非
+            // Catalyst、非放大版 iPhone 界面）：与 iOS
+            // 共用 OneDayCore 逻辑层与 OneDayDesign 令牌
+            // 层，视图层独立写 Mac 形态。地基棒只立骨
+            // 架：登录链＋三栏主窗空壳，功能面对位表逐
+            // 棒销账（docs/mac-parity.md）
+            name: "OneDayMac",
+            destinations: .macOS,
+            product: .app,
+            bundleId: "site.didichou.oneday.mac",
+            deploymentTargets: macOS26,
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "OneDay",
+                "CFBundleShortVersionString": "0.51.1",
+                "CFBundleVersion": "256",
+                "ITSAppUsesNonExemptEncryption": false,
+                // 与 iOS 同口径：允许连接局域网内的自建
+                // 服务器（http）；公网仍走 https
+                "NSAppTransportSecurity": [
+                    "NSAllowsLocalNetworking": true,
+                ],
+            ]),
+            sources: ["Sources/OneDayMac/**"],
+            dependencies: [
+                .target(name: "OneDayCore"),
+                .target(name: "OneDayDesign"),
+            ]
+        ),
+        .target(
             // 实时活动呈现扩展（总表 163，DESIGN
             // §385.3）：只承载 RunLiveActivity 的锁屏
             // 面与灵动岛，无桌面小组件；属性型与 App
@@ -213,6 +249,12 @@ let project = Project(
                 "OneDayCoreTests", "OneDayAppTests", "OneDayUITests",
             ]),
             runAction: .runAction(executable: "OneDayApp")
+        ),
+        .scheme(
+            name: "OneDayMac",
+            shared: true,
+            buildAction: .buildAction(targets: ["OneDayMac"]),
+            runAction: .runAction(executable: "OneDayMac")
         ),
     ]
 )

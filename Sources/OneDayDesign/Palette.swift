@@ -1,6 +1,101 @@
 import OneDayCore
 import SwiftUI
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
+#if os(macOS)
+// MARK: - macOS 平台垫片（Mac 地基棒，改动清单在案）
+// Palette 的动态色构造在 iOS 走 UIColor traits 解析；
+// macOS 无 UIKit，本节以 NSColor 动态供应者等价实现：
+// UIColor 别名到 NSColor、语义色名按角色映射到 AppKit
+// 语义色。映射是角色等值而非逐值复刻（iOS 暗档的 α 语
+// 义在 macOS 以动态 α 近似给值），视觉逐值对齐由后续
+// 棒按真机截图验收，不在本棒口径内。
+typealias UIColor = NSColor
+
+/// 浅/暗动态 NSColor（按当前外观解析）
+private func dynamicNSColor(
+    light: NSColor, dark: NSColor
+) -> NSColor {
+    NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? dark : light
+    }
+}
+
+/// 把（可能是动态的）NSColor 在暗外观下解析成 sRGB 分量
+private func resolvedDarkSRGB(
+    _ color: NSColor
+) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
+    var rgba: (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 1)
+    NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+        if let resolved = color.usingColorSpace(.sRGB) {
+            rgba = (
+                resolved.redComponent, resolved.greenComponent,
+                resolved.blueComponent, resolved.alphaComponent
+            )
+        }
+    }
+    return rgba
+}
+
+extension NSColor {
+    static var systemBackground: NSColor { .windowBackgroundColor }
+    static var secondarySystemBackground: NSColor {
+        .controlBackgroundColor
+    }
+    static var tertiarySystemBackground: NSColor {
+        dynamicNSColor(
+            light: NSColor(
+                red: 0xF2 / 255.0, green: 0xF2 / 255.0,
+                blue: 0xF7 / 255.0, alpha: 1
+            ),
+            dark: NSColor(
+                red: 0x2C / 255.0, green: 0x2C / 255.0,
+                blue: 0x2E / 255.0, alpha: 1
+            )
+        )
+    }
+    static var systemGroupedBackground: NSColor {
+        .windowBackgroundColor
+    }
+    // fill 四级：基色 (120,120,128)＋α 阶梯，与 iOS 语义
+    // 档同口径近似（浅 0.20/0.16/0.12/0.08、暗 0.36 起）
+    static var systemFill: NSColor {
+        dynamicNSColor(
+            light: NSColor(white: 120.0 / 255.0, alpha: 0.20),
+            dark: NSColor(white: 120.0 / 255.0, alpha: 0.36)
+        )
+    }
+    static var secondarySystemFill: NSColor {
+        dynamicNSColor(
+            light: NSColor(white: 120.0 / 255.0, alpha: 0.16),
+            dark: NSColor(white: 120.0 / 255.0, alpha: 0.32)
+        )
+    }
+    static var tertiarySystemFill: NSColor {
+        dynamicNSColor(
+            light: NSColor(white: 120.0 / 255.0, alpha: 0.12),
+            dark: NSColor(white: 120.0 / 255.0, alpha: 0.28)
+        )
+    }
+    static var quaternarySystemFill: NSColor {
+        dynamicNSColor(
+            light: NSColor(white: 120.0 / 255.0, alpha: 0.08),
+            dark: NSColor(white: 120.0 / 255.0, alpha: 0.24)
+        )
+    }
+    static var separator: NSColor { .separatorColor }
+    static var opaqueSeparator: NSColor { .separatorColor }
+    static var label: NSColor { .labelColor }
+    static var secondaryLabel: NSColor { .secondaryLabelColor }
+    static var tertiaryLabel: NSColor { .tertiaryLabelColor }
+    static var quaternaryLabel: NSColor { .quaternaryLabelColor }
+}
+#endif
 
 // MARK: - 语义色角色层（0.6.1：OpenMuse 令牌接管）
 // 沿革：0.4.0 降级为系统语义色命名引用层 → **0.6.1 起整表
@@ -26,12 +121,22 @@ private func omColor(
     light: (CGFloat, CGFloat, CGFloat),
     dark: (CGFloat, CGFloat, CGFloat)
 ) -> Color {
+    #if os(iOS)
     Color(
         UIColor { traits in
             let v = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: v.0, green: v.1, blue: v.2, alpha: 1)
         }
     )
+    #else
+    Color(
+        NSColor(name: nil) { appearance in
+            let v = appearance.bestMatch(from: [.darkAqua, .aqua])
+                == .darkAqua ? dark : light
+            return NSColor(red: v.0, green: v.1, blue: v.2, alpha: 1)
+        }
+    )
+    #endif
 }
 
 private func omHex(_ hex: UInt32) -> (CGFloat, CGFloat, CGFloat) {
@@ -63,6 +168,34 @@ private func themedColor(light: UInt32, dark: UInt32) -> Color {
 private func appleColor(
     light: UInt32, dark: UIColor, lightHighContrast: UInt32? = nil
 ) -> Color {
+    #if os(macOS)
+    // macOS 等价实现：暗档语义色先在暗外观下解析成具体
+    // sRGB 值（与 iOS 的 resolvedColor 同义），再按外观
+    // 动态取档；浅档高对比变体按高对比外观取档
+    let darkResolved = resolvedDarkSRGB(dark)
+    let (lr, lg, lb) = omHex(light)
+    let hc = lightHighContrast.map(omHex)
+    return Color(
+        NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua])
+                == .darkAqua {
+                return NSColor(
+                    red: darkResolved.0, green: darkResolved.1,
+                    blue: darkResolved.2, alpha: darkResolved.3
+                )
+            }
+            if let hc,
+               appearance.bestMatch(
+                   from: [.accessibilityHighContrastAqua, .aqua]
+               ) == .accessibilityHighContrastAqua {
+                return NSColor(
+                    red: hc.0, green: hc.1, blue: hc.2, alpha: 1
+                )
+            }
+            return NSColor(red: lr, green: lg, blue: lb, alpha: 1)
+        }
+    )
+    #else
     let darkResolved = dark.resolvedColor(
         with: UITraitCollection(userInterfaceStyle: .dark)
     )
@@ -89,6 +222,7 @@ private func appleColor(
             return UIColor(red: lr, green: lg, blue: lb, alpha: 1)
         }
     )
+    #endif
 }
 
 public enum Palette {
@@ -336,16 +470,32 @@ public enum Palette {
     // 抽屉纱），本值保留不动——0.4.0 的白 0.55 在采样里
     // 近乎无纱，改均匀浅灰白纱 #F4F4F6 @ 0.66，模糊由视
     // 图侧 ultraThinMaterial 承担；暗色维持黑纱 0.50
-    public static let scrim = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor.black.withAlphaComponent(0.50)
-                : UIColor(
-                    red: 0xF4 / 255.0, green: 0xF4 / 255.0,
-                    blue: 0xF6 / 255.0, alpha: 0.66
-                )
-        }
-    )
+    public static var scrim: Color {
+        #if os(iOS)
+        return Color(
+            UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor.black.withAlphaComponent(0.50)
+                    : UIColor(
+                        red: 0xF4 / 255.0, green: 0xF4 / 255.0,
+                        blue: 0xF6 / 255.0, alpha: 0.66
+                    )
+            }
+        )
+        #else
+        return Color(
+            NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua])
+                    == .darkAqua
+                    ? NSColor.black.withAlphaComponent(0.50)
+                    : NSColor(
+                        red: 0xF4 / 255.0, green: 0xF4 / 255.0,
+                        blue: 0xF6 / 255.0, alpha: 0.66
+                    )
+            }
+        )
+        #endif
+    }
 
     /// 主墨（OpenMuse text #11191C，ui.tsx:21；暗档
     /// 0.36.1 改挂 label＝纯白 #FFFFFF，审计 D3）

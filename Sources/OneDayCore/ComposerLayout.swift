@@ -1,3 +1,5 @@
+#if os(iOS)
+// Mac 地基棒平台守卫：发送舱量测链是 iOS 输入面专属（UIFont/TextKit），macOS 编译排除；iOS 侧内容一字未动。
 import Foundation
 import UIKit
 
@@ -258,3 +260,5 @@ public enum ComposerLayout {
         min(max(height, 0) / 2, cap)
     }
 }
+
+#endif

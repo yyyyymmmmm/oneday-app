@@ -1,3 +1,5 @@
+#if os(iOS)
+// Mac 地基棒平台守卫：Live Activity 是 iOS 专属能力（对位表第 92 件，Mac 以菜单栏状态项等价），macOS 编译排除；iOS 侧内容一字未动。
 import ActivityKit
 import Foundation
 
@@ -42,3 +44,5 @@ public struct RunLiveActivityAttributes: ActivityAttributes {
         self.taskName = taskName
     }
 }
+
+#endif
