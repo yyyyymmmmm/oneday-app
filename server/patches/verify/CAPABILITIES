@@ -4,3 +4,4 @@ runs_botchat_redaction
 oneday_health_redaction
 oneday_monitors_briefings_redaction
 cron_jobs_error_codes
+profiles_ops_no_server_paths

@@ -609,8 +609,6 @@ async def run_backup(body: BackupRequest, profile: Optional[str] = None):
         output = str(archive)
     response = _spawn_action(["backup", "-o", output], "backup", log_msg="Failed to spawn backup",
                              prefix="Failed to run backup", profile=profile)
-    if archive is not None:
-        response["archive"] = str(archive)
     return response
 
 
@@ -682,7 +680,7 @@ async def run_import_upload(
     if not zipfile.is_zipfile(target):
         target.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Uploaded archive is not a valid zip file")
-    return {**_spawn_import(str(target), force, profile), "archive": str(target), "uploaded_bytes": total}
+    return {**_spawn_import(str(target), force, profile), "uploaded_bytes": total}
 
 
 @router.get("/api/ops/hooks")
