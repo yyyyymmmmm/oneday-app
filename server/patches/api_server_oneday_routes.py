@@ -49,6 +49,15 @@ ONEDAY_CAPABILITY_ENDPOINTS = (
     ("vault_fulfill", ("POST", "/v1/vault/requests/{request_id}/fulfill", "credential_vault")),
     ("web_login", ("POST", "/api/companion/web-login", "panel_web_login")),
     ("env_reveal", ("POST", "/api/env/reveal", "panel_web_login")),
+    ("mail_test_connection", ("POST", "/v1/mail/test-connection", "mail_gateway")),
+    ("mail_accounts", ("GET", "/v1/mail/accounts", "mail_gateway")),
+    ("mail_account_create", ("POST", "/v1/mail/accounts", "mail_gateway")),
+    ("mail_account", ("GET", "/v1/mail/accounts/{account_id}", "mail_gateway")),
+    ("mail_account_update", ("PATCH", "/v1/mail/accounts/{account_id}", "mail_gateway")),
+    ("mail_account_delete", ("DELETE", "/v1/mail/accounts/{account_id}", "mail_gateway")),
+    ("mail_account_sync", ("POST", "/v1/mail/accounts/{account_id}/sync", "mail_gateway")),
+    ("mail_messages", ("GET", "/v1/mail/messages", "mail_gateway")),
+    ("mail_message", ("GET", "/v1/mail/messages/{account_id}/{folder}/{uid}", "mail_gateway")),
 )
 
 
@@ -198,6 +207,15 @@ def oneday_http_routes(adapter: Any) -> list[tuple[str, str, Any]]:
         ("POST", "/v1/vault/requests/{request_id}/fulfill", adapter._handle_vault_fulfill),
         ("POST", "/api/companion/web-login", adapter._handle_web_login),
         ("POST", "/api/env/reveal", adapter._handle_env_reveal),
+        ("POST", "/v1/mail/test-connection", adapter._handle_mail_test_connection),
+        ("GET", "/v1/mail/accounts", adapter._handle_mail_accounts_list),
+        ("POST", "/v1/mail/accounts", adapter._handle_mail_account_create),
+        ("GET", "/v1/mail/accounts/{account_id}", adapter._handle_mail_account_get),
+        ("PATCH", "/v1/mail/accounts/{account_id}", adapter._handle_mail_account_update),
+        ("DELETE", "/v1/mail/accounts/{account_id}", adapter._handle_mail_account_delete),
+        ("POST", "/v1/mail/accounts/{account_id}/sync", adapter._handle_mail_account_sync),
+        ("GET", "/v1/mail/messages", adapter._handle_mail_messages_list),
+        ("GET", "/v1/mail/messages/{account_id}/{folder}/{uid}", adapter._handle_mail_message_get),
     ]
 
 
@@ -330,6 +348,127 @@ class OneDayAuthPushRoutesMixin:
             return web.json_response(payload, status=status)
         except Exception:
             return _err("Credential request unavailable", 503, code="vault_unavailable")
+
+    def _mail_module(self):
+        from gateway.platforms import mail_gateway
+        return mail_gateway
+
+    async def _handle_mail_test_connection(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            password = body.get("password") if isinstance(body, dict) else None
+            status, payload = await asyncio.to_thread(
+                self._mail_module().test_connection, body, password)
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_accounts_list(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            return web.json_response({"object": "list", "data": self._mail_module().list_accounts()})
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_account_create(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            password = body.get("password") if isinstance(body, dict) else None
+            status, payload = await asyncio.to_thread(
+                self._mail_module().create_account, body, password, self._expected_api_key())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_account_get(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            row = self._mail_module().get_account(request.match_info.get("account_id", ""))
+            return web.json_response(row if row else {"status": "not_found"}, status=200 if row else 404)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_account_update(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            body = await request.json()
+            status, payload = await asyncio.to_thread(
+                self._mail_module().update_account,
+                request.match_info.get("account_id", ""), body, self._expected_api_key())
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_account_delete(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            status, payload = await asyncio.to_thread(
+                self._mail_module().delete_account, request.match_info.get("account_id", ""))
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_account_sync(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            folder = request.query.get("folder") or "INBOX"
+            status, payload = await asyncio.to_thread(
+                self._mail_module().sync_account,
+                request.match_info.get("account_id", ""), self._expected_api_key(), folder)
+            return web.json_response(payload, status=status)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_messages_list(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            def _int(name, default):
+                try:
+                    return int(request.query.get(name, default))
+                except (TypeError, ValueError):
+                    return default
+            payload = self._mail_module().list_messages(
+                account_id=request.query.get("account_id") or None,
+                folder=request.query.get("folder") or "INBOX",
+                limit=_int("limit", 50), offset=_int("offset", 0),
+                unread_only=request.query.get("unread_only") in ("1", "true"))
+            return web.json_response(payload)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
+
+    async def _handle_mail_message_get(self, request):
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        try:
+            uid = int(request.match_info.get("uid", ""))
+        except (TypeError, ValueError):
+            return _err("Invalid message uid", 400, code="invalid_uid")
+        try:
+            row = self._mail_module().get_message(
+                request.match_info.get("account_id", ""),
+                request.match_info.get("folder", ""), uid)
+            return web.json_response(row if row else {"status": "not_found"}, status=200 if row else 404)
+        except Exception:
+            return _err("Mail gateway unavailable", 503, code="mail_unavailable")
 
     async def _handle_post_push_tokens(self, request: Any) -> Any:
         """POST /v1/push/tokens -- upsert one APNs device push token (batch 4b)."""

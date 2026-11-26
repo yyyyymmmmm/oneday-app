@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|80c3e5dfb5f52d56f4a3d22a7b40ecb12bed063651e01a7cd5036e4e62afee0d"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|dcb67c352f45e0b96f96a1dc45ca9d5400682a38cff828bafd46e644c40bf7cf"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -83,6 +83,7 @@ MODULES=(
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
   "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf"
   "crash_reports.py|patches/crash_reports.py|/opt/hermes/gateway/platforms/crash_reports.py|f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510"
+  "mail_gateway.py|patches/mail_gateway.py|/opt/hermes/gateway/platforms/mail_gateway.py|c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e"
   "fileproc_gateway.py|patches/fileproc_gateway.py|/opt/hermes/gateway/platforms/fileproc_gateway.py|96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c"
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
   "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a"
@@ -107,7 +108,7 @@ MODULES=(
   "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440"
   "oneday_seg_cron.py|patches/oneday_seg_cron.py|/opt/hermes/gateway/platforms/oneday_seg_cron.py|1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7"
   "oneday_seg_delivery.py|patches/oneday_seg_delivery.py|/opt/hermes/gateway/platforms/oneday_seg_delivery.py|08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954"
-  "oneday_seg_feed.py|patches/oneday_seg_feed.py|/opt/hermes/gateway/platforms/oneday_seg_feed.py|b305c244437ff0e061c4a76a24a8be32e0da9831b9ebb7eaa55dd8d50956f39a"
+  "oneday_seg_feed.py|patches/oneday_seg_feed.py|/opt/hermes/gateway/platforms/oneday_seg_feed.py|8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f"
   "oneday_seg_filelibrary.py|patches/oneday_seg_filelibrary.py|/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py|f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28"
   "oneday_seg_goals.py|patches/oneday_seg_goals.py|/opt/hermes/gateway/platforms/oneday_seg_goals.py|59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a"
   "oneday_seg_goals_activity.py|patches/oneday_seg_goals_activity.py|/opt/hermes/gateway/platforms/oneday_seg_goals_activity.py|f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb"
@@ -125,7 +126,7 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|40160a843349de9915fb720b085acae8f3671f25eea0945ce977bab294c71d6d"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
@@ -241,6 +242,7 @@ grep -q "approval_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEE
 grep -q "grant_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_runs.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "crash_reports.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "mail_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "fileproc_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_sync.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -411,6 +413,9 @@ specs = [
     ("crash_reports.py",
      "      - ./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro",
      "./patches/grant_projection.py:/opt/hermes/gateway/platforms/grant_projection.py:ro"),
+    ("mail_gateway.py",
+     "      - ./patches/mail_gateway.py:/opt/hermes/gateway/platforms/mail_gateway.py:ro",
+     "./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro"),
     ("fileproc_gateway.py",
      "      - ./patches/fileproc_gateway.py:/opt/hermes/gateway/platforms/fileproc_gateway.py:ro",
      "./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro"),
@@ -665,6 +670,7 @@ PYEOF
   grep -q "grant_projection.py" "$compose_file" || die "compose grant_projection mount line write failed"
   grep -q "api_server_runs.py" "$compose_file" || die "compose api_server_runs mount line write failed"
   grep -q "crash_reports.py" "$compose_file" || die "compose crash_reports mount line write failed"
+  grep -q "mail_gateway.py" "$compose_file" || die "compose mail_gateway mount line write failed"
   grep -q "fileproc_gateway.py" "$compose_file" || die "compose fileproc_gateway mount line write failed"
   grep -q "device_sync.py" "$compose_file" || die "compose device_sync mount line write failed"
   grep -q "device_gateway.py" "$compose_file" || die "compose device_gateway mount line write failed"
