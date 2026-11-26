@@ -554,4 +554,10 @@ final class MockWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     func deleteRule(config: ServerConfig, id: String) async throws {
         fatalError("Not implemented in mock")
     }
+
+    // 分组动态面（806bee01 落地后协议新增要求）：本组
+    // 测试不覆盖分组，恒回未分组空态，store 侧回落平铺
+    func activity(config: ServerConfig, limit: Int) async throws -> WriteGateActivityResponse {
+        WriteGateActivityResponse(groups: [], grouped: false)
+    }
 }
