@@ -249,6 +249,8 @@ struct SettingsView: View {
                     CrashReportsView()
                 case .vault:
                     VaultListView()
+                case .cloudComputers:
+                    CloudComputerListView()
                 }
             }
             // §496：断开行已迁当前服务器页，本确认框
@@ -430,6 +432,7 @@ struct SettingsView: View {
     private var modelAndConnectionSection: some View {
         Section {
             navRow(icon: "cpu", title: L10n.string("模型与服务商"), route: .models)
+            navRow(icon: "desktopcomputer", title: L10n.string("云电脑与远程主机"), route: .cloudComputers)
             navRow(icon: "chart.bar", title: L10n.string("用量统计"), route: .usage)
             navRow(icon: "server.rack", title: L10n.string("当前服务器"), route: .serverDetail)
             NavigationLink(value: SettingsRoute.authSessions) {

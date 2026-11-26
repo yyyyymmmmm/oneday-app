@@ -305,6 +305,73 @@ def vault_use(entry_id: str, domain: str, purpose: str, operation: str, *, api_k
     return {"credential_ref": entry_id, **safe}
 
 
+def _box_mcp_type_text(text: str) -> tuple[bool, str]:
+    """Server-side zero-knowledge injection: type a secret value directly into
+    the active Simular Box desktop input field via MCP without ever returning
+    the plaintext secret to the LLM."""
+    from urllib.request import Request, urlopen
+    api_key = os.environ.get("MCP_BOX_API_KEY", "").strip()
+    if not api_key:
+        try:
+            env_path = Path(os.environ.get("COMPANION_HERMES_ENV", "/opt/data/.env"))
+            if env_path.exists():
+                for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if line.strip().startswith("MCP_BOX_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip()
+                        break
+        except Exception:
+            pass
+    if not api_key:
+        return False, "cloud computer API key not configured on server"
+    url = os.environ.get("BOX_MCP_URL", "https://mcp.box.simular.ai/mcp")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    init_body = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+                   "clientInfo": {"name": "oneday-vault", "version": "1.0"}},
+    }).encode()
+    with urlopen(Request(url, data=init_body, method="POST", headers=headers), timeout=15) as resp:
+        sid = resp.headers.get("Mcp-Session-Id")
+        resp.read(4096)
+    if sid:
+        headers["Mcp-Session-Id"] = sid
+    call_body = json.dumps({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": "computer_act", "arguments": {"action": "type", "text": text}},
+    }).encode()
+    with urlopen(Request(url, data=call_body, method="POST", headers=headers), timeout=30) as resp:
+        resp.read(65536)
+    return True, "credential typed into cloud computer securely"
+
+
+def _exec_cloud_computer_fill(domain: str, values: dict[str, Any]) -> dict[str, Any]:
+    """Allowlisted executor: types username or password directly into the
+    focused field of the cloud computer without revealing the secret to the LLM."""
+    parts = [v for k in ("username", "password", "token", "api_key", "otp") if (v := values.get(k))]
+    if not parts:
+        return {"status": "failed", "summary": "no fillable credential field"}
+    if values.get("username") and values.get("password"):
+        ok1, msg1 = _box_mcp_type_text(str(values["username"]))
+        if not ok1:
+            return {"status": "failed", "summary": msg1}
+        ok2, msg2 = _box_mcp_type_text("\t" + str(values["password"]))
+        return {"status": "completed" if ok2 else "failed", "summary": msg2}
+    ok, msg = _box_mcp_type_text(str(parts[0]))
+    return {"status": "completed" if ok else "failed", "summary": msg}
+
+
+OPERATIONS[("cloud_computer", "fill_credential")] = _exec_cloud_computer_fill
+OPERATIONS[("browser_login", "fill_credential")] = _exec_cloud_computer_fill
+OPERATIONS[("cloud_computer", "type_password")] = lambda domain, values: (
+    {"status": "completed", "summary": _box_mcp_type_text(str(values.get("password") or ""))[1]}
+    if values.get("password") else {"status": "failed", "summary": "password field missing"}
+)
+
+
 def request_status(request_id: str, session_id: str, scope: str = "default") -> dict[str, Any] | None:
     with _lock:
         req = _requests.get(request_id)

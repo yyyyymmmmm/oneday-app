@@ -1,23 +1,215 @@
-import OneDayDesign
 import OneDayCore
+import OneDayDesign
 import SwiftUI
 
-/// 云电脑详情（0.37.0 接入层，cloud-computer 规格
-/// §6.2 的连接面部分）：状态与验活记录如实呈现、凭
-/// 据只报「已配置/未配置」、更换凭据与断开在此办。
-/// 能力面（画面/终端/文件）是另一层：托管 Box 的电
-/// 脑页已存在，VPS 的能力面随服务端电脑通用面落
-/// 地，本页不假装有入口。
+/// 设置页一级入口：云电脑与远程主机管理（大厂统一管理面）
+/// 支持三类接入：
+/// 1. 托管云电脑（Simular Box 等，API 密钥 + 可选自定义 MCP 地址）
+/// 2. 自建 VPS / NAT 主机（Linux & Windows，自定义端口，SSH 密钥/一键生成 Ed25519 公私钥 或 密码）
+/// 3. 内网穿透节点（纯内网 NAT 机/家用电脑，一次性配对命令反向回连）
+struct CloudComputerListView: View {
+    @Environment(AppState.self) private var appState
+    @State private var store = ConnectionsStore()
+    @State private var showAddSheet = false
+    @State private var activeTakeoverTarget: CloudComputerTarget?
+
+    var body: some View {
+        List {
+            SettingsHeroCard(
+                symbol: "desktopcomputer",
+                tint: .blue,
+                title: "云电脑与远程主机",
+                subtitle: "统一管理托管云电脑、Linux / Windows VPS、NAT 映射主机与内网穿透节点。",
+                statusText: configuredCount > 0 ? "\(configuredCount) 台就绪" : "未配置",
+                statusTone: configuredCount > 0 ? .healthy : .neutral
+            )
+
+            if let error = store.loadError, store.cloudComputers.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                        Text(error)
+                            .font(.callout)
+                            .foregroundStyle(Palette.danger)
+                        Button("重试") {
+                            Task { await store.load(appState: appState) }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.vertical, OneDayMetrics.spacingXS)
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            }
+
+            Section {
+                if store.isLoading && store.cloudComputers.isEmpty {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        ProgressView()
+                        Text("正在读取远程主机列表…")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                } else if store.cloudComputers.isEmpty {
+                    VStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "desktopcomputer")
+                            .font(.system(size: 36))
+                            .foregroundStyle(Palette.inkMuted)
+                        Text("还没有添加云电脑或远程主机")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Button("添加一台主机") {
+                            showAddSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, OneDayMetrics.spacingM)
+                } else {
+                    ForEach(store.cloudComputers) { connection in
+                        NavigationLink {
+                            CloudComputerDetailView(
+                                store: store,
+                                connectionID: connection.id,
+                                onOpenTakeover: { target in
+                                    activeTakeoverTarget = target
+                                }
+                            )
+                        } label: {
+                            computerListRow(connection)
+                        }
+                    }
+                }
+            } header: {
+                SettingsSectionHeader("已登记主机")
+            } footer: {
+                Text("托管云电脑支持实时桌面接管；VPS / NAT 主机支持自定义端口与 SSH 密钥认证。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            Section {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Palette.primary)
+                        Text("添加云电脑 / VPS / NAT 机")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+                .buttonStyle(.odPressable)
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .navigationTitle("云电脑与远程主机")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("添加远程主机")
+            }
+        }
+        .refreshable {
+            await store.load(appState: appState)
+        }
+        .task {
+            await store.load(appState: appState)
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddComputerView(store: store)
+        }
+        .fullScreenCover(item: $activeTakeoverTarget) { target in
+            CloudComputerTakeoverSheet(
+                target: target,
+                onHandBackToAI: nil
+            )
+        }
+    }
+
+    private var configuredCount: Int {
+        store.cloudComputers.filter { $0.configured == true }.count
+    }
+
+    private func computerListRow(_ connection: CompanionConnection) -> some View {
+        let status = ConnectionStatusWording.evaluate(connection)
+        let iconName: String = {
+            switch connection.provider {
+            case "simular_box": return "desktopcomputer"
+            case "reverse_node": return "point.3.connected.trianglepath.dotted"
+            default:
+                return connection.meta?.osType == "windows" ? "pc" : "terminal"
+            }
+        }()
+        return HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: iconName)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Palette.primary)
+                .frame(width: 34, height: 34)
+                .background(Palette.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(connection.name)
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                HStack(spacing: 6) {
+                    Text(connection.providerWording)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    if let host = connection.meta?.host, !host.isEmpty {
+                        let port = connection.meta?.port.map { ":\($0)" } ?? ""
+                        Text("· \(host)\(port)")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            SettingsStatusPill(
+                text: status.text,
+                tone: status.tone == .ok ? .healthy
+                    : status.tone == .bad ? .error
+                    : status.tone == .pending ? .warning : .neutral
+            )
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+    }
+}
+
+/// 云电脑 / 远程主机详情页
 struct CloudComputerDetailView: View {
     var store: ConnectionsStore
     let connectionID: String
+    var onOpenTakeover: ((CloudComputerTarget) -> Void)? = nil
 
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
     @State private var showCredentialForm = false
     @State private var pendingDisconnect = false
+    @State private var pendingDelete = false
+    @State private var copiedCommand = false
 
     private var connection: CompanionConnection? {
         store.connections.first { $0.id == connectionID }
+    }
+
+    private var canDelete: Bool {
+        connectionID != "box"
     }
 
     var body: some View {
@@ -26,14 +218,34 @@ struct CloudComputerDetailView: View {
                 Section {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                         Text(connection.name)
-                            .font(.title3)
+                            .font(.title3.weight(.semibold))
                             .foregroundStyle(Palette.ink)
                         Text(connection.providerWording)
                             .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.vertical, OneDayMetrics.spacingS)
+
+                    if let meta = connection.meta {
+                        if let host = meta.host, !host.isEmpty {
+                            let portText = meta.port.map { ":\($0)" } ?? ""
+                            LabeledContent("主机地址", value: "\(host)\(portText)")
+                        }
+                        if let user = meta.username, !user.isEmpty {
+                            LabeledContent("用户名", value: user)
+                        }
+                        if let os = meta.osType, !os.isEmpty {
+                            LabeledContent("系统", value: os == "windows" ? "Windows" : "Linux")
+                        }
+                        if let auth = meta.authType, !auth.isEmpty {
+                            LabeledContent("认证方式", value: authLabel(auth))
+                        }
+                        if let mcp = meta.mcpUrl, !mcp.isEmpty {
+                            LabeledContent("MCP 地址", value: mcp)
+                        }
+                    }
                 }
+
                 Section {
                     let status = ConnectionStatusWording.evaluate(connection)
                     HStack {
@@ -63,16 +275,58 @@ struct CloudComputerDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
+                    if connection.provider == "simular_box", connection.configured == true,
+                       let onOpenTakeover {
+                        Button {
+                            onOpenTakeover(CloudComputerTarget(
+                                id: connection.id,
+                                boxID: nil,
+                                liveURL: ""
+                            ))
+                        } label: {
+                            Label("打开全屏桌面接管", systemImage: "hand.tap.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.odPrimary)
+                    }
                     Button {
                         Task { await store.verify(id: connectionID, appState: appState) }
                     } label: {
                         Text("测试连接")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.odPrimary)
+                    .buttonStyle(.bordered)
                 } header: {
-                    Text("连接")
+                    Text("连接与控制")
                 }
+
+                if connection.provider == "reverse_node",
+                   let pairing = store.latestPairings[connectionID] {
+                    Section {
+                        Text(pairing.recommendedCommand)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(Palette.ink)
+                            .textSelection(.enabled)
+                        Button {
+                            UIPasteboard.general.string = pairing.recommendedCommand
+                            Haptics.success()
+                            copiedCommand = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(2))
+                                copiedCommand = false
+                            }
+                        } label: {
+                            Label(copiedCommand ? "已复制配对命令" : "复制一键配对命令", systemImage: copiedCommand ? "checkmark" : "doc.on.doc")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.odPrimary)
+                    } header: {
+                        Text("内网穿透配对命令")
+                    } footer: {
+                        Text("在 NAT 机或内网电脑终端运行此命令，无需公网 IP 或开放端口即可反向回连。")
+                    }
+                }
+
                 Section {
                     HStack {
                         Text("凭据")
@@ -81,7 +335,8 @@ struct CloudComputerDetailView: View {
                         Text(connection.configured == true ? "已配置" : "未配置")
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    Button(showCredentialForm ? "收起" : "填写 / 更换凭据") {
+                    Button(showCredentialForm ? "收起凭据配置" : "配置 / 更换凭据") {
+                        store.resetCredentialPhase()
                         showCredentialForm.toggle()
                     }
                     if showCredentialForm {
@@ -92,25 +347,32 @@ struct CloudComputerDetailView: View {
                         }
                     }
                 } header: {
-                    Text("凭据")
+                    Text("凭据与密钥")
                 } footer: {
-                    Text("凭据只发给你的服务端保存，App 不留存；这里也读不出已保存的值。")
+                    Text("密钥与密码仅加密保存于你的服务端，App 端永不回传明文。")
                 }
+
                 Section {
-                    Button("断开这台电脑", role: .destructive) {
+                    Button("断开这台主机", role: .destructive) {
                         pendingDisconnect = true
                     }
+                    if canDelete {
+                        Button("删除这台主机", role: .destructive) {
+                            pendingDelete = true
+                        }
+                    }
                 } footer: {
-                    Text(connection.provider == "vps_agent"
-                        ? "断开只摘掉这边的登记与保存的登录信息。"
-                        : "断开只摘掉这边的凭据；厂商那边的密钥请到厂商处吊销。")
+                    Text(connection.provider == "simular_box"
+                        ? "断开会清除本服务端保存的密钥；厂商侧密钥请到厂商控制台吊销。"
+                        : "断开或删除会立即清除服务端保存的登录凭据与私钥。")
                 }
             } else {
                 Section {
-                    Text("这台电脑的记录已经不在了。")
+                    Text("这台主机的记录已经不在了。")
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
+
             if let notice = store.notice {
                 Section {
                     Text(notice)
@@ -121,11 +383,12 @@ struct CloudComputerDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("远程电脑")
+        .navigationTitle("主机详情")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
-            "断开这台电脑？",
+            "断开这台主机？",
             isPresented: $pendingDisconnect,
             titleVisibility: .visible
         ) {
@@ -134,60 +397,212 @@ struct CloudComputerDetailView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("智能体将不能再用这台电脑，直到重新填写凭据。")
+            Text("智能体将不能再使用这台主机，直到重新填写凭据。")
+        }
+        .confirmationDialog(
+            "删除这台主机？",
+            isPresented: $pendingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                Task {
+                    if await store.deleteComputer(id: connectionID, appState: appState) {
+                        dismiss()
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将永久删除该主机记录及其保存的密钥或密码。")
+        }
+    }
+
+    private func authLabel(_ auth: String) -> String {
+        switch auth {
+        case "ssh_key": return "SSH 密钥"
+        case "password": return "密码"
+        case "reverse_token": return "反向节点令牌"
+        default: return auth
         }
     }
 }
 
-/// 凭据表单（添加流与详情更换共用）：按 provider 分
-/// 型——托管类只有密钥一格（端点是已知常量，不让用
-/// 户填，规格 §3.1）；VPS 类只收 IP＋账户名＋密码三
-/// 样（2026-11-11 15:58 定版，云电脑收口规格 §2）：
-/// 端点、令牌、装代理都是服务端内部的事，不进用户
-/// 面。提交后验活结果由 store 的状态机回显（成/败
-/// 都带服务端人话，失败含回滚说明）。
+/// 凭据表单（托管云电脑 / Linux & Windows VPS / NAT 机 / 内网穿透节点）
 struct CredentialFormView: View {
     var store: ConnectionsStore
     let connection: CompanionConnection
     var onVerified: () -> Void
 
     @Environment(AppState.self) private var appState
+    // Simular Box
     @State private var apiKey = ""
+    @State private var mcpUrl = ""
+    // VPS / NAT
+    @State private var osType = "linux"
     @State private var host = ""
-    @State private var username = ""
+    @State private var portText = "22"
+    @State private var username = "root"
+    @State private var authType = "ssh_key"
+    @State private var privateKey = ""
     @State private var password = ""
+    // SSH Keygen
+    @State private var keygenReceipt: SSHKeygenReceipt?
+    @State private var generatingKey = false
+    @State private var copiedKeyCmd = false
+
+    private var isVPS: Bool {
+        connection.provider == "vps_ssh" || connection.provider == "vps_agent"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-            if connection.provider == "vps_agent" {
-                TextField("IP 地址（如 1.2.3.4）", text: $host)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.numbersAndPunctuation)
-                TextField("账户名（如 Administrator）", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                SecureField("密码", text: $password)
-                Text("登录信息只发给你的服务端保存，App 不留存；连上之后，装代理、接进智能体的事都由服务端处理。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            } else {
-                SecureField("API 密钥", text: $apiKey)
-            }
-            Button {
-                Task { await submit() }
-            } label: {
-                HStack {
-                    Text("保存并测试连接")
-                    Spacer()
-                    if store.credentialPhase.isBusy {
-                        ProgressView()
+            if connection.provider == "reverse_node" {
+                Picker("目标系统", selection: $osType) {
+                    Text("Linux / macOS").tag("linux")
+                    Text("Windows").tag("windows")
+                }
+                .pickerStyle(.segmented)
+                Button {
+                    Task { await resetReversePairing() }
+                } label: {
+                    HStack {
+                        Text("重新生成配对命令")
+                        Spacer()
+                        if store.credentialPhase.isBusy { ProgressView() }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.odPrimary)
+                .disabled(store.credentialPhase.isBusy)
+            } else if isVPS {
+                Picker("系统类型", selection: $osType) {
+                    Text("Linux").tag("linux")
+                    Text("Windows").tag("windows")
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: osType) { _, newOS in
+                    if newOS == "windows" {
+                        if username == "root" { username = "Administrator" }
+                        if portText == "22" && authType == "password" { portText = "5985" }
+                    } else {
+                        if username == "Administrator" { username = "root" }
+                        if portText == "5985" || portText == "3389" { portText = "22" }
                     }
                 }
-                .frame(maxWidth: .infinity)
+
+                TextField("主机 / IP（支持 NAT 域名）", text: $host)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    TextField("端口（NAT 填映射端口）", text: $portText)
+                        .keyboardType(.numberPad)
+                        .frame(width: 140)
+                    TextField(osType == "windows" ? "用户名（Administrator）" : "用户名（root）", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+
+                Picker("认证方式", selection: $authType) {
+                    Text("SSH 密钥（推荐）").tag("ssh_key")
+                    Text("密码").tag("password")
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: authType) { _, newAuth in
+                    if newAuth == "ssh_key", portText == "5985" || portText == "3389" {
+                        portText = "22"
+                    } else if newAuth == "password", osType == "windows", portText == "22" {
+                        portText = "5985"
+                    }
+                }
+
+                if authType == "ssh_key" {
+                    Button {
+                        Task { await generateKeypair() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "key.fill")
+                            Text(keygenReceipt == nil ? "一键生成 Ed25519 密钥对（推荐）" : "重新生成密钥对")
+                            Spacer()
+                            if generatingKey { ProgressView() }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(generatingKey)
+
+                    if let receipt = keygenReceipt {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("已生成私钥并安全保存在服务端。在你的 VPS/NAT 机执行以下命令写入公钥，再点下方保存测试：")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text(receipt.installCommand)
+                                .font(.system(.caption2, design: .monospaced))
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Palette.fieldFill, in: RoundedRectangle(cornerRadius: 8))
+                                .textSelection(.enabled)
+                            Button {
+                                UIPasteboard.general.string = receipt.installCommand
+                                Haptics.success()
+                                copiedKeyCmd = true
+                                Task {
+                                    try? await Task.sleep(for: .seconds(2))
+                                    copiedKeyCmd = false
+                                }
+                            } label: {
+                                Label(copiedKeyCmd ? "已复制公钥写入命令" : "复制公钥写入命令", systemImage: copiedKeyCmd ? "checkmark" : "doc.on.doc")
+                                    .font(.caption.weight(.medium))
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    Text("或直接粘贴已有 SSH 私钥（可选，留空则使用上面生成的私钥）：")
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                    TextEditor(text: $privateKey)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 84, maxHeight: 130)
+                        .padding(6)
+                        .background(Palette.fieldFill, in: RoundedRectangle(cornerRadius: 8))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } else {
+                    SecureField("登录密码", text: $password)
+                }
+
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack {
+                        Text("保存并测试连接")
+                        Spacer()
+                        if store.credentialPhase.isBusy { ProgressView() }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.odPrimary)
+                .disabled(store.credentialPhase.isBusy || !inputReady)
+            } else {
+                SecureField("API 密钥（Simular Box Key）", text: $apiKey)
+                TextField("自定义 MCP 地址（可选，默认官方）", text: $mcpUrl)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack {
+                        Text("保存并测试连接")
+                        Spacer()
+                        if store.credentialPhase.isBusy { ProgressView() }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.odPrimary)
+                .disabled(store.credentialPhase.isBusy || !inputReady)
             }
-            .buttonStyle(.odPrimary)
-            .disabled(store.credentialPhase.isBusy || !inputReady)
+
             switch store.credentialPhase {
             case .verified(let detail):
                 Text("已连上：\(detail)")
@@ -202,32 +617,89 @@ struct CredentialFormView: View {
             }
         }
         .padding(.vertical, OneDayMetrics.spacingS)
+        .onAppear {
+            prefillFromMeta()
+        }
+    }
+
+    private func prefillFromMeta() {
+        if let meta = connection.meta {
+            if let h = meta.host, host.isEmpty { host = h }
+            if let p = meta.port { portText = "\(p)" }
+            if let u = meta.username, !u.isEmpty { username = u }
+            if let os = meta.osType, !os.isEmpty { osType = os }
+            if let auth = meta.authType, auth == "ssh_key" || auth == "password" { authType = auth }
+            if let mcp = meta.mcpUrl, mcpUrl.isEmpty { mcpUrl = mcp }
+        }
+    }
+
+    private var parsedPort: Int? {
+        guard let p = Int(portText.trimmingCharacters(in: .whitespaces)), (1...65535).contains(p) else {
+            return nil
+        }
+        return p
     }
 
     private var inputReady: Bool {
-        if connection.provider == "vps_agent" {
-            return WindowsLoginInput.isReady(
-                host: host, username: username, password: password
-            )
+        if isVPS {
+            guard WindowsLoginInput.isValidHost(host),
+                  parsedPort != nil,
+                  !username.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+            if authType == "ssh_key" {
+                return !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || keygenReceipt != nil
+                    || connection.meta?.publicKey != nil
+            }
+            return !password.isEmpty
         }
-        return apiKey.count >= 10
+        return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10
+    }
+
+    private func generateKeypair() async {
+        generatingKey = true
+        defer { generatingKey = false }
+        if let receipt = await store.generateSSHKeypair(id: connection.id, appState: appState) {
+            keygenReceipt = receipt
+            Haptics.success()
+        }
+    }
+
+    private func resetReversePairing() async {
+        await store.submitCredential(
+            id: connection.id,
+            body: ["osType": .string(osType)],
+            appState: appState
+        )
+        if case .verified = store.credentialPhase {
+            onVerified()
+        }
     }
 
     private func submit() async {
-        let body: [String: JSONValue] = connection.provider == "vps_agent"
-            ? ConnectionPayloads.windowsCredential(
+        let body: [String: JSONValue]
+        if isVPS {
+            let port = parsedPort ?? (osType == "windows" && authType == "password" ? 5985 : 22)
+            body = ConnectionPayloads.vpsHostCredential(
                 host: host.trimmingCharacters(in: .whitespaces),
+                port: port,
                 username: username.trimmingCharacters(in: .whitespaces),
-                password: password
+                osType: osType,
+                authType: authType,
+                privateKey: authType == "ssh_key" ? privateKey.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+                password: authType == "password" ? password : nil
             )
-            : ConnectionPayloads.simularCredential(apiKey: apiKey)
+        } else {
+            body = ConnectionPayloads.simularCredential(
+                apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                mcpUrl: mcpUrl
+            )
+        }
         await store.submitCredential(
             id: connection.id, body: body, appState: appState
         )
         if case .verified = store.credentialPhase {
-            // F6：simular_box 验活成功后写入 MCP 凭据
             if connection.provider == "simular_box" {
-                KeychainStore.save(apiKey, account: "box.mcp.key")
+                KeychainStore.save(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), account: "box.mcp.key")
                 BoxMCPClientFactory.reset()
             }
             onVerified()
@@ -235,10 +707,7 @@ struct CredentialFormView: View {
     }
 }
 
-/// 添加电脑（0.37.0，规格 §6.4）：一屏选类型→名字
-/// →建记录→就地填凭据验活→成功落详情。失败停在表
-/// 单给人话，不产生半截记录之外的假象（记录是「未
-/// 配置」态，如实可见、可继续填或断开删除）。
+/// 添加云电脑 / VPS / NAT 机 / 内网穿透节点向导
 struct AddComputerView: View {
     var store: ConnectionsStore
 
@@ -246,10 +715,12 @@ struct AddComputerView: View {
     @Environment(AppState.self) private var appState
 
     @State private var provider = "simular_box"
+    @State private var osType = "linux"
     @State private var name = ""
     @State private var created: CompanionConnection?
     @State private var isCreating = false
     @State private var problem: String?
+    @State private var copiedPairing = false
 
     var body: some View {
         NavigationStack {
@@ -257,21 +728,42 @@ struct AddComputerView: View {
                 if created == nil {
                     Section {
                         providerRow(
-                            value: "simular_box", title: "托管云电脑",
-                            detail: "Simular Box 这类自带服务的云端电脑，填密钥就能用"
+                            value: "simular_box",
+                            title: "托管云电脑（Simular Box）",
+                            detail: "自带图形桌面与浏览器，填 API 密钥即可在聊天内实时接管"
                         )
                         providerRow(
-                            value: "vps_agent", title: "我的 VPS",
-                            detail: "自己的 Windows 电脑或服务器，填 IP、账户名和密码就能连"
+                            value: "vps_ssh",
+                            title: "VPS / NAT 主机（Linux & Windows）",
+                            detail: "支持公网 IP、NAT 端口映射，支持 SSH 密钥（推荐）或密码"
+                        )
+                        providerRow(
+                            value: "reverse_node",
+                            title: "内网穿透节点（无公网端口 NAT / 家用电脑）",
+                            detail: "生成一条配对命令在目标机器运行，主动反向回连、免开端口"
                         )
                     } header: {
-                        Text("类型")
+                        Text("接入方式")
                     }
+
+                    if provider == "vps_ssh" || provider == "reverse_node" {
+                        Section {
+                            Picker("操作系统", selection: $osType) {
+                                Text("Linux").tag("linux")
+                                Text("Windows").tag("windows")
+                            }
+                            .pickerStyle(.segmented)
+                        } header: {
+                            Text("系统")
+                        }
+                    }
+
                     Section {
-                        TextField("电脑名字（如：我的 Box）", text: $name)
+                        TextField(namePlaceholder, text: $name)
                     } header: {
-                        Text("名字")
+                        Text("主机名称")
                     }
+
                     if let problem {
                         Section {
                             Text(problem)
@@ -279,42 +771,68 @@ struct AddComputerView: View {
                                 .foregroundStyle(Palette.danger)
                         }
                     }
+
                     Section {
                         Button {
                             Task { await create() }
                         } label: {
                             HStack {
-                                Text("下一步：填凭据")
+                                Text(provider == "reverse_node" ? "生成配对命令" : "下一步：配置凭据")
                                 Spacer()
                                 if isCreating { ProgressView() }
                             }
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.odPrimary)
-                        .disabled(isCreating
-                            || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(isCreating || name.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 } else if let created {
-                    Section {
-                        Text("「\(created.name)」已建好，把凭据填上并测试连接就完成。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    Section {
-                        CredentialFormView(
-                            store: store, connection: created
-                        ) {
-                            dismiss()
+                    if created.provider == "reverse_node",
+                       let pairing = store.latestPairings[created.id] {
+                        Section {
+                            Text("「\(created.name)」已创建。复制下方命令到目标机器终端运行即可自动上线：")
+                                .font(.callout)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text(pairing.recommendedCommand)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                            Button {
+                                UIPasteboard.general.string = pairing.recommendedCommand
+                                Haptics.success()
+                                copiedPairing = true
+                            } label: {
+                                Label(copiedPairing ? "已复制命令" : "复制一键配对命令", systemImage: copiedPairing ? "checkmark" : "doc.on.doc")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.odPrimary)
+                        } header: {
+                            Text("配对命令")
                         }
-                    } header: {
-                        Text("凭据")
-                    }
-                    Section {
-                        Button("稍后再填") { dismiss() }
+                        Section {
+                            Button("完成") { dismiss() }
+                        }
+                    } else {
+                        Section {
+                            Text("「\(created.name)」已建好，填写连接凭据并测试连通后即生效。")
+                                .font(.callout)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        Section {
+                            CredentialFormView(
+                                store: store, connection: created
+                            ) {
+                                dismiss()
+                            }
+                        } header: {
+                            Text("凭据与验活")
+                        }
+                        Section {
+                            Button("稍后再填") { dismiss() }
+                        }
                     }
                 }
             }
-            .navigationTitle("添加电脑")
+            .navigationTitle("添加远程主机")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -323,6 +841,14 @@ struct AddComputerView: View {
             }
         }
         .fullscreenPopBridge()
+    }
+
+    private var namePlaceholder: String {
+        switch provider {
+        case "simular_box": return "主机名（如：我的云电脑）"
+        case "reverse_node": return "节点名（如：家里电脑 / 内网 NAT）"
+        default: return osType == "windows" ? "主机名（如：香港 Windows VPS）" : "主机名（如：香港 NAT Linux）"
+        }
     }
 
     private func providerRow(
@@ -349,25 +875,17 @@ struct AddComputerView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        // 0.43.0（A11Y-V5）：选中态只有勾形——补
-        // 「已选」播报（题＋详＋已选）＋特征
-        .accessibilityLabel(
-            provider == value
-                ? title + "，" + detail + "，"
-                    + L10n.string("已选")
-                : title + "，" + detail
-        )
-        .accessibilityAddTraits(
-            provider == value ? [.isSelected] : []
-        )
     }
 
     private func create() async {
         isCreating = true
         defer { isCreating = false }
+        store.resetCredentialPhase()
+        let selectedOS: String? = (provider == "vps_ssh" || provider == "reverse_node") ? osType : nil
         let created = await store.createComputer(
             provider: provider,
             name: name.trimmingCharacters(in: .whitespaces),
+            osType: selectedOS,
             appState: appState
         )
         if let created {

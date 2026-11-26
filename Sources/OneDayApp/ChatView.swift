@@ -141,6 +141,7 @@ struct ChatView: View {
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
     @State private var showHub = false
     @State private var showPendingApprovalSheet = false
+    @State private var activeCloudTakeover: CloudComputerTarget?
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -1183,6 +1184,15 @@ struct ChatView: View {
             PendingApprovalSheetView(store: appState.sharedHubStore())
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(item: $activeCloudTakeover) { target in
+            CloudComputerTakeoverSheet(
+                target: target,
+                onHandBackToAI: {
+                    input = "我已完成接管操作，请继续"
+                    send()
+                }
+            )
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
@@ -6325,6 +6335,13 @@ struct ChatView: View {
                 .task(id: scans.vaultRequest.requestIDs) {
                     await vaultStore.refreshRequests(appState: appState)
                 }
+                // 云电脑实时预览卡（大厂形态：拦截操作网址，点击直接全屏接管）
+                ForEach(scans.cloudComputer.targets) { target in
+                    CloudComputerChatPreviewCard(target: target) {
+                        activeCloudTakeover = target
+                    }
+                    .modifier(messageMenu(for: entry))
+                }
                 // 聊天可靠性包：整条裸路径的附件区——
                 // 呈现与 remoteImagePaths 行同口径（图
                 // 片 ServerRemoteImage 定高卡＋点开查
@@ -6382,6 +6399,7 @@ struct ChatView: View {
                     || (mediaSplit.imagePaths.isEmpty
                         && inlineImages.isEmpty
                         && deliverySplit.deliveryIDs.isEmpty
+                        && scans.cloudComputer.targets.isEmpty
                         && wholePathRef == nil) {
                     assistantBubble(menuEntry: entry) {
                         // §152：选区回报接行级记账（选

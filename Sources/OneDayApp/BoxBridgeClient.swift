@@ -184,12 +184,13 @@ final class BoxBridgeClient: @unchecked Sendable {
                 timeout: 60
             )
         } else {
-            // 桌面动作（click/type/key 等）
+            // 桌面动作（click/double_click/right_click/scroll/type/key 等）
             var args: [String: Any] = ["action": request.action]
             if let x = request.x { args["x"] = x }
             if let y = request.y { args["y"] = y }
             if let text = request.text { args["text"] = text }
             if let key = request.key { args["key"] = key }
+            if let scrollY = request.scrollY { args["delta_y"] = scrollY }
 
             result = try await client.callTool(
                 name: "computer_act",

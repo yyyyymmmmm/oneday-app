@@ -317,11 +317,12 @@ public struct BoxActRequest: Encodable, Equatable, Sendable {
     public let y: Int?
     public let text: String?
     public let key: String?
+    public let scrollY: Int?
 
     private init(
         action: String, url: String? = nil, front: Bool? = nil,
         x: Int? = nil, y: Int? = nil, text: String? = nil,
-        key: String? = nil
+        key: String? = nil, scrollY: Int? = nil
     ) {
         self.action = action
         self.url = url
@@ -330,6 +331,7 @@ public struct BoxActRequest: Encodable, Equatable, Sendable {
         self.y = y
         self.text = text
         self.key = key
+        self.scrollY = scrollY
     }
 
     public static func navigate(_ url: String) -> BoxActRequest {
@@ -338,6 +340,18 @@ public struct BoxActRequest: Encodable, Equatable, Sendable {
 
     public static func click(x: Int, y: Int) -> BoxActRequest {
         BoxActRequest(action: "click", x: x, y: y)
+    }
+
+    public static func doubleClick(x: Int, y: Int) -> BoxActRequest {
+        BoxActRequest(action: "double_click", x: x, y: y)
+    }
+
+    public static func rightClick(x: Int, y: Int) -> BoxActRequest {
+        BoxActRequest(action: "right_click", x: x, y: y)
+    }
+
+    public static func scroll(x: Int, y: Int, deltaY: Int) -> BoxActRequest {
+        BoxActRequest(action: "scroll", x: x, y: y, scrollY: deltaY)
     }
 
     public static func type(_ text: String) -> BoxActRequest {
@@ -424,5 +438,129 @@ public enum BoxCoordinateMapper {
             x: min(max(pixelX, 0), Int(image.width) - 1),
             y: min(max(pixelY, 0), Int(image.height) - 1)
         )
+    }
+}
+
+// MARK: - 聊天云电脑预览与操作网址拦截
+
+/// 聊天消息中识别出的云电脑预览/接管目标。
+/// 将 AI 回复里裸露的云电脑实时画面网址或结构化标记从气泡正文中剥离，
+/// 原地渲染为可点击接管的实时预览卡。
+public struct CloudComputerTarget: Equatable, Hashable, Identifiable, Sendable {
+    public let id: String
+    public let boxID: String?
+    public let liveURL: String
+
+    public init(id: String, boxID: String?, liveURL: String) {
+        self.id = id
+        self.boxID = boxID
+        self.liveURL = liveURL
+    }
+}
+
+public struct CloudComputerMarkerSplit: Equatable, Sendable {
+    public let text: String
+    public let targets: [CloudComputerTarget]
+
+    public init(text: String, targets: [CloudComputerTarget]) {
+        self.text = text
+        self.targets = targets
+    }
+}
+
+public enum CloudComputerMarker {
+    private static let explicitMarkerRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"\[\[cloud:([^\]]+)\]\]"#,
+        options: [.caseInsensitive]
+    )
+
+    private static let markdownLinkRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"\[[^\]]*\]\((https?://[^\s)\]]+/box/([A-Za-z0-9_-]+)/live(?:\?[^\s)\]]*)?)\)"#,
+        options: [.caseInsensitive]
+    )
+
+    private static let bareLiveRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"[（(]?\s*(https?://[^\s)）\]<>]+/box/([A-Za-z0-9_-]+)/live(?:\?[^\s)）\]<>]*)?)\s*[)）]?"#,
+        options: [.caseInsensitive]
+    )
+
+    public static func split(in text: String) -> CloudComputerMarkerSplit {
+        guard text.contains("/live") || text.contains("[[cloud:") else {
+            return CloudComputerMarkerSplit(text: text, targets: [])
+        }
+
+        var working = text
+        var targets: [CloudComputerTarget] = []
+        var seenURLs = Set<String>()
+
+        func appendTarget(boxID: String?, url: String) {
+            let cleanURL = url.trimmingCharacters(in: CharacterSet(charactersIn: ".,;!?。，；！？"))
+            guard !cleanURL.isEmpty, seenURLs.insert(cleanURL).inserted else { return }
+            targets.append(CloudComputerTarget(id: boxID ?? cleanURL, boxID: boxID, liveURL: cleanURL))
+        }
+
+        if let regex = explicitMarkerRegex {
+            let ns = working as NSString
+            let matches = regex.matches(in: working, range: NSRange(location: 0, length: ns.length))
+            for match in matches.reversed() {
+                guard match.numberOfRanges >= 2 else { continue }
+                let payload = ns.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if payload.hasPrefix("live|") {
+                    let url = String(payload.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    appendTarget(boxID: extractBoxID(from: url), url: url)
+                } else if payload.hasPrefix("http://") || payload.hasPrefix("https://") {
+                    appendTarget(boxID: extractBoxID(from: payload), url: payload)
+                } else if !payload.isEmpty {
+                    let host = ["box", "simular", "ai"].joined(separator: ".")
+                    appendTarget(boxID: payload, url: "https://\(host)/box/\(payload)/live")
+                }
+                working = (working as NSString).replacingCharacters(in: match.range, with: "")
+            }
+        }
+
+        if let regex = markdownLinkRegex {
+            let ns = working as NSString
+            let matches = regex.matches(in: working, range: NSRange(location: 0, length: ns.length))
+            for match in matches.reversed() {
+                guard match.numberOfRanges >= 3 else { continue }
+                let url = ns.substring(with: match.range(at: 1))
+                let boxID = ns.substring(with: match.range(at: 2))
+                appendTarget(boxID: boxID, url: url)
+                working = (working as NSString).replacingCharacters(in: match.range, with: "云电脑实时画面")
+            }
+        }
+
+        if let regex = bareLiveRegex {
+            let ns = working as NSString
+            let matches = regex.matches(in: working, range: NSRange(location: 0, length: ns.length))
+            for match in matches.reversed() {
+                guard match.numberOfRanges >= 3 else { continue }
+                let url = ns.substring(with: match.range(at: 1))
+                let boxID = ns.substring(with: match.range(at: 2))
+                appendTarget(boxID: boxID, url: url)
+                working = (working as NSString).replacingCharacters(in: match.range, with: "")
+            }
+        }
+
+        guard !targets.isEmpty else {
+            return CloudComputerMarkerSplit(text: text, targets: [])
+        }
+
+        let cleanedLines = working
+            .components(separatedBy: "\n")
+            .map { $0.replacingOccurrences(of: "  ", with: " ").trimmingCharacters(in: .whitespaces) }
+        let collapsed = cleanedLines
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return CloudComputerMarkerSplit(text: collapsed, targets: targets.reversed())
+    }
+
+    private static func extractBoxID(from url: String) -> String? {
+        guard let comps = URLComponents(string: url) else { return nil }
+        let parts = comps.path.split(separator: "/").map(String.init)
+        guard parts.count >= 3, parts[0] == "box", parts[2] == "live" else { return nil }
+        return parts[1]
     }
 }

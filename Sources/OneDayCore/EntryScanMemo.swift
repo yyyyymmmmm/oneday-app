@@ -8,6 +8,7 @@ import Foundation
 public struct AssistantTextScans: Equatable, Sendable {
     public let delivery: DeliveryMarkerSplit
     public let vaultRequest: VaultRequestMarkerSplit
+    public let cloudComputer: CloudComputerMarkerSplit
     public let media: MediaMarkerSplit
     public let inlineCandidates: [FileRefDetector.InlineImageRef]
     /// detectStandaloneAnchored 的路径集（出现序去
@@ -17,12 +18,14 @@ public struct AssistantTextScans: Equatable, Sendable {
     public init(
         delivery: DeliveryMarkerSplit,
         vaultRequest: VaultRequestMarkerSplit,
+        cloudComputer: CloudComputerMarkerSplit = CloudComputerMarkerSplit(text: "", targets: []),
         media: MediaMarkerSplit,
         inlineCandidates: [FileRefDetector.InlineImageRef],
         standalonePaths: [String]
     ) {
         self.delivery = delivery
         self.vaultRequest = vaultRequest
+        self.cloudComputer = cloudComputer
         self.media = media
         self.inlineCandidates = inlineCandidates
         self.standalonePaths = standalonePaths
@@ -79,7 +82,8 @@ public enum EntryScanMemo {
         return scansBox.value(for: key) {
             let delivery = DeliveryMarker.split(in: content)
             let vaultRequest = VaultRequestMarker.split(in: delivery.text)
-            let media = MediaMarker.split(in: vaultRequest.text)
+            let cloudComputer = CloudComputerMarker.split(in: vaultRequest.text)
+            let media = MediaMarker.split(in: cloudComputer.text)
             let inline = FileRefDetector.inlineImageCandidates(
                 in: media.text,
                 excluding: remoteImagePaths + media.imagePaths
@@ -94,6 +98,7 @@ public enum EntryScanMemo {
             return AssistantTextScans(
                 delivery: delivery,
                 vaultRequest: vaultRequest,
+                cloudComputer: cloudComputer,
                 media: media,
                 inlineCandidates: inline,
                 standalonePaths: standalone

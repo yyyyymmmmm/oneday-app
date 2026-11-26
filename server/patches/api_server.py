@@ -1950,8 +1950,20 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # C-2 plan b); the write faces are NOT migrated -- the
             # credential registry is edited server-side from here.
             ("GET", "/v1/front/connections", self._handle_front_connections),
+            ("POST", "/v1/front/connections", self._handle_front_connection_create),
+            ("POST", "/v1/front/connections/{id}/credential", self._handle_front_connection_credential),
+            ("POST", "/v1/front/connections/{id}/verify", self._handle_front_connection_verify),
+            ("POST", "/v1/front/connections/{id}/disconnect", self._handle_front_connection_disconnect),
+            ("POST", "/v1/front/connections/{id}/keygen", self._handle_front_connection_keygen),
+            ("DELETE", "/v1/front/connections/{id}", self._handle_front_connection_delete),
             ("GET", "/v1/front/gateway-channels", self._handle_front_gateway_channels),
             ("GET", "/api/companion/connections", self._handle_front_connections),
+            ("POST", "/api/companion/connections", self._handle_front_connection_create),
+            ("POST", "/api/companion/connections/{id}/credential", self._handle_front_connection_credential),
+            ("POST", "/api/companion/connections/{id}/verify", self._handle_front_connection_verify),
+            ("POST", "/api/companion/connections/{id}/disconnect", self._handle_front_connection_disconnect),
+            ("POST", "/api/companion/connections/{id}/keygen", self._handle_front_connection_keygen),
+            ("DELETE", "/api/companion/connections/{id}", self._handle_front_connection_delete),
             ("GET", "/api/companion/gateway-channels", self._handle_front_gateway_channels),
             # Cron callbacks (bridge contract B-01): NOT behind
             # @_require_auth -- the generated scripts hold only the
@@ -3856,11 +3868,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
 
     @_require_auth
     async def _handle_front_connections(self, request: web.Request) -> web.Response:
-        """GET connections read face (batch 4): canonical
-        /v1/front/connections + shape /api/companion/connections.
-        Read-only in-gateway per verdict C-2 plan (b); presence
-        is recomputed from the real stores inside the module and
-        secret values never leave it."""
+        """GET connections: canonical /v1/front/connections + /api/companion/connections."""
         try:
             from gateway.platforms import front_gateway as _fg
         except Exception:
@@ -3868,6 +3876,85 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
                 "front gateway module unavailable", 503,
                 code="front_gateway_unavailable")
         status, payload = await asyncio.to_thread(_fg.get_connections)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_create(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        status, payload = await asyncio.to_thread(_fg.create_connection, body if isinstance(body, dict) else {})
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_credential(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        status, payload = await asyncio.to_thread(_fg.submit_credential, cid, body if isinstance(body, dict) else {})
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_verify(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        status, payload = await asyncio.to_thread(_fg.verify_connection, cid)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_disconnect(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        status, payload = await asyncio.to_thread(_fg.disconnect_connection, cid)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_keygen(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        status, payload = await asyncio.to_thread(_fg.generate_ssh_keypair, cid)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
+    async def _handle_front_connection_delete(self, request: web.Request) -> web.Response:
+        try:
+            from gateway.platforms import front_gateway as _fg
+        except Exception:
+            return _error_response(
+                "front gateway module unavailable", 503,
+                code="front_gateway_unavailable")
+        cid = request.match_info.get("id", "")
+        status, payload = await asyncio.to_thread(_fg.delete_connection, cid)
         return web.json_response(payload, status=status)
 
     @_require_auth

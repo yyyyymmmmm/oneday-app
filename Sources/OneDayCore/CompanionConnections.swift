@@ -21,6 +21,32 @@ public struct CompanionConnection: Codable, Equatable, Identifiable, Sendable {
     /// 生效态原文（如「已配置 · 待生效」），呈现优先用它
     public var effective: String?
     public var note: String?
+    /// 非敏感展示元数据（主机/端口/系统/认证方式/公钥等，永不含密码或私钥）
+    public var meta: ConnectionMeta?
+
+    public struct ConnectionMeta: Codable, Equatable, Sendable {
+        public var host: String?
+        public var port: Int?
+        public var username: String?
+        public var osType: String?
+        public var authType: String?
+        public var publicKey: String?
+        public var mcpUrl: String?
+
+        public init(
+            host: String? = nil, port: Int? = nil, username: String? = nil,
+            osType: String? = nil, authType: String? = nil,
+            publicKey: String? = nil, mcpUrl: String? = nil
+        ) {
+            self.host = host
+            self.port = port
+            self.username = username
+            self.osType = osType
+            self.authType = authType
+            self.publicKey = publicKey
+            self.mcpUrl = mcpUrl
+        }
+    }
 
     public struct VerifyRecord: Codable, Equatable, Sendable {
         /// ISO 时间字符串（原文呈现，相对化在视图层做）
@@ -38,7 +64,8 @@ public struct CompanionConnection: Codable, Equatable, Identifiable, Sendable {
     public init(
         id: String, kind: String, provider: String, name: String,
         configured: Bool?, lastVerify: VerifyRecord?,
-        effective: String?, note: String?
+        effective: String?, note: String?,
+        meta: ConnectionMeta? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -48,6 +75,7 @@ public struct CompanionConnection: Codable, Equatable, Identifiable, Sendable {
         self.lastVerify = lastVerify
         self.effective = effective
         self.note = note
+        self.meta = meta
     }
 
     public var isCloudComputer: Bool { kind == "cloud_computer" }
@@ -56,9 +84,37 @@ public struct CompanionConnection: Codable, Equatable, Identifiable, Sendable {
     public var providerWording: String {
         switch provider {
         case "simular_box": return "托管云电脑"
-        case "vps_agent": return "我的 VPS"
+        case "vps_ssh", "vps_agent":
+            if meta?.osType == "windows" { return "Windows VPS / NAT" }
+            if meta?.osType == "linux" { return "Linux VPS / NAT" }
+            return "VPS / NAT 主机"
+        case "reverse_node": return "内网穿透节点"
         default: return provider
         }
+    }
+}
+
+public struct ReverseNodePairing: Codable, Equatable, Sendable {
+    public let linuxCommand: String
+    public let windowsCommand: String
+    public let recommendedCommand: String
+
+    public init(linuxCommand: String, windowsCommand: String, recommendedCommand: String) {
+        self.linuxCommand = linuxCommand
+        self.windowsCommand = windowsCommand
+        self.recommendedCommand = recommendedCommand
+    }
+}
+
+public struct SSHKeygenReceipt: Equatable, Sendable {
+    public let publicKey: String
+    public let installCommand: String
+    public let connection: CompanionConnection?
+
+    public init(publicKey: String, installCommand: String, connection: CompanionConnection?) {
+        self.publicKey = publicKey
+        self.installCommand = installCommand
+        self.connection = connection
     }
 }
 
@@ -107,27 +163,55 @@ public enum ConnectionStatusWording {
 // MARK: - 凭据与创建载荷（字段名与 front 契约逐字对齐）
 
 public enum ConnectionPayloads {
-    /// 创建云电脑：front 只许 kind=cloud_computer 且
-    /// provider ∈ {simular_box, vps_agent}
+    /// 创建云电脑/远程主机：provider ∈ {simular_box, vps_ssh, vps_agent, reverse_node}
     public static func create(
-        provider: String, name: String
+        provider: String, name: String, osType: String? = nil
     ) -> [String: JSONValue] {
-        [
+        var body: [String: JSONValue] = [
             "kind": .string("cloud_computer"),
             "provider": .string(provider),
             "name": .string(name),
         ]
+        if let osType, !osType.isEmpty {
+            body["osType"] = .string(osType)
+        }
+        return body
     }
 
-    /// 托管类凭据：{apiKey}
-    public static func simularCredential(apiKey: String) -> [String: JSONValue] {
-        ["apiKey": .string(apiKey)]
+    /// 托管类凭据：{apiKey, mcpUrl?}
+    public static func simularCredential(
+        apiKey: String, mcpUrl: String? = nil
+    ) -> [String: JSONValue] {
+        var body: [String: JSONValue] = ["apiKey": .string(apiKey)]
+        if let mcpUrl = mcpUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !mcpUrl.isEmpty {
+            body["mcpUrl"] = .string(mcpUrl)
+        }
+        return body
     }
 
-    /// VPS 类凭据（Windows 登录形态，2026-11-11 15:58
-    /// 定版＋云电脑收口规格 §2/§4.1）：{host, username,
-    /// password}——用户只给登录三样；端点、代理令牌与
-    /// 装代理都是服务端内部的事，不进用户面。
+    /// VPS / NAT 主机凭据（支持 Linux & Windows、自定义端口、SSH 密钥或密码）
+    public static func vpsHostCredential(
+        host: String, port: Int, username: String,
+        osType: String, authType: String,
+        privateKey: String? = nil, password: String? = nil
+    ) -> [String: JSONValue] {
+        var body: [String: JSONValue] = [
+            "host": .string(host),
+            "port": .number(Double(port)),
+            "username": .string(username),
+            "osType": .string(osType),
+            "authType": .string(authType),
+        ]
+        if let privateKey, !privateKey.isEmpty {
+            body["privateKey"] = .string(privateKey)
+        }
+        if let password, !password.isEmpty {
+            body["password"] = .string(password)
+        }
+        return body
+    }
+
+    /// 兼容旧签名的 Windows 登录凭据
     public static func windowsCredential(
         host: String, username: String, password: String
     ) -> [String: JSONValue] {
