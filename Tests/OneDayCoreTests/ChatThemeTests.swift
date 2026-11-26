@@ -61,7 +61,7 @@ final class ChatThemeTests: XCTestCase {
         // （压助手泡面 4.45 差线），回潮到 0x136FC1
         // 会让对比闸⑥转红
         XCTAssertEqual(theme.accentLight, 0x1268B8)
-        XCTAssertEqual(theme.accentDark, 0x5EB1EF)
+        XCTAssertEqual(theme.accentDark, 0x359FF0, "dp-214: 降饱和收带 S78%")
         XCTAssertEqual(theme.tintLight, 0xEDF7FD)
         XCTAssertEqual(theme.tintDark, 0x16242E)
         XCTAssertEqual(theme.bubbleTextLight, 0x11191C)
@@ -96,7 +96,7 @@ final class ChatThemeTests: XCTestCase {
         for theme in ChatThemes.all {
             let light = WCAGContrast.ratio(
                 hexForeground: theme.accentLight,
-                hexBackground: 0xFCFCFC
+                hexBackground: 0xFFFFFF  // dp-214: 页底收敛至 #FFFFFF
             )
             let dark = WCAGContrast.ratio(
                 hexForeground: theme.accentDark,
@@ -331,7 +331,7 @@ extension ChatThemeTests {
         let sangou = ChatThemes.defaultTheme
         XCTAssertEqual(sangou.aiCardLight, 0xE9EAEC)
         XCTAssertEqual(sangou.aiCardDark, 0x2C2C2E)
-        XCTAssertEqual(sangou.backgroundLight, 0xFCFCFC)
+        XCTAssertEqual(sangou.backgroundLight, 0xFFFFFF, "dp-214: 收敛至 systemBackground")
         XCTAssertEqual(sangou.backgroundDark, 0x000000)
         let wechat = ChatThemes.theme(forID: "wechat")
         XCTAssertEqual(wechat.bubbleLight, 0x95EC69)
@@ -463,7 +463,7 @@ extension ChatThemeTests {
                     textRatio, 4.5,
                     "\(theme.id) dark=\(dark) 泡字对比 \(textRatio)"
                 )
-                let page: UInt32 = dark ? 0x000000 : 0xFCFCFC
+                let page: UInt32 = dark ? 0x000000 : 0xFFFFFF  // dp-214: 页底收敛至 #FFFFFF
                 let pageRatio = WCAGContrast.ratio(
                     hexForeground: fill, hexBackground: page
                 )

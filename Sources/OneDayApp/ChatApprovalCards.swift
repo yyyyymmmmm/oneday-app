@@ -210,7 +210,7 @@ struct ChatApprovalZone: View {
                     .lineLimit(1)
                 Text("·")
                     .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                 Text(only.outcome.label)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)

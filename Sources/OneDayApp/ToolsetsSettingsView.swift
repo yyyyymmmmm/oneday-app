@@ -142,11 +142,11 @@ struct ToolsetsSettingsView: View {
                         if configBacked {
                             Text("开关以服务器配置为准")
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                         Text("\(row.tools.count) 个工具")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 .contentShape(Rectangle())
@@ -229,7 +229,7 @@ struct ToolsetsSettingsView: View {
                     if !backend.detail.isEmpty {
                         Text(backend.detail)
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(2)
                     }
                 }
@@ -438,7 +438,7 @@ struct ToolsetDetailView: View {
                         if !provider.badge.isEmpty {
                             Text(provider.badge)
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                     if !provider.tag.isEmpty {
@@ -527,16 +527,17 @@ struct ToolsetDetailView: View {
                         if catalog.defaultModel == model.id {
                             Text("默认")
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                         if !model.speed.isEmpty {
                             Text(model.speed)
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                         if !model.price.isEmpty {
                             Text(model.price)
                                 .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
                                 .foregroundStyle(Palette.inkMuted)
                         }
                     }
@@ -600,7 +601,7 @@ struct ToolsetDetailView: View {
                                     Text(envVar.prompt)
                                         .font(.caption)
                                         .foregroundStyle(
-                                            Palette.inkMuted
+                                            Palette.inkSecondary
                                         )
                                         .lineLimit(1)
                                 }
