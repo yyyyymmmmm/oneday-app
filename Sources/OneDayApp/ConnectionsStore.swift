@@ -44,29 +44,35 @@ final class ConnectionsStore {
         }
     }
 
-    /// 添加电脑两步：先建记录（只有名字与类型），再由
-    /// 详情/表单提交凭据验活。建记录失败返回 nil。
+    /// 最近一次生成的内网穿透配对命令（按连接 ID 暂存内存，方便复制）
+    private(set) var latestPairings: [String: ReverseNodePairing] = [:]
+
+    /// 添加电脑/远程主机两步：先建记录，再填凭据或复制配对命令
     func createComputer(
-        provider: String, name: String, appState: AppState
+        provider: String, name: String, osType: String? = nil, appState: AppState
     ) async -> CompanionConnection? {
         guard let config = appState.config else { return nil }
         do {
-            let created = try await client.createConnection(
-                config: config, provider: provider, name: name
+            let result = try await client.createConnection(
+                config: config, provider: provider, name: name, osType: osType
             )
+            if let pairing = result.pairing {
+                latestPairings[result.connection.id] = pairing
+            }
             await load(appState: appState)
-            return connections.first { $0.id == created.id }
-                ?? sanitized(created)
+            return connections.first { $0.id == result.connection.id }
+                ?? sanitized(result.connection)
         } catch {
             notice = L10n.string("这台电脑没能加上，请稍后再试。")
             return nil
         }
     }
 
-    /// 提交凭据（状态机驱动）：回执 detail 先过安全
-    /// 门再进状态——过门原样、不过门落通用人话（原
-    /// 文进诊断留痕）；服务端回滚说明属过门人话、照
-    /// 常呈现
+    func resetCredentialPhase() {
+        credentialPhase = .idle
+    }
+
+    /// 提交凭据（状态机驱动）
     func submitCredential(
         id: String, body: [String: JSONValue], appState: AppState
     ) async {
@@ -78,6 +84,9 @@ final class ConnectionsStore {
             let result = try await client.submitCredential(
                 config: config, id: id, body: body
             )
+            if let pairing = result.pairing {
+                latestPairings[id] = pairing
+            }
             credentialPhase = CredentialFlowPhase.next(
                 from: credentialPhase,
                 receipt: (
@@ -108,9 +117,27 @@ final class ConnectionsStore {
         }
     }
 
-    /// 重新验活（详情页按钮）：结果直接刷新该行记录，
-    /// 成败一句回显（detail 先过安全门，不过门落通用
-    /// 句、原文进诊断留痕）
+    /// 生成服务端托管 Ed25519 SSH 密钥对
+    func generateSSHKeypair(
+        id: String, appState: AppState
+    ) async -> SSHKeygenReceipt? {
+        guard let config = appState.config else { return nil }
+        do {
+            let receipt = try await client.generateSSHKeypair(config: config, id: id)
+            if let updated = receipt.connection {
+                replace(updated)
+            }
+            return receipt
+        } catch let error as OneDayBridgeError {
+            notice = error.userFacingText
+            return nil
+        } catch {
+            notice = L10n.string("生成 SSH 密钥失败，请稍后再试。")
+            return nil
+        }
+    }
+
+    /// 重新验活（详情页按钮）
     func verify(id: String, appState: AppState) async {
         guard let config = appState.config else { return }
         do {
@@ -141,6 +168,23 @@ final class ConnectionsStore {
             notice = L10n.string("已断开。")
         } catch {
             notice = L10n.string("断开没能完成，请稍后再试。")
+        }
+    }
+
+    func deleteComputer(id: String, appState: AppState) async -> Bool {
+        guard let config = appState.config else { return false }
+        do {
+            try await client.deleteConnection(config: config, id: id)
+            connections.removeAll { $0.id == id }
+            latestPairings.removeValue(forKey: id)
+            notice = L10n.string("已删除。")
+            return true
+        } catch let error as OneDayBridgeError {
+            notice = error.userFacingText
+            return false
+        } catch {
+            notice = L10n.string("删除没能完成，请稍后再试。")
+            return false
         }
     }
 

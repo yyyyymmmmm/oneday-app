@@ -3078,6 +3078,9 @@ struct ChatNativeRowHeightComposer {
         for input in facets.vaultCards[entry.id] ?? [] {
             slots.append(CGFloat(input.estimatedHeight))
         }
+        for _ in scans.cloudComputer.targets {
+            slots.append(206)
+        }
         if let wholePathRef {
             if FileRefDetector.isImagePath(
                 wholePathRef.path
@@ -3093,6 +3096,7 @@ struct ChatNativeRowHeightComposer {
             || (mediaSplit.imagePaths.isEmpty
                 && inlineImages.isEmpty
                 && deliverySplit.deliveryIDs.isEmpty
+                && scans.cloudComputer.targets.isEmpty
                 && wholePathRef == nil) {
             slots.append(
                 markdownHeight(displayText)

@@ -86,33 +86,53 @@ final class CompanionFrontClient: @unchecked Sendable {
         return response.connections
     }
 
-    /// 创建云电脑（front 只许 cloud_computer 两类）
+    /// 创建云电脑/远程主机（支持 simular_box / vps_ssh / vps_agent / reverse_node）
     @discardableResult
     func createConnection(
-        config: ServerConfig, provider: String, name: String
-    ) async throws -> CompanionConnection {
+        config: ServerConfig, provider: String, name: String, osType: String? = nil
+    ) async throws -> (connection: CompanionConnection, pairing: ReverseNodePairing?) {
         struct Response: Decodable {
             let connection: CompanionConnection
+            let pairing: ReverseNodePairing?
         }
         let response: Response = try await post(
             config: config, path: "/connections",
-            body: ConnectionPayloads.create(provider: provider, name: name),
+            body: ConnectionPayloads.create(provider: provider, name: name, osType: osType),
             endpoint: L10n.string("添加电脑")
         )
-        return response.connection
+        return (response.connection, response.pairing)
     }
 
-    /// 提交/更换凭据：front 内部验活＋失败回滚，回执
-    /// {ok, detail, connection}——ok=false 不是 HTTP 错
-    /// 误，是「验活没过、已撤回」，原样带回给状态机。
+    /// 提交/更换凭据：front 内部验活＋失败回滚
     func submitCredential(
         config: ServerConfig, id: String, body: [String: JSONValue]
-    ) async throws -> (ok: Bool, detail: String, connection: CompanionConnection?) {
+    ) async throws -> (ok: Bool, detail: String, connection: CompanionConnection?, pairing: ReverseNodePairing?) {
         let response: CredentialResponse = try await post(
             config: config, path: "/connections/\(id)/credential",
             body: body, endpoint: L10n.string("保存凭据")
         )
-        return (response.ok, response.detail ?? "", response.connection)
+        return (response.ok, response.detail ?? "", response.connection, response.pairing)
+    }
+
+    /// 服务端生成 Ed25519 SSH 密钥对（私钥仅保存在服务端，返回公钥与一键授权命令）
+    func generateSSHKeypair(
+        config: ServerConfig, id: String
+    ) async throws -> SSHKeygenReceipt {
+        struct KeygenResponse: Decodable {
+            let ok: Bool
+            let publicKey: String
+            let installCommand: String
+            let connection: CompanionConnection?
+        }
+        let response: KeygenResponse = try await post(
+            config: config, path: "/connections/\(id)/keygen",
+            body: [:], endpoint: L10n.string("生成 SSH 密钥")
+        )
+        return SSHKeygenReceipt(
+            publicKey: response.publicKey,
+            installCommand: response.installCommand,
+            connection: response.connection
+        )
     }
 
     /// 重新验活（已配置的连接）
@@ -126,8 +146,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         return (response.ok, response.detail ?? "", response.connection)
     }
 
-    /// 断开（摘凭据；厂商侧吊销由用户在厂商处办，页
-    /// 面文案明示）
+    /// 断开（摘凭据）
     func disconnect(
         config: ServerConfig, id: String
     ) async throws -> CompanionConnection? {
@@ -138,10 +157,24 @@ final class CompanionFrontClient: @unchecked Sendable {
         return response.connection
     }
 
+    /// 删除用户自行添加的远程主机记录
+    func deleteConnection(
+        config: ServerConfig, id: String
+    ) async throws {
+        struct DeleteResponse: Decodable { let ok: Bool }
+        let _: DeleteResponse = try await base.send(
+            config: config, path: "/connections/\(id)", method: "DELETE",
+            body: nil as [String: String]?, endpoint: L10n.string("删除电脑")
+        ) { http, data in
+            try self.checkStatus(http, data: data, endpoint: L10n.string("删除电脑"))
+        }
+    }
+
     private struct CredentialResponse: Decodable {
         let ok: Bool
         let detail: String?
         let connection: CompanionConnection?
+        let pairing: ReverseNodePairing?
     }
 
     // MARK: - 网关渠道（只读，管理面）

@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|8a2037f74583f2ea7a494ef0e60cd2759079ae61c7c043c6dec30c45cb67aaad"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|e339e6b8df011151c979425b46dc8a14dd4b610e377609b402ebecad46341820"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -96,7 +96,7 @@ MODULES=(
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
   "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a"
   "identity_gateway.py|patches/identity_gateway.py|/opt/hermes/gateway/platforms/identity_gateway.py|91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c"
-  "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf"
+  "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
   "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b"
@@ -139,7 +139,7 @@ MODULES=(
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
   "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ade5a34876d35f20af8dff964e7cca0e2cb4a05ff2b5cd0e372425872e7373e"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
   "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583"
   "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85"

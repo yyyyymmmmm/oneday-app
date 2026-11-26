@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=8a2037f74583f2ea7a494ef0e60cd2759079ae61c7c043c6dec30c45cb67aaad
+  [api_server.py]=e339e6b8df011151c979425b46dc8a14dd4b610e377609b402ebecad46341820
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
@@ -35,7 +35,7 @@ declare -A WANT_SHA_EXTRA=(
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
-  [front_gateway.py]=857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf
+  [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
   [write_gate_gateway.py]=a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
@@ -56,7 +56,7 @@ declare -A WANT_SHA_EXTRA=(
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=7ade5a34876d35f20af8dff964e7cca0e2cb4a05ff2b5cd0e372425872e7373e
+  [credential_vault.py]=881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2
   [credential_vault_tool.py]=a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
@@ -1068,3 +1068,11 @@ else
   unk "approval-history-capability" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "guard-event-live" "守卫事件真链（cron 真跑一次危险命令被即时拒绝后账本新增 guard_event 行）属部署验收回读；verify 只锁分类/记录/对账行为与出口对账式"
+# ---- 49. 云电脑接管（包 2.18.11, #69；队列 164 合入、队列 205 构建关）: vault 执行器注册 + reverse_node 回连面（静态探针：部署目录包文件 grep）+ 脚本下发鉴权（行为探针） ----
+CVF="$DEPLOY_DIR/patches/credential_vault.py"; FGF="$DEPLOY_DIR/patches/front_gateway.py"; ASF="$DEPLOY_DIR/patches/api_server.py"
+if grep -qF 'OPERATIONS[("cloud_computer", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("browser_login", "fill_credential")]' "$CVF" && grep -qF 'OPERATIONS[("cloud_computer", "type_password")]' "$CVF"; then ok "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器在册（cloud_computer/browser_login fill_credential + cloud_computer type_password，保险库零知识填密链通）"; else bad "cloudpc-vault-operations" "credential_vault OPERATIONS 三件执行器不全（vault_use 恒 denied，填密链断）"; fi
+if grep -q 'def node_checkin' "$FGF" && grep -q 'def get_agent_install_script' "$FGF"; then ok "cloudpc-node-face" "front_gateway 节点回连面在位（node_checkin 落状态 + get_agent_install_script 按令牌下发）"; else bad "cloudpc-node-face" "front_gateway 缺节点回连面（reverse_node 装不上、永远停在待回连）"; fi
+if grep -q 'agent-install.sh' "$ASF" && grep -q 'agent-install.ps1' "$ASF" && grep -q 'nodes/{id}/checkin' "$ASF"; then ok "cloudpc-node-routes" "api_server 安装脚本端点（agent-install.sh/.ps1）与节点 checkin 路由在位（正口+保形口）"; else bad "cloudpc-node-routes" "api_server 缺 reverse_node 路由（配对命令指向空端点）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8642/v1/front/agent-install.sh" || true)
+if [ "$code" = "403" ]; then ok "cloudpc-install-auth" "无令牌 GET /v1/front/agent-install.sh → 403（脚本按配对令牌鉴权下发、无令牌不发）"; else bad "cloudpc-install-auth" "无令牌 agent-install.sh 应答 $code（期望 403；200＝脚本裸奔下发，404＝端点未在位）"; fi
+unk "cloudpc-node-live" "真节点回连（目标机执行配对命令 → checkin 落 node 状态 → connections 出 node.online=true → verify_connection 报在线）与保险库填密真链（vault_use 三件）属部署验收写型项，不在只读 verify 内代跑"
