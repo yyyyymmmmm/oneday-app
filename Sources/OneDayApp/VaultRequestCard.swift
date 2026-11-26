@@ -166,23 +166,19 @@ struct VaultRequestCard: View {
                 }
             }
 
-            HStack(spacing: OneDayMetrics.spacingM) {
-                Button {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Button(role: .destructive) {
                     Task {
                         await rejectRequest()
                     }
                 } label: {
                     Text("拒绝")
-                        .font(.body)
-                        .foregroundStyle(Palette.danger)
+                        .font(.subheadline.weight(.medium))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                        .background(Palette.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
-                                .stroke(Palette.danger, lineWidth: 1)
-                        )
+                        .padding(.vertical, 10)
                 }
+                .buttonStyle(.bordered)
+                .tint(Palette.danger)
                 .disabled(submitting)
 
                 Button {
@@ -190,22 +186,20 @@ struct VaultRequestCard: View {
                         await fulfillRequest()
                     }
                 } label: {
-                    if submitting {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, OneDayMetrics.spacingS)
-                    } else {
-                        Text("提供")
-                            .font(.body)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, OneDayMetrics.spacingS)
+                    Group {
+                        if submitting {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text("安全提供")
+                                .font(.subheadline.weight(.semibold))
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
                 }
-                .background(Palette.primary)
-                .cornerRadius(OneDayMetrics.radiusTile)
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.primary)
                 .disabled(submitting || !canFulfill)
             }
         }
