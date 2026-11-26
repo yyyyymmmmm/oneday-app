@@ -1137,3 +1137,6 @@ if docker exec hermes python3 -c 'from gateway.platforms import device_gateway_c
 EB="$DEPLOY_DIR/patches/error_boundary.py"
 [ -f "$EB" ] && ok "error-boundary-present" "统一错误边界模块在位" || bad "error-boundary-present" "统一错误边界模块缺失"
 if [ -f "$EB" ] && python3 "$DEPLOY_DIR/patches/error_boundary_selftest.py"; then ok "error-boundary-selftest" "分类/脱敏/码稳定自测通过"; else bad "error-boundary-selftest" "统一错误边界自测失败"; fi
+# 2.18.16 follow-up probes (dp-232 / dp-233); hashes remain for mainline reconciliation.
+if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'error=error_response(exc)\[1\]\["error"\]' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "live-run-error-boundary" "Bot Chat 直播失败经统一错误边界"; else bad "live-run-error-boundary" "直播失败边界探针缺失"; fi
+if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degraded" if _degraded_reason else "ok"' "$DEPLOY_DIR/patches/oneday_gateway.py" && ! grep -q 'health\["deliverySentinel"\]' "$DEPLOY_DIR/patches/oneday_gateway.py"; then ok "oneday-health-minimal" "OneDay health 只报服务存活/降级三态"; else bad "oneday-health-minimal" "OneDay health 仍含内部诊断字段"; fi
