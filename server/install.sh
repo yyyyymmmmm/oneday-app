@@ -314,14 +314,31 @@ docker exec hermes sh -c "ls /opt/data/cache/fastembed 2>/dev/null | grep -q ." 
 [ "$SEM_READY" = "1" ] || log "语义检索依赖未就绪（3e 待装）"
 [ "$SEM_MODEL_READY" = "1" ] || log "语义模型快照未就绪（3e 待预取）"
 
+# 网页端插件资产状态（包 2.14.0 补，#54）：插件三件资产不在补丁/模块
+# 哈希口径内，单独探——任一与包内不一致都不许走「无需应用」早退，
+# 否则纯插件版（无网关文件变更）永远同步不到 3f（2.14.0 首装实证，
+# 与 1.14.0 的 3e 早退同型）。
+WEBPLUG_PENDING=0
+if [ -d "$PKG_DIR/web-plugins/oneday-console" ]; then
+  for wf in manifest.json dist/index.js dist/style.css; do
+    src="$PKG_DIR/web-plugins/oneday-console/dashboard/$wf"
+    dst="$DEPLOY_DIR/data/plugins/oneday-console/dashboard/$wf"
+    if [ ! -f "$dst" ] || [ "$(sha256sum < "$src" | cut -d' ' -f1)" != "$(sha256sum < "$dst" | cut -d' ' -f1)" ]; then
+      WEBPLUG_PENDING=1
+    fi
+  done
+fi
+[ "$WEBPLUG_PENDING" = "0" ] || log "网页端插件资产待同步（3f 待办）"
+
 if [ "${#TO_APPLY[@]}" = "0" ] && [ "${#MODULES_TO_APPLY[@]}" = "0" ] && \
    [ "${#MODULES_TO_CREATE[@]}" = "0" ] && [ "$COMPOSE_NEEDS_MOUNT" = "0" ] && \
-   [ "$ASSETS_PENDING" = "0" ] && [ "$SEM_READY" = "1" ] && [ "$SEM_MODEL_READY" = "1" ]; then
+   [ "$ASSETS_PENDING" = "0" ] && [ "$SEM_READY" = "1" ] && [ "$SEM_MODEL_READY" = "1" ] && \
+   [ "$WEBPLUG_PENDING" = "0" ]; then
   log "全部补丁与模块已是目标状态，无需应用、不重启（幂等）"
   exit 0
 fi
 if [ "$DRY_RUN" = "1" ]; then
-  log "DRY_RUN：补丁 ${#TO_APPLY[@]} 个、模块更新 ${#MODULES_TO_APPLY[@]} 个、模块新建 ${#MODULES_TO_CREATE[@]} 个、compose 挂载变更 ${COMPOSE_NEEDS_MOUNT}、记忆资产待铺 ${ASSETS_PENDING} 项、语义依赖就绪 ${SEM_READY}、语义模型就绪 ${SEM_MODEL_READY}（未写、未重启）"
+  log "DRY_RUN：补丁 ${#TO_APPLY[@]} 个、模块更新 ${#MODULES_TO_APPLY[@]} 个、模块新建 ${#MODULES_TO_CREATE[@]} 个、compose 挂载变更 ${COMPOSE_NEEDS_MOUNT}、记忆资产待铺 ${ASSETS_PENDING} 项、语义依赖就绪 ${SEM_READY}、语义模型就绪 ${SEM_MODEL_READY}、网页插件待同步 ${WEBPLUG_PENDING}（未写、未重启）"
   exit 0
 fi
 
