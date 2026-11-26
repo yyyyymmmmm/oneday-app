@@ -174,4 +174,529 @@ struct HermesMacClient: Sendable {
             throw HermesError.decodingFailed(endpoint: "状态接口")
         }
     }
+
+    // MARK: - 聊天主链传输底座（棒 1）
+
+    /// 带 Bearer 的 URL 拼装（query 走 URLComponents，
+    /// 与 iOS url(config:path:query:) 同形）
+    private func authedURL(
+        config: ServerConfig, path: String,
+        query: [URLQueryItem] = []
+    ) -> URL {
+        guard var components = URLComponents(
+            url: config.endpoint(path), resolvingAgainstBaseURL: false
+        ) else { return config.endpoint(path) }
+        if !query.isEmpty { components.queryItems = query }
+        return components.url ?? config.endpoint(path)
+    }
+
+    /// 会话面通用 GET（Bearer＋共享 cookie 双通道，与
+    /// iOS 会话面同路径；网关面认 Bearer、面板面认
+    /// cookie，两面投影同形）
+    private func sessionGet<T: Decodable>(
+        config: ServerConfig, apiKey: String, path: String,
+        query: [URLQueryItem] = [], endpoint: String
+    ) async throws -> T {
+        var request = URLRequest(
+            url: authedURL(config: config, path: path, query: query)
+        )
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    /// 写请求原始回执形（状态＋响应体都带回，围栏类
+    /// 接口的拒因在 body 的 detail 码里，与 iOS
+    /// sendRaw 同口径）
+    private func sendRaw(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String, query: [URLQueryItem] = [],
+        body: [String: JSONValue]? = nil
+    ) async throws -> (status: Int, body: Data) {
+        var request = URLRequest(
+            url: authedURL(config: config, path: path, query: query)
+        )
+        request.httpMethod = method
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        if let body {
+            request.setValue(
+                "application/json", forHTTPHeaderField: "Content-Type"
+            )
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        let (data, http) = try await dataRequest(request)
+        return (http.statusCode, data)
+    }
+
+    // MARK: - 会话列表与消息（棒 1，对位 #9/#13）
+
+    /// GET /api/sessions?limit=&offset=&archived=
+    /// （archived 取 exclude/only/include，与 iOS
+    /// serverSessionsPage 同口径）
+    func sessionsPage(
+        config: ServerConfig, apiKey: String, limit: Int,
+        offset: Int, archived: String?
+    ) async throws -> SessionsPage {
+        var query = [
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
+        ]
+        if let archived {
+            query.append(URLQueryItem(name: "archived", value: archived))
+        }
+        return try await sessionGet(
+            config: config, apiKey: apiKey, path: "/api/sessions",
+            query: query, endpoint: "服务端会话"
+        )
+    }
+
+    /// GET /api/sessions/{id}/messages?limit=&order=
+    /// latest（§237 订正口径：latest 从最新一页取起、
+    /// 页内时序返回，本地按行 id 升序重排落盘）
+    func sessionMessages(
+        config: ServerConfig, apiKey: String, id: String,
+        limit: Int = 200
+    ) async throws -> [SessionMessage] {
+        let response: SessionMessagesResponse = try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/sessions/\(id)/messages",
+            query: [
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "order", value: "latest"),
+            ],
+            endpoint: "服务端会话消息"
+        )
+        return response.messages.sorted { $0.id < $1.id }
+    }
+
+    /// POST /api/sessions（网关面 Bearer 建会话，
+    /// 0.7.0 主线钦定：id/title 由 App 指定、回执 id
+    /// 为准；不带 title 时服务端两段式标题自生）
+    func createSession(
+        config: ServerConfig, apiKey: String, id: String?,
+        title: String?
+    ) async throws -> ServerSession {
+        var body: [String: JSONValue] = [:]
+        if let id { body["id"] = .string(id) }
+        if let title { body["title"] = .string(title) }
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey, path: "/api/sessions",
+            method: "POST", body: body
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "服务端建会话", status: status
+            )
+        }
+        do {
+            return try decoder.decode(CreatedSession.self, from: data).session
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "服务端建会话")
+        }
+    }
+
+    /// GET /api/sessions/{id}/mutation-snapshot：围栏
+    /// 身份的官方指定来源（PATCH/DELETE 共用）
+    func mutationSnapshot(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> SessionMutationSnapshot {
+        try await sessionGet(
+            config: config, apiKey: apiKey,
+            path: "/api/sessions/\(id)/mutation-snapshot",
+            endpoint: "服务端会话变更快照"
+        )
+    }
+
+    /// PATCH /api/sessions/{id}（围栏制，与 iOS
+    /// updateServerSession 同口径：快照现读修订号→
+    /// 带 request_id＋expected_revision 发→409 冲突
+    /// 重读重试一次；身份读不到如实上抛、不裸发）
+    func updateSession(
+        config: ServerConfig, apiKey: String, id: String,
+        title: String?, pinned: Bool?, archived: Bool?
+    ) async throws {
+        let endpoint = "服务端会话更新"
+        for attempt in 0..<2 {
+            let snapshot = try await mutationSnapshot(
+                config: config, apiKey: apiKey, id: id
+            )
+            if snapshot.exists == false {
+                throw HermesError.unexpectedStatus(
+                    endpoint: endpoint, status: 404
+                )
+            }
+            guard let revision = snapshot.runtimeRevision else {
+                throw HermesError.decodingFailed(endpoint: endpoint)
+            }
+            var body: [String: JSONValue] = [
+                "request_id": .string(UUID().uuidString),
+                "expected_revision": .number(Double(revision)),
+            ]
+            if let title { body["title"] = .string(title) }
+            if let pinned { body["pinned"] = .bool(pinned) }
+            if let archived { body["archived"] = .bool(archived) }
+            let (status, _) = try await sendRaw(
+                config: config, apiKey: apiKey,
+                path: "/api/sessions/\(id)", method: "PATCH", body: body
+            )
+            switch status {
+            case 200...299:
+                return
+            case 401, 403:
+                throw HermesError.apiKeyRejected
+            case 409 where attempt == 0:
+                continue
+            default:
+                throw HermesError.unexpectedStatus(
+                    endpoint: endpoint, status: status
+                )
+            }
+        }
+    }
+
+    /// DELETE /api/sessions/{id}（围栏三参数走 query，
+    /// 与 iOS deleteServerSession 同口径：每试现读快
+    /// 照、request_id 每试新铸、分流走 Core 的
+    /// SessionDeleteDirective；身份读不到不发）
+    func deleteSession(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        let endpoint = "服务端会话删除"
+        for attempt in 0..<3 {
+            let snapshot: SessionMutationSnapshot
+            do {
+                snapshot = try await mutationSnapshot(
+                    config: config, apiKey: apiKey, id: id
+                )
+            } catch let error as HermesError {
+                if case .unexpectedStatus(_, let status) = error,
+                   status == 404 {
+                    return  // 快照都读不到＝已经不在了
+                }
+                throw error
+            }
+            if snapshot.exists == false { return }
+            guard let revision = snapshot.runtimeRevision,
+                  let generation = snapshot.runtimeGeneration else {
+                throw HermesError.decodingFailed(endpoint: endpoint)
+            }
+            let (status, body) = try await sendRaw(
+                config: config, apiKey: apiKey,
+                path: "/api/sessions/\(id)", method: "DELETE",
+                query: [
+                    URLQueryItem(
+                        name: "request_id", value: UUID().uuidString
+                    ),
+                    URLQueryItem(
+                        name: "expected_revision", value: String(revision)
+                    ),
+                    URLQueryItem(
+                        name: "expected_generation",
+                        value: String(generation)
+                    ),
+                ]
+            )
+            switch SessionDeleteDirective.directive(
+                status: status,
+                serverCode: HermesServerErrorCode.parse(body)
+            ) {
+            case .done:
+                return
+            case .retryWithFreshIdentity:
+                if attempt < 2 { continue }
+            case .retryAfterBusy:
+                if attempt < 2 {
+                    try await Task.sleep(
+                        for: attempt == 0
+                            ? .milliseconds(1500) : .seconds(3)
+                    )
+                    continue
+                }
+                throw HermesError.sessionBusy
+            case .fail:
+                break
+            }
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: status
+            )
+        }
+    }
+
+    /// POST /api/sessions/{id}/model：会话内切换模型
+    /// （与 iOS updateServerSessionModel 同路径）
+    func updateSessionModel(
+        config: ServerConfig, apiKey: String, id: String, model: String
+    ) async throws {
+        let (status, _) = try await sendRaw(
+            config: config, apiKey: apiKey,
+            path: "/api/sessions/\(id)/model", method: "POST",
+            body: ["model": .string(model)]
+        )
+        switch status {
+        case 200...299:
+            return
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "会话模型切换", status: status
+            )
+        }
+    }
+
+    // MARK: - 任务制生成（棒 1，对位 #14/#31）
+
+    /// POST /v1/runs：提交一轮生成、立即返回 run_id
+    /// （与 iOS submitRun 同体：session_id＋input＋
+    /// model＋client_message_id 与 Idempotency-Key 头
+    /// 同值双带，§383 幂等口径）
+    func submitRun(
+        config: ServerConfig, apiKey: String, sessionID: String,
+        input: RunInput, model: String, idempotencyKey: String
+    ) async throws -> RunSubmitResponse {
+        var request = URLRequest(url: config.endpoint("/v1/runs"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        request.setValue(
+            idempotencyKey, forHTTPHeaderField: "Idempotency-Key"
+        )
+        let payload: [String: Any] = [
+            "session_id": sessionID,
+            "input": try input.encodedValue(),
+            "model": model,
+            "client_message_id": idempotencyKey,
+        ]
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: payload
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        case 429:
+            throw HermesError.rateLimited(retryAfterSeconds: nil)
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "发送接口", status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(RunSubmitResponse.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "发送接口")
+        }
+    }
+
+    /// GET /v1/runs/{id}：run 状态轮询（404＝记录过
+    /// 期/不存在，返回 nil 由调用方转 transcript 定性）
+    func runStatus(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws -> RunStatusResponse? {
+        var request = URLRequest(
+            url: config.endpoint("/v1/runs/\(runID)")
+        )
+        request.timeoutInterval = 30
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200:
+            break
+        case 404:
+            return nil
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "生成状态接口", status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(RunStatusResponse.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "生成状态接口")
+        }
+    }
+
+    /// GET /v1/runs/{id}/events：结构化事件流（Core
+    /// RunEventParser 逐行解析；流断只收尾不抛错——
+    /// 定性归状态轮询与 transcript 对账，0.31.0 铁律）
+    func runEvents(
+        config: ServerConfig, apiKey: String, runID: String,
+        lastSeq: Int
+    ) -> AsyncStream<RunEventEnvelope> {
+        AsyncStream { continuation in
+            let task = Task {
+                do {
+                    var request = URLRequest(
+                        url: config.endpoint(
+                            "/v1/runs/\(runID)/events"
+                        )
+                    )
+                    request.timeoutInterval = 600
+                    request.setValue(
+                        "Bearer \(apiKey)",
+                        forHTTPHeaderField: "Authorization"
+                    )
+                    request.setValue(
+                        "text/event-stream",
+                        forHTTPHeaderField: "Accept"
+                    )
+                    if lastSeq >= 0 {
+                        request.setValue(
+                            String(lastSeq),
+                            forHTTPHeaderField: "Last-Event-ID"
+                        )
+                    }
+                    let (bytes, response) = try await session.bytes(
+                        for: request
+                    )
+                    guard let http = response as? HTTPURLResponse,
+                          http.statusCode == 200 else {
+                        continuation.finish()
+                        return
+                    }
+                    var parser = RunEventParser()
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        if let envelope = parser.consume(line: line) {
+                            continuation.yield(envelope)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish()
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// POST /v1/runs/{id}/stop：真取消（404/409＝已
+    /// 不在活动态、按受理处理，与 iOS 同口径）
+    func stopRun(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws {
+        var request = URLRequest(
+            url: config.endpoint("/v1/runs/\(runID)/stop")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = Data("{}".utf8)
+        let (_, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200...299, 404, 409:
+            return
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "停止接口", status: http.statusCode
+            )
+        }
+    }
+
+    // MARK: - 待批数与附件（棒 1，对位 M1/#16）
+
+    /// GET /v1/approvals（Bearer）：跨会话待批聚合，
+    /// 菜单栏状态项只取件数（宽容提取：数组本体或
+    /// approvals 键，取不到回 nil 不冒充 0）
+    func pendingApprovalCount(
+        config: ServerConfig, apiKey: String
+    ) async throws -> Int? {
+        let value: JSONValue = try await bearerGet(
+            config: config, apiKey: apiKey, path: "/v1/approvals",
+            endpoint: "待批接口"
+        )
+        switch value {
+        case .array(let items):
+            return items.count
+        case .object(let object):
+            if case .array(let items)? = object["approvals"] {
+                return items.count
+            }
+            if case .number(let total)? = object["total"] {
+                return Int(total)
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    /// POST /api/files/upload {path, data_url,
+    /// overwrite}：附件先落托管根 attachments/（契约
+    /// file-upload-contract-20261111，拼装走 Core
+    /// FileSendAssembly），回执取服务端绝对路径
+    func uploadAttachment(
+        config: ServerConfig, apiKey: String, fileName: String,
+        data: Data
+    ) async throws -> ManagedFileUploadReceipt {
+        let body: [String: JSONValue] = [
+            "path": .string(FileSendAssembly.uploadPath(fileName: fileName)),
+            "data_url": .string(
+                FileSendAssembly.dataURL(fileName: fileName, data: data)
+            ),
+            "overwrite": .bool(true),
+        ]
+        let (status, responseData) = try await sendRaw(
+            config: config, apiKey: apiKey, path: "/api/files/upload",
+            method: "POST", body: body
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "文件上传", status: status
+            )
+        }
+        do {
+            return try decoder.decode(
+                ManagedFileUploadReceipt.self, from: responseData
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "文件上传")
+        }
+    }
 }
