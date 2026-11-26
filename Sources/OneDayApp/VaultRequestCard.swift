@@ -80,23 +80,20 @@ struct VaultRequestCard: View {
                 }
 
                 Spacer()
+
+                if isAlwaysAsk {
+                    Label("每次确认", systemImage: "checkmark.shield")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(Palette.warning)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Palette.warning.opacity(0.12), in: Capsule())
+                }
             }
 
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                 detailRow(label: "域名", value: domain)
                 detailRow(label: "原因", value: reason)
-
-                if isAlwaysAsk {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.meta)
-                            .foregroundStyle(Palette.warning)
-                        Text("每次必问")
-                            .font(.meta)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    .padding(.vertical, OneDayMetrics.spacingMicro)
-                }
             }
 
             switch status {
