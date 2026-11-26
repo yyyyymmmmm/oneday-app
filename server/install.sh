@@ -129,6 +129,7 @@ MODULES=(
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
+  "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
   "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb"
 )
@@ -266,6 +267,7 @@ grep -q "api_server_oneday_routes.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOS
 grep -q "auth_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "push_tokens.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "push_sender.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "db_schema_guard.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "credential_vault.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "credential_vault_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -523,6 +525,9 @@ specs = [
     ("push_sender.py",
      "      - ./patches/push_sender.py:/opt/hermes/gateway/platforms/push_sender.py:ro",
      "./patches/push_tokens.py:/opt/hermes/gateway/platforms/push_tokens.py:ro"),
+    ("db_schema_guard.py",
+     "      - ./patches/db_schema_guard.py:/opt/hermes/gateway/platforms/db_schema_guard.py:ro",
+     "./patches/push_sender.py:/opt/hermes/gateway/platforms/push_sender.py:ro"),
     ("credential_vault.py",
      "      - ./patches/credential_vault.py:/opt/hermes/gateway/platforms/credential_vault.py:ro",
      "./patches/api_server_oneday_routes.py:/opt/hermes/gateway/platforms/api_server_oneday_routes.py:ro"),

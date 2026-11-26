@@ -1,6 +1,6 @@
 # Hermes 部署包清单（路线 A：补丁正式入包；服务端改动先入包、再从包应用）
 package: hermes-deploy
-version: 2.8.0   # 面板密码登录桥入关（2026-11-26）：api_server_oneday_routes 新增 POST /api/companion/web-login（scrypt 验 password.json＋失败限流＋dashboard cookie 透传）与 POST /api/env/reveal（会话校验＋白名单只放 API_SERVER_KEY）；install.sh 增面板密码文件只读挂载确保（源文件存在才挂）。
+version: 2.8.0   # 面板密码登录桥入关＋2.7.1 线三件回填（2026-11-26）：api_server_oneday_routes 新增 POST /api/companion/web-login（scrypt 验 password.json＋失败限流＋dashboard cookie 透传）与 POST /api/env/reveal（会话校验＋白名单只放 API_SERVER_KEY）；install.sh 增面板密码文件只读挂载确保（源文件存在才挂）。db_schema_guard.py（state.db 指纹守卫模块）＋platform-hint-config-patch.py（平台提示覆盖迁移）＋services/prompt-refresh/prompt-refresh-watcher.sh（主线提示词刷新看守）自 2.7.1 线（a2fecf5c）移植入包并对齐 manifest/install/verify 登记；三件已在现行 instance 在役（经该线应用），回填只入仓对齐、不改行为。此前 2.7.0：凭据请求列表端点＋聊天 marker（服务端新增 GET /v1/vault/requests，工具回执带 [[vreq:...]]，提示词要求 marker 单独成行；不含 B 项）。
 released: "2026-11-26"
 description: 让任何部署者装出与现行 instance 功能一致的 Hermes + OneDay 服务端：上游镜像本体不改，产品行为全部由本包登记的补丁与网关模块承载（companion 伴生容器已于 2.0.0 整退役，单容器终局）。
 
@@ -10,6 +10,11 @@ config_migrations:
     scope: platform_toolsets.api_server adds only credential_vault
     version: 2.7.0
     note: 2.7.0 was verified as packaged but never left applied; this same-version migration activates its credential-vault tools without a version bump.
+  - name: platform-hint
+    source: platform-hint-config-patch.py
+    scope: instance config gains a top-level platform_hints.api_server.replace substituting the upstream api_server platform hint (formatting stance only; MEDIA/file-delivery semantics preserved verbatim)
+    version: 2.8.0
+    note: Ported from the 2.7.1 line (a2fecf5c), where it was applied to the live instance on 2026-11-26 and verified already-in-final-form; the script is idempotent (text-scoped edit, byte-identical elsewhere) and writes a timestamped backup next to the config before any change. Upstream hint orders plain text / no markdown, which silently overrode the OneDay bold-anchor writing rule on every api_server session.
 
 target:
   hermes_image: nousresearch/hermes-agent:v0.23.0
@@ -368,7 +373,7 @@ components:
       sha256: 355d6a1de3860b731c308a379bd8af8fdaa6863e438e92b273f90531e386cca5
       upstream_baseline_sha256: null
       provides: [auth-token-exchange, auth-token-refresh, auth-sessions-list, auth-session-revoke, push-tokens-registry, credential-vault-routes, credential-vault-request-list, panel-web-login, env-reveal]
-      summary: OneDay auth/push/vault route mixin and route table; GET /v1/vault/requests is session-scoped and status-filterable. 2.8.0 adds the panel web-login bridge (POST /api/companion/web-login: scrypt verify against password.json mounted at /opt/companion-state/password.json, 5-per-300s per-IP fail limit, dashboard session cookie passed through) and POST /api/env/reveal (dashboard-session-validated, allowlist API_SERVER_KEY only).
+      summary: OneDay auth/push/vault route mixin and route table; GET /v1/vault/requests is session-scoped and status-filterable. 2.8.0 adds the panel web-login bridge (POST /api/companion/web-login, scrypt verify against password.json mounted at /opt/companion-state/password.json, 5-per-300s per-IP fail limit, dashboard session cookie passed through) and POST /api/env/reveal (dashboard-session-validated, allowlist API_SERVER_KEY only).
     - name: auth_tokens.py
       kind: module
       source: patches/auth_tokens.py
@@ -402,6 +407,17 @@ components:
       upstream_baseline_sha256: null
       provides: [apns-send]
       summary: APNs sender; reports unconfigured until credentials are supplied.
+    - name: db_schema_guard.py
+      kind: module
+      source: patches/db_schema_guard.py
+      host_path: patches/db_schema_guard.py
+      container: hermes
+      container_path: /opt/hermes/gateway/platforms/db_schema_guard.py
+      mount_mode: ro
+      sha256: 040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
+      upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物（2.7.1 线原件，包 2.8.0 回填登记；与 companion/modules/ 退役副本逐字同件）
+      provides: [state-db-schema-verify]
+      summary: state.db 只读指纹守卫（2.7.1 线原件、包 2.8.0 回填）：verify_state_db_schema 以只读 URI 打开 state.db、校验 sessions/messages 必需表列在位、回 sha256 指纹（前 16 位）；守卫缺席或校验不过时调用方 fail-soft 跳过本轮、不拦旧行为。包内自测 push_sender_and_schema_guard_selftest.py 覆盖。现行 instance 的两处接线（oneday_seg_delivery 开库前校验、write_gate_gateway._AnchorResolver._load 开库前校验）随 2.7.1 线文件在役；本包线同名两文件的接线对齐属全树对账待裁项（见 2.8.0 应用记录），本条只登记模块本体与挂载。
     - name: credential_vault.py
       kind: module
       source: patches/credential_vault.py
@@ -646,6 +662,11 @@ components:
       kind: compose-service-legacy-not-running
       template: services/hermes-compose.template.yml
       summary: 历史定义（宿主脚本 overview_bridge.py，sha256 ebc1e72f1a6acea0b050b98ff91645e0a230aad70fbaf17bc138a2119680e2f9）：现行未运行，8644 职能已由 companion MODULE_OVERVIEW 取代。新部署勿启用。
+    - name: prompt-refresh-watcher
+      kind: host-cron-script
+      source: services/prompt-refresh/prompt-refresh-watcher.sh
+      sha256: dfa31d7c0f2d79d7c5f48e48537e8ab9301642fc06caf70d9d23e0693595186a
+      summary: 宿主 cron 看守（2.7.1 线原件、包 2.8.0 回填登记）：每 10 分钟检查 memories/MEMORY.md、memories/USER.md 与 data/config.yaml 是否较上次标记更新，网关空闲（最近 240 秒无消息写入）时重启 hermes 容器一次并等 /health 通过——api_server 会话的系统提示词快照只活在网关进程内存（DB system_prompt 行恒 NULL），重启即令主线会话下一轮按现行文件重组提示词，对话历史零触碰。不随 install.sh 自动安装：部署者按脚本头注记拷至宿主 /root/prompt-refresh/ 并加 crontab */10 行；现行 instance 已装在役。
 
   config:
     - name: hermes-config

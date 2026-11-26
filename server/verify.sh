@@ -53,6 +53,7 @@ declare -A WANT_SHA_EXTRA=(
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
+  [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
   [credential_vault.py]=7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe
   [credential_vault_tool.py]=ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
@@ -110,6 +111,7 @@ declare -A CPATH=(
   [auth_tokens.py]=/opt/hermes/gateway/platforms/auth_tokens.py
   [push_tokens.py]=/opt/hermes/gateway/platforms/push_tokens.py
   [push_sender.py]=/opt/hermes/gateway/platforms/push_sender.py
+  [db_schema_guard.py]=/opt/hermes/gateway/platforms/db_schema_guard.py
   [credential_vault.py]=/opt/hermes/gateway/platforms/credential_vault.py
   [credential_vault_tool.py]=/opt/hermes/tools/credential_vault_tool.py
   [oneday_seg_automation.py]=/opt/hermes/gateway/platforms/oneday_seg_automation.py
@@ -143,7 +145,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py credential_vault.py credential_vault_tool.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -787,3 +789,6 @@ if [ "$code" = "401" ]; then ok "env-reveal-route-auth" "无会话 POST /api/env
 CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
 case "$CAPS" in *'"panel_web_login": true'*) ok "web-login-capability-flag" "features.panel_web_login=true" ;; *) bad "web-login-capability-flag" "capabilities 未见 panel_web_login 位" ;; esac
 unk "web-login-behavior" "python3 oneday_routes_selftest.py 在包内运行；真实登录全链（新密码→cookie→reveal→models）仅部署验收时执行"
+# ---- 32. 2.7.1 线三件回填（包 2.8.0, #47）: 指纹守卫哈希已并入第 2 节回读; 余两件为配置/宿主面探针 ----
+if grep -q '^platform_hints:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -q 'OneDay app, reached through the gateway' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null; then ok "platform-hint-config" "config.yaml 含 platform_hints.api_server.replace（OneDay 渲染口径，platform-hint-config-patch.py 已应用，包 2.8.0 回填登记）"; else bad "platform-hint-config" "config.yaml 缺 platform_hints 覆盖（上游纯文本提示将压制加粗口径，platform-hint-config-patch.py 未应用）"; fi
+if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-refresh-watcher" "宿主 crontab 含 prompt-refresh-watcher 看守行（包 2.8.0 回填登记）"; else unk "prompt-refresh-watcher" "当前用户 crontab 未见 prompt-refresh-watcher 行（看守装在 root crontab 时不可见，人工核）"; fi
