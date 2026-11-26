@@ -70,7 +70,7 @@ struct VaultRequestCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("凭据请求")
+                    Text("凭据授权请求")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
 
@@ -92,8 +92,21 @@ struct VaultRequestCard: View {
             }
 
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                detailRow(label: "域名", value: domain)
-                detailRow(label: "原因", value: reason)
+                HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                    Text("域名:")
+                        .font(.meta)
+                        .foregroundStyle(Palette.inkMuted)
+                    Text(domain)
+                        .font(.meta)
+                        .foregroundStyle(Palette.ink)
+                }
+
+                if !reason.isEmpty {
+                    Text(reason)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(3)
+                }
             }
 
             switch status {
@@ -242,18 +255,6 @@ struct VaultRequestCard: View {
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.vertical, OneDayMetrics.spacingS)
-    }
-
-    @ViewBuilder
-    private func detailRow(label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
-            Text("\(label):")
-                .font(.meta)
-                .foregroundStyle(Palette.inkMuted)
-            Text(value)
-                .font(.meta)
-                .foregroundStyle(Palette.ink)
-        }
     }
 
     private var canFulfill: Bool {

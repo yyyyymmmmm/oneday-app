@@ -86,23 +86,35 @@ public struct VaultCardHeightInput: Equatable, Sendable {
     }
 
     /// 估高（与 VaultRequestCard 版式逐件同账：
-    /// 外 padding 上下 spacingM×2＝32、头行（图
-    /// 标＋标题/服务两行栈）37、段间 spacingM、
-    /// 详情两行（域名/原因恒渲染）44；pending
-    /// 态加每字段「标签＋输入框」51＋字段间
-    /// spacingM、按钮行 38；终态加一行状态注记
-    /// 33；status＝"missing" 是标记兜底的「已处
-    /// 理或已过期」灰行（非卡本体）、只一行 20）
+    /// 外 padding 上下 spacingM×2＝32、头行（圆形
+    /// 徽章 36＋标题/服务两行栈内间距）37、段间
+    /// spacingM（16）；详情段：域名行 22＋spacingS
+    /// （12）＋reason 段落（非空时 3 行×16≈54）；
+    /// pending 态加 spacingM、每字段「标签＋输入
+    /// 框」51＋字段间 spacingM、按钮行 38；终态加
+    /// 一行状态注记 33；status＝"missing" 是标记
+    /// 兜底的「已处理或已过期」灰行（非卡本体）、
+    /// 只一行 20）
     public var estimatedHeight: Double {
         if status == "missing" {
             return 20
         }
-        let base = 32.0 + 37 + 16 + 44 + 16
+        // 外 padding 32 + 头行 37 + 段间 16
+        let base = 32.0 + 37 + 16
+        // 域名行 22
+        let detailSection = 22.0
+
         if status != "pending" {
-            return base + 33
+            // 终态：base + 详情段（域名行）+ 段间 16 + 状态注记 33
+            return base + detailSection + 16 + 33
         }
+
+        // pending 态：base + 详情段（域名行 + spacingS + reason 3 行）
+        // + 段间 + 字段区 + 按钮行
+        let reasonHeight = 54.0  // 3 行限行段落约 54
+        let detailWithReason = detailSection + 12 + reasonHeight
         let fields = Double(max(fieldCount, 0))
-        return base + 16 + 38 + fields * 51
+        return base + detailWithReason + 16 + 38 + fields * 51
             + max(fields - 1, 0) * 16
     }
 }
