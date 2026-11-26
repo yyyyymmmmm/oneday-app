@@ -9,7 +9,14 @@ Also performs static reconciliation: verifies that all files in install.sh
 MODULES table are present in the mount insertion table (specs array), or are
 explicitly listed in the legacy-mounted exceptions list.
 
-Usage (inside hermes container):
+Usage:
+    Three-table reconciliation & static checks can run outside container (file-only):
+        cd /tmp && python3 /path/to/import_smoke_selftest.py
+        (Will complete 静态对账 and 三表对账, but skip import tests with "No module")
+
+    Import tests MUST run inside hermes container with full environment:
+        docker exec hermes bash -c "cd /tmp && python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py"
+
     **MUST execute from outside the deployment layout** to avoid sys.path[0]
     masking bare import defects. Correct:
         cd /tmp && python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
