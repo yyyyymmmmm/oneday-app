@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from .error_boundary import error_response
+from gateway.platforms.error_boundary import error_response
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", "/opt/data"))
 HERMES_ENV_PATH = Path(os.environ.get("COMPANION_HERMES_ENV", str(HERMES_HOME / ".env")))
