@@ -60,6 +60,7 @@ struct FeedView: View {
         appState.sharedMonitorsStore()
     }
     @State private var path = NavigationPath()
+    @State private var imageViewerSession: ImageViewerSession?
     /// 简报编辑器（0.38.0 两层制）呈现
     @State private var briefEditorShown = false
     /// 页头身份簇开中枢（§486：簇自聊天页同件接入
@@ -240,6 +241,12 @@ struct FeedView: View {
                                 refSourceReady(type)
                                     && title == nil
                             )
+                        },
+                        onOpenImage: { post, url in
+                            openPostImage(post, url: url, previewLongEdge: 1600)
+                        },
+                        onOpenImageGallery: {
+                            imageViewerSession = $0
                         }
                     ) { ref in
                         path.append(Route.ref(ref))
@@ -250,6 +257,9 @@ struct FeedView: View {
             }
         }
         .fullscreenPopBridge()
+        .fullScreenCover(item: $imageViewerSession) { session in
+            ImageViewerView(items: session.items, initialIndex: session.initialIndex)
+        }
         .topAnchoredPanel(isPresented: $briefEditorShown) { size in
             FeedBriefEditorView(
                 store: store,
@@ -542,8 +552,7 @@ struct FeedView: View {
     /// 版），各交互点按同样回写。
     /// 0.48.0（§122）：正文改安全网口径——短帖仍全文
     /// 内联，长帖经 Core FeedBoard.rowBodyPresentation
-    /// 句界截断＋「展开全文」进详情；图改 FeedPost-
-    /// ImageBox 定尺盒（见该类型注）
+    /// 句界截断＋「展开全文」进详情；帖图使用定尺预览。
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Image(systemName: post.kind.symbolName)
@@ -620,7 +629,10 @@ struct FeedView: View {
                     let rowBody = FeedBoard.rowBodyPresentation(
                         post.body
                     )
-                    MarkdownText(rowBody.text)
+                    MarkdownText(rowBody.text, onOpenImageGallery: { session in
+                        markRead(post)
+                        imageViewerSession = session
+                    })
                     if rowBody.isTruncated {
                         Button {
                             openPost(post)
@@ -632,43 +644,17 @@ struct FeedView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                // 通栏大图：只用第一张来源真图；定尺走
-                // FeedPostImageBox（形状层承担 16:9、图
-                // 片降 overlay 裁切）。0.47.0 旧形把
-                // aspectRatio 挂在 AsyncImage 本体上——
-                // 成功相的图片以自然尺寸参与行高求解，
-                // 整页截图类长图撑成数屏高（§122 题二
-                // 机理，用户 12:41 截图实证）；加载未
-                // 成/失败整块不显（宁无图不假图、不摆
-                // 占位，旧口径不变）
-                // §486.3：首图若是某链接/来源卡的出处图
-                // （sourceUrl 命中 links 或来源卡 url，
-                // 即该页的 OG 图），不再整幅渲成封面图
-                // ——链接由下方预览卡/来源卡承载；真配
-                // 图（sourceUrl 不命中）照旧通栏
-                if let first = post.images.first,
-                   !isLinkCoverImage(first, of: post),
-                   let url = URL(string: first.url) {
-                    // §418：取图换 Nuke LazyImage（统一管
-                    // 线：解码缓存＋降采样，旧 AsyncImage
-                    // 两样都没有）；失败/未成整块不显的
-                    // 旧口径由 success-only 闭包等价实现
-                    LazyImage(
-                        request: RemoteImageRequestFactory
-                            .publicRequest(
-                                url: url, longEdgeCap: 1200)
-                    ) { state in
-                        if let image = state.image {
-                            FeedPostImageBox(
-                                image: image,
-                                cornerRadius: OneDayMetrics
-                                    .radiusPreview
-                            )
-                        }
+                // 列表首张独立配图可打开同帖相册；链接封面归来源卡。
+                if let url = post.images.first(where: {
+                    $0.galleryURL != nil && !isLinkCoverImage($0, of: post)
+                })?.galleryURL {
+                    FeedPostImagePreview(
+                        url: url, longEdgeCap: 1200,
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    ) {
+                        markRead(post)
+                        openPostImage(post, url: url, previewLongEdge: 1200)
                     }
-                    .pipeline(OneDayImagePipelines.remote)
-                    .id(url)
-                    .accessibilityHidden(true)
                 }
                 if !post.refs.isEmpty {
                     refsRow(post)
@@ -844,6 +830,14 @@ struct FeedView: View {
     private func openPost(_ post: BridgeFeedPost) {
         markRead(post)
         path.append(Route.post(post.id))
+    }
+
+    private func openPostImage(
+        _ post: BridgeFeedPost, url: URL, previewLongEdge: Int
+    ) {
+        imageViewerSession = ImageViewerSession(
+            feedImages: post.images, selectedURL: url, previewLongEdge: previewLongEdge
+        )
     }
 
     /// 链接出处图判定（§486.3）：图注 sourceUrl 命
@@ -1100,6 +1094,8 @@ struct FeedPostDetailView: View {
     var refInfo: (BridgeFeedRef) -> (
         title: String?, isDeleted: Bool
     ) = { _ in (nil, false) }
+    let onOpenImage: (BridgeFeedPost, URL) -> Void
+    let onOpenImageGallery: (ImageViewerSession) -> Void
     let onOpenRef: (BridgeFeedRef) -> Void
 
     var body: some View {
@@ -1148,52 +1144,18 @@ struct FeedPostDetailView: View {
                             // .contentTitle（值不变）
                             .font(.contentTitle)
                             .foregroundStyle(Palette.ink)
-                        // 配图（0.38.0 首版只显第一张；
-                        // 0.48.0 §122 题二扩围）：逐张以
-                        // 16:9 定尺盒排列——旧形 scaledTo-
-                        // Fit 无任何限高，整页截图类长图进
-                        // 详情照样按自然比撑爆整页（审计
-                        // N1，与行内同根）；与行内同走
-                        // FeedPostImageBox，加载失败/无图
-                        // 整块不显，不摆假图
+                        // 每张配图都能从自身位置打开同帖相册。
                         ForEach(
                             Array(post.images.enumerated()),
                             id: \.offset
                         ) { _, item in
-                            if let url = URL(string: item.url) {
-                                // §418：同帖行口径换 LazyImage
-                                LazyImage(
-                                    request:
-                                        RemoteImageRequestFactory
-                                        .publicRequest(
-                                            url: url,
-                                            longEdgeCap: 1600)
-                                ) { state in
-                                    if let image = state.image {
-                                        FeedPostImageBox(
-                                            image: image,
-                                            cornerRadius:
-                                                OneDayMetrics
-                                                .radiusCard
-                                        )
-                                    }
+                            if let url = item.galleryURL {
+                                FeedPostImagePreview(
+                                    url: url, longEdgeCap: 1600,
+                                    cornerRadius: OneDayMetrics.radiusCard
+                                ) {
+                                    onOpenImage(post, url)
                                 }
-                                .pipeline(
-                                    OneDayImagePipelines.remote)
-                                .id(url)
-                                // 0.43.0（A11Y-V2）：详情大
-                                // 图的文本等价——以图片 URL
-                                // 文件名为最低口径（A11y-
-                                // Text 拼装）
-                                .accessibilityElement(
-                                    children: .ignore
-                                )
-                                .accessibilityLabel(
-                                    A11yText.imageLabel(
-                                        fileName: url
-                                            .lastPathComponent
-                                    )
-                                )
                             }
                         }
                         // why 一行（FA-1，契约 rev2
@@ -1217,7 +1179,7 @@ struct FeedPostDetailView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        MarkdownText(post.body)
+                        MarkdownText(post.body, onOpenImageGallery: onOpenImageGallery)
                         if let card = post.sourceCard {
                             FeedSourceCardView(card: card)
                         }
@@ -1326,28 +1288,60 @@ struct FeedPostDetailView: View {
     }
 }
 
-/// 帖图定尺盒（0.48.0，§122 题二）：形状层承担
-/// 16:9 定尺寸、图片降为 overlay 以 fill 裁切——
-/// 0.36.24 媒体格定案的同族正案（定尺必须落在承
-/// 担定尺寸的那一层，不许把比例约束挂在会以自然
-/// 尺寸参与求解的图片载体本体上）。帖行（只喂第
-/// 一张）与详情（逐张）共用；是否出现由外层
-/// LazyImage 状态决定（成功才建盒，失败整块不
-/// 显、无占位，旧口径不变）
-private struct FeedPostImageBox: View {
-    let image: Image
+/// 列表和详情共用的 16:9 帖图入口，加载成功后显示。
+private struct FeedPostImagePreview: View {
+    let url: URL
+    let longEdgeCap: Int
     let cornerRadius: CGFloat
+    let onOpen: () -> Void
 
     var body: some View {
-        Color.clear
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .overlay {
-                image
-                    .resizable()
-                    .scaledToFill()
+        LazyImage(request: RemoteImageRequestFactory.publicRequest(
+            url: url, longEdgeCap: longEdgeCap
+        )) { state in
+            if let image = state.image {
+                Button(action: onOpen) {
+                    Color.clear
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .overlay { image.resizable().scaledToFill() }
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                        .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
+                .buttonStyle(.odPressable)
+                .accessibilityLabel(A11yText.imageLabel(fileName: url.lastPathComponent))
+                .accessibilityHint(L10n.string("查看大图"))
             }
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        }
+        .pipeline(OneDayImagePipelines.remote)
+        .id(url)
+    }
+}
+
+private extension BridgeFeedImage {
+    var galleryURL: URL? {
+        guard let url = URL(string: self.url),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host != nil
+        else { return nil }
+        return url
+    }
+}
+
+extension ImageViewerSession {
+    init?(feedImages: [BridgeFeedImage], selectedURL: URL, previewLongEdge: Int) {
+        var seen: Set<URL> = []
+        let urls = feedImages.compactMap(\.galleryURL).filter {
+            seen.insert($0).inserted
+        }
+        guard let index = urls.firstIndex(of: selectedURL) else { return nil }
+        self.init(
+            items: urls.map {
+                ChatImageViewerItem(source: .publicURL($0, previewLongEdge: previewLongEdge))
+            },
+            initialIndex: index
+        )
     }
 }
 

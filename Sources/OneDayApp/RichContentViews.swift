@@ -546,6 +546,7 @@ extension ToolCardCategory {
 /// 历史消息里的服务端图片缩略：经统一管线取 360 档
 struct ServerRemoteImage: View {
     let path: String
+    var onOpen: (() -> Void)? = nil
     @Environment(AppState.self) private var appState
     @State private var image: UIImage?
     @State private var failed = false
@@ -568,7 +569,7 @@ struct ServerRemoteImage: View {
                     for: image.size,
                     in: cardSize
                 )
-                ZStack {
+                let preview = ZStack {
                     Image(uiImage: image)
                         .resizable()
                         .frame(
@@ -591,6 +592,14 @@ struct ServerRemoteImage: View {
                         cornerRadius: OneDayMetrics.radiusCard
                     )
                 )
+                if let onOpen {
+                    Button(action: onOpen) { preview.contentShape(Rectangle()) }
+                        .buttonStyle(.odPressable)
+                        .accessibilityLabel(A11yText.imageLabel(fileName: (path as NSString).lastPathComponent))
+                        .accessibilityHint(L10n.string("查看大图"))
+                } else {
+                    preview
+                }
             } else if failed {
                 // §130：失败态同卡尺寸（占位卡口
                 // 径 190 高），不再随文案宽高变
@@ -698,6 +707,7 @@ struct ChatImageViewerItem: Identifiable, Hashable {
     enum Source: Hashable {
         case data(Data)
         case remotePath(String)
+        case publicURL(URL, previewLongEdge: Int)
     }
 
     let source: Source
@@ -712,6 +722,8 @@ struct ChatImageViewerItem: Identifiable, Hashable {
             return "local-\(data.count)-\(data.hashValue)"
         case .remotePath(let path):
             return "remote-\(path)"
+        case .publicURL(let url, _):
+            return "public-\(url.absoluteString)"
         }
     }
 }

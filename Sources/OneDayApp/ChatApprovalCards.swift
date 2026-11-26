@@ -43,10 +43,7 @@ struct ChatApprovalZone: View {
         var current: [WriteGateRecord] = []
         var other: [WriteGateRecord] = []
         for record in records {
-            if let anchorSession = record.anchor?.sessionId,
-               let currentServerSessionID,
-               !currentServerSessionID.isEmpty,
-               anchorSession != currentServerSessionID {
+            if !record.appliesToChat(sessionID: currentServerSessionID) {
                 other.append(record)
             } else {
                 // 锚回本会话的待批记录也进当前桶（修复锚回本会话结构性不可见）

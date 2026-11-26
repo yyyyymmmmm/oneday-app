@@ -483,6 +483,61 @@ final class ChatNativeListR2AssemblyTests: XCTestCase {
         return nil
     }
 
+    func testComposerSoftWrapAndAttachmentGrowAboveKeyboard() throws {
+        assemble()
+        apply(rows: [])
+        let focus = ComposerFocusHandle()
+        func composer(_ text: String, attachment: Bool = false) -> AnyView {
+            AnyView(
+                VStack(spacing: 0) {
+                    if attachment {
+                        Text("notes.txt").frame(height: 36)
+                    }
+                    ChatView.ComposerBarLayout(draft: text) {
+                        Color.clear.frame(width: 30, height: 30)
+                        ComposerTextView(
+                            text: .constant(text), focusHandle: focus,
+                            onFocusChange: { _ in }, caretColor: .systemBlue
+                        )
+                        Color.clear.frame(width: 30, height: 30)
+                    }
+                }
+            )
+        }
+        let keyboardTop: CGFloat = 541
+        controller.applyComposer(view: composer("测试"))
+        drain(0.15)
+        postKeyboard(
+            name: UIResponder.keyboardWillShowNotification,
+            top: keyboardTop, duration: 0
+        )
+        drain(0.5)
+        let initialTop = try composerTopInWindow()
+        let initialInset = handle.bottomInset
+        XCTAssertEqual(try composerBottomInWindow(), keyboardTop, accuracy: 1)
+        XCTAssertEqual(initialInset, windowH - initialTop + bottomMargin, accuracy: 1)
+
+        let narrowWidth = ComposerLayout.textWidth(
+            forContainerWidth: windowW + ComposerLayout.inputBarChrome
+        )
+        var draft = "测试"
+        while ComposerTextMetrics.lineCount(for: draft, width: narrowWidth) == 1 {
+            draft += "字"
+        }
+        controller.applyComposer(view: composer(draft))
+        drain(0.15)
+        let wrappedTop = try composerTopInWindow()
+        XCTAssertLessThan(wrappedTop, initialTop - 20)
+        XCTAssertEqual(try composerBottomInWindow(), keyboardTop, accuracy: 1)
+        XCTAssertEqual(handle.bottomInset - initialInset, initialTop - wrappedTop, accuracy: 1)
+
+        controller.applyComposer(view: composer(draft, attachment: true))
+        drain(0.15)
+        XCTAssertEqual(try composerTopInWindow(), wrappedTop - 36, accuracy: 1)
+        XCTAssertEqual(try composerBottomInWindow(), keyboardTop, accuracy: 1)
+        XCTAssertEqual(handle.bottomInset - initialInset, initialTop - wrappedTop + 36, accuracy: 1)
+    }
+
     func testComposerNotificationFollowAndSnapshotFeed()
         throws
     {

@@ -2,6 +2,35 @@
   "sourceLanguage": "zh-Hans",
   "version": "1.0",
   "strings": {
+    "添加反应": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Reaction"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une réaction"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加反应"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入反應"
+          }
+        }
+      }
+    },
     "设备配对": {
       "extractionState": "manual",
       "localizations": {

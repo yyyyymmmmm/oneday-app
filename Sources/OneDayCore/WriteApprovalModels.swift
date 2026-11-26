@@ -316,6 +316,14 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 是否可裁决：未知子系统不开批准/驳回口（契约红线）
     public var canDecide: Bool { subsystem != .unknown }
 
+    /// 旧版桥不提供会话锚点，沿用当前聊天的待批入口。
+    public func appliesToChat(sessionID: String?) -> Bool {
+        guard let anchorID = anchor?.sessionId, !anchorID.isEmpty else {
+            return true
+        }
+        return anchorID == sessionID
+    }
+
     /// 高风险写操作判定（删除长期记忆、删除整个技能、
     /// 删除技能文件、批量修改技能文件）：此类操作只给
     /// 「允许／拒绝」两钮，不提供「总是允许」

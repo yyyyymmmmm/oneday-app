@@ -884,6 +884,7 @@ final class ChatRootViewController: UIViewController,
     /// internal 读口取其帧
     private(set) var composerHost:
         UIHostingController<AnyView>?
+    private var composerHeightConstraint: NSLayoutConstraint?
     /// §302：键盘帧更新回调（representable 桥接
     /// 回 ChatView 的 kbFrameUpdate 绑定）——与
     /// 舱常量同一通知解析点同拍组装（reportKey-
@@ -2231,20 +2232,42 @@ final class ChatRootViewController: UIViewController,
                 host.view.removeFromSuperview()
                 host.removeFromParent()
                 composerHost = nil
+                composerHeightConstraint = nil
             }
             return
         }
         installComposerIfNeeded()
         if let newView {
-            composerHost?.rootView = newView
+            composerHost?.rootView = hostedComposer(newView)
         }
     }
 
+    private func hostedComposer(_ content: AnyView) -> AnyView {
+        // Measure the entire stack, including attachments and quotes.
+        // Align its bottom during the resize to keep controls above the keyboard.
+        AnyView(
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.height
+                } action: { [weak self] height in
+                    guard let self,
+                          let constraint = self.composerHeightConstraint,
+                          abs(constraint.constant - height) > 0.5
+                    else { return }
+                    constraint.constant = height
+                    self.view.setNeedsLayout()
+                    self.scheduleSettle()
+                }
+                .frame(minHeight: 0, maxHeight: .infinity, alignment: .bottom)
+        )
+    }
+
     /// 舱子托管装配：UIHostingController 收编为子
-    /// 控制器（H2：safeAreaRegions 清零）；约束只
-    /// 三条——左右贴本视图、底边恒钉自有位置引
-    /// 导线 bottomGuide.topAnchor，高由内容固有
-    /// 尺寸（舱栈自带定高口径）。键盘的一切运动
+    /// 控制器（H2：safeAreaRegions 清零）；左右贴本视图、
+    /// 底边恒钉自有位置引
+    /// 导线 bottomGuide.topAnchor，高由整个舱栈的
+    /// 实测值更新到宿主高度约束。键盘的一切运动
     /// （升起/候选条/交互消散）经通知帧顶常量逐
     /// 拍传到本约束（§302，见键盘跟随节），舱随
     /// 之同拍移动——本面不许有第二条键盘通道
@@ -2252,24 +2275,16 @@ final class ChatRootViewController: UIViewController,
         guard composerHost == nil,
               let content = pendingComposerView
         else { return }
-        let host = UIHostingController(rootView: content)
+        let host = UIHostingController(rootView: hostedComposer(content))
         host.safeAreaRegions = []
-        // 台账 195：高由固有尺寸——与行托管（190
-        // ④ ensureRowHost）同式补 sizingOptions。
-        // 漏设时键盘稳态下内容生长（加引用/附件）
-        // 无锚重解析事件捎带刷新、宿主帧不跟高、
-        // 卡内容溢出宿主（实测：键盘态加引用卡长
-        // 61 而舱高不变、输入行沉入键盘顶之下；
-        // 静息态因回落重解析节流拍恒有布局活动而
-        // 不显）。位置链（§194/§302）与静息入流
-        // 约束（189）均不动、只补尺寸失效通道
-        host.sizingOptions = .intrinsicContentSize
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints =
             false
         addChild(host)
         view.addSubview(host.view)
         host.didMove(toParent: self)
+        let height = host.view.heightAnchor.constraint(equalToConstant: 0)
+        composerHeightConstraint = height
         NSLayoutConstraint.activate([
             host.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor
@@ -2280,6 +2295,7 @@ final class ChatRootViewController: UIViewController,
             host.view.bottomAnchor.constraint(
                 equalTo: bottomGuide.topAnchor
             ),
+            height,
         ])
         composerHost = host
         // 回底钮浮层恒在舱之上（装配序兜底）
@@ -2785,6 +2801,7 @@ final class ChatRootViewController: UIViewController,
         // applyChanges 同路）——判据与记账纪律
         // 逐字不变
         if let freeze = currentFeedFreeze() {
+            applyComposer(view: composerView)
             storePendingFeed(
                 PendingApply(
                     rows: newRows, layout: layout,
@@ -2962,6 +2979,7 @@ final class ChatRootViewController: UIViewController,
         arrowView: AnyView?
     ) {
         if let freeze = currentFeedFreeze() {
+            applyComposer(view: composerView)
             storePendingFeed(
                 PendingApply(
                     rows: newRows, layout: layout,
@@ -3709,6 +3727,7 @@ final class ChatRootViewController: UIViewController,
                 )
             }
         }
+        view.layoutIfNeeded()
         collectionView.layoutIfNeeded()
         measureBottomSpace()
         reconcileInsets()
@@ -4512,7 +4531,8 @@ final class ChatRootViewController: UIViewController,
                     }
                 }
                 let paletteMenu = UIMenu(
-                    title: "",
+                    title: L10n.string("添加反应"),
+                    image: UIImage(systemName: MessageActionSymbols.react),
                     options: .displayAsPalette,
                     children: reactionActions + [moreAction]
                 )

@@ -1,3 +1,4 @@
+import Nuke
 import OneDayCore
 import OneDayDesign
 import Photos
@@ -148,19 +149,25 @@ struct ImageViewerView: View {
             let index = state.index + offset
             guard items.indices.contains(index) else { continue }
             let neighbor = items[index]
-            guard case .remotePath(let path) = neighbor.source
-            else { continue }
             let tier: ImageRenditionTier =
                 abs(offset) == 1 ? .detail : .viewer
-            RemoteImagePipeline.shared.prefetch(
-                path: path, mtime: neighbor.mtime, tier: tier,
-                config: appState.config
-            ) {
-                try? await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: path)
+            switch neighbor.source {
+            case .remotePath(let path):
+                RemoteImagePipeline.shared.prefetch(
+                    path: path, mtime: neighbor.mtime, tier: tier,
+                    config: appState.config
+                ) {
+                    try? await appState.performAdmin { client, config in
+                        try await client.fileData(config: config, path: path)
+                    }
                 }
+            case .publicURL(let url, _):
+                let request = RemoteImageRequestFactory.publicRequest(
+                    url: url, longEdgeCap: ImageRenditionTier.detail.longEdge
+                )
+                OneDayImagePipelines.remotePrefetcher.startPrefetching(with: [request])
+            case .data:
+                break
             }
         }
     }
@@ -785,6 +792,27 @@ private struct ImageViewerPage: View {
                 apply(tier: .original, image: decoded, fade: false)
                 onImageLoaded(decoded)
             } else {
+                progression.tierFailed()
+            }
+        case .publicURL(let url, let previewLongEdge):
+            let pipeline = OneDayImagePipelines.remote
+            let previewRequest = RemoteImageRequestFactory.publicRequest(
+                url: url, longEdgeCap: previewLongEdge
+            )
+            if displayedImage == nil,
+               let seed = pipeline.cache[previewRequest]?.image {
+                progression.seedArrived()
+                displayedImage = seed
+                onImageLoaded(seed)
+            }
+            let request = RemoteImageRequestFactory.publicRequest(
+                url: url, longEdgeCap: ImageRenditionTier.detail.longEdge
+            )
+            if let image = try? await pipeline.image(for: request),
+               !Task.isCancelled {
+                apply(tier: .detail, image: image, fade: false)
+                onImageLoaded(image)
+            } else if !Task.isCancelled {
                 progression.tierFailed()
             }
         case .remotePath(let path):
