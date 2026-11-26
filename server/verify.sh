@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=4cfb9ac47d22c887da49f27feafaed5f6346d7e4c6514c01acc06718373a3e49
+  [api_server.py]=4ef0446d2276353418a21734b19f0b73b3dfb91eaafb7eea28c01afc6c4ee8b5
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
@@ -29,6 +29,7 @@ declare -A WANT_SHA_EXTRA=(
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
   [api_server_runs.py]=3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
+  [bitwarden_link.py]=d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
@@ -49,7 +50,7 @@ declare -A WANT_SHA_EXTRA=(
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=5ee8bc91d6c39ad9cc807e88d5add196ef04593bb760fa3d5739f562c04a6566
   [cron_projection.py]=0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6
-  [api_server_oneday_routes.py]=bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed
+  [api_server_oneday_routes.py]=625a1cf0d3958949d6ffc48244ac3cf7bc5f0588b0ecba76cb2739e97cb5d8fa
   [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
@@ -88,6 +89,7 @@ declare -A CPATH=(
   [web_routers_sessions.py]=/opt/hermes/hermes_cli/web_routers/sessions.py
   [api_server_runs.py]=/opt/hermes/gateway/platforms/api_server_runs.py
   [crash_reports.py]=/opt/hermes/gateway/platforms/crash_reports.py
+  [bitwarden_link.py]=/opt/hermes/gateway/platforms/bitwarden_link.py
   [fileproc_gateway.py]=/opt/hermes/gateway/platforms/fileproc_gateway.py
   [device_sync.py]=/opt/hermes/gateway/platforms/device_sync.py
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
@@ -147,7 +149,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py bitwarden_link.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -936,3 +938,22 @@ fi
 if grep -q 'odc-face-diag' "$PLUG_DIR/dist/index.js" 2>/dev/null; then ok "webdiag-asset" "数据卷插件资产含诊断面（odc-face-diag 锚点在位）"; else bad "webdiag-asset" "数据卷插件资产无诊断面锚点（install 3f 未同步棒 6 资产）"; fi
 if grep -q 'odc-lightbox' "$PLUG_DIR/dist/index.js" 2>/dev/null && grep -q 'odc-lightbox' "$PLUG_DIR/dist/style.css" 2>/dev/null; then ok "weblightbox-asset" "数据卷插件资产含图片大图查看（index.js 逻辑 + style.css 样式）"; else bad "weblightbox-asset" "数据卷插件资产缺大图查看件（棒 6 资产未同步全）"; fi
 unk "webbar6-browser" "棒 6 真浏览器目视（诊断面一键自检六项逐项出结果、崩溃报告真数据渲染、待批提醒开关与新增待批弹通知、动态/文件预览/头像图片点开大图与 Esc/点击关闭）属部署验收人工项；服务端等价链由部署单实测留据。会话置顶写口未补齐·遗留（浏览器可达的会话编辑走上游修订围栏协议、裸 PATCH 回 409 client_upgrade_required，见 web-plugins/oneday-console/BAR6-INVENTORY.md），不在本节探针范围"
+# ---- 43. Bitwarden 链接（凭据两步走棒 1，队列 195，分支登记、编号待并集定版时按主干实序重排）: 能力位 + 模块静态不变量 + status 只读探针 ----
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"bitwarden_link": true'*) ok "bw-capability-flag" "features.bitwarden_link=true（补丁在位即声明）" ;; *) bad "bw-capability-flag" "capabilities 未见 bitwarden_link 位" ;; esac
+BWMOD="$DEPLOY_DIR/patches/bitwarden_link.py"
+if [ -f "$BWMOD" ]; then
+  if grep -q "ALLOWED_SUBCOMMANDS" "$BWMOD" && grep -q -- "--passwordenv" "$BWMOD"; then ok "bw-module-invariants" "子命令白名单与 --passwordenv 主密码通道在位"; else bad "bw-module-invariants" "bitwarden_link.py 缺白名单或 --passwordenv 通道"; fi
+  if grep -q "bitwarden" "$DEPLOY_DIR/patches/credential_vault.py"; then bad "bw-write-path-purity" "credential_vault.py 出现 bitwarden 字样（write_entry 回填路不许有 Bitwarden 分支）"; else ok "bw-write-path-purity" "回填路无 Bitwarden 分支（第一期只读口径）"; fi
+else
+  bad "bw-module-invariants" "部署目录缺 patches/bitwarden_link.py"
+fi
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /tmp/bw_status_body -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/vault/bitwarden/status" || true)
+  if [ "$code" = "200" ] && grep -q '"state"' /tmp/bw_status_body; then ok "bw-status" "GET /v1/vault/bitwarden/status → 200 且回三态（未链接/已锁定/已解锁）"; else bad "bw-status" "status 应答 $code（期望 200＋state 字段）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/bitwarden/status" || true)
+  if [ "$code" = "401" ]; then ok "bw-status-auth" "无长钥 status → 401（长钥闸在位）"; else bad "bw-status-auth" "无长钥 status 应答 $code（期望 401）"; fi
+else
+  unk "bw-status" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "bw-behavior-chain" "Bitwarden 真链（测试账号 apikey 登录→主密码解锁→同域对照 Bitwarden 赢→多条同域跳过→lock/断网降级内置库→样本零命中）属棒 3 部署验收真链：棒 1 已以同版 Vaultwarden 1.37.2 副本＋bitwarden_link_selftest.py 全链实证 75 项全绿（2026-11-26），verify 只读探针不代跑；bw 二进制钉版 2026.6.0 随包分发亦在棒 3 落地，本节只验模块与端点在位"

@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|4cfb9ac47d22c887da49f27feafaed5f6346d7e4c6514c01acc06718373a3e49"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|4ef0446d2276353418a21734b19f0b73b3dfb91eaafb7eea28c01afc6c4ee8b5"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -83,6 +83,7 @@ MODULES=(
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
   "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf"
   "crash_reports.py|patches/crash_reports.py|/opt/hermes/gateway/platforms/crash_reports.py|f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510"
+  "bitwarden_link.py|patches/bitwarden_link.py|/opt/hermes/gateway/platforms/bitwarden_link.py|d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27"
   "fileproc_gateway.py|patches/fileproc_gateway.py|/opt/hermes/gateway/platforms/fileproc_gateway.py|96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c"
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
   "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a"
@@ -125,7 +126,7 @@ MODULES=(
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|0a3ef6684a29e6fccd1af4529aba22d34a65e63bdc702a7c0a8d42755f155ae6"
-  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|bbe97478781282b69cc5c615d3a954b10dadeec3a94087b3b9a54586a78391ed"
+  "api_server_oneday_routes.py|patches/api_server_oneday_routes.py|/opt/hermes/gateway/platforms/api_server_oneday_routes.py|625a1cf0d3958949d6ffc48244ac3cf7bc5f0588b0ecba76cb2739e97cb5d8fa"
   "auth_tokens.py|patches/auth_tokens.py|/opt/hermes/gateway/platforms/auth_tokens.py|9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a"
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
@@ -240,6 +241,7 @@ grep -q "approval_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEE
 grep -q "grant_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_runs.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "crash_reports.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "bitwarden_link.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "fileproc_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_sync.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -409,6 +411,9 @@ specs = [
     ("crash_reports.py",
      "      - ./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro",
      "./patches/grant_projection.py:/opt/hermes/gateway/platforms/grant_projection.py:ro"),
+    ("bitwarden_link.py",
+     "      - ./patches/bitwarden_link.py:/opt/hermes/gateway/platforms/bitwarden_link.py:ro",
+     "./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro"),
     ("fileproc_gateway.py",
      "      - ./patches/fileproc_gateway.py:/opt/hermes/gateway/platforms/fileproc_gateway.py:ro",
      "./patches/crash_reports.py:/opt/hermes/gateway/platforms/crash_reports.py:ro"),
@@ -660,6 +665,7 @@ PYEOF
   grep -q "grant_projection.py" "$compose_file" || die "compose grant_projection mount line write failed"
   grep -q "api_server_runs.py" "$compose_file" || die "compose api_server_runs mount line write failed"
   grep -q "crash_reports.py" "$compose_file" || die "compose crash_reports mount line write failed"
+  grep -q "bitwarden_link.py" "$compose_file" || die "compose bitwarden_link mount line write failed"
   grep -q "fileproc_gateway.py" "$compose_file" || die "compose fileproc_gateway mount line write failed"
   grep -q "device_sync.py" "$compose_file" || die "compose device_sync mount line write failed"
   grep -q "device_gateway.py" "$compose_file" || die "compose device_gateway mount line write failed"

@@ -3736,6 +3736,12 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # patch is applied; the [[vreq:...]] body marker remains
             # only as the archive fallback.
             "vault_request_block": True,
+            # Local patch (vault two-step bar 1, queue 195): the
+            # Bitwarden link (bitwarden_link module) is part of this
+            # listener's code -- the user's own Bitwarden as the
+            # read-only first credential source, built-in vault as
+            # second. Advertised once the patch is applied.
+            "bitwarden_link": True,
             # Local patch (hermes-deploy 2.8.0): the panel web-login
             # bridge (api_server_oneday_routes) is part of this
             # listener's code; advertised once the patch is applied.
