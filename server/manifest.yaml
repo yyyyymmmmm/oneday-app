@@ -36,7 +36,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/api_server.py
       mount_mode: ro
-      sha256: b3655fec226999a7fcdb37ec1a5fbadc0418a190a9a5be805688cf58a435d047
+      sha256: 98f1381dc87842175b5cad88a856278c7289ac7e527f47bb4eb192fdc4975d0d
       upstream_baseline_sha256: 73175d668c0c683209ad047191921fe899e84b8a429470081a718ae7d163d3f6   # 部署目录 patches/api_server.py.orig（上游原版，退役/升级对账用）
       diff_lines_vs_upstream: 1672
       provides: [enrollment-pairing, reactions-write, reactions-projection-gateway, approvals-aggregate, approvals-resolve-by-request-id, grants-list, grants-revoke-exec, toolsets-toggle-api-server, crash-reports-ingest, crash-reports-list, self-reactions-capability, file-spreadsheet, media-rendition, write-gate-routes, memories-routes, memory-layers, memory-search, memory-insights, memory-reconcile-check, settings-registry, memory-semantic-search, oneday-bridge-routes, overview-bridge-routes, device-bridge-routes, device-mcp-facade, options-projection-gateway, options-capability, identity-bridge-routes, identity-mcp-facade, front-connections-read, front-gateway-channels, settings-write, settings-events, settings-revoke, auth-push-routes, credential-vault-routes, cron-system-projection, version-gate, message-attachments-projection, approval-history, bitwarden-link]
@@ -101,7 +101,7 @@ components:
       container: hermes
       container_path: /opt/hermes/hermes_cli/web_routers/profiles.py
       mount_mode: ro
-      sha256: fda69d721249115ac7e8e41d699e15b8757838adb5ff18b2aa367de3e302c775
+      sha256: 27a93e656154a935ee03b8b25666658cee61db468d2c5e8c700023bd177a8ba1
       upstream_baseline_sha256: e374c6785a514733ee2ab3cf43aa2a2872c6bb448dbde9da36188cc74aef2bb7   # 应用时从未挂载补丁的镜像内同路径文件回读核验（容器内回读与包内 .orig 三方一致）；应用时落盘为部署目录 patches/web_routers_profiles.py.orig
       diff_lines_vs_upstream: 12
       provides: [profile-soul-updated-at]
@@ -112,7 +112,7 @@ components:
       container: hermes
       container_path: /opt/hermes/hermes_cli/web_routers/ops.py
       mount_mode: ro
-      sha256: ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481
+      sha256: cbde4780509d30888af0e90fbe004457ced9ef690a0c99bbe1a48835921b4196
       upstream_baseline_sha256: e68deb8726ca8852aedca14279b2694aac1e1aaf32fc1e2e43f057310e75c250   # 同上，回读核验三方一致；落盘为部署目录 patches/web_routers_ops.py.orig
       diff_lines_vs_upstream: 13
       provides: [memory-builtin-files-updated-at]
@@ -312,7 +312,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/front_gateway.py
       mount_mode: ro
-      sha256: 0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
+      sha256: 1cee4a55480ff5183965dbcab4b3d8ba648d67998ffb9a4cbdfeba95c419d695
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物（行为本体自 companion front_bridge.py 平移，原件存续、逐字直采）
       provides: [front-connections-read, front-gateway-channels-read]
       summary: 前台只读面入关（2.3.0 新增，断桥批四）：companion front 桥（8650）的只读两面拆壳——GET /front/connections（登记文件只读投影，状态家 /opt/data/front/connections.json 自宿主旧桥目录平移）与 GET /front/gateway-channels（NewAPI 渠道只读聚合，读进程 env NEWAPI_BASE_URL/NEWAPI_ADMIN_TOKEN/NEWAPI_ADMIN_USER_ID，未配齐回诚实 503 newapi_not_configured）；写面（连接增删改、登记写口）随 companion 面板退役不入关——写口在网关面不存在（404）。鉴权单钥 API_SERVER_KEY。模块导入即 start()。2026-11-26 用户亲裁改判 C-2（写操作搬回网关，就这样）：写面全量入关——连接 CRUD＋凭据提交（Simular 走 MCP initialize 验活、VPS 走 SSH/WinRM/TCP 真探针，验活不过不覆盖旧配置）＋验活＋断开＋删除（内置项禁删）＋SSH Ed25519 密钥对生成（私钥只存服务端、只回公钥＋安装命令）；四类 provider：simular_box／vps_ssh／vps_agent／reverse_node。reverse_node 反向配对补全（包 2.18.11，队列 164）：配对令牌＋命令、按令牌鉴权下发的真安装脚本（GET agent-install.sh/.ps1，脚本本体在本模块内、装心跳代理并首报到）＋节点回连面（POST nodes/{id}/checkin 令牌自验、落 node 状态），conn_public 出 node（online/lastSeenAt/hostname，非密），verify_connection 改查真回连（未回连/心跳超时如实报不通）；conn_public 另出 meta 非密展示字段（host/port/username/osType/authType/publicKey/mcpUrl），秘密值永不出关。裁定来历（C-2 原文与改判）记本模块文件头。包内自测 identity_front_gateway_selftest.py 21 项全过（含 front 两面）。
@@ -323,7 +323,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/write_gate_gateway.py
       mount_mode: ro
-      sha256: eb40ed8c6aee0f96bc7bc0e8614a57401932f5cb878e9f35f2a498b3f03abd57
+      sha256: 26502c276202a1ef385a38b6c5813c254465c059c7b324f04ffd37805d9e94cf
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [write-gate-gateway-module, write-gate-routes, memories-routes]
       summary: 写闸网关模块（1.10.0 新增，断桥批二 bridge-retirement-spec-20261124 §3）：companion write_gate_bridge.py 业务逻辑拆壳入关，12 个公共函数对应桥的 12 条路由（status/pending 列表与详情/approve+reject/decisions/rules 增删查/memories 列表详情与 propose），状态路径原地 write-gate/ 三文件（rules.json/decisions.jsonl/anchors.json）不变，fail-closed 语义不变（上游模块不可用时 supported=False 写操作 409），清扫线程 5 秒间隔与桥同；api_server.py 挂 12 条 /v1 正口＋12 条保形口 /api/write-gate（迁移期路径保形 §5.2，App 清理后摘除）并在 connect() 调 start()。本模块即 App 侧写审批的裁决面（裁决经 handle_pending_subcommand 落 Hermes 本体暂存机器）；模块不可用时端点回 503、App 侧裁决暂不可用，Hermes 本体审批链（run 内等待、其他面作答）不受影响。全 handler 经 api_server @_require_auth 验 API_SERVER_KEY（凭据单源），桥独立钥 WRITE_GATE_BRIDGE_KEY 随批二应用退役。
@@ -433,7 +433,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_gateway.py
       mount_mode: ro
-      sha256: 1403c8ba5608163c8ebe7531e6018368b4298fa8dcd93e2f31a5a63871260aea
+      sha256: f96c263f08e6f8770ddb6559e9683d06715bb18c443fa7a5fc113e41b57483fc
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-bridge-face, oneday-ledger, ledger-summary-inject, oneday-feed, oneday-ideas, oneday-goals, oneday-cron-rounds, oneday-file-library, library-mcp-face]
       summary: OneDay 面入关（1.19.0 新增，断桥批三）：自 companion oneday_bridge.py 拆壳平移——核心（状态存储/目标/动态/点子/台账/交付/文件库/monitors/traces/会话门面）逐字承接，进程壳换网关面：start() 由 api_server connect() 钩子调、dispatch() 承接 /api/oneday-bridge/* 66 路由、鉴权归一网关 API_SERVER_KEY（桥钥 ONEDAY_BRIDGE_KEY 退役）；业务分段以 _load_segment 汇入同一命名空间（platforms/ 同目录 16 段，含批三重基补齐的 library_mcp 段与网关 library 分发支，#26 读面不失）。C-3：内部 Dashboard 调用改会话令牌 Bearer（HERMES_DASH_AUTH_MODE 可回退密码登录）；#47：feed 小时评估与点子到期清理改引擎 cron 两轮（feed-evaluate 5 * * * *／ideas-expire 15 3 * * *），kanban 轮询留 reconcile 循环（G-3b 延迟验收）；简报润色加 reconcile 兜底触发＋pending 语义拆分（从未扩写报 idle）。数据源 /opt/data/oneday（自桥 data 整迁）。
@@ -444,7 +444,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/overview_gateway.py
       mount_mode: ro
-      sha256: 0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
+      sha256: ee7d4bb2fc39d8527c9bd91106d78f4639a20f3fe5c8a411b8f5c223277841a1
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [overview-face, overview-notifications, overview-failure-sources]
       summary: 总览面入关（1.19.0 新增，断桥批三）：自 companion overview_bridge.py 拆壳平移——/api/overview-bridge/* 保形面（health/summary/notifications）＋MCP 门面 /overview-mcp（overview_summary 工具）；哨兵改读网关面 runs 终态列表（同进程）；来源侧根治（用户 2026-11-24 六报第 6 条）：流水线 run_* 伪会话的完成不再生成通知（占当日完成通知 62.5%），失败仍生成。数据源 /opt/data/overview（自 hermes/overview-data 整迁）。2.4.0 新增 G1 任务侧失败两源（cron_failed 按 cron_incidents 开放事故聚合、kanban_failed 按任务最新终态 run；读时聚合、born unread、计入未读、cron_since/kanban_since 基线防回灌、error 一行去敏投影），provides 增 overview-failure-sources。
@@ -565,7 +565,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_briefings.py
       mount_mode: ro
-      sha256: f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
+      sha256: ff900121e7de8e158863a75fcf7d7109ca93989ce5b6baaeb43b56dde056c723
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
@@ -587,7 +587,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_delivery.py
       mount_mode: ro
-      sha256: 08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
+      sha256: 594f80b99e50c35d84073ef1a6190ff530214290c118e7d511db921291522ee7
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.11.0 收口：并入对方线 2.10.0 的附件同体绑定（登记/标记时按 session_id＋message_id 锚定、存量 marker 幂等回填）与本线 deliver_file ingest 增量（合并取并集）；_sentinel_pass 开库前 db_schema_guard 校验自 2.7.1 线移回（审计 T-1，接线只留网关件）。
@@ -598,7 +598,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_feed.py
       mount_mode: ro
-      sha256: f0676764a5f75bf904799f7499c250dd301022e6b61ca154f40aa1596ab986c2
+      sha256: 5afa61cdac8e13661680ce9be3bba4e54c886bc613b09def0f3c5b2517e23bcb
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。2.6.0：配图自托管（生成时下载落 /opt/data/oneday/media/feed、帖子引用公网自家地址、sourceUrl 置空解开 App 列表封面抑制）＋候选页无图时 Tavily 搜图兜底（过探活＋形状双门）；落地段无图兜底（尊重编辑 dropImage）；自测 feed_media_selftest.py 18 项；能力 #44。 2.18.13（队列 212）：分类/评分两纯函数拆出至 oneday_feed_helpers 模块，本分段改双路 import 引入。
@@ -664,7 +664,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py
       mount_mode: ro
-      sha256: 93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
+      sha256: 49d3628d76ec06b37791e22cc38ed5b59d89449f75984fbac8191f750ecda97d
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.5.0 摘要轮幂等键改轮次 epoch（ideas-sum-{int(_now())}）：原内容寻址键 sha256(sid:messageCount) 在同队列异载荷（改名/摘录漂移/提示词升级）时跨轮撞键 409 且永久毒化该队列，照主生成键与 feed 同型收尾。
@@ -708,7 +708,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_monitors.py
       mount_mode: ro
-      sha256: fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
+      sha256: 278f2b93a6203deffe930d5f25c3b59af9e0f4cb2d61f8aeef9e298ead9003b2
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。
