@@ -704,6 +704,12 @@ PYEOF
     grep -q "companion-state/password.json" "$compose_file" || die "compose password.json mount line write failed"
     log "compose 已加面板密码文件挂载行"
   fi
+  # 网关进程以 uid 10000 运行：密码文件必须归它可读（front 时代是
+  # root 进程读 root 0600 文件；入关后不调属主必然 Permission
+  # denied、桥恒回 401——2.8.0 首装实测教训）。属主对齐＋0600，
+  # 内容与 inode 不动。
+  chown 10000:10000 "$DEPLOY_DIR/$PW_MOUNT_SRC" 2>/dev/null || true
+  chmod 600 "$DEPLOY_DIR/$PW_MOUNT_SRC" 2>/dev/null || true
 fi
 
 # ---------- 3c. OneDay 记忆资产（§439）：种子 + 技能 + cron 合并 ----------
