@@ -203,6 +203,10 @@ struct CloudComputerDetailView: View {
     @State private var pendingDisconnect = false
     @State private var pendingDelete = false
     @State private var copiedCommand = false
+    /// 接管取数（盒子桥）：连接记录本身没有桌面地址，
+    /// 打开接管前先经盒子桥现拉状态取真实地址
+    @State private var boxStore = BoxBridgeStore()
+    @State private var openingTakeover = false
 
     private var connection: CompanionConnection? {
         store.connections.first { $0.id == connectionID }
@@ -278,16 +282,26 @@ struct CloudComputerDetailView: View {
                     if connection.provider == "simular_box", connection.configured == true,
                        let onOpenTakeover {
                         Button {
-                            onOpenTakeover(CloudComputerTarget(
-                                id: connection.id,
-                                boxID: nil,
-                                liveURL: ""
-                            ))
+                            Task {
+                                await openTakeover(
+                                    connection: connection,
+                                    onOpenTakeover: onOpenTakeover
+                                )
+                            }
                         } label: {
-                            Label("打开全屏桌面接管", systemImage: "hand.tap.fill")
+                            if openingTakeover {
+                                HStack(spacing: OneDayMetrics.spacingS) {
+                                    ProgressView()
+                                    Text("正在读取桌面地址…")
+                                }
                                 .frame(maxWidth: .infinity)
+                            } else {
+                                Label("打开全屏桌面接管", systemImage: "hand.tap.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
                         .buttonStyle(.odPrimary)
+                        .disabled(openingTakeover)
                     }
                     Button {
                         Task { await store.verify(id: connectionID, appState: appState) }
@@ -414,6 +428,42 @@ struct CloudComputerDetailView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("将永久删除该主机记录及其保存的密钥或密码。")
+        }
+    }
+
+    /// 打开接管前先经盒子桥现拉一次状态取真实桌面
+    /// 地址：连接记录与服务端载荷都没有 view 地址
+    /// 与 box 标识，真实地址只在 box_status 里。
+    /// 「box」连接与盒子桥同钥同盒——提交凭据时服务
+    /// 端把密钥写入 MCP_BOX_API_KEY、客户端同步写
+    /// 入 Keychain box.mcp.key，box_status 无参返回
+    /// 的正是这台盒子的 box_id / view_url（与电脑面
+    /// 状态头同一条取数路）。取到才打开；取不到就
+    /// 不打开，把人话原因留在本页提示行，不许再传
+    /// 空地址进去静默卡在连接中。盒子未运行时
+    /// view_url 可能为空，此时 boxID 已是真值、
+    /// 地址如实为空，接管页会按既有通路切直控面
+    /// 唤醒出画面（与电脑面状态头的接管口径一致）。
+    private func openTakeover(
+        connection: CompanionConnection,
+        onOpenTakeover: (CloudComputerTarget) -> Void
+    ) async {
+        openingTakeover = true
+        defer { openingTakeover = false }
+        await boxStore.refreshStatus(appState: appState)
+        switch boxStore.hubState {
+        case .ready(let status):
+            onOpenTakeover(CloudComputerTarget(
+                id: status.boxId ?? connection.id,
+                boxID: status.boxId,
+                liveURL: status.viewUrl ?? ""
+            ))
+        case .bridgeUnavailable:
+            store.notice = L10n.string(
+                "这台手机上还没存云电脑密钥，请在本页重新填写一次凭据再接管。"
+            )
+        case .failed, .loading:
+            store.notice = L10n.string("云电脑状态没读出来，请稍后再试。")
         }
     }
 
