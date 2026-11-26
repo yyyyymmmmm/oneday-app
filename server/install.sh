@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|a493afb2dc3ab1121716ddd8dc41aec5fc72ab566b94cc6ea216895bcf7464c6"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|4cfb9ac47d22c887da49f27feafaed5f6346d7e4c6514c01acc06718373a3e49"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -81,7 +81,7 @@ PATCHES=(
 MODULES=(
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|fbebf958392225c46eb34dcc62a673949b0d68fc314537144f25902e56e2c7ff"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
-  "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|79edb80b9a07f6d339609de1bad4b14d59104bd98817121a99bfd19dc7399d8a"
+  "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf"
   "crash_reports.py|patches/crash_reports.py|/opt/hermes/gateway/platforms/crash_reports.py|f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510"
   "fileproc_gateway.py|patches/fileproc_gateway.py|/opt/hermes/gateway/platforms/fileproc_gateway.py|96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c"
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
@@ -130,8 +130,9 @@ MODULES=(
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
   "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|ed95fcaf15a04abce54a68443e69d455ab3f9ba0cee3b42db4d292e2624e52f0"
-  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|0677d383ab59874bc22f033f53941a66dc67ffcca86218c1b341f83db7f0e150"
+  "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
+  "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|327cade5ce93c412db0eb962af81c2ed0707eef07d546df00268e38b19f3da48"
 )
 # 模块所需的 compose 挂载（hermes 服务 volumes 内，幂等确保）见 3b 节 specs
 
@@ -270,6 +271,7 @@ grep -q "push_sender.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT
 grep -q "db_schema_guard.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "credential_vault.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "credential_vault_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "vault_request_pending.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "overview_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "oneday_seg_goals.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device-data" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -551,6 +553,9 @@ specs = [
     ("credential_vault_tool.py",
      "      - ./patches/credential_vault_tool.py:/opt/hermes/tools/credential_vault_tool.py:ro",
      "./patches/credential_vault.py:/opt/hermes/gateway/platforms/credential_vault.py:ro"),
+    ("vault_request_pending.py",
+     "      - ./patches/vault_request_pending.py:/opt/hermes/gateway/platforms/vault_request_pending.py:ro",
+     "./patches/credential_vault_tool.py:/opt/hermes/tools/credential_vault_tool.py:ro"),
     ("identity_gateway.py",
      "      - ./patches/identity_gateway.py:/opt/hermes/gateway/platforms/identity_gateway.py:ro",
      "./patches/present_options_tool.py:/opt/hermes/tools/present_options_tool.py:ro"),
@@ -680,6 +685,7 @@ PYEOF
   grep -q "ONEDAY_GATEWAY_ENABLED" "$compose_file" || die "compose oneday gateway env write failed"
   grep -q "options_pending.py" "$compose_file" || die "compose options_pending mount line write failed"
   grep -q "present_options_tool.py" "$compose_file" || die "compose present_options_tool mount line write failed"
+  grep -q "vault_request_pending.py" "$compose_file" || die "compose vault_request_pending mount line write failed"
   log "compose 已加模块挂载行"
 fi
 

@@ -1080,6 +1080,133 @@ def _attach_options(self, run_id: str, session_id: str) -> None:
         logger.debug("[api_server] options attach failed for run %s", run_id, exc_info=True)
 
 
+def _attach_vault_requests(self, run_id: str, session_id: str) -> None:
+    """Attach this run's vault request block, if any (hermes-deploy 2.17.2).
+
+    Structured delivery for credential request cards, isomorphic to
+    ``_attach_options`` above: called synchronously from ``_execute_run``'s
+    finish path BEFORE the terminal status is published, and only for
+    ``completed`` runs. The ``request_credential`` tool handler parked
+    only the request id in ``vault_request_pending``; the block stamped
+    here is rebuilt at attach time from the vault's live record
+    (``credential_vault.request_block`` -- the pending store is never
+    trusted) and the card is dropped, with a warning, when the request
+    is no longer pending (superseded / fulfilled / expired in the
+    meantime). Binding, freshness and the delivery-row retry follow the
+    option-card discipline exactly: run_key equality / key suffix /
+    registered-after-run-creation, stale leftovers dropped, first
+    attempt synchronous, then a daemon thread retries for a few
+    seconds until the delivery commit lands the turn's final assistant
+    text row. All exceptions are swallowed: a card must never break
+    terminal bookkeeping.
+    """
+    try:
+        import threading
+        import time
+
+        from gateway.platforms import credential_vault as vault
+        from gateway.platforms import vault_request_pending as pending
+
+        def _try_once(block: dict) -> str:
+            """One attach attempt: 'attached' | 'no_row' | 'rejected'."""
+            try:
+                from hermes_state_registry import acquire, release_or_close
+                db = acquire()
+                if db is None:
+                    return "no_row"
+                try:
+                    row_id = db.latest_message_row_id(
+                        session_id, role="assistant", offset=0)
+                    if row_id is None:
+                        return "no_row"
+                    return "attached" if pending.attach_vault_request(
+                        db, session_id, int(row_id), block) else "rejected"
+                finally:
+                    with suppress(Exception):
+                        release_or_close(db)
+            except Exception:
+                return "no_row"
+
+        entries = pending.list_pending(session_id)
+        if not entries:
+            return
+        created_at = None
+        statuses = getattr(self, "_run_statuses", None)
+        if isinstance(statuses, dict):
+            created_at = (statuses.get(run_id) or {}).get("created_at")
+
+        def _bound(entry: dict) -> bool:
+            run_key = entry.get("run_key") or ""
+            if run_key == run_id or run_key.endswith(":" + run_id):
+                return True
+            registered_at = entry.get("at")
+            return bool(
+                created_at and registered_at
+                and float(registered_at) >= float(created_at) - 1.0)
+
+        bound_entries = [item for item in entries if _bound(item)]
+        if created_at:
+            for stale in entries:
+                if stale not in bound_entries and stale.get("at") \
+                        and float(stale["at"]) < float(created_at) - 1.0:
+                    pending.drop(session_id, stale.get("card_id", ""))
+        if not bound_entries:
+            return
+        # One message row carries one vault_request block; the newest
+        # bound request wins (create_request supersedes older pendings
+        # in the same session anyway, so this is belt-and-braces).
+        entry = max(bound_entries, key=lambda item: float(item.get("at") or 0))
+        card_id = entry.get("card_id") or ""
+        request_id = entry.get("request_id") or ""
+        block = vault.request_block(
+            request_id, session_id, entry.get("scope") or "default")
+        block = pending.validate_block(block) if block else None
+        if block is None or block.get("status") != "pending":
+            logger.warning(
+                "[api_server] vault request card dropped: request no "
+                "longer pending session=%s run=%s request=%s",
+                session_id, run_id, request_id)
+            pending.drop(session_id, card_id)
+            return
+
+        def _settle_once(current: dict[str, Any]) -> str:
+            """Attach while holding the pending-list lock."""
+            return _try_once(block)
+
+        outcome = pending.settle(session_id, card_id, _settle_once)[1]
+        if outcome is False or outcome == "attached":
+            return
+        if outcome == "rejected":
+            logger.warning(
+                "[api_server] vault request card NOT attached: target "
+                "row outside visible lineage session=%s run=%s",
+                session_id, run_id)
+            return
+
+        def _retry_until_delivery_row() -> None:
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                time.sleep(0.25)
+                outcome = pending.settle(session_id, card_id, _settle_once)[1]
+                if outcome == "attached":
+                    return
+                if outcome == "rejected":
+                    break
+            logger.warning(
+                "[api_server] vault request card NOT attached: no "
+                "assistant text row landed session=%s run=%s",
+                session_id, run_id)
+            pending.drop(session_id, card_id)
+
+        threading.Thread(
+            target=_retry_until_delivery_row,
+            name=f"vault-request-attach-{run_id}", daemon=True).start()
+    except Exception:
+        logger.debug(
+            "[api_server] vault request attach failed for run %s",
+            run_id, exc_info=True)
+
+
 def _close_run_state(self) -> None:
     retire_api_turn_executor()
     try:
@@ -1963,6 +2090,11 @@ async def _execute_run(self, run: _RunLaunch, *, _api_server) -> None:
                 # attach used -- after the self-reaction chain above,
                 # before _set_run_status publishes the terminal status.
                 _attach_options(self, run_id, run.session_id)
+                # Local patch (hermes-deploy 2.17.2): same pre-visibility
+                # point -- attach the turn's vault request block (if the
+                # request_credential tool created one) so the settled
+                # turn already carries the structured card.
+                _attach_vault_requests(self, run_id, run.session_id)
         self._set_run_status(run_id, status, **fields, last_event=f"run.{status}", **extra)
         with suppress(Exception):
             # A worker can finish before its Future is wrapped, so awaiting it

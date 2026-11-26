@@ -578,6 +578,57 @@ def _options_from_display_metadata(meta: Any) -> dict[str, Any]:
     return projected
 
 
+def _vault_request_from_display_metadata(meta: Any) -> dict[str, Any]:
+    """Well-formed vault-request block from a message row's
+    display_metadata (the ``vault_request`` key, written by the
+    terminal attach in api_server_runs; hermes-deploy 2.17.2).
+    Shape-checked mirror of the stored payload: an object whose
+    ``type`` is ``vault_request`` carrying the contract fields
+    (request_id / service / domain / reason / fields / status).
+    Tolerant of a JSON-string metadata value; anything malformed
+    projects as {}."""
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            return {}
+    if not isinstance(meta, dict):
+        return {}
+    payload = meta.get("vault_request")
+    if not isinstance(payload, dict) or payload.get("type") != "vault_request":
+        return {}
+    request_id = payload.get("request_id")
+    service = payload.get("service")
+    fields = payload.get("fields")
+    status = payload.get("status")
+    if not isinstance(request_id, str) or not request_id.startswith("vreq_"):
+        return {}
+    if not isinstance(service, str) or not service:
+        return {}
+    if not isinstance(fields, list) \
+            or any(not isinstance(f, str) or not f for f in fields):
+        return {}
+    if not isinstance(status, str) or not status:
+        return {}
+    projected = {
+        "v": payload.get("v") or 1,
+        "type": "vault_request",
+        "request_id": request_id,
+        "service": service,
+        "domain": payload.get("domain") if isinstance(payload.get("domain"), str) else "",
+        "reason": payload.get("reason") if isinstance(payload.get("reason"), str) else "",
+        "fields": list(fields),
+        "status": status,
+    }
+    expires_at = payload.get("expires_at")
+    if isinstance(expires_at, (int, float)):
+        projected["expires_at"] = int(expires_at)
+    at = payload.get("at")
+    if isinstance(at, (int, float)):
+        projected["at"] = at
+    return projected
+
+
 def _project_client_message(message: dict[str, Any]) -> dict[str, Any]:
     """Strip compaction scaffolding: standalone handoffs become hidden empty rows (stable
     ids), merged handoffs keep only the real prior-tail content; inherited tool calls dropped."""
@@ -3677,6 +3728,14 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "push_tokens": True,
             "short_lived_tokens": True,
             "credential_vault": True,
+            # Local patch (hermes-deploy 2.17.2): credential requests
+            # are delivered structurally -- the vault_request block is
+            # stamped onto the turn's final assistant message
+            # (display_metadata) and projected as the message's
+            # top-level "vault_request" object. Advertised once the
+            # patch is applied; the [[vreq:...]] body marker remains
+            # only as the archive fallback.
+            "vault_request_block": True,
             # Local patch (hermes-deploy 2.8.0): the panel web-login
             # bridge (api_server_oneday_routes) is part of this
             # listener's code; advertised once the patch is applied.
@@ -4066,6 +4125,13 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         # in api_server_runs) so the App can render quick-pick cards.
         raw_options = _options_from_display_metadata(
             message.get("display_metadata") if isinstance(message, dict) else None)
+        # Local patch (hermes-deploy 2.17.2): same pre-projection
+        # capture for the vault-request block
+        # (display_metadata["vault_request"], written by the terminal
+        # attach in api_server_runs) so the App can render credential
+        # request cards from the message itself.
+        raw_vault_request = _vault_request_from_display_metadata(
+            message.get("display_metadata") if isinstance(message, dict) else None)
         session_id = message.get("session_id") if isinstance(message, dict) else None
         message_id = message.get("id") if isinstance(message, dict) else None
         message = _project_client_message(message)
@@ -4078,6 +4144,8 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             projected["reactions"] = raw_reactions
         if raw_options:
             projected["options"] = raw_options
+        if raw_vault_request:
+            projected["vault_request"] = raw_vault_request
         attachments = []
         if session_id is not None and message_id is not None:
             try:

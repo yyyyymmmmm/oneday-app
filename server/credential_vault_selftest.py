@@ -26,7 +26,9 @@ def skip(name, reason):
 tmp = Path(tempfile.mkdtemp(prefix="credential-vault-selftest-"))
 vault.STORE_PATH = tmp / "vault.json"
 vault.AUDIT_PATH = tmp / "audit.jsonl"
+vault.REQUESTS_PATH = tmp / "requests.json"
 vault._requests.clear()
+vault._requests_loaded.clear()
 key = "selftest-existing-api-server-key"
 secret = "NEVER-LOG-THIS-SECRET"
 
@@ -125,6 +127,81 @@ if entry_id:
     denied = vault.vault_use(entry_id, "evil.test", "login", "submit", api_key=key)
     check("domain mismatch denied", denied.get("status") == "denied" and "domain" in denied.get("summary", ""))
     check("unknown operation denied", vault.vault_use(entry_id, "example.test", "login", "submit", api_key=key).get("status") == "denied")
+
+print("== optional domains (2.17.2) ==")
+if vault.AESGCM is None:
+    skip("optional-domain write checks", "AESGCM provider unavailable")
+else:
+    status, receipt = vault.write_entry({
+        "name": "NoDomain", "service": "NoDomain", "domains": [],
+        "values": {"password": secret},
+    }, key)
+    check("empty domains accepted", status == 200)
+    meta = vault.get_entry(receipt.get("id", "")) if status == 200 else None
+    check("empty domains stored as []", (meta or {}).get("domains") == [])
+    status, receipt = vault.write_entry({
+        "name": "NoDomainKey", "service": "NoDomainKey",
+        "values": {"password": secret},
+    }, key)
+    check("absent domains accepted", status == 200)
+    status, _ = vault.write_entry({
+        "name": "BadDomain", "service": "BadDomain",
+        "domains": ["not a domain!!"], "values": {"password": secret},
+    }, key)
+    check("malformed domain still rejected", status == 400)
+    status, _ = vault.write_entry({
+        "name": "BadDomainType", "service": "BadDomainType",
+        "domains": "example.test", "values": {"password": secret},
+    }, key)
+    check("non-list domains still rejected", status == 400)
+
+print("== request durability (2.17.2: persists across restart, TTL absolute) ==")
+durable = vault.create_request("Durable", "durable.test", "Sign in", ["password"], "sess-durable")
+check("requests file written", vault.REQUESTS_PATH.exists()
+      and durable["request_id"] in vault.REQUESTS_PATH.read_text())
+check("requests file mode 0600", vault.REQUESTS_PATH.stat().st_mode & 0o777 == 0o600)
+# Simulate a gateway restart: drop every in-process trace, keep the disk.
+vault._requests.clear()
+vault._requests_loaded.clear()
+rows = vault.list_requests("sess-durable")
+check("request survives restart", [r["request_id"] for r in rows] == [durable["request_id"]])
+check("expires_at survives restart unchanged", bool(rows) and rows[0]["expires_at"] == durable["expires_at"])
+block = vault.request_block(durable["request_id"], "sess-durable")
+check("request_block canonical shape", bool(block) and block.get("type") == "vault_request"
+      and block.get("request_id") == durable["request_id"]
+      and block.get("service") == "Durable" and block.get("domain") == "durable.test"
+      and block.get("fields") == ["password"] and block.get("status") == "pending")
+check("request_block session isolation", vault.request_block(durable["request_id"], "sess-other") is None)
+status, receipt = vault.fulfill_request(
+    durable["request_id"], {"decision": "reject"}, key, "sess-durable")
+check("fulfill works after restart reload", status == 200 and receipt == {"status": "rejected"})
+# TTL is governed by the original absolute expires_at, even across restarts:
+stale = vault.create_request("Stale", "stale.test", "Sign in", ["password"], "sess-stale")
+stored = json.loads(vault.REQUESTS_PATH.read_text())
+stored["requests"][stale["request_id"]]["expires_at"] = time.time() - 5
+vault.REQUESTS_PATH.write_text(json.dumps(stored))
+vault._requests.clear()
+vault._requests_loaded.clear()
+check("lapsed TTL expires after restart", vault.list_requests("sess-stale") == []
+      and (vault.request_status(stale["request_id"], "sess-stale") or {}).get("status") == "expired")
+check("block reports lapsed request as expired",
+      (vault.request_block(stale["request_id"], "sess-stale") or {}).get("status") == "expired")
+
+print("== vault_request_pending block shape (2.17.2) ==")
+from patches import vault_request_pending as vrp
+good = {"type": "vault_request", "request_id": "vreq_abc123", "service": "Demo",
+        "domain": "example.test", "reason": "Sign in", "fields": ["password"],
+        "status": "pending", "expires_at": 1899999999}
+check("validate_block accepts canonical", vrp.validate_block(good) == good)
+check("validate_block rejects wrong type", vrp.validate_block({**good, "type": "options"}) is None)
+check("validate_block rejects bad id", vrp.validate_block({**good, "request_id": "dlv_abc"}) is None)
+check("validate_block rejects empty fields", vrp.validate_block({**good, "fields": []}) is None)
+check("validate_block rejects non-dict", vrp.validate_block("vault_request") is None)
+check("pending put/list/drop roundtrip",
+      vrp.put("sess-p", "run-key", "vreq_abc123", "default")
+      and [e["request_id"] for e in vrp.list_pending("sess-p")] == ["vreq_abc123"]
+      and vrp.drop("sess-p", vrp.list_pending("sess-p")[0]["card_id"]) is not None
+      and vrp.list_pending("sess-p") == [])
 
 print(f"credential_vault_selftest: {len(fails)} failures, {len(skips)} skipped")
 raise SystemExit(1 if fails else 0)
