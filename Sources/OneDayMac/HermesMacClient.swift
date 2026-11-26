@@ -1524,4 +1524,1089 @@ struct HermesMacClient: Sendable {
         )
         return response.results
     }
+
+    // MARK: - 枢纽与管理面（棒 4，对位 #11/#39–#64）
+
+    /// 管理面通用口：与 iOS HermesClient 同路径、同
+    /// 状态码口径（Bearer 登录密钥＋共享 cookie 双通
+    /// 道，sendRaw 底座）。零新后端。
+    private func hubRequest<T: Decodable>(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String = "GET", query: [URLQueryItem] = [],
+        body: [String: JSONValue]? = nil, endpoint: String
+    ) async throws -> T {
+        let (status, data) = try await sendRaw(
+            config: config, apiKey: apiKey, path: path,
+            method: method, query: query, body: body
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: status
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    /// 宽容 JSON 口：形状随服务端版本漂移的管理面
+    /// （委派/频道/设备等）先取 JSONValue，呈现层按
+    /// 字段宽容提取，不因多/少字段整面解码失败
+    private func hubJSON(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String = "GET", query: [URLQueryItem] = [],
+        body: [String: JSONValue]? = nil, endpoint: String
+    ) async throws -> JSONValue {
+        try await hubRequest(
+            config: config, apiKey: apiKey, path: path,
+            method: method, query: query, body: body,
+            endpoint: endpoint
+        )
+    }
+
+    /// 动作口：只认状态码（成败终局由调用方回读对账，
+    /// 与 iOS 各 Directive 口径一致，不认回执自报）
+    private func hubFire(
+        config: ServerConfig, apiKey: String, path: String,
+        method: String = "POST", query: [URLQueryItem] = [],
+        body: [String: JSONValue]? = nil, endpoint: String
+    ) async throws {
+        let (status, _) = try await sendRaw(
+            config: config, apiKey: apiKey, path: path,
+            method: method, query: query, body: body
+        )
+        switch status {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: status
+            )
+        }
+    }
+
+    /// 原始字节口（身份头像图等）
+    private func hubData(
+        config: ServerConfig, apiKey: String, path: String,
+        query: [URLQueryItem] = [], endpoint: String
+    ) async throws -> Data {
+        var request = URLRequest(
+            url: authedURL(config: config, path: path, query: query)
+        )
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200:
+            return data
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: http.statusCode
+            )
+        }
+    }
+
+    // MARK: 工作台账与身份（桥面，#39/#42）
+
+    /// GET /api/oneday-bridge/ledger/summary：台账汇总
+    func hubLedgerSummary(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ledger/summary",
+            endpoint: "台账汇总"
+        )
+    }
+
+    /// GET /api/oneday-bridge/ledger：台账条目列
+    func hubLedger(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ledger",
+            endpoint: "工作台账"
+        )
+    }
+
+    /// GET /api/oneday-bridge/ledger/{id}：条目详情
+    func hubLedgerEntry(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/ledger/\(id)",
+            endpoint: "台账详情"
+        )
+    }
+
+    /// GET /api/identity-bridge/identity：身份全档
+    /// （名/头像/档案），与 iOS IdentityBridgeClient 同面
+    func hubIdentity(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/identity-bridge/identity",
+            endpoint: "身份"
+        )
+    }
+
+    /// GET /api/identity-bridge/identity/avatar/image：
+    /// 头像图字节（当前或指定 id）
+    func hubAvatarImage(
+        config: ServerConfig, apiKey: String, id: String?
+    ) async throws -> Data {
+        var query: [URLQueryItem] = []
+        if let id { query.append(URLQueryItem(name: "id", value: id)) }
+        return try await hubData(
+            config: config, apiKey: apiKey,
+            path: "/api/identity-bridge/identity/avatar/image",
+            query: query, endpoint: "头像图"
+        )
+    }
+
+    // MARK: 电脑与出口（#41）
+
+    /// GET /api/tools/computer-use/status：电脑操控状态
+    func hubComputerStatus(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/tools/computer-use/status",
+            endpoint: "电脑状态"
+        )
+    }
+
+    /// GET /api/egress/status：出口状态
+    func hubEgressStatus(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/egress/status",
+            endpoint: "出口状态"
+        )
+    }
+
+    // MARK: 档案（#44）
+
+    /// GET /api/profiles：档案清单（宽容提取名/激活态）
+    func hubProfiles(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles", endpoint: "档案清单"
+        )
+    }
+
+    /// POST /api/profiles/active {name}：切换激活档案
+    func hubSetActiveProfile(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles/active",
+            body: ["name": .string(name)], endpoint: "切换档案"
+        )
+    }
+
+    /// GET /api/profiles/{name}/soul：指定档案的 Soul 文档
+    func hubProfileSoul(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles/\(name)/soul",
+            endpoint: "档案 Soul"
+        )
+    }
+
+    /// PUT /api/profiles/{name}/soul {content}：写回 Soul
+    func hubUpdateProfileSoul(
+        config: ServerConfig, apiKey: String, name: String,
+        content: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/profiles/\(name)/soul", method: "PUT",
+            body: ["content": .string(content)],
+            endpoint: "保存 Soul"
+        )
+    }
+
+    // MARK: 记忆与学习图谱（#45）
+
+    /// GET /api/memory：记忆状态（provider/内置文件数）
+    func hubMemoryStatus(
+        config: ServerConfig, apiKey: String
+    ) async throws -> MemoryStatus {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/memory", endpoint: "记忆状态"
+        )
+    }
+
+    /// GET /v1/memory/layers：分层记忆（Bearer 面）
+    func hubMemoryLayers(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/memory/layers", endpoint: "分层记忆"
+        )
+    }
+
+    /// GET /api/learning/graph：学习图谱（技能＋记忆块）
+    func hubLearningGraph(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/learning/graph", endpoint: "学习图谱"
+        )
+    }
+
+    /// GET /api/learning/node?id=：节点全文（编辑预填）
+    func hubLearningNode(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/learning/node",
+            query: [URLQueryItem(name: "id", value: id)],
+            endpoint: "图谱节点"
+        )
+    }
+
+    /// PUT /api/learning/node {id, content}：改写节点全文
+    func hubUpdateLearningNode(
+        config: ServerConfig, apiKey: String, id: String,
+        content: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/learning/node", method: "PUT",
+            body: ["id": .string(id), "content": .string(content)],
+            endpoint: "保存节点"
+        )
+    }
+
+    /// DELETE /api/learning/node {id}：技能归档/记忆删除
+    /// （服务端语义，呈现层按 kind 分流确认文案）
+    func hubDeleteLearningNode(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/learning/node", method: "DELETE",
+            body: ["id": .string(id)], endpoint: "删除节点"
+        )
+    }
+
+    // MARK: 技能（#46）
+
+    /// GET /api/skills（裸数组）
+    func hubSkills(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [SkillItem] {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/skills", endpoint: "技能清单"
+        )
+    }
+
+    /// GET /api/skills/content?name=：技能全文
+    func hubSkillContent(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/content",
+            query: [URLQueryItem(name: "name", value: name)],
+            endpoint: "技能内容"
+        )
+    }
+
+    /// PUT /api/skills/content {name, content}
+    func hubUpdateSkillContent(
+        config: ServerConfig, apiKey: String, name: String,
+        content: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/content", method: "PUT",
+            body: ["name": .string(name),
+                   "content": .string(content)],
+            endpoint: "保存技能"
+        )
+    }
+
+    /// PUT /api/skills/toggle {name, enabled}
+    func hubToggleSkill(
+        config: ServerConfig, apiKey: String, name: String,
+        enabled: Bool
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/toggle", method: "PUT",
+            body: ["name": .string(name),
+                   "enabled": .bool(enabled)],
+            endpoint: "技能开关"
+        )
+    }
+
+    /// PUT /api/skills/lock {name, locked}
+    func hubLockSkill(
+        config: ServerConfig, apiKey: String, name: String,
+        locked: Bool
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/lock", method: "PUT",
+            body: ["name": .string(name),
+                   "locked": .bool(locked)],
+            endpoint: "技能锁定"
+        )
+    }
+
+    /// GET /api/skills/hub/search?q=：技能市集搜索
+    func hubSkillSearch(
+        config: ServerConfig, apiKey: String, query: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/hub/search",
+            query: [URLQueryItem(name: "q", value: query)],
+            endpoint: "技能市集搜索"
+        )
+    }
+
+    /// POST /api/skills/hub/install {identifier}
+    func hubSkillInstall(
+        config: ServerConfig, apiKey: String, identifier: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/hub/install",
+            body: ["identifier": .string(identifier)],
+            endpoint: "安装技能"
+        )
+    }
+
+    /// POST /api/skills/hub/uninstall {name}
+    func hubSkillUninstall(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/skills/hub/uninstall",
+            body: ["name": .string(name)],
+            endpoint: "卸载技能"
+        )
+    }
+
+    // MARK: 工具集与委派（#47/#48）
+
+    /// GET /v1/toolsets（Bearer）：api_server 平台真值
+    func hubToolsets(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/toolsets", endpoint: "工具集"
+        )
+    }
+
+    /// PUT /v1/toolsets/{name} {enabled}
+    func hubSetToolsetEnabled(
+        config: ServerConfig, apiKey: String, name: String,
+        enabled: Bool
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/v1/toolsets/\(name)", method: "PUT",
+            body: ["enabled": .bool(enabled)],
+            endpoint: "工具集开关"
+        )
+    }
+
+    /// GET /api/delegation/routing：委派路由全量
+    func hubDelegationRouting(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/delegation/routing", endpoint: "委派路由"
+        )
+    }
+
+    /// PUT /api/delegation/backend {backend}：切换后端
+    /// （成败以 routing 回读为准）
+    func hubSetDelegationBackend(
+        config: ServerConfig, apiKey: String, backend: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/delegation/backend", method: "PUT",
+            body: ["backend": .string(backend)],
+            endpoint: "切换委派后端"
+        )
+    }
+
+    /// PUT /api/delegation/backends/model_map：模型映射
+    func hubSetDelegationModelMap(
+        config: ServerConfig, apiKey: String,
+        body: [String: JSONValue]
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/delegation/backends/model_map",
+            method: "PUT", body: body, endpoint: "委派模型映射"
+        )
+    }
+
+    /// PUT /api/delegation/backends/profile_routes：档案路由
+    func hubSetDelegationProfileRoutes(
+        config: ServerConfig, apiKey: String,
+        body: [String: JSONValue]
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/delegation/backends/profile_routes",
+            method: "PUT", body: body, endpoint: "委派档案路由"
+        )
+    }
+
+    // MARK: 定时任务（#49，兼全局搜索定时段 #10）
+
+    /// GET /api/cron/jobs（裸数组）
+    func hubCronJobs(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [CronJob] {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/jobs", endpoint: "定时任务"
+        )
+    }
+
+    /// POST /api/cron/jobs：新建（schedule 为字符串表达式）
+    func hubCreateCronJob(
+        config: ServerConfig, apiKey: String, name: String?,
+        prompt: String, schedule: String, deliver: String?
+    ) async throws -> CronJob {
+        var body: [String: JSONValue] = [
+            "prompt": .string(prompt),
+            "schedule": .string(schedule),
+        ]
+        if let name { body["name"] = .string(name) }
+        if let deliver { body["deliver"] = .string(deliver) }
+        return try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/jobs", method: "POST", body: body,
+            endpoint: "新建定时任务"
+        )
+    }
+
+    /// PUT /api/cron/jobs/{id} {updates}
+    func hubUpdateCronJob(
+        config: ServerConfig, apiKey: String, id: String,
+        updates: [String: JSONValue]
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/jobs/\(id)", method: "PUT",
+            body: updates, endpoint: "更新定时任务"
+        )
+    }
+
+    /// DELETE /api/cron/jobs/{id}
+    func hubDeleteCronJob(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/jobs/\(id)", method: "DELETE",
+            endpoint: "删除定时任务"
+        )
+    }
+
+    /// POST /api/cron/jobs/{id}/pause|resume|trigger
+    func hubCronAction(
+        config: ServerConfig, apiKey: String, id: String,
+        action: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/jobs/\(id)/\(action)",
+            endpoint: "定时任务动作"
+        )
+    }
+
+    /// GET /api/cron/blueprints：蓝图目录
+    func hubCronBlueprints(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/blueprints", endpoint: "任务蓝图"
+        )
+    }
+
+    /// GET /api/cron/delivery-targets：投递目标
+    func hubCronDeliveryTargets(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/cron/delivery-targets",
+            endpoint: "投递目标"
+        )
+    }
+
+    // MARK: MCP（#50）
+
+    private struct MCPServersEnvelope: Decodable {
+        let servers: [MCPServerItem]
+    }
+
+    /// GET /api/mcp/servers（{"servers":[…]} 信封）
+    func hubMCPServers(
+        config: ServerConfig, apiKey: String
+    ) async throws -> [MCPServerItem] {
+        let envelope: MCPServersEnvelope = try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/mcp/servers", endpoint: "MCP 服务器"
+        )
+        return envelope.servers
+    }
+
+    /// PUT /api/mcp/servers/{name}/enabled {enabled}
+    func hubSetMCPServerEnabled(
+        config: ServerConfig, apiKey: String, name: String,
+        enabled: Bool
+    ) async throws {
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: .urlPathAllowed
+        ) ?? name
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/mcp/servers/\(encoded)/enabled",
+            method: "PUT", body: ["enabled": .bool(enabled)],
+            endpoint: "MCP 开关"
+        )
+    }
+
+    /// POST /api/mcp/servers/{name}/test：连通性测试
+    func hubTestMCPServer(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws -> JSONValue {
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: .urlPathAllowed
+        ) ?? name
+        return try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/mcp/servers/\(encoded)/test",
+            method: "POST", endpoint: "MCP 测试"
+        )
+    }
+
+    /// GET /api/mcp/catalog：可安装目录
+    func hubMCPCatalog(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/mcp/catalog", endpoint: "MCP 目录"
+        )
+    }
+
+    /// POST /api/mcp/catalog/install：安装目录条目
+    func hubMCPInstall(
+        config: ServerConfig, apiKey: String,
+        body: [String: JSONValue]
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/mcp/catalog/install", body: body,
+            endpoint: "安装 MCP"
+        )
+    }
+
+    // MARK: 频道（#52）
+
+    /// GET /api/messaging/platforms：消息平台全量
+    func hubMessagingPlatforms(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/messaging/platforms",
+            endpoint: "消息平台"
+        )
+    }
+
+    /// GET /api/companion/gateway-channels：网关频道
+    func hubGatewayChannels(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/companion/gateway-channels",
+            endpoint: "网关频道"
+        )
+    }
+
+    // MARK: 设备与主会话（#53/#61）
+
+    /// GET /api/device-bridge/device/session：设备会话
+    func hubDeviceSession(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/device-bridge/device/session",
+            endpoint: "设备会话"
+        )
+    }
+
+    /// GET /api/device-bridge/device/sync/status：同步状态
+    func hubDeviceSyncStatus(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/device-bridge/device/sync/status",
+            endpoint: "设备同步状态"
+        )
+    }
+
+    /// GET /api/device-bridge/device/park-state：主会话停泊态
+    func hubDeviceParkState(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/device-bridge/device/park-state",
+            endpoint: "主会话状态"
+        )
+    }
+
+    /// GET /v1/auth/sessions：登录会话清单（#60 服务器会话）
+    func hubAuthSessions(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/auth/sessions", endpoint: "登录会话"
+        )
+    }
+
+    // MARK: 监控（桥面，#54）
+
+    /// GET /api/oneday-bridge/monitors
+    func hubMonitors(
+        config: ServerConfig, apiKey: String
+    ) async throws -> BridgeMonitorsResponse {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/monitors",
+            endpoint: "监控清单"
+        )
+    }
+
+    /// GET /api/oneday-bridge/monitors/{id}/changes
+    func hubMonitorChanges(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws -> BridgeMonitorChangesResponse {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/monitors/\(id)/changes",
+            endpoint: "监控变化"
+        )
+    }
+
+    /// POST /api/oneday-bridge/monitors：新建监控
+    func hubCreateMonitor(
+        config: ServerConfig, apiKey: String,
+        request: BridgeMonitorCreateRequest
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/monitors",
+            body: try encodeBody(request), endpoint: "新建监控"
+        )
+    }
+
+    /// DELETE /api/oneday-bridge/monitors/{id}
+    func hubDeleteMonitor(
+        config: ServerConfig, apiKey: String, id: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/monitors/\(id)",
+            method: "DELETE", endpoint: "删除监控"
+        )
+    }
+
+    // MARK: Webhooks（#55）
+
+    /// GET /api/webhooks：平台开关＋订阅清单（摘要无密钥）
+    func hubWebhooks(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/webhooks", endpoint: "Webhooks"
+        )
+    }
+
+    /// POST /api/webhooks：建订阅（回执含一次性密钥，
+    /// 调用方只在当次呈现、不落盘）
+    func hubCreateWebhook(
+        config: ServerConfig, apiKey: String,
+        body: [String: JSONValue]
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/webhooks", method: "POST", body: body,
+            endpoint: "新建 Webhook"
+        )
+    }
+
+    /// DELETE /api/webhooks/{name}
+    func hubDeleteWebhook(
+        config: ServerConfig, apiKey: String, name: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/webhooks/\(name)", method: "DELETE",
+            endpoint: "删除 Webhook"
+        )
+    }
+
+    /// PUT /api/webhooks/{name}/enabled {enabled}
+    func hubSetWebhookEnabled(
+        config: ServerConfig, apiKey: String, name: String,
+        enabled: Bool
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/webhooks/\(name)/enabled",
+            method: "PUT", body: ["enabled": .bool(enabled)],
+            endpoint: "Webhook 开关"
+        )
+    }
+
+    /// POST /api/webhooks/enable：开启 webhook 平台
+    func hubEnableWebhookPlatform(
+        config: ServerConfig, apiKey: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/webhooks/enable",
+            endpoint: "开启 Webhook 平台"
+        )
+    }
+
+    // MARK: 预设·模型组合（桥面，#56）
+
+    /// GET /api/oneday-bridge/meta/model-combos：组合文档
+    func hubModelCombos(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/meta/model-combos",
+            endpoint: "模型组合"
+        )
+    }
+
+    /// PUT /api/oneday-bridge/meta/model-combos：整档写回
+    /// （先读后改、原样保留不认识的字段，与 iOS 同口径）
+    func hubSaveModelCombos(
+        config: ServerConfig, apiKey: String,
+        document: [String: JSONValue]
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "\(Self.bridgeBase)/meta/model-combos",
+            method: "PUT", body: document,
+            endpoint: "保存模型组合"
+        )
+    }
+
+    // MARK: 环境变量（#57）
+
+    /// GET /api/env：顶层字典（值默认遮蔽）
+    func hubEnvVarsRaw(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/env", endpoint: "环境变量"
+        )
+    }
+
+    /// PUT /api/env {key, value}
+    func hubSetEnvVar(
+        config: ServerConfig, apiKey: String, key: String,
+        value: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/env", method: "PUT",
+            body: ["key": .string(key),
+                   "value": .string(value)],
+            endpoint: "设置环境变量"
+        )
+    }
+
+    /// DELETE /api/env {key}（带 body 的 DELETE）
+    func hubDeleteEnvVar(
+        config: ServerConfig, apiKey: String, key: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/env", method: "DELETE",
+            body: ["key": .string(key)],
+            endpoint: "删除环境变量"
+        )
+    }
+
+    // MARK: 看板（#58，兼想法采纳 #35 建卡口）
+
+    /// GET /api/plugins/kanban/boards → 板 slug 清单
+    func hubKanbanBoards(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/boards",
+            endpoint: "看板清单"
+        )
+    }
+
+    /// GET /api/plugins/kanban/board?board=
+    func hubKanbanBoard(
+        config: ServerConfig, apiKey: String, board: String
+    ) async throws -> KanbanBoardSnapshot {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/board",
+            query: [URLQueryItem(name: "board", value: board)],
+            endpoint: "看板"
+        )
+    }
+
+    /// POST /api/plugins/kanban/tasks?board=：建卡（初始 ready）
+    func hubKanbanCreateTask(
+        config: ServerConfig, apiKey: String, board: String,
+        title: String, body: String, idempotencyKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/tasks", method: "POST",
+            query: [URLQueryItem(name: "board", value: board)],
+            body: [
+                "title": .string(title),
+                "body": .string(body),
+                "idempotency_key": .string(idempotencyKey),
+            ],
+            endpoint: "看板建卡"
+        )
+    }
+
+    /// PATCH /api/plugins/kanban/tasks/{id}?board= {status}
+    func hubKanbanPatchTaskStatus(
+        config: ServerConfig, apiKey: String, board: String,
+        id: String, status: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/tasks/\(id)",
+            method: "PATCH",
+            query: [URLQueryItem(name: "board", value: board)],
+            body: ["status": .string(status)],
+            endpoint: "看板改状态"
+        )
+    }
+
+    /// DELETE /api/plugins/kanban/tasks/{id}?board=
+    func hubKanbanDeleteTask(
+        config: ServerConfig, apiKey: String, board: String,
+        id: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/tasks/\(id)",
+            method: "DELETE",
+            query: [URLQueryItem(name: "board", value: board)],
+            endpoint: "看板删卡"
+        )
+    }
+
+    /// POST /api/plugins/kanban/dispatch?board=：催派
+    func hubKanbanDispatch(
+        config: ServerConfig, apiKey: String, board: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/plugins/kanban/dispatch",
+            query: [URLQueryItem(name: "board", value: board)],
+            endpoint: "看板催派"
+        )
+    }
+
+    // MARK: 网关与模型（#59/#63）
+
+    /// POST /api/gateway/start|stop|restart
+    func hubGatewayAction(
+        config: ServerConfig, apiKey: String, action: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/gateway/\(action)",
+            endpoint: "网关动作"
+        )
+    }
+
+    /// GET /api/model/options：模型 id 宽容提取源
+    func hubModelOptionsRaw(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/model/options", endpoint: "模型选项"
+        )
+    }
+
+    /// POST /api/model/set {model}：设主模型
+    func hubSetMainModel(
+        config: ServerConfig, apiKey: String, model: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/model/set",
+            body: ["model": .string(model)],
+            endpoint: "设置主模型"
+        )
+    }
+
+    /// GET /api/model/auxiliary：辅助模型配置
+    func hubAuxiliaryModels(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/model/auxiliary", endpoint: "辅助模型"
+        )
+    }
+
+    /// GET /api/model/moa：MoA 配置
+    func hubMoaConfig(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/model/moa", endpoint: "MoA 配置"
+        )
+    }
+
+    // MARK: 配对管理（#62，cookie 面）
+
+    /// GET /api/pairing：待批＋已配对清单（面板 cookie
+    /// 随共享 URLSession 自动带上，与 iOS 同路）
+    func hubPairingList(
+        config: ServerConfig, apiKey: String
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/pairing", endpoint: "配对清单"
+        )
+    }
+
+    /// POST /api/pairing/approve {platform, request_id}
+    func hubPairingApprove(
+        config: ServerConfig, apiKey: String, platform: String,
+        requestID: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/pairing/approve",
+            body: ["platform": .string(platform),
+                   "request_id": .string(requestID)],
+            endpoint: "批准配对"
+        )
+    }
+
+    /// POST /api/pairing/revoke {platform, user_id}
+    func hubPairingRevoke(
+        config: ServerConfig, apiKey: String, platform: String,
+        userID: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/pairing/revoke",
+            body: ["platform": .string(platform),
+                   "user_id": .string(userID)],
+            endpoint: "撤销配对"
+        )
+    }
+
+    /// POST /api/pairing/clear-pending：清空待批
+    func hubPairingClearPending(
+        config: ServerConfig, apiKey: String
+    ) async throws {
+        try await hubFire(
+            config: config, apiKey: apiKey,
+            path: "/api/pairing/clear-pending",
+            endpoint: "清空待批配对"
+        )
+    }
+
+    // MARK: 用量（#64）
+
+    /// GET /api/analytics/usage?days=
+    func hubUsageAnalytics(
+        config: ServerConfig, apiKey: String, days: Int = 30
+    ) async throws -> UsageAnalytics {
+        try await hubRequest(
+            config: config, apiKey: apiKey,
+            path: "/api/analytics/usage",
+            query: [URLQueryItem(
+                name: "days", value: String(days)
+            )],
+            endpoint: "用量统计"
+        )
+    }
+
+    /// GET /api/analytics/models?days=
+    func hubModelAnalytics(
+        config: ServerConfig, apiKey: String, days: Int = 30
+    ) async throws -> JSONValue {
+        try await hubJSON(
+            config: config, apiKey: apiKey,
+            path: "/api/analytics/models",
+            query: [URLQueryItem(
+                name: "days", value: String(days)
+            )],
+            endpoint: "模型用量"
+        )
+    }
 }
