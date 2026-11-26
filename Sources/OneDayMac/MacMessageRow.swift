@@ -76,7 +76,19 @@ struct MacMessageRow: View {
                 }
             }
             if !message.content.isEmpty {
-                MacMarkdownView(text: message.content)
+                // 凭据请求标记摘行（棒 2，对位 #20）：
+                // Core VaultRequestMarker 单源拆分——
+                // 无标记时原文逐字返回、行为与棒 1 一
+                // 致；有标记时正文摘净、按号渲染请求卡
+                let split = VaultRequestMarker.split(
+                    in: message.content
+                )
+                if !split.text.isEmpty {
+                    MacMarkdownView(text: split.text)
+                }
+                ForEach(split.requestIDs, id: \.self) { requestID in
+                    MacVaultRequestCard(requestID: requestID)
+                }
             }
             if !message.attachments.isEmpty {
                 ForEach(

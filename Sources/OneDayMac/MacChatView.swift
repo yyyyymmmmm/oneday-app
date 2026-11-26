@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 /// 自动跟随，用户上滑后停跟、显「回到底部」钮。
 struct MacChatView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(MacApprovalStore.self) private var approvalStore
+    @Environment(MacStatusStore.self) private var statusStore
     @Bindable var conversation: MacConversationStore
     var listStore: MacSessionListStore
 
@@ -31,8 +33,17 @@ struct MacChatView: View {
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            MacApprovalDockView(
+                store: approvalStore, sessionID: conversation.sessionID
+            )
             Divider()
             composer
+        }
+        .task(id: conversation.sessionID) {
+            await approvalStore.refresh(session: session)
+        }
+        .onChange(of: statusStore.pendingApprovals) {
+            Task { await approvalStore.refresh(session: session) }
         }
         .background(Palette.chatBackground)
         .toolbar { toolbarItems }

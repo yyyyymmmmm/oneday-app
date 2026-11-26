@@ -8,12 +8,24 @@ import SwiftUI
 struct OneDayMacApp: App {
     @State private var session = SessionStore()
     @State private var statusStore = MacStatusStore()
+    /// 批准与凭据两店提到 App 级（棒 2）：主窗、批
+    /// 准面独立窗、菜单栏三处共用同一份状态
+    @State private var approvalStore = MacApprovalStore()
+    @State private var vaultStore = MacVaultStore()
+
+    init() {
+        // 通知分类/动作/代理先装配（授权等首次待批
+        // 出现时才请求，M3 保底段口径）
+        MacNotifier.shared.setup()
+    }
 
     var body: some Scene {
         WindowGroup(id: "main") {
             RootView()
                 .environment(session)
                 .environment(statusStore)
+                .environment(approvalStore)
+                .environment(vaultStore)
                 .task {
                     await session.restore()
                     statusStore.start(session: session)
@@ -28,6 +40,13 @@ struct OneDayMacApp: App {
                 .disabled(!session.isConnected)
             }
         }
+
+        WindowGroup(id: "approvals") {
+            MacApprovalsWindowView(store: approvalStore)
+                .environment(session)
+                .environment(approvalStore)
+        }
+        .windowResizability(.contentMinSize)
 
         MenuBarExtra {
             MacMenuBarView()

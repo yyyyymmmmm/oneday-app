@@ -1,15 +1,23 @@
 import SwiftUI
 import OneDayCore
 
-/// 菜单栏状态店（棒 1，对位 M1 基础形态）：连接四
-/// 态（Core ConnectionStatus 同口径：未连接/连接
-/// 中/已连接/联系不上）＋待批数；30 秒轮询探活与
-/// 待批（拟案保底段口径），App 前台常驻期间运行。
+/// 菜单栏状态店（棒 1，对位 M1 基础形态；棒 2 扩
+/// 待批口径）：连接四态（Core ConnectionStatus 同
+/// 口径：未连接/连接中/已连接/联系不上）＋待批数
+/// （两族真待批：执行批准 pending＋写闸 pending，
+/// 棒 1 的宽容计数把已决记录也算在内、棒 2 按逐条
+/// 记录状态改真口径）；30 秒轮询探活与待批（拟案
+/// 保底段口径），App 前台常驻期间运行。新待批喂
+/// 本地通知（M3），待批＋未读喂 Dock 角标（M5）。
 @MainActor
 @Observable
 final class MacStatusStore {
     private(set) var status = ConnectionStatus()
     private(set) var pendingApprovals: Int?
+    /// 轮询带回的队首待批（菜单栏小面板快捷裁决用）
+    private(set) var topExecPending: MacExecApproval?
+    private(set) var topGatePending: WriteGateRecord?
+    private var unreadCount = 0
     private var pollTask: Task<Void, Never>?
 
     var phase: ConnectionPhase { status.phase }
@@ -42,6 +50,18 @@ final class MacStatusStore {
         pollTask = nil
     }
 
+    /// 未读总数由主壳喂入（会话列表店在主壳手里），
+    /// 与待批合成 Dock 角标（M5）
+    func noteUnread(_ count: Int) {
+        unreadCount = count
+        updateDockBadge()
+    }
+
+    private func updateDockBadge() {
+        let total = (pendingApprovals ?? 0) + unreadCount
+        NSApp.dockTile.badgeLabel = total > 0 ? "\(total)" : nil
+    }
+
     func refresh(session: SessionStore) async {
         guard session.isConnected, let config = session.config,
               let key = session.apiKey else {
@@ -49,6 +69,9 @@ final class MacStatusStore {
                 status = ConnectionStatus()
             }
             pendingApprovals = nil
+            topExecPending = nil
+            topGatePending = nil
+            updateDockBadge()
             return
         }
         status.beginProbe(at: Date())
@@ -72,8 +95,23 @@ final class MacStatusStore {
                 at: Date()
             )
         }
-        pendingApprovals = try? await session.chatClient
-            .pendingApprovalCount(config: config, apiKey: key)
+        var execPending: [MacExecApproval] = []
+        if let response = try? await session.chatClient
+            .approvalsList(config: config, apiKey: key) {
+            execPending = response.approvals.filter { $0.isPending }
+        }
+        var gatePending: [WriteGateRecord] = []
+        if let pending = try? await session.chatClient
+            .writeGatePending(config: config, apiKey: key) {
+            gatePending = pending.records
+        }
+        pendingApprovals = execPending.count + gatePending.count
+        topExecPending = execPending.first { $0.answerable }
+        topGatePending = gatePending.first
+        updateDockBadge()
+        MacNotifier.shared.notePending(
+            exec: execPending, gate: gatePending
+        )
     }
 }
 
@@ -115,7 +153,12 @@ struct MacMenuBarView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            quickActions
             Divider()
+            Button("打开批准面") {
+                openWindow(id: "approvals")
+                NSApp.activate(ignoringOtherApps: true)
+            }
             Button("打开主窗") {
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
@@ -127,8 +170,83 @@ struct MacMenuBarView: View {
             }
         }
         .padding(12)
-        .frame(width: 260)
+        .frame(width: 280)
         .task {
+            await statusStore.refresh(session: session)
+        }
+    }
+
+    /// 队首待批快捷裁决（M1 增强）：写闸给批准/驳
+    /// 回、执行给批准/拒绝，一次点按直裁、裁完即刷
+    /// （与批准面同一组端点同一语义；「总是允许」
+    /// 不上小面板，去批准面办）
+    @ViewBuilder
+    private var quickActions: some View {
+        if let record = statusStore.topGatePending {
+            Divider()
+            Text(ApprovalCardCopy.question(for: record))
+                .font(.callout)
+                .lineLimit(2)
+            HStack(spacing: 8) {
+                Button("批准") {
+                    quickGateDecide(record, approve: true)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button("驳回") {
+                    quickGateDecide(record, approve: false)
+                }
+                .controlSize(.small)
+                Spacer()
+            }
+        } else if let record = statusStore.topExecPending {
+            Divider()
+            Text(
+                record.description.isEmpty
+                    ? record.command : record.description
+            )
+            .font(.callout)
+            .lineLimit(2)
+            HStack(spacing: 8) {
+                Button("批准") {
+                    quickExecDecide(record, choice: "once")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button("拒绝") {
+                    quickExecDecide(record, choice: "deny")
+                }
+                .controlSize(.small)
+                Spacer()
+            }
+        }
+    }
+
+    private func quickGateDecide(
+        _ record: WriteGateRecord, approve: Bool
+    ) {
+        guard let config = session.config, let key = session.apiKey
+        else { return }
+        Task {
+            _ = try? await session.chatClient.writeGateDecide(
+                config: config, apiKey: key,
+                subsystem: record.subsystem, id: record.id,
+                approve: approve
+            )
+            await statusStore.refresh(session: session)
+        }
+    }
+
+    private func quickExecDecide(
+        _ record: MacExecApproval, choice: String
+    ) {
+        guard let config = session.config, let key = session.apiKey
+        else { return }
+        Task {
+            _ = try? await session.chatClient.resolveApproval(
+                config: config, apiKey: key, requestID: record.id,
+                choice: choice, reason: nil
+            )
             await statusStore.refresh(session: session)
         }
     }

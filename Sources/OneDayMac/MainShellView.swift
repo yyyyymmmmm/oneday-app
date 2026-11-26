@@ -45,10 +45,14 @@ enum MacSection: String, CaseIterable, Identifiable {
 /// 天面）。会话选中经列表店/会话店驱动聊天面打开。
 struct MainShellView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(MacStatusStore.self) private var statusStore
+    @Environment(MacApprovalStore.self) private var approvalStore
+    @Environment(MacVaultStore.self) private var vaultStore
     @State private var section: MacSection? = .chat
     @State private var listStore = MacSessionListStore()
     @State private var conversation = MacConversationStore()
     @State private var selectedSessionID: String?
+    @State private var vaultSelection: MacVaultSelection?
 
     var body: some View {
         NavigationSplitView {
@@ -75,6 +79,12 @@ struct MainShellView: View {
             if newSection != .chat {
                 conversation.saveDraft()
             }
+        }
+        .onChange(of: listStore.totalUnread) { _, newValue in
+            statusStore.noteUnread(newValue)
+        }
+        .task {
+            statusStore.noteUnread(listStore.totalUnread)
         }
     }
 
@@ -162,6 +172,13 @@ struct MainShellView: View {
             .navigationSplitViewColumnWidth(
                 min: 240, ideal: 300, max: 380
             )
+        case .vault:
+            MacVaultView(
+                store: vaultStore, selection: $vaultSelection
+            )
+            .navigationSplitViewColumnWidth(
+                min: 240, ideal: 300, max: 380
+            )
         case .hub:
             ContentUnavailableView(
                 "枢纽",
@@ -184,6 +201,10 @@ struct MainShellView: View {
         if section == .chat {
             MacChatView(
                 conversation: conversation, listStore: listStore
+            )
+        } else if section == .vault {
+            MacVaultDetailView(
+                store: vaultStore, selection: vaultSelection
             )
         } else {
             ContentUnavailableView(
