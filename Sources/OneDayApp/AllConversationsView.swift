@@ -694,7 +694,7 @@ struct AllConversationsView: View {
                 if session.isPinned == true {
                     Image(systemName: "pin.fill")
                         .font(.caption2)
-                        .foregroundStyle(Palette.inkSecondary)
+                        .foregroundStyle(Palette.inkMuted)
                 }
             }
             Text(session.humanSubtitle(now: Date()))
