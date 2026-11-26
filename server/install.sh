@@ -143,7 +143,7 @@ MODULES=(
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
   "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7b170e142693aaa73a50d06a2678e42768b3332ecdca29701fad70059f5a89d3"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
   "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583"
   "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85"
