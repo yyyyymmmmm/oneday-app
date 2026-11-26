@@ -296,6 +296,110 @@ check("project_jobs marks unparseable schedule",
       sched_proj[1]["schedule_display"] == "0 9 1 * 1"
       and sched_proj[1].get("schedule_display_raw") == "0 9 1 * 1")
 
+print("== activity feed classification + threads (queue 176) ==")
+feed = load("activity_feed", "patches/activity_feed.py")
+SKIP = {"oneday-ideas-gen"}
+
+check("classify bridge job is a system round",
+      feed.classify_item({"kind": "job", "origin": "bridge_self"},
+                         SKIP)[:2] == (True, "system_round"))
+check("classify monitor self-check is out",
+      feed.classify_item({"kind": "monitor"}, SKIP)[:2]
+      == (True, "monitor"))
+check("classify instruction-headed stateless run is a round",
+      feed.classify_item(
+          {"kind": "run", "sessionId": "run_ab12",
+           "title": "你是 OneDay 的动态作者。OneDay 是…"},
+          SKIP)[:2] == (True, "system_round"))
+check("classify llm-titled stateless run has no user intent",
+      feed.classify_item(
+          {"kind": "run", "sessionId": "run_cd34",
+           "title": "质检 OneDay 点子卡是否达标"},
+          SKIP)[:2] == (True, "no_user_intent"))
+check("classify skip-session run is a system round",
+      feed.classify_item(
+          {"kind": "run", "sessionId": "oneday-ideas-gen",
+           "title": "点子"}, SKIP)[:2] == (True, "system_round"))
+check("classify user session run is in",
+      feed.classify_item(
+          {"kind": "run", "sessionId": "oneday-main-x",
+           "title": "你好"}, SKIP) == (False, None, "run"))
+check("classify sessionless run is out",
+      feed.classify_item({"kind": "run", "title": "x"},
+                         SKIP)[:2] == (True, "no_user_intent"))
+check("classify approval is in",
+      feed.classify_item({"kind": "approval", "id": "appr:1"},
+                         SKIP) == (False, None, "approval"))
+check("classify device call is in",
+      feed.classify_item({"kind": "device", "id": "dev:c1"},
+                         SKIP) == (False, None, "device"))
+check("classify kanban unit is in",
+      feed.classify_item(
+          {"kind": "kanban", "id": "task:t_1",
+           "link": {"targetId": "t_1"}},
+          SKIP) == (False, None, "kanban"))
+check("classify unknown kind is out",
+      feed.classify_item({"kind": "mystery"}, SKIP)[:2]
+      == (True, "no_user_intent"))
+
+feed_items = [
+    {"id": "run:r1", "kind": "run", "sessionId": "oneday-main-1",
+     "runId": "r1", "title": "查天气", "status": "completed",
+     "startedAt": 100, "endedAt": 200, "counts": {"toolCalls": 3}},
+    {"id": "appr:p1", "kind": "approval",
+     "title": "batch(1 ops: create) on x",
+     "title_human": "新建了 x", "status": "completed",
+     "startedAt": 150, "endedAt": 160,
+     "link": {"kind": "approval", "targetId": "p1"}},
+    {"id": "run:r2", "kind": "run", "sessionId": "oneday-side-2",
+     "runId": "r2", "title": "在办的事", "status": "running",
+     "startedAt": 300, "endedAt": None},
+    {"id": "dev:c1", "kind": "device",
+     "title": "设备调用 · location_current", "status": "completed",
+     "startedAt": 120, "endedAt": 120,
+     "link": {"kind": "device", "targetId": "location_current"}},
+    {"id": "task:t_9", "kind": "kanban",
+     "link": {"kind": "kanban", "targetId": "t_9"},
+     "title": "目标活", "status": "completed",
+     "startedAt": 110, "endedAt": 130},
+    {"id": "job:morning:1", "kind": "job", "origin": "bridge_self",
+     "title": "动态调研", "status": "completed",
+     "startedAt": 400, "endedAt": 500},
+    {"id": "run:r9", "kind": "run", "sessionId": "run_zz",
+     "title": "你是 OneDay 的会话摘要器…", "status": "completed",
+     "startedAt": 90, "endedAt": 95},
+]
+threads1 = feed.assemble_threads(feed_items, SKIP)
+check("threads exclude rounds and keep the four prototypes",
+      [t["threadId"] for t in threads1]
+      == ["thread:run:r2", "thread:run:r1", "thread:appr:p1",
+          "thread:kanban:t_9", "thread:dev:c1"],
+      repr([t["threadId"] for t in threads1]))
+check("in-progress thread pins first with open end",
+      threads1[0]["inProgress"] is True
+      and threads1[0]["endedAt"] is None)
+check("settled thread carries merged counts",
+      threads1[1]["counts"] == {"toolCalls": 3})
+check("thread assembly is idempotent",
+      feed.assemble_threads(feed_items, SKIP) == threads1)
+walked = []
+_cursor = None
+while True:
+    _page, _cursor = feed.paginate_threads(threads1, _cursor, 2)
+    walked += [t["threadId"] for t in _page]
+    if _cursor is None:
+        break
+check("cursor walk covers every thread exactly once",
+      walked == [t["threadId"] for t in threads1], repr(walked))
+check("approval batch keys by source anchor when carried",
+      feed.thread_key({"id": "appr:p2", "kind": "approval",
+                       "sessionId": "oneday-main-9"}, "approval")
+      == "thread:appr:oneday-main-9")
+check("lone approval keys by its decision id",
+      feed.thread_key({"id": "appr:p3", "kind": "approval",
+                       "link": {"targetId": "p3"}}, "approval")
+      == "thread:appr:p3")
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)} 项: {FAILS}")
