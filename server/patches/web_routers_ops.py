@@ -34,9 +34,14 @@ from hermes_cli.web_routers._common import (
     spawn_profile_action,
 )
 from hermes_cli.web_routers.files import stream_upload_to_path
+from .error_boundary import error_response
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
+
+def _boundary_http(exc: BaseException, status: int = 500) -> HTTPException:
+    code, body = error_response(exc, status=status)
+    return HTTPException(status_code=code, detail=body)
 
 # Late-bound so a test's monkeypatch on the owning module wins at call time.
 _discover_memory_provider_statuses = late("_discover_memory_provider_statuses", "hermes_cli.web_server_memory")
@@ -239,7 +244,7 @@ async def create_webhook(body: WebhookCreate, profile: Optional[str] = None):
         try:
             published = wh._replace_subscription(name, route, expected)
         except wh.SubscriptionMutationConflict as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise _boundary_http(exc, 409) from exc
         return _webhook_route_summary(name, published, wh._get_webhook_base_url())
 
     summary = await config_scoped_to_thread(profile, _save)
@@ -430,7 +435,7 @@ async def add_credential_pool_entry(body: CredentialPoolAdd, profile: Optional[s
             raise
         except Exception as exc:
             _log.exception("POST /api/credentials/pool failed")
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise _boundary_http(exc, 400) from exc
 
     return await config_scoped_to_thread(profile, _run)
 
@@ -460,7 +465,7 @@ async def remove_credential_pool_entry(provider: str, index: int, profile: Optio
             removed = pool.remove_index(index)
         except Exception as exc:
             _log.exception("DELETE /api/credentials/pool failed")
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise _boundary_http(exc, 400) from exc
         if removed is None:
             raise HTTPException(status_code=404, detail="No pool entry at that index")
 
@@ -559,7 +564,7 @@ async def reset_memory(body: MemoryReset, profile: Optional[str] = None):
                     path.unlink()
                     deleted.append(fname)
                 except OSError as exc:
-                    raise HTTPException(status_code=500, detail=f"Could not delete {fname}: {exc}")
+                    raise _boundary_http(exc) from exc
         return {"ok": True, "deleted": deleted}
 
     return await config_scoped_to_thread(profile, _run)
@@ -600,12 +605,10 @@ async def run_backup(body: BackupRequest, profile: Optional[str] = None):
         try:
             archive.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Could not create backup directory: {exc}")
+                    raise _boundary_http(exc) from exc
         output = str(archive)
     response = _spawn_action(["backup", "-o", output], "backup", log_msg="Failed to spawn backup",
                              prefix="Failed to run backup", profile=profile)
-    if archive is not None:
-        response["archive"] = str(archive)
     return response
 
 
@@ -666,7 +669,7 @@ async def run_import_upload(
     try:
         staging_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not create import staging directory: {exc}")
+        raise _boundary_http(exc) from exc
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     target = staging_dir / f"dashboard-import-{stamp}-{secrets.token_hex(4)}-{_safe_backup_upload_name(file.filename)}"
@@ -677,7 +680,7 @@ async def run_import_upload(
     if not zipfile.is_zipfile(target):
         target.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Uploaded archive is not a valid zip file")
-    return {**_spawn_import(str(target), force, profile), "archive": str(target), "uploaded_bytes": total}
+    return {**_spawn_import(str(target), force, profile), "uploaded_bytes": total}
 
 
 @router.get("/api/ops/hooks")

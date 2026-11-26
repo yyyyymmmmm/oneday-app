@@ -639,7 +639,7 @@ def _run_brief_expand(interest: str) -> None:
     except Exception as e:  # expansion must never kill anything
         with _lock:
             expand = _db["meta"].setdefault("briefExpand", {})
-            expand["lastError"] = f"{type(e).__name__}: {e}"[:200]
+            expand["lastError"] = redact(e)
             expand["lastRunAt"] = _now()
             _save_locked()
     finally:

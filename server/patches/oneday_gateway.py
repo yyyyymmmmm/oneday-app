@@ -68,6 +68,11 @@ try:
 except ImportError:  # direct / selftest loading
     import title_engine as _title_mod
 
+try:
+    from error_boundary import redact
+except ImportError:
+    def redact(e): return str(e)[:80]
+
 import logging as _logging
 
 logger = _logging.getLogger(__name__)
@@ -199,7 +204,7 @@ def _load() -> None:
                 where = (f"隔离改名失败（{qe}），原件仍在原地 "
                          f"{DATA_PATH}")
             _degraded_reason = (
-                f"数据文件解析失败（{e}）；原件已隔离至 {where}；"
+                f"数据文件解析失败（{redact(e)}）；原件已隔离；"
                 "桥以空库只读降级运行，禁止回写正式数据文件")
             _print(f"DATA DEGRADED: {_degraded_reason}",
                   file=sys.stderr, flush=True)

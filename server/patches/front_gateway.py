@@ -43,6 +43,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from .error_boundary import error_response
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", "/opt/data"))
 HERMES_ENV_PATH = Path(os.environ.get("COMPANION_HERMES_ENV", str(HERMES_HOME / ".env")))
@@ -298,7 +299,8 @@ def mcp_initialize(url: str, token: str, timeout: float = 8.0):
     except HTTPError as e:
         return False, f"对方返回 {e.code}", None
     except Exception as e:
-        return False, f"连不上：{e}", None
+        _status, body = error_response(e)
+        return False, body["error"], None
     if "serverInfo" not in raw and "protocolVersion" not in raw:
         return False, "对方应答不像一个云电脑服务", None
     tools = None

@@ -48,6 +48,7 @@ from hermes_cli.web_models import (
     ProfileSoulUpdate, ProfileDescriptionUpdate, ProfileModelUpdate, ProfileDescribeAuto,
     SessionPrScanBody)
 from hermes_cli.web_server_profiles import _config_profile_scope, _hermes_home_scope
+from .error_boundary import error_response, not_found as boundary_not_found
 
 # Same logger the handlers used before extraction (identical logger object).
 _log = logging.getLogger("hermes_cli.web_server")
@@ -84,7 +85,7 @@ _spawn_hermes_action = late("_spawn_hermes_action", "hermes_cli.web_server_gatew
 def _profile_to_dict(info) -> dict[str, Any]:
     attr = functools.partial(getattr, info)
     return {
-        "name": attr("name", ""), "path": str(attr("path", "")),
+        "name": attr("name", ""),
         "is_default": bool(attr("is_default", False)),
         "model": attr("model", None), "provider": attr("provider", None),
         "has_env": bool(attr("has_env", False)),
@@ -190,14 +191,17 @@ def _profile_errors(log_msg: str, *args, not_found=(FileNotFoundError,),
     except HTTPException:
         raise
     except not_found as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        status, body = boundary_not_found()
+        raise HTTPException(status_code=status, detail=body)
     except bad_request as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        status, body = error_response(e, status=400)
+        raise HTTPException(status_code=status, detail=body)
     except ProfileIdentitySettlementPending:
         raise
     except Exception as e:
         _log.exception(log_msg, *args)
-        raise HTTPException(status_code=500, detail=str(e))
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
 
 
 async def _read_off_loop(read, label: str, errors):
@@ -205,7 +209,8 @@ async def _read_off_loop(read, label: str, errors):
     try:
         return await run_in_threadpool(read)
     except errors as e:
-        raise HTTPException(status_code=500, detail=f"Could not read {label}: {e}")
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
 
 
 def _best_effort(log_msg: str, *args, fn, default=None):
@@ -882,7 +887,7 @@ async def create_profile_endpoint(body: ProfileCreate):
             fn=lambda: _spawn_install(ident))}
         for ident in ((i or "").strip() for i in body.hub_skills) if ident]
 
-    return {"ok": True, "name": body.name, "path": str(path), "model_set": model_set, "model_error": model_error,
+    return {"ok": True, "name": body.name, "model_set": model_set, "model_error": model_error,
             "mcp_written": mcp_written, "skills_disabled": skills_disabled,
             "hub_installs": hub_installs, "soul_set": body.soul is not None}
 
@@ -977,8 +982,8 @@ async def rename_profile_endpoint(name: str, body: ProfileRename):
     except ValueError:
         is_default = False
     if is_default:
-        return {"ok": True, "name": "default", "display_name": body.new_name.strip(), "path": str(path)}
-    return {"ok": True, "name": profiles_mod.normalize_profile_name(body.new_name), "path": str(path)}
+        return {"ok": True, "name": "default", "display_name": body.new_name.strip()}
+    return {"ok": True, "name": profiles_mod.normalize_profile_name(body.new_name)}
 
 
 @router.delete("/api/profiles/{name}")
@@ -997,9 +1002,9 @@ async def delete_profile_endpoint(name: str):
             # loop that parks every request past the desktop's 10 s WebSocket ready-probe.
             path = await run_in_threadpool(profiles_mod.delete_profile, name, yes=True)
     except ProfileIdentitySettlementPending as exc:
-        return {"ok": True, "path": str(exc.path), "identity_settled": False,
-                "settlement_pending": True, "retry_command": exc.retry_command}
-    return {"ok": True, "path": str(path)}
+        return {"ok": True, "identity_settled": False,
+                "settlement_pending": True}
+    return {"ok": True}
 
 
 @router.get("/api/profiles/{name}/soul")
@@ -1041,7 +1046,8 @@ async def update_profile_soul(name: str, body: ProfileSoulUpdate):
         await run_in_threadpool(_run)
     except OSError as e:
         _log.exception("PUT /api/profiles/%s/soul failed", name)
-        raise HTTPException(status_code=500, detail=f"Could not write SOUL.md: {e}")
+        status, body = error_response(e)
+        raise HTTPException(status_code=status, detail=body)
     return {"ok": True}
 
 
@@ -1113,14 +1119,16 @@ async def export_profile_endpoint(name: str, body: ProfileExport):
         try:
             output = str(profiles_mod.get_profile_export_path(name))
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            status, body = error_response(exc, status=400)
+            raise HTTPException(status_code=status, detail=body)
         except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Could not create export directory: {exc}")
+            status, body = error_response(exc)
+            raise HTTPException(status_code=status, detail=body)
 
     with _profile_errors("POST /api/profiles/%s/export failed", name):
         result = await run_in_threadpool(
             profiles_mod.export_profile, name, output, extra_files=body.extra_files or None)
-    return {"ok": True, "archive": str(result)}
+    return {"ok": True}
 
 
 @router.post("/api/profiles/import")
@@ -1149,7 +1157,7 @@ async def import_profile_endpoint(body: ProfileImport):
         desktop_overlay = _best_effort(
             "Reading desktop.json from imported profile %s failed", imported,
             fn=lambda: _read_desktop_overlay(profile_dir))
-    return {"ok": True, "name": imported, "path": str(profile_dir), "desktop": desktop_overlay}
+    return {"ok": True, "name": imported, "desktop": desktop_overlay}
 
 
 @router.get("/api/profiles/{name}/desktop-overlay")
