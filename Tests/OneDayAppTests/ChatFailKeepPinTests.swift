@@ -160,17 +160,27 @@ final class ChatFailKeepPinTests: XCTestCase {
         window.layoutIfNeeded()
     }
 
-    /// 已连接装配：非演示态＋connectDirect 落位
-    /// config/apiKey——drainOutboxIfNeeded 的守卫
-    /// （!isDemo、config/apiKey 非空）由此全过
+    /// 已连接装配：真实路径（demoMode: .off）＋注入
+    /// 内存钥匙串替身（预置 apiKey）＋落盘存储注入＋脚本桩
+    /// client——drainOutboxIfNeeded 守卫全过（!isDemo
+    /// 过、apiKey 从注入读到非空）
     private func makeConnectedAppState(
         mainThreadID: UUID
     ) async throws -> AppState {
+        let sharedOutboxRetry = OutboxRetryStore(persisted: true)
+        let sharedSessionLedger = SessionLedger(persisted: true)
+        let sharedRunLedger = RunLedgerStore(persisted: true)
+        let testAPIKey = "failkeep-test-key"
+
         let appState = AppState(
             client: CountingCatalogClient(
                 recorder: CatalogCallRecorder()
             ),
-            demoMode: .off
+            demoMode: .off,
+            outboxRetryStorage: sharedOutboxRetry,
+            sessionLedgerStorage: sharedSessionLedger,
+            runLedgerStorage: sharedRunLedger,
+            apiKeyProvider: { testAPIKey }
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sideChats.setLastThreadID(mainThreadID)
@@ -180,17 +190,12 @@ final class ChatFailKeepPinTests: XCTestCase {
             config: try XCTUnwrap(
                 ServerConfig(rawInput: "https://failkeep.test")
             ),
-            apiKey: "failkeep-test-key"
+            apiKey: testAPIKey
         )
 
-        // 探针（0.51.0 修复轮，判读 release-0510-red12-triage）：
-        // connectDirect 已把 apiKey 经 KeychainStore.save 落盘，
-        // appState.apiKey 即 KeychainStore.read 读回——读回 nil
-        // 即 A 簇断点在钥匙串往返（提交泵的 apiKey 闸永远过
-        // 不了），与提交泵／发送产品代码无关。
-        XCTAssertNotNil(
-            appState.apiKey,
-            "探针红：connectDirect 后 apiKey 钥匙串读回为 nil——A 簇断点在钥匙串往返，先修测试台/夹具，不许动产品代码"
+        XCTAssertEqual(
+            appState.apiKey, testAPIKey,
+            "注入的 apiKey 应从 apiKeyProvider 读到"
         )
         return appState
     }
