@@ -14,8 +14,9 @@ struct VaultEditView: View {
     @State private var service = ""
     @State private var domainsText = ""
     @State private var username = ""
-    @State private var selectedFields: Set<VaultFieldType> = []
+    @State private var selectedFields: Set<VaultFieldType> = [.password]
     @State private var fieldValues: [VaultFieldType: String] = [:]
+    @State private var revealedFields: Set<VaultFieldType> = []
     @State private var submitting = false
     @State private var submitError: String?
     @State private var domainsWarning: String?
@@ -119,31 +120,63 @@ struct VaultEditView: View {
                 if !selectedFields.isEmpty {
                     Section {
                         ForEach(Array(selectedFields).sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { fieldType in
-                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                                Text(fieldType.displayName)
-                                    .font(.meta)
-                                    .foregroundStyle(Palette.inkMuted)
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                                HStack {
+                                    Text(fieldType.displayName)
+                                        .font(.footnote.weight(.medium))
+                                        .foregroundStyle(Palette.inkSecondary)
+                                    Spacer()
+                                    if fieldType == .password || fieldType == .secret {
+                                        Button {
+                                            fieldValues[fieldType] = Self.generateStrongSecret()
+                                            revealedFields.insert(fieldType)
+                                            Haptics.selection()
+                                        } label: {
+                                            Label("生成强密码", systemImage: "wand.and.stars")
+                                                .font(.caption.weight(.medium))
+                                                .foregroundStyle(Palette.primary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
 
-                                if fieldType.isSecret {
-                                    SecureField("", text: Binding(
-                                        get: { fieldValues[fieldType] ?? "" },
-                                        set: { fieldValues[fieldType] = $0 }
-                                    ))
-                                    .font(.body)
-                                    .autocorrectionDisabled()
-                                    .textInputAutocapitalization(.never)
-                                    .privacySensitive()
-                                } else {
-                                    TextField("", text: Binding(
-                                        get: { fieldValues[fieldType] ?? "" },
-                                        set: { fieldValues[fieldType] = $0 }
-                                    ))
-                                    .font(.body)
-                                    .autocorrectionDisabled()
-                                    .textInputAutocapitalization(.never)
+                                HStack(spacing: OneDayMetrics.spacingS) {
+                                    if fieldType.isSecret && !revealedFields.contains(fieldType) {
+                                        SecureField("输入\(fieldType.displayName)", text: Binding(
+                                            get: { fieldValues[fieldType] ?? "" },
+                                            set: { fieldValues[fieldType] = $0 }
+                                        ))
+                                        .font(.body.monospaced())
+                                        .autocorrectionDisabled()
+                                        .textInputAutocapitalization(.never)
+                                        .privacySensitive()
+                                    } else {
+                                        TextField("输入\(fieldType.displayName)", text: Binding(
+                                            get: { fieldValues[fieldType] ?? "" },
+                                            set: { fieldValues[fieldType] = $0 }
+                                        ))
+                                        .font(fieldType.isSecret ? .body.monospaced() : .body)
+                                        .autocorrectionDisabled()
+                                        .textInputAutocapitalization(.never)
+                                    }
+                                    if fieldType.isSecret {
+                                        Button {
+                                            if revealedFields.contains(fieldType) {
+                                                revealedFields.remove(fieldType)
+                                            } else {
+                                                revealedFields.insert(fieldType)
+                                            }
+                                        } label: {
+                                            Image(systemName: revealedFields.contains(fieldType) ? "eye.slash" : "eye")
+                                                .font(.subheadline)
+                                                .foregroundStyle(Palette.inkSecondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel(revealedFields.contains(fieldType) ? "隐藏" : "显示")
+                                    }
                                 }
                             }
-                            .padding(.vertical, OneDayMetrics.spacingS)
+                            .padding(.vertical, OneDayMetrics.spacingXS)
                         }
                     } header: {
                         Text(isEditing ? "字段值（留空 = 本次不提交该字段）" : "字段值")
@@ -186,6 +219,17 @@ struct VaultEditView: View {
                         dismiss()
                     }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    if submitting {
+                        ProgressView()
+                    } else {
+                        Button(isEditing ? "保存" : "创建") {
+                            Task { await submitForm() }
+                        }
+                        .fontWeight(.semibold)
+                        .disabled(!canSubmit)
+                    }
+                }
             }
             .alert("提交失败", isPresented: Binding(
                 get: { submitError != nil },
@@ -203,6 +247,7 @@ struct VaultEditView: View {
                     service = entry.service
                     domainsText = entry.domains.joined(separator: "\n")
                     username = entry.username ?? ""
+                    selectedFields.removeAll()
                     for fieldName in entry.fieldNames {
                         if let fieldType = VaultFieldType(rawValue: fieldName) {
                             selectedFields.insert(fieldType)
@@ -310,6 +355,21 @@ struct VaultEditView: View {
         } catch {
             submitError = L10n.string("提交失败")
         }
+    }
+
+    private static func generateStrongSecret(length: Int = 20) -> String {
+        let charset = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*")
+        var result = ""
+        result.reserveCapacity(length)
+        for _ in 0..<length {
+            var byte: UInt8 = 0
+            let status = SecRandomCopyBytes(kSecRandomDefault, 1, &byte)
+            let index = status == errSecSuccess
+                ? Int(byte) % charset.count
+                : Int.random(in: 0..<charset.count)
+            result.append(charset[index])
+        }
+        return result
     }
 }
 

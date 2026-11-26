@@ -2,59 +2,13 @@
 import UIKit
 #endif
 
-/// 触觉反馈（0.36.2 按《动效宪法》表 D 重建，体验
-/// 三件规格 §2）：事件分化是目标——同事件同 pattern
-/// 全 App 一致，用户靠一致性学会这套词。
-/// - 任务成功（发送/保存/连接/复制/采纳/批准/
-///   目标达成）＝ notification .success
-/// - 操作失败/报错＝ notification .error（0.36.2
-///   归位：旧口径拿 .warning 冒充失败，自本版改判）
-/// - 需注意未失败（结果未确认、驳回类决定）＝
-///   notification .warning，只给本义
-/// - 离散值变化（分段切换）＝ selection（经
-///   .sensoryFeedback 落点，不走本枚举）
-/// - 删除确认落锤＝ impact .heavy；删除成功后不再
-///   叠 success——同一因果链只震一次
-/// - 发送动作（消息落盘上屏同帧）＝ impact .light
-///   （2026-11-14 用户拍板定版：补最轻档、完成保留
-///   success、不设 App 内开关——跟随系统总闸；本
-///   行同时订正旧头注把 .success 语义清单里的「发
-///   送」误挂生成完成点的口径差：发送＝impact
-///   .light 在动作点、success 在生成完成点，两点
-///   各归其位）
-/// - 抽屉手势吸附落位（状态真翻转）＝ impact
-///   .light（矩阵条件项，2026-11-14 随定版包落；
-///   按钮开合仍无触感）
-/// 防腻清单（明示防回潮）：普通点按、行点击、tab
-/// 切换、页面进出、滚动、键盘、抽屉开合、翻页、
-/// 下拉刷新、系统开关/Picker 一律无触感。
-/// §431 修宪（2026-11-24 用户真机 verdict）：用户
-/// 对照参照应用点名「点主题色板、点展开小箭头都
-/// 有轻微触感」——防腻清单的「行点击／系统
-/// Picker」两条对下列落点不再适用：外观页主题色
-/// 板点选、模式与语言勾选行点选、虚拟形象大小选
-/// 择（值真变化时 selection），及虚拟形象大小
-/// Menu 行点开（声明式 impact .light）。清单其余
-/// 条目不变；新增落点全走 .sensoryFeedback 声明
-/// 式、计数由 HapticsMatrixTests 钉住。
-/// §488（2026-11-24，HIG 批 B-1 分拣）：error 落点
-/// 全量逐处分拣落定——用户主动动作且失败当场呈现
-/// 的保留；唯一改判＝改名校验「回读未确认」支归
-/// warning（表 D 本义直接适用，与删除未生效同类
-/// 落点同档）。自此立规：error 只给真失败；「已
-/// 发出／已执行但结果未确认」一律 warning 或无触
-/// 感，不许再挂 error。
-/// 历史口径：0.3.2「只挂结果」纪律（DESIGN-V4
-/// §17）已被宪法表 D 取代；0.2.2 的 impact 点曾随
-/// 之撤销，本版按表 D 定点重建。impact 落点：删除
-/// 落锤 heavy 一处；0.36.6 语音包按表 D 新增行落
-/// light 两处（开始录音/取消录音），停止落稿无触感；
-/// 0.36.19 右滑引用过阈触发落 light 一处（与引用落
-/// 定同一因果链，只震这一次，见 §84.3）；2026-11-14
-/// 定版包再落 light 两处（发送动作、抽屉手势吸附）。
-/// 复制点的触感在 CopyButton 内以 SwiftUI
-/// .sensoryFeedback(.success) 施加（设计层组件够
-/// 不着本文件），语义同属本表。
+/// 触觉反馈（预热复用池版，遵循《动效宪法》表 D）：
+/// - 任务成功（发送/保存/连接/复制/采纳/批准/目标达成）＝ notification .success
+/// - 操作失败/报错＝ notification .error
+/// - 需注意未失败（结果未确认、驳回类决定）＝ notification .warning
+/// - 离散值变化（分段切换）＝ selection
+/// - 删除确认落锤＝ impact .heavy；发送/录音/右滑引用/抽屉吸附＝ impact .light
+@MainActor
 enum Haptics {
     /// 触感总开关持久化键（默认开启，设置·偏好页单一总闸）
     static let enabledStorageKey = "preferences.haptics.enabled"
@@ -63,50 +17,74 @@ enum Haptics {
         UserDefaults.standard.object(forKey: enabledStorageKey) as? Bool ?? true
     }
 
+    #if canImport(UIKit)
+    private static let notificationGenerator = UINotificationFeedbackGenerator()
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
+    private static var impactGenerators: [UIImpactFeedbackGenerator.FeedbackStyle: UIImpactFeedbackGenerator] = [:]
+
+    private static func impactGenerator(
+        for style: UIImpactFeedbackGenerator.FeedbackStyle
+    ) -> UIImpactFeedbackGenerator {
+        if let cached = impactGenerators[style] {
+            return cached
+        }
+        let generator = UIImpactFeedbackGenerator(style: style)
+        impactGenerators[style] = generator
+        return generator
+    }
+
+    /// 预热常用触感引擎，消除首次触发的硬件唤醒延迟
+    static func prepare() {
+        guard isEnabled else { return }
+        notificationGenerator.prepare()
+        selectionGenerator.prepare()
+        impactGenerator(for: .light).prepare()
+    }
+    #endif
+
     /// 任务成功（通知型反馈）
     static func success() {
         guard isEnabled else { return }
         #if canImport(UIKit)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        notificationGenerator.notificationOccurred(.success)
+        notificationGenerator.prepare()
         #endif
     }
 
-    /// 需注意未失败（通知型反馈）：只给本义——
-    /// 结果未确认、需用户注意但动作本身没失败
+    /// 需注意未失败（通知型反馈）
     static func warning() {
         guard isEnabled else { return }
         #if canImport(UIKit)
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        notificationGenerator.notificationOccurred(.warning)
+        notificationGenerator.prepare()
         #endif
     }
 
-    /// 操作失败/报错（通知型反馈，0.36.2 新增归位）
+    /// 操作失败/报错（通知型反馈）
     static func error() {
         guard isEnabled else { return }
         #if canImport(UIKit)
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
+        notificationGenerator.notificationOccurred(.error)
+        notificationGenerator.prepare()
         #endif
     }
 
-    /// 离散值变化（选择型反馈，0.36.2 新增）：即用
-    /// 即建与现行写法一致；视图层优先用
-    /// .sensoryFeedback(.selection, trigger:) 声明式
-    /// 落点，本函数留给命令式路径
+    /// 离散值变化（选择型反馈）
     static func selection() {
         guard isEnabled else { return }
         #if canImport(UIKit)
-        UISelectionFeedbackGenerator().selectionChanged()
+        selectionGenerator.selectionChanged()
+        selectionGenerator.prepare()
         #endif
     }
 
-    /// 物理落锤（影响型反馈，0.36.2 新增）：.heavy
-    /// 只给删除确认；.light 落点＝开始/取消录音、右
-    /// 滑引用过阈、发送动作、抽屉手势吸附（逐处见
-    /// 文件头语义表）
+    /// 物理落锤（影响型反馈）
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard isEnabled else { return }
         #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: style).impactOccurred()
+        let generator = impactGenerator(for: style)
+        generator.impactOccurred()
+        generator.prepare()
         #endif
     }
 }

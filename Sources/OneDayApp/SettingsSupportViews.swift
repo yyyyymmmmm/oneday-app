@@ -351,10 +351,6 @@ struct AboutView: View {
                 title: "Hermes 开源项目",
                 url: "https://github.com/NousResearch/hermes-agent"
             )
-            linkRow(
-                title: "Icons by Lordicon",
-                url: "https://lordicon.com"
-            )
         } header: {
             supportHeader("开源与署名")
         }

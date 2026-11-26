@@ -58,6 +58,7 @@ struct ServerDetailView: View {
                 }
             }
             .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
 
             Section {
                 Button {
@@ -170,17 +171,14 @@ struct ServerDetailView: View {
                 Button(role: .destructive) {
                     showDisconnectConfirm = true
                 } label: {
-                    HStack {
-                        Spacer()
-                        Label("断开连接", systemImage: "rectangle.portrait.and.arrow.right")
-                            .font(.rowTitleL.weight(.medium))
-                            .foregroundStyle(Palette.danger)
-                        Spacer()
-                    }
-                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    Text("断开连接")
+                        .font(.rowTitleL.weight(.medium))
+                        .foregroundStyle(Palette.danger)
+                        .frame(maxWidth: .infinity, minHeight: OneDayMetrics.settingsRowHeight, alignment: .center)
                 }
             }
             .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)

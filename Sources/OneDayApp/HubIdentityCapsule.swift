@@ -37,58 +37,77 @@ struct HubIdentityCapsule: View {
     }
 
     private var capsuleButton: some View {
-        Button {
-            onOpenHub()
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingS) {
+        GlassEffectContainer(spacing: 6) {
+            HStack(spacing: 6) {
                 if let avatar {
-                    ZStack(alignment: .bottomTrailing) {
-                        avatar
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 28, height: 28)
-                            .clipShape(Circle())
-                        if let statusColor {
-                            Circle()
-                                .fill(statusColor)
-                                .frame(width: 8, height: 8)
-                                .overlay {
-                                    Circle()
-                                        .stroke(Palette.surface, lineWidth: 1.5)
-                                }
-                                .offset(x: 1, y: 1)
+                    Button {
+                        onOpenHub()
+                    } label: {
+                        ZStack(alignment: .bottomTrailing) {
+                            avatar
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 34, height: 34)
+                                .clipShape(Circle())
+                            if let statusColor {
+                                Circle()
+                                    .fill(statusColor)
+                                    .frame(width: 9, height: 9)
+                                    .overlay {
+                                        Circle()
+                                            .stroke(Palette.surface, lineWidth: 1.5)
+                                    }
+                                    .offset(x: 1, y: 1)
+                            }
                         }
+                        .frame(
+                            width: HeaderButtonSpec.diameter,
+                            height: HeaderButtonSpec.diameter
+                        )
+                        .glassEffect(.regular, in: Circle())
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Circle())
                     }
+                    .buttonStyle(.odPressable)
                     .accessibilityHidden(true)
                 }
-                VStack(alignment: avatar != nil ? .leading : .center, spacing: 1) {
-                    Text(displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    if let text = effectiveStatusWord {
-                        Text(text)
-                            .font(.caption2)
-                            .foregroundStyle(
-                                needsApproval
-                                    ? Palette.primary
-                                    : Palette.inkSecondary
-                            )
+
+                Button {
+                    onOpenHub()
+                } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Palette.ink)
                             .lineLimit(1)
+                        if let text = effectiveStatusWord {
+                            Text(text)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(
+                                    needsApproval
+                                        ? Palette.primary
+                                        : Palette.inkSecondary
+                                )
+                                .lineLimit(1)
+                        }
                     }
+                    .padding(.horizontal, OneDayMetrics.spacingSM)
+                    .frame(height: HeaderButtonSpec.diameter)
+                    .glassEffect(.regular, in: Capsule())
+                    .frame(minHeight: OneDayMetrics.minTapTarget)
+                    .contentShape(Capsule())
                 }
+                .buttonStyle(.odPressable)
+                .accessibilityLabel(
+                    effectiveStatusWord.map { "\(displayName)，\($0)，打开枢纽" }
+                        ?? "\(displayName)，打开枢纽"
+                )
+                .accessibilityIdentifier("topbar.identityCapsule")
             }
-            .padding(.leading, avatar != nil ? 6 : OneDayMetrics.spacingSM)
-            .padding(.trailing, OneDayMetrics.spacingSM)
-            .frame(height: OneDayMetrics.minTapTarget)
-            .glassEffect(.regular, in: Capsule())
         }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel(
-            effectiveStatusWord.map { "\(displayName)，\($0)，打开枢纽" }
-                ?? "\(displayName)，打开枢纽"
-        )
-        .accessibilityIdentifier("topbar.identityCapsule")
         .contextMenu {
             Button {
                 onOpenHub()

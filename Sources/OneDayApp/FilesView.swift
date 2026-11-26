@@ -246,7 +246,7 @@ enum FileUploadPerformer {
                    where: { $0.name == name && !$0.isDirectory }
                ),
                entry.size == Int64(data.count) {
-                Haptics.success()
+                await MainActor.run { Haptics.success() }
                 return .finished(
                     message: "已上传「\(name)」并在服务端确认。",
                     confirmed: true
@@ -258,7 +258,7 @@ enum FileUploadPerformer {
             )
         } catch {
             // 失败改判 error（0.36.2，表 D 语义归位）
-            Haptics.error()
+            await MainActor.run { Haptics.error() }
             return .finished(
                 message: (error as? HermesError)?.userMessage
                     ?? "上传失败，请稍后再试。",

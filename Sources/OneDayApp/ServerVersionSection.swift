@@ -128,6 +128,7 @@ struct ServerVersionSection: View {
             footerContent
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
         .task(id: appState.config?.baseString ?? "") {
             await store.load(appState: appState)
         }
