@@ -1240,9 +1240,9 @@ public struct MessageVaultRequest: Decodable, Sendable, Equatable {
               requestID.hasPrefix("vreq_"),
               !service.isEmpty,
               !rawFields.isEmpty,
-              rawFields.allSatisfy {
+              rawFields.allSatisfy({
                   !$0.trimmingCharacters(in: .whitespaces).isEmpty
-              },
+              }),
               !status.isEmpty
         else {
             throw DecodingError.dataCorruptedError(
