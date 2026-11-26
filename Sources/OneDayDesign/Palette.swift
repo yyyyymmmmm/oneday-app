@@ -234,7 +234,7 @@ public enum Palette {
     /// dp-214：浅档 #FCFCFC→#FFFFFF（systemBackground
     /// 逐值对齐，Δ2 口径收敛）
     public static let pageBG = appleColor(
-        light: .systemBackground, dark: .systemBackground
+        light: 0xFFFFFF, dark: .systemBackground
     )
     /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗档
     /// secondarySystemBackground #1C1C1E——层级步对齐
@@ -267,7 +267,7 @@ public enum Palette {
     /// 底同锚 systemBackground #000）
     /// dp-214：浅档 #FCFCFC→#FFFFFF（与 pageBG 同步收敛）
     public static let chatSurface = appleColor(
-        light: .systemBackground, dark: .systemBackground
+        light: 0xFFFFFF, dark: .systemBackground
     )
     /// 聊天页背景（台账 179，OB-I1，DESIGN §391）：只供
     /// 聊天页背景层现读——默认档与 chatSurface 逐值相
