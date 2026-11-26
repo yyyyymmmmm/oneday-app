@@ -35,6 +35,16 @@ snapshot (``created`` / ``decided`` / ``expired`` / ``withdrawn`` /
 removes. Command/description are stored only after the gateway's own
 egress redaction (``_redact_approval_command``), mirroring decisions.jsonl
 metadata discipline.
+
+Approval bar 1 (queue 182; proposal 177 as revised by probe 180) adds a
+second event family to the same stream: ``guard_event`` snapshots for
+exec decisions that resolve instantly inside the upstream guard and so
+never park -- unattended instant denies (the route-A audit point for
+cron) and guard allow hits (a flagged command waved through by a
+standing grant). They are captured by an observing shim this module
+installs around the upstream guard entry points; see the guard-events
+section below. Same dead-line as everything else here: capture is
+observation only, never part of the decision.
 """
 
 import hashlib
@@ -43,6 +53,7 @@ import logging
 import os
 import threading
 import time
+import uuid
 
 logger = logging.getLogger("gateway.platforms.approval_projection")
 
@@ -399,6 +410,294 @@ def _compact():
         logger.warning("approval ledger compaction failed", exc_info=True)
 
 
+# ------------------------------------------------------------- guard events
+#
+# The reconcile path above only sees approvals that park and wait. Two
+# exec-line decision classes resolve instantly inside the upstream guard
+# (tools.approval.check_all_command_guards / check_execute_code_guard)
+# and historically left no structured trace:
+#
+# - unattended instant denies (cron / single-query / unattended
+#   platform): cron_mode=deny resolves on the spot, never enqueues, and
+#   used to exist only as a WARNING line in agent.log -- this is the
+#   route-A (甲) audit point the 177 proposal asked for;
+# - guard allow hits: a flagged command waved through because a standing
+#   grant covers every finding (the result carries pre_approved
+#   provenance with scopes permanent / session / allowlist).
+#
+# Capture is an observing shim installed by start() around the upstream
+# entry points: the original function runs untouched, its result is
+# returned verbatim, and classification + recording happen afterwards
+# under a blanket try/except. Uninstall the shim (or set
+# HERMES_APPROVAL_GUARD_EVENTS=off before start) and approvals behave
+# exactly as upstream -- the bar-1 removal property.
+#
+# Records are born terminal (status "answered": the decision already
+# happened), carry source "guard" plus an event_kind, and fold into the
+# same ledger. Idempotency: each guard call mints one event key;
+# record_guard_event derives the request_id from the key, so
+# re-delivering the same key never double-records, while distinct
+# occurrences (distinct keys) each land.
+
+GUARD_EVENTS_ENV = "HERMES_APPROVAL_GUARD_EVENTS"
+_GUARD_OFF_VALUES = ("0", "off", "false", "no")
+_UNATTENDED_CLAUSE = "without a user present to approve it"
+_GUARD_TEXT_CAP = 8192
+
+_guard_hooks = []          # [(module, attr, original), ...] for uninstall
+_guard_fold_loaded = False
+
+
+def _guard_events_enabled():
+    return os.environ.get(GUARD_EVENTS_ENV, "").strip().lower() \
+        not in _GUARD_OFF_VALUES
+
+
+def classify_guard_result(result, *, gate="command", unattended=()):
+    """Classify one upstream guard result into a recordable event.
+
+    Returns (event_kind, extra_fields) or None. Pure function of the
+    result dict plus the unattended context names active at call time
+    -- the selftest feeds it the upstream shapes directly.
+
+    - approved with a non-empty ``pre_approved`` provenance list: the
+      guard engaged and a standing grant covered the findings ->
+      "guard_allow" (scopes from the provenance entries).
+    - denied with no human in the loop and an unattended context
+      active -> the instant unattended deny: "cron_deny" for the cron
+      context, "unattended_deny" for single-query / unattended
+      platform. For the command gate the denial must carry the
+      unattended clause in its message and none of the human-decision
+      keys (outcome / user_consent); the execute_code gate's instant
+      deny is its ``_denied`` shape with outcome="blocked", produced
+      only by its unattended branch.
+    - anything else (clean approvals, parked pendings, human answers)
+      is not a guard event: parked approvals and their settlements are
+      captured by the reconcile path above.
+    """
+    if not isinstance(result, dict):
+        return None
+    if result.get("approved") is True:
+        pre = result.get("pre_approved")
+        if isinstance(pre, list) and pre:
+            scopes = sorted({str(e.get("scope")) for e in pre
+                             if isinstance(e, dict) and e.get("scope")})
+            descriptions = [str(e.get("description")) for e in pre
+                            if isinstance(e, dict)
+                            and e.get("description")]
+            return "guard_allow", {"scopes": scopes,
+                                   "provenance": descriptions}
+        return None
+    if result.get("approved") is not False:
+        return None
+    if result.get("status") in ("pending_approval", "approval_required") \
+            or result.get("approval_pending"):
+        return None  # parked: the reconcile path owns it
+    if not unattended:
+        return None
+    message = result.get("message") or ""
+    if _UNATTENDED_CLAUSE not in message:
+        return None
+    if gate == "execute_code":
+        if result.get("outcome") != "blocked":
+            return None
+    elif "outcome" in result or "user_consent" in result:
+        return None  # a human-decision path produced this denial
+    context = unattended[0]
+    kind = "cron_deny" if context == "cron" else "unattended_deny"
+    return kind, {"guard_context": context}
+
+
+def _guard_record(event_key, kind, extra, *, gate, command, description,
+                  pattern_keys, session_key):
+    now = _now()
+    return {
+        "request_id": "evt-" + hashlib.sha256(
+            event_key.encode("utf-8")).hexdigest()[:24],
+        "session_key": session_key,
+        "run_id": None,
+        "session_id": None,
+        "source": "guard",
+        "event_kind": kind,
+        "gate": gate,
+        "answerable": False,
+        "command": _redact(command or "")[:_GUARD_TEXT_CAP],
+        "description": _redact(description or "")[:_GUARD_TEXT_CAP],
+        "pattern_keys": list(pattern_keys or []),
+        "choices": [],
+        "status": "answered",
+        "choice": "deny" if kind in ("cron_deny", "unattended_deny")
+                  else None,
+        "scopes": extra.get("scopes"),
+        "guard_context": extra.get("guard_context"),
+        "created_at": now,
+        "expires_at": None,
+        "decided_at": now,
+    }
+
+
+def record_guard_event(event_key, kind, extra=None, *, gate="command",
+                       command="", description="", pattern_keys=(),
+                       session_key=None):
+    """Fold one guard event into the ledger, idempotent by event_key.
+
+    Returns the record (the pre-existing one when the key was already
+    recorded). Never raises: an IO failure marks the projection
+    degraded; the upstream decision is already made and unaffected.
+    Works before start() (guard calls can precede the first handler):
+    the ledger fold is loaded lazily on first use.
+    """
+    global _guard_fold_loaded, _degraded
+    extra = extra or {}
+    with _lock:
+        if not _started and not _guard_fold_loaded:
+            try:
+                _load_ledger()
+            except Exception:
+                _degraded = True
+                logger.warning("guard event: ledger pre-load failed",
+                               exc_info=True)
+            _guard_fold_loaded = True
+        record = _guard_record(event_key, kind, extra, gate=gate,
+                               command=command, description=description,
+                               pattern_keys=pattern_keys,
+                               session_key=session_key)
+        existing = _records.get(record["request_id"])
+        if existing is not None:
+            return existing
+        _emit("guard_event", record)
+        return record
+
+
+def _observe_guard_result(gate, command, result):
+    """Classify + record one guard call's result. Swallows everything."""
+    try:
+        from tools import approval as _approval
+    except Exception:
+        return
+    try:
+        unattended = []
+        try:
+            unattended = [ctx.name
+                          for ctx in _approval._unattended_contexts()]
+        except Exception:
+            unattended = []
+        classified = classify_guard_result(result, gate=gate,
+                                           unattended=unattended)
+        if classified is None:
+            return
+        kind, extra = classified
+        session_key = None
+        try:
+            session_key = _approval.get_current_session_key()
+        except Exception:
+            session_key = None
+        pattern_keys = []
+        raw_keys = result.get("pattern_keys") or result.get("pattern_key")
+        if isinstance(raw_keys, list):
+            pattern_keys = [str(k) for k in raw_keys if k]
+        elif isinstance(raw_keys, str) and raw_keys:
+            pattern_keys = [raw_keys]
+        if not pattern_keys and kind == "guard_allow":
+            try:
+                pattern_keys = [key for key, _text in
+                                _approval._command_findings(command or "")]
+            except Exception:
+                pattern_keys = []
+        description = result.get("description") or ""
+        if kind == "guard_allow" and not description:
+            description = "; ".join(extra.get("provenance") or [])
+        record_guard_event(
+            "guard|" + uuid.uuid4().hex, kind, extra, gate=gate,
+            command=command or "", description=description,
+            pattern_keys=pattern_keys, session_key=session_key)
+    except Exception:
+        logger.debug("guard event capture failed", exc_info=True)
+
+
+def _wrap_guard(fn, gate):
+    def _wrapper(*args, **kwargs):
+        result = fn(*args, **kwargs)
+        try:
+            command = ""
+            if args:
+                command = args[0]
+            elif "command" in kwargs:
+                command = kwargs["command"]
+            elif "code" in kwargs:
+                command = kwargs["code"]
+            _observe_guard_result(gate, command, result)
+        except Exception:
+            pass
+        return result
+    _wrapper._oneday_guard_observed = True
+    _wrapper._oneday_guard_original = fn
+    return _wrapper
+
+
+def install_guard_hooks():
+    """Wrap the upstream guard entry points with the observing shim.
+
+    Covers tools.approval.check_all_command_guards and
+    check_execute_code_guard. terminal_tool bound the original
+    check_all_command_guards object at import time (as
+    _check_all_guards_impl), so that reference is re-pointed too;
+    code_execution_tool imports its guard at call time and picks the
+    shim up from the module attribute. Idempotent, and a no-op while
+    the kill switch (HERMES_APPROVAL_GUARD_EVENTS=off) is set.
+    Returns the number of entry points wrapped by this call chain.
+    """
+    if not _guard_events_enabled():
+        return 0
+    with _lock:
+        if _guard_hooks:
+            return len(_guard_hooks)
+        try:
+            from tools import approval as _approval
+        except Exception:
+            logger.warning("guard hooks: tools.approval unavailable",
+                           exc_info=True)
+            return 0
+        for attr, gate in (("check_all_command_guards", "command"),
+                           ("check_execute_code_guard", "execute_code")):
+            fn = getattr(_approval, attr, None)
+            if fn is None or getattr(fn, "_oneday_guard_observed", False):
+                continue
+            wrapped = _wrap_guard(fn, gate)
+            setattr(_approval, attr, wrapped)
+            _guard_hooks.append((_approval, attr, fn))
+        try:
+            import tools.terminal_tool as _terminal_tool
+            impl = getattr(_terminal_tool, "_check_all_guards_impl", None)
+            wrapped = getattr(_approval, "check_all_command_guards", None)
+            if impl is not None and wrapped is not None \
+                    and not getattr(impl, "_oneday_guard_observed", False):
+                _terminal_tool._check_all_guards_impl = wrapped
+                _guard_hooks.append(
+                    (_terminal_tool, "_check_all_guards_impl", impl))
+        except Exception:
+            logger.debug("guard hooks: terminal_tool rebind skipped",
+                         exc_info=True)
+        return len(_guard_hooks)
+
+
+def uninstall_guard_hooks():
+    """Restore every entry point wrapped in this process (drill/tests).
+
+    Airtight removal is the kill switch plus a restart (no shim is
+    ever installed); this restores the references install_guard_hooks
+    re-pointed here.
+    """
+    with _lock:
+        for module, attr, original in reversed(_guard_hooks):
+            try:
+                setattr(module, attr, original)
+            except Exception:
+                pass
+        del _guard_hooks[:]
+    return True
+
+
 # ---------------------------------------------------------------- public API
 
 def start():
@@ -433,6 +732,10 @@ def start():
     _thread = threading.Thread(target=_loop, name="approval-projection",
                                daemon=True)
     _thread.start()
+    try:
+        install_guard_hooks()
+    except Exception:
+        logger.debug("guard hook install failed", exc_info=True)
     return True
 
 
@@ -450,6 +753,10 @@ def _public(record):
         "choices": record.get("choices", []),
         "status": record.get("status"),
         "choice": record.get("choice"),
+        "event_kind": record.get("event_kind"),
+        "gate": record.get("gate"),
+        "scopes": record.get("scopes"),
+        "guard_context": record.get("guard_context"),
         "created_at": record.get("created_at"),
         "expires_at": record.get("expires_at"),
         "decided_at": record.get("decided_at"),

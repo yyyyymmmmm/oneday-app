@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|dcb67c352f45e0b96f96a1dc45ca9d5400682a38cff828bafd46e644c40bf7cf"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|8a2037f74583f2ea7a494ef0e60cd2759079ae61c7c043c6dec30c45cb67aaad"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
 )
@@ -78,9 +78,17 @@ PATCHES=(
 # （registry-only、新工具集 options_card）。本版只潜伏：instance
 # config 的 display.options_card 闸默认关、platform_toolsets.api_server
 # 未加 options_card 工具集，工具不注册、行为零变化；翻闸属另一步。
+# approval_history.py（2.18.8，批准机制棒 1，队列 182）是包自有新模块：
+# 统一批准历史只读投影（GET /v1/approval-history），逐调用直读 exec
+# 批准账本与写闸 decisions.jsonl 两源折成一条时间线并附逐源对账数；
+# approval_projection.py 同版增守卫事件补源（start() 装观察 shim 包住
+# 上游 check_all_command_guards / check_execute_code_guard，把 cron
+# 即时拒绝与守卫放行命中以 guard_event 入同一本账；shim 只观察、
+# 不在判定链，HERMES_APPROVAL_GUARD_EVENTS=off 即不装）。
 MODULES=(
-  "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|fbebf958392225c46eb34dcc62a673949b0d68fc314537144f25902e56e2c7ff"
+  "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
+  "approval_history.py|patches/approval_history.py|/opt/hermes/gateway/platforms/approval_history.py|00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d"
   "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf"
   "crash_reports.py|patches/crash_reports.py|/opt/hermes/gateway/platforms/crash_reports.py|f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510"
   "mail_gateway.py|patches/mail_gateway.py|/opt/hermes/gateway/platforms/mail_gateway.py|c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e"
@@ -240,6 +248,7 @@ done
 COMPOSE_NEEDS_MOUNT=0
 grep -q "approval_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "grant_projection.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
+grep -q "approval_history.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "api_server_runs.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "crash_reports.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "mail_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -407,6 +416,9 @@ specs = [
     ("grant_projection.py",
      "      - ./patches/grant_projection.py:/opt/hermes/gateway/platforms/grant_projection.py:ro",
      "./patches/approval_projection.py:/opt/hermes/gateway/platforms/approval_projection.py:ro"),
+    ("approval_history.py",
+     "      - ./patches/approval_history.py:/opt/hermes/gateway/platforms/approval_history.py:ro",
+     "./patches/grant_projection.py:/opt/hermes/gateway/platforms/grant_projection.py:ro"),
     ("api_server_runs.py",
      "      - ./patches/api_server_runs.py:/opt/hermes/gateway/platforms/api_server_runs.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
