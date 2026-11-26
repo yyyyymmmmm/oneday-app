@@ -49,6 +49,19 @@
  *   GET  /api/sessions ; GET /api/sessions/{id}/messages  (reactions read:
  *                                                  display_metadata.reactions)
  *   GET  /api/audio/voice-config ; POST /api/audio/speak  (TTS, data_url)
+ *   GET  /v1/diagnostics/crash-reports              (bar 6, Bearer)
+ * Bar 6 closing items: diagnostics face (connection self-check across
+ * health/capabilities/approvals/registry/asset/jobs + crash reports +
+ * pending-approval browser notifications via the Notification API and
+ * a 30 s in-page poll — Web Push would need new server push plumbing,
+ * NOT wired, stated on the face) and a pure front-end image lightbox
+ * (feed / file-preview / avatar images open full-screen). Session pin
+ * is NOT wired: the session list carries `pinned`, but the only
+ * browser-reachable edit path (dashboard 9119) is upstream's
+ * revision-fenced relay for its desktop app (bare PATCH -> 409
+ * client_upgrade_required; the web SPA itself never manages pins),
+ * and the gateway's plain PATCH /api/sessions/{id} is not routed
+ * publicly — verdict 未补齐·遗留, evidence in BAR6-INVENTORY.md.
  * Dictation uses the browser Web Speech API only; server-side
  * transcription is NOT wired into this plugin (legacy item, stated
  * on the face). Quote-reply (gap #19) is verified infeasible here:
@@ -270,6 +283,16 @@
     fetchGrants: function () { return apiJson("GET", "/v1/grants"); },
     fetchJobs: function () { return apiJson("GET", "/api/jobs"); },
     fetchCapabilities: function () { return apiJson("GET", "/v1/capabilities"); },
+    // ---- bar 6: diagnostics face ----
+    fetchCrashReports: function () { return apiJson("GET", "/v1/diagnostics/crash-reports"); },
+    fetchPluginRegistry: function () { return dashJson("GET", "/api/dashboard/plugins"); },
+    fetchPluginAssetOk: function () {
+      return fetch("/dashboard-plugins/oneday-console/dist/index.js", { method: "GET" })
+        .then(function (r) {
+          if (r.body && r.body.cancel) r.body.cancel();
+          return r.ok;
+        }).catch(function () { return false; });
+    },
     fetchHealth: function () {
       return fetch("/health").then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; });
@@ -403,6 +426,30 @@
     var d = (typeof v === "number") ? new Date(v * 1000) : new Date(v);
     if (isNaN(d.getTime())) return "";
     return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  // ---------------- image lightbox (bar 6, pure front-end) ----------------
+  // Feed / file-preview / avatar images open in a full-screen viewer;
+  // click anywhere or press Esc to close. No state, no backend.
+  function lightboxKey(ev) { if (ev.key === "Escape") closeLightbox(); }
+  function closeLightbox() {
+    var el = document.getElementById("odc-lightbox");
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    document.removeEventListener("keydown", lightboxKey);
+  }
+  function openLightbox(src) {
+    if (!src) return;
+    closeLightbox();
+    var overlay = document.createElement("div");
+    overlay.className = "odc-lightbox";
+    overlay.id = "odc-lightbox";
+    var img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    overlay.appendChild(img);
+    overlay.addEventListener("click", closeLightbox);
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", lightboxKey);
   }
 
   var CHOICE_LABELS = {
@@ -896,7 +943,7 @@
       if (post.why) kids.push(h("p", { key: "why", className: "odc-preview" }, "为什么选这篇：" + post.why));
       kids.push(h("div", { key: "body", className: "odc-body" }, post.body || ""));
       (post.images || []).forEach(function (img, i) {
-        if (img && img.url) kids.push(h("img", { key: "img" + i, className: "odc-img", src: img.url, alt: "" }));
+        if (img && img.url) kids.push(h("img", { key: "img" + i, className: "odc-img odc-img-zoom", src: img.url, alt: "", title: "点击看大图", onClick: function () { openLightbox(img.url); } }));
       });
       if (post.sourceCard && post.sourceCard.name) {
         kids.push(h("p", { key: "sc", className: "odc-preview" },
@@ -2133,7 +2180,7 @@
         var pk = [h("p", { key: "ph", className: "odc-summary-head" },
           "预览 · " + (prev.item.name || prev.item.path))];
         if (prev.kind === "loading") pk.push(h("p", { key: "pl" }, "正在取文件……"));
-        if (prev.kind === "image") pk.push(h("img", { key: "pi", className: "odc-img", src: prev.url, alt: prev.item.name || "" }));
+        if (prev.kind === "image") pk.push(h("img", { key: "pi", className: "odc-img odc-img-zoom", src: prev.url, alt: prev.item.name || "", title: "点击看大图", onClick: function () { openLightbox(prev.url); } }));
         if (prev.kind === "pdf") pk.push(h("iframe", { key: "pp", className: "odc-preview", src: prev.url, title: prev.item.name || "pdf" }));
         if (prev.kind === "text") pk.push(h("pre", { key: "pt", className: "odc-entry-body" }, prev.text));
         if (prev.kind === "downloaded") pk.push(h("p", { key: "pd" }, "此类型不在页内预览，已触发下载。"));
@@ -3208,7 +3255,7 @@
               var p = avatarPreset(it.presetId);
               cell = h("div", { className: "odc-avatar odc-avatar-preset " + p.cls + on }, p.sym);
             } else if (urls[it.id]) {
-              cell = h("img", { className: "odc-avatar" + on, src: urls[it.id], alt: it.id });
+              cell = h("img", { className: "odc-avatar odc-img-zoom" + on, src: urls[it.id], alt: it.id, title: "点击看大图", onClick: function () { openLightbox(urls[it.id]); } });
             } else if (failed[it.id]) {
               cell = h("div", { className: "odc-avatar odc-avatar-ph odc-avatar-fail" + on }, "图片加载失败");
             } else {
@@ -3800,6 +3847,179 @@
     return faceShell("全局搜索", "纯前端聚合：实时拉取本控制台各面已有列表接口再跨面匹配，不新造后端。凭据库只搜名目与服务，凭据值永不参与搜索。", fakeFace, runSearch, parts);
   }
 
+  // ---------------- diagnostics face (bar 6) ----------------
+  var CRASH_KIND_WORDS = {
+    crash: "崩溃", hang: "卡死", cpuException: "CPU 异常",
+    diskWriteException: "磁盘写异常", other: "其他"
+  };
+
+  function DiagFace() {
+    var crashPair = useFace(Core.fetchCrashReports);
+    var crash = crashPair[0];
+    var crashLoad = crashPair[1];
+
+    // ---- connection self-check: probes run on demand, rows stream in ----
+    var chkPair = hooks.useState({ phase: "idle", rows: [] });
+    var chk = chkPair[0];
+    var setChk = chkPair[1];
+    function runChecks() {
+      var rows = [];
+      setChk({ phase: "running", rows: [] });
+      function push(name, ok, detail) {
+        rows.push({ name: name, ok: ok, detail: detail || "" });
+        setChk({ phase: "running", rows: rows.slice() });
+      }
+      Core.fetchHealth().then(function (hv) {
+        push("网关健康（/health）", !!hv, hv ? ("状态 " + (hv.status || "ok")) : "无应答");
+        return Core.fetchCapabilities();
+      }).then(function (caps) {
+        var feat = (caps && caps.features) || {};
+        var on = Object.keys(feat).filter(function (k) { return feat[k]; }).length;
+        push("网关能力（/v1/capabilities）", !!caps, caps ? ("功能位开启 " + on + " 个") : "无应答");
+        return Core.fetchApprovals();
+      }).then(function (appr) {
+        var recs = (appr && appr.approvals) || [];
+        var pend = recs.filter(function (r) { return r.status === "pending"; }).length;
+        push("凭据链（reveal 换钥 → 待批读取）", true, "链路通，待批 " + pend + " 件");
+        return Core.fetchPluginRegistry();
+      }).then(function (reg) {
+        var list = Array.isArray(reg) ? reg : ((reg && reg.plugins) || []);
+        var hit = null;
+        list.forEach(function (p) { if (p && p.name === "oneday-console") hit = p; });
+        push("插件名册（dashboard 插件表）", !!hit, hit ? ("oneday-console 在册，来源 " + (hit.source || "?")) : "名册无 oneday-console");
+        return Core.fetchPluginAssetOk();
+      }).then(function (assetOk) {
+        push("插件资产路由", !!assetOk, assetOk ? "dist/index.js 可达" : "不可达");
+        return Core.fetchJobs();
+      }).then(function (jobs) {
+        var jl = (jobs && jobs.jobs) || [];
+        push("定时任务投影（/api/jobs）", true, jl.length + " 个任务");
+        setChk({ phase: "done", rows: rows });
+      }).catch(function (err) {
+        push("自检链中断", false, (err && err.message) || String(err));
+        setChk({ phase: "done", rows: rows });
+      });
+    }
+
+    // ---- pending-approval browser notifications (in-page poll) ----
+    var supported = typeof window !== "undefined" && "Notification" in window;
+    var ntPair = hooks.useState(function () {
+      try { return localStorage.getItem("odc-notify") === "1"; } catch (e) { return false; }
+    });
+    var notifyOn = ntPair[0];
+    var setNotifyOn = ntPair[1];
+    var baseRef = hooks.useRef(null);
+    hooks.useEffect(function () {
+      if (!notifyOn) return undefined;
+      var alive = true;
+      function poll() {
+        Core.fetchApprovals().then(function (appr) {
+          if (!alive) return;
+          var recs = (appr && appr.approvals) || [];
+          var pend = recs.filter(function (r) { return r.status === "pending"; }).length;
+          if (baseRef.current == null) { baseRef.current = pend; return; }
+          if (pend > baseRef.current) {
+            try {
+              new Notification("OneDay 有新待批", { body: "现在有 " + pend + " 件待批，去批准面处理。" });
+            } catch (e) { /* permission raced away; toggle stays on */ }
+          }
+          baseRef.current = pend;
+        }).catch(function () { /* transient; next tick retries */ });
+      }
+      poll();
+      var t = setInterval(poll, 30000);
+      return function () { alive = false; clearInterval(t); };
+    }, [notifyOn]);
+    function toggleNotify() {
+      if (!notifyOn) {
+        if (!supported) return;
+        Notification.requestPermission().then(function (perm) {
+          if (perm === "granted") {
+            try { localStorage.setItem("odc-notify", "1"); } catch (e) {}
+            baseRef.current = null;
+            setNotifyOn(true);
+          }
+        });
+      } else {
+        try { localStorage.setItem("odc-notify", "0"); } catch (e) {}
+        setNotifyOn(false);
+      }
+    }
+
+    var parts = [];
+    // self-check block
+    parts.push(h("p", { key: "chk-h", className: "odc-summary-head" }, "连接自检"));
+    parts.push(h("span", { key: "chk-b", className: "odc-actions" },
+      h("button", {
+        className: "odc-btn odc-btn-primary", disabled: chk.phase === "running",
+        onClick: runChecks
+      }, chk.phase === "running" ? "自检中…" : "一键自检"),
+      chk.phase === "done" ? h("span", { className: "odc-row-meta" }, "刚完成一轮，点按钮可重跑") : null));
+    if (chk.rows.length) {
+      parts.push(h("ul", { key: "chk-l", className: "odc-list" }, chk.rows.map(function (r, i) {
+        return h("li", { key: "c" + i, className: "odc-row" },
+          h("span", { className: "odc-row-title" }, r.name),
+          h("span", { className: r.ok ? "odc-st odc-st-done" : "odc-st odc-st-failed" }, r.ok ? "通过" : "失败"),
+          h("span", { className: "odc-row-meta" }, r.detail));
+      })));
+    }
+    // notify block
+    parts.push(h("p", { key: "nt-h", className: "odc-summary-head" }, "待批提醒（浏览器通知）"));
+    if (!supported) {
+      parts.push(h("p", { key: "nt-u", className: "odc-empty" }, "当前浏览器不支持通知 API，本项不可用。"));
+    } else {
+      parts.push(h("span", { key: "nt-b", className: "odc-actions" },
+        h("button", { className: "odc-btn" + (notifyOn ? "" : " odc-btn-primary"), onClick: toggleNotify },
+          notifyOn ? "关闭提醒" : "开启提醒"),
+        h("span", { className: "odc-row-meta" },
+          notifyOn ? "已开启：本页打开期间每 30 秒查一次待批，有新增就弹通知。" : "开启后本页打开期间有新待批会弹浏览器通知。")));
+      parts.push(h("p", { key: "nt-n", className: "odc-preview" },
+        "注：这是页内轮询提醒，关页即停；服务端 Web Push（关页也能推）需新后端，未接，记遗留（见盘点表）。"));
+    }
+    // crash reports block
+    parts.push(h("p", { key: "cr-h", className: "odc-summary-head" }, "崩溃报告（App 上报，服务端脱敏留存）"));
+    if (crash.phase === "loading") {
+      parts.push(h("p", { key: "cr-l" }, "正在读取崩溃报告……"));
+    } else if (crash.phase === "error") {
+      parts.push(h("p", { key: "cr-e", className: "odc-error" }, "读取失败：" + crash.error));
+    } else {
+      var reports = (crash.data && crash.data.data) || [];
+      if (!reports.length) {
+        parts.push(h("p", { key: "cr-0", className: "odc-empty" }, "暂无崩溃报告。"));
+      } else {
+        parts.push(h("p", { key: "cr-c", className: "odc-count" }, "共 " + reports.length + " 条（最新在前）"));
+        parts.push(h("ul", { key: "cr-l2", className: "odc-list" }, reports.map(function (r, i) {
+          var meta = [];
+          if (r.capturedAt) meta.push(fmtTs(r.capturedAt));
+          if (r.appVersion) meta.push("App " + r.appVersion);
+          if (r.osVersion) meta.push(r.osVersion);
+          var kids = [
+            h("span", { key: "t", className: "odc-row-title" },
+              (CRASH_KIND_WORDS[r.kind] || r.kind || "其他") +
+              (r.exceptionType ? " · " + r.exceptionType : "")),
+            h("span", { key: "m", className: "odc-row-meta" }, meta.join(" · "))
+          ];
+          var det = [];
+          if (r.exceptionSignal) det.push("信号 " + r.exceptionSignal);
+          if (r.terminationNamespace || r.terminationCode) {
+            det.push("终止 " + [r.terminationNamespace, r.terminationCode].filter(Boolean).join(" "));
+          }
+          if (det.length) kids.push(h("span", { key: "d", className: "odc-preview" }, det.join(" · ")));
+          var syms = (r.faultingTopSymbols || []).slice(0, 3);
+          if (syms.length) kids.push(h("code", { key: "s", className: "odc-cmd" }, syms.join(" / ")));
+          return h("li", { key: "r" + i, className: "odc-row odc-row-card" }, kids);
+        })));
+      }
+    }
+    // leftover notes block
+    parts.push(h("p", { key: "ln-h", className: "odc-summary-head" }, "本面未收的（结论在盘点表 BAR6-INVENTORY.md）"));
+    parts.push(h("p", { key: "ln-1", className: "odc-preview" },
+      "聊天诊断：网关与 dashboard 均无聊天诊断数据面，日志侧由 dashboard 的 Logs 页覆盖，本面不另造。"));
+    parts.push(h("p", { key: "ln-2", className: "odc-preview" },
+      "会话置顶：列表带 pinned 字段，但浏览器可达的会话编辑走上游修订围栏协议（桌面端协议），插件不硬接，写口记遗留。"));
+    return faceShell("诊断", "连接自检＋崩溃报告＋待批提醒三块收尾件：自检只读探活、崩溃报告只读呈现、提醒只在本页打开期间工作。", crash, crashLoad, parts);
+  }
+
   // ---------------- page ----------------
   var NAV_ITEMS = [
     { id: "odc-face-approvals", label: "批准" },
@@ -3825,7 +4045,8 @@
     { id: "odc-face-devices", label: "设备" },
     { id: "odc-face-computer", label: "电脑" },
     { id: "odc-face-settings", label: "设置" },
-    { id: "odc-face-search", label: "搜索" }
+    { id: "odc-face-search", label: "搜索" },
+    { id: "odc-face-diag", label: "诊断" }
   ];
 
   function scrollToFace(id) {
@@ -3838,7 +4059,7 @@
       h("div", { key: "head", className: "odc-head" },
         h("h2", null, "OneDay 控制台"),
         h("p", { className: "odc-sub" },
-          "棒 5：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）＋工具集、消息反应、语音播报、听写、身份、设备、电脑、结构化设置、全局搜索（棒 5）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览、会话消息、语音）走同源会话 cookie；各面与 App 同一数据源。")),
+          "棒 6：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）＋工具集、消息反应、语音播报、听写、身份、设备、电脑、结构化设置、全局搜索（棒 5）＋诊断（自检/崩溃报告/待批提醒）与图片大图查看（棒 6 收尾）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览、会话消息、语音）走同源会话 cookie；各面与 App 同一数据源。")),
       h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
       h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
       h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
@@ -3863,6 +4084,7 @@
       h("div", { key: "w-computer", id: "odc-face-computer", className: "odc-anchor" }, h(ComputerFace, null)),
       h("div", { key: "w-settings", id: "odc-face-settings", className: "odc-anchor" }, h(SettingsFace, null)),
       h("div", { key: "w-search", id: "odc-face-search", className: "odc-anchor" }, h(SearchFace, null)),
+      h("div", { key: "w-diag", id: "odc-face-diag", className: "odc-anchor" }, h(DiagFace, null)),
       h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
         NAV_ITEMS.map(function (n) {
           return h("button", {

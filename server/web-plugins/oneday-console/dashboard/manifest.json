@@ -1,9 +1,9 @@
 {
   "name": "oneday-console",
   "label": "OneDay",
-  "description": "OneDay 自有功能面（批准/凭据/动态/目标/想法/枢纽/记忆/文件库/监控/连接器/委派/工具集/反应/播报/听写/身份/设备/电脑/设置/搜索）：与 App 同接口同语义，dashboard 官方插件形态（大活12 网页端对齐）",
+  "description": "OneDay 自有功能面（批准/凭据/动态/目标/想法/枢纽/记忆/文件库/监控/连接器/委派/工具集/反应/播报/听写/身份/设备/电脑/设置/搜索/诊断）：与 App 同接口同语义，dashboard 官方插件形态（大活12 网页端对齐）",
   "icon": "Layers",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "tab": {
     "path": "/oneday",
     "position": "after:analytics"

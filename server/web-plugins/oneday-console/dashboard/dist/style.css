@@ -86,3 +86,7 @@
 .odc-preset-sym { background: linear-gradient(180deg, #8a93a5, #5b6474); }
 .odc-preset-partner { background: linear-gradient(180deg, #fcb840, #e67a1f); }
 .odc-avatar-fail { font-size: 11px; color: #c0392b; opacity: 1; text-align: center; padding: 4px; }
+/* bar 6 additions: image lightbox (pure front-end viewer) */
+.odc-img-zoom { cursor: zoom-in; }
+.odc-lightbox { position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.88); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+.odc-lightbox img { max-width: 96vw; max-height: 96vh; object-fit: contain; border-radius: 6px; }
