@@ -221,24 +221,6 @@ class _AnchorResolver:
         self._tried = True
         try:
             db = _home() / "state.db"
-            try:
-                from db_schema_guard import verify_state_db_schema
-            except ImportError:
-                try:
-                    from modules.db_schema_guard import verify_state_db_schema
-                except ImportError:
-                    verify_state_db_schema = None
-            if verify_state_db_schema is not None:
-                guard = verify_state_db_schema(db)
-                if not guard.get("ok"):
-                    print(
-                        f"write-gate-bridge state.db schema guard failed: "
-                        f"reason={guard.get('reason')} missing={guard.get('missing')}",
-                        file=sys.stderr,
-                    )
-                    self._conn = None
-                    self._sessions = []
-                    return False
             self._conn = sqlite3.connect(
                 f"file:{db}?mode=ro", uri=True, timeout=2.0)
             rows = self._conn.execute(

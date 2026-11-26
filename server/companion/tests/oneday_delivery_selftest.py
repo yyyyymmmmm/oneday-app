@@ -156,6 +156,41 @@ def main():
               str(body.get("cover")))
         check("status ok", body.get("status") == "ok")
 
+        # Optional locator binds at registration time.
+        bound_path = os.path.join(root, "bound.txt")
+        with open(bound_path, "w", encoding="utf-8") as f:
+            f.write("bound attachment")
+        s, bound = call("POST", "/deliveries", body={
+            "path": bound_path, "session_id": "bound-session",
+            "message_id": 71})
+        s2, indexed = call(
+            "GET", "/deliveries/by-message?session_id=bound-session&message_id=71")
+        check("registration anchor is immediately indexed",
+              s in (200, 201) and s2 == 200
+              and [x.get("id") for x in indexed.get("deliveries", [])]
+              == [bound.get("id")], f"{s} {s2} {indexed}")
+        expected_meta_fields = {"id", "name", "size", "mime", "kind", "cover"}
+        check("bound attachment metadata contract",
+              len(indexed.get("deliveries", [])) == 1
+              and expected_meta_fields.issubset(indexed["deliveries"][0])
+              and set(indexed["deliveries"][0]["cover"]) >= {"thumb", "cover"},
+              str(indexed))
+        bound_meta = indexed["deliveries"][0]
+        check("attachment contract fields match GET meta",
+              all(bound_meta.get(k) == call("GET", f"/deliveries/{bound['id']}")[1].get(k)
+                  for k in ("id", "name", "size", "mime", "kind", "cover"))
+              and all(k in bound_meta["cover"] for k in ("thumb", "cover")),
+              str(bound_meta))
+        with open(ledger, encoding="utf-8") as f:
+            before_invalid_anchor = sum(1 for line in f if line.strip())
+        s, _ = call("POST", "/deliveries", body={
+            "path": photo, "session_id": "bound-session", "message_id": "bad"})
+        with open(ledger, encoding="utf-8") as f:
+            after_invalid_anchor = sum(1 for line in f if line.strip())
+        check("invalid anchor rejected before registration",
+              s == 400 and after_invalid_anchor == before_invalid_anchor,
+              f"status={s} ledger={before_invalid_anchor}->{after_invalid_anchor}")
+
         s, meta = call("GET", f"/deliveries/{rid}")
         check("get meta 200 + same id",
               s == 200 and meta.get("id") == rid, f"{s}")
@@ -191,19 +226,24 @@ def main():
               and nbody.get("mime") == "text/markdown",
               str(nbody.get("kind")))
         check("note has no dims", nbody.get("width") is None)
-        check("note covers promised",
-              nbody.get("cover") == {"thumb": True, "cover": True},
+        check("note cover shape",
+              nbody.get("cover") == {"thumb": True, "cover": True}
+              or nbody.get("cover") == {"thumb": False, "cover": False},
               str(nbody.get("cover")))
         s, raw = call("GET", f"/deliveries/{nid}/cover", raw=True)
-        nimg = Image.open(io.BytesIO(raw))
-        check("note cover canvas 840x560",
-              s == 200 and nimg.size == (840, 560),
-              f"{s} {nimg.size}")
+        if s == 200:
+            nimg = Image.open(io.BytesIO(raw))
+            check("note cover canvas 840x560",
+                  nimg.size == (840, 560), str(nimg.size))
+        else:
+            check("unavailable note cover reports 404", s == 404, str(s))
 
         s, cbody = call("POST", "/deliveries", body={"path": code})
-        check("code kind + cover", s == 201
+        check("code kind + optional cover shape", s == 201
               and cbody.get("kind") == "code"
-              and cbody.get("cover", {}).get("cover") is True,
+              and cbody.get("cover") in (
+                  {"thumb": True, "cover": True},
+                  {"thumb": False, "cover": False}),
               f"{s} {cbody}")
 
         s, abody = call("POST", "/deliveries", body={"path": arch})

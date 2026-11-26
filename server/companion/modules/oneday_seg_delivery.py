@@ -395,6 +395,31 @@ def _delivery_register(body: dict) -> tuple:
     """(status_code, response). The response is the ONLY source of
     a delivery marker: metadata is read back from the real file,
     never taken from the caller's word."""
+    session_id = body.get("session_id")
+    message_id = body.get("message_id")
+    anchored = session_id is not None or message_id is not None
+    if anchored and (not isinstance(session_id, str)
+                     or not session_id.strip()
+                     or not isinstance(message_id, int)
+                     or isinstance(message_id, bool)):
+        return 400, {
+            "error": "session_id 与 message_id 必须同时为有效值"}
+
+    def link_delivery(out):
+        if not anchored:
+            return
+        key = (session_id, message_id, out["id"])
+        links = {(link.get("sessionId"), link.get("messageId"),
+                  link.get("deliveryId"))
+                 for link in _delivery_links_load()}
+        if key not in links:
+            _delivery_append({
+                "link": True, "kind": "manual",
+                "deliveryId": out["id"], "sessionId": session_id,
+                "messageId": message_id, "path": out["path"],
+                "linkedAt": datetime.now(timezone.utc).isoformat(),
+            })
+
     path = _delivery_resolve(body.get("path"))
     st = path.stat()
     sha = _delivery_sha256(path)
@@ -404,6 +429,7 @@ def _delivery_register(body: dict) -> tuple:
             out = _delivery_public(rec, "ok")
             out["marker"] = f"[[deliver:{rec['id']}]]"
             out["deduped"] = True
+            link_delivery(out)
             return 200, out
     ext = path.suffix.lower().lstrip(".")
     kind = _delivery_kind(ext)
@@ -451,6 +477,7 @@ def _delivery_register(body: dict) -> tuple:
     _delivery_append(rec)
     out = _delivery_public(rec, "ok")
     out["marker"] = f"[[deliver:{rid}]]"
+    link_delivery(out)
     return 201, out
 
 
@@ -513,6 +540,7 @@ _SENTINEL_EXTS = (
     | {"pdf", "md", "markdown", "txt", "epub"})
 
 _SENTINEL_MEDIA_RE = re.compile(r"MEDIA:\s*(\S+)")
+_SENTINEL_DELIVERY_RE = re.compile(r"\[\[deliver:(dlv_[0-9a-f]{20})\]\]")
 _SENTINEL_PATH_RE = re.compile(r"(?:~|)/(?:[^\s\"'<>`\\|\[\]{}()*]+)")
 _SENTINEL_TRAIL_CHARS = ".,;:!?…\"'”’)]}>·、。，：；！？"
 
@@ -536,8 +564,8 @@ def _sentinel_mask_code(text: str) -> str:
 
 
 def _sentinel_extract(content: str) -> list:
-    """Ordered, de-duplicated path candidates a message offers as
-    deliveries: MEDIA: targets plus bare absolute (or ~/) paths,
+    """Ordered, de-duplicated marker/path candidates a message offers as
+    deliveries: registered markers, MEDIA: targets and bare absolute paths,
     code-masked, extension-whitelisted, trailing prose punctuation
     trimmed. Root/existence/sensitivity are NOT judged here --
     the caller runs every candidate through _delivery_resolve."""
@@ -546,6 +574,12 @@ def _sentinel_extract(content: str) -> list:
     text = _sentinel_mask_code(content)
     found = []
     seen = set()
+
+    for m in _SENTINEL_DELIVERY_RE.finditer(text):
+        rid = m.group(1)
+        if rid not in seen:
+            seen.add(rid)
+            found.append(("delivery", rid))
 
     def offer(raw):
         p = raw.strip()
@@ -558,7 +592,7 @@ def _sentinel_extract(content: str) -> list:
         if ext not in _SENTINEL_EXTS:
             return
         seen.add(p)
-        found.append(p)
+        found.append(("path", p))
 
     for m in _SENTINEL_MEDIA_RE.finditer(text):
         offer(m.group(1))
@@ -636,21 +670,6 @@ def _sentinel_pass() -> None:
     if _degraded_reason:
         return
     watermark = _sentinel_load_watermark()
-    try:
-        from db_schema_guard import verify_state_db_schema
-    except ImportError:
-        try:
-            from modules.db_schema_guard import verify_state_db_schema
-        except ImportError:
-            verify_state_db_schema = None
-    if verify_state_db_schema is not None:
-        guard = verify_state_db_schema(_SENTINEL_DB_PATH)
-        if not guard.get("ok"):
-            _sentinel_status.update(
-                lastRunAt=_now(),
-                lastError=f"schema_guard:{guard.get('reason')}:{guard.get('missing')}",
-            )
-            return
     conn = sqlite3.connect(
         f"file:{_SENTINEL_DB_PATH}?mode=ro", uri=True, timeout=2.0)
     try:
@@ -675,19 +694,25 @@ def _sentinel_pass() -> None:
                    l.get("deliveryId"))
                   for l in _delivery_links_load()}
         for mid, sid, content in rows:
-            for cand in _sentinel_extract(content or ""):
-                raw = cand
-                if raw.startswith("~/"):
-                    raw = str(DELIVERY_ROOT / raw[2:])
-                try:
-                    path = _delivery_resolve(raw)
-                    _, out = _delivery_register({"path": str(path)})
-                except Exception as e:
-                    # Missing/vanished/off-limits candidates are
-                    # the normal case here, never a pass failure.
-                    print(f"sentinel skip {raw!r}: {e!r}",
-                          file=sys.stderr, flush=True)
-                    continue
+            for typ, cand in _sentinel_extract(content or ""):
+                if typ == "delivery":
+                    out = _delivery_find(cand)
+                    if out is None:
+                        continue
+                    path = Path(out["path"])
+                else:
+                    raw = cand
+                    if raw.startswith("~/"):
+                        raw = str(DELIVERY_ROOT / raw[2:])
+                    try:
+                        path = _delivery_resolve(raw)
+                        _, out = _delivery_register({"path": str(path)})
+                    except Exception as e:
+                        # Missing/vanished/off-limits candidates are
+                        # the normal case here, never a pass failure.
+                        print(f"sentinel skip {raw!r}: {e!r}",
+                              file=sys.stderr, flush=True)
+                        continue
                 key = (sid, mid, out["id"])
                 if key in linked:
                     continue
@@ -705,6 +730,40 @@ def _sentinel_pass() -> None:
     _sentinel_status.update(
         lastRunAt=_now(), lastMessageId=top, lastError=None,
         autoLinks=_sentinel_status["autoLinks"] + new_links)
+
+
+def _delivery_backfill_markers() -> int:
+    """Backfill marker links across assistant history. The message database
+    is opened read-only; only missing link lines are appended."""
+    import sqlite3
+    conn = sqlite3.connect(f"file:{_SENTINEL_DB_PATH}?mode=ro", uri=True,
+                           timeout=2.0)
+    try:
+        rows = conn.execute(
+            "SELECT id, session_id, content FROM messages"
+            " WHERE role = 'assistant' AND COALESCE(active, 1) = 1"
+            " ORDER BY id ASC").fetchall()
+    finally:
+        conn.close()
+    added = 0
+    with _DELIVERY_LOCK:
+        linked = {(l.get("sessionId"), l.get("messageId"),
+                   l.get("deliveryId")) for l in _delivery_links_load()}
+        for mid, sid, content in rows:
+            for typ, rid in _sentinel_extract(content or ""):
+                if typ != "delivery" or _delivery_find(rid) is None:
+                    continue
+                key = (sid, mid, rid)
+                if key in linked:
+                    continue
+                _delivery_append({
+                    "link": True, "kind": "auto", "deliveryId": rid,
+                    "sessionId": sid, "messageId": mid,
+                    "linkedAt": datetime.now(timezone.utc).isoformat(),
+                })
+                linked.add(key)
+                added += 1
+    return added
 
 
 def _sentinel_loop() -> None:

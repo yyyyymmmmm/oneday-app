@@ -3691,6 +3691,11 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             "object": "hermes.api_server.capabilities", "platform": "hermes-agent",
             "model": self._model_name,
             "auth": {"type": "bearer", "required": bool(self._api_key)},
+            "version_gate": {
+                "min_app_version": os.getenv("ONEDAY_MIN_APP_VERSION", "0.50.125"),
+                "recommended_app_version": os.getenv("ONEDAY_RECOMMENDED_APP_VERSION", "0.51.0"),
+                "hermes_version": _hermes_version(),
+            },
             "runtime": {
                 "mode": "server_agent", "tool_execution": "server", "split_runtime": False,
                 "description": (
@@ -4061,6 +4066,8 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         # in api_server_runs) so the App can render quick-pick cards.
         raw_options = _options_from_display_metadata(
             message.get("display_metadata") if isinstance(message, dict) else None)
+        session_id = message.get("session_id") if isinstance(message, dict) else None
+        message_id = message.get("id") if isinstance(message, dict) else None
         message = _project_client_message(message)
         safe_keys = (
             "id", "session_id", "role", "content", "tool_call_id", "tool_calls", "tool_name",
@@ -4071,6 +4078,24 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             projected["reactions"] = raw_reactions
         if raw_options:
             projected["options"] = raw_options
+        attachments = []
+        if session_id is not None and message_id is not None:
+            try:
+                delivery_index = globals().get("_delivery_index")
+                if not callable(delivery_index):
+                    try:
+                        from gateway.platforms import oneday_gateway as _oneday_gateway
+                        delivery_index = getattr(
+                            _oneday_gateway, "_delivery_index", None)
+                    except Exception:
+                        delivery_index = None
+                found = delivery_index(str(session_id), message_id) if delivery_index else []
+                if found:
+                    attachments = found[0][1]
+            except Exception:
+                logger.debug("message attachment projection unavailable",
+                             exc_info=True)
+        projected["attachments"] = attachments
         return projected
 
     async def _read_json_body(self, request: web.Request) -> tuple[dict[str, Any], Optional[web.Response]]:

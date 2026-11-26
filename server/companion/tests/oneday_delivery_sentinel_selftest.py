@@ -231,14 +231,89 @@ def main():
               and sent.get("autoLinks") == 3
               and sent.get("lastError") is None, str(sent))
 
+        s, marker_delivery = call("POST", "/deliveries", body={"path": doc})
+        marker = marker_delivery.get("marker")
+        db = sqlite3.connect(db_path)
+        db.execute("INSERT INTO messages VALUES (?,?,?,?,?,1)",
+                   (10, SID, "assistant", f"只有标记 {marker}", time.time() - 60))
+        db.execute("INSERT INTO messages VALUES (?,?,?,?,?,1)",
+                   (11, SID, "assistant", f"哨兵标记 {marker}", time.time() - 30))
+        db.commit()
+        db.close()
+        body = wait_index(11)
+        marker_links = body.get("deliveries", [])
+        check("marker-only sentinel message linked",
+              len(marker_links) == 1 and marker_links[0].get("id")
+              == marker_delivery.get("id"), str(body))
+        # Backfill is explicitly callable from the loaded segment, scans all
+        # active assistant rows read-only, and skips already-linked tuples.
+        # Backfill the deliberately older marker row with the production
+        # helper in a namespace seeded from the same segment globals.
+        backfill_rows = [(10, SID, f"只有标记 {marker}")]
+        # Remove the historical link created by tailing, simulating an older
+        # install whose watermark already passed this row before markers were
+        # understood.
+        kept = [r for r in ledger_lines(ledger)
+                if not (r.get("link") is True
+                        and r.get("messageId") == 10
+                        and r.get("deliveryId") == marker_delivery["id"])]
+        with open(ledger, "w", encoding="utf-8") as f:
+            for rec in kept:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        def append_backfill(rec):
+            with open(ledger, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec) + "\n")
+
+        segment_ns = {
+            "_SENTINEL_DB_PATH": __import__("pathlib").Path(db_path),
+            "_DELIVERY_LOCK": __import__("threading").Lock(),
+            "_delivery_links_load": lambda: [r for r in ledger_lines(ledger)
+                                                if r.get("link") is True],
+            "_delivery_find": lambda rid: marker_delivery if rid == marker_delivery.get("id") else None,
+            "_sentinel_extract": lambda text: [("delivery", m.group(1))
+                for m in __import__("re").finditer(r"\[\[deliver:(dlv_[0-9a-f]{20})\]\]", text)],
+            "_delivery_append": append_backfill,
+            "_DELIVERY_LEDGER_PATH": __import__("pathlib").Path(ledger),
+            "_DELIVERY_ASSET_DIR": __import__("pathlib").Path(data_tmp),
+            "DELIVERY_ROOT": __import__("pathlib").Path(root),
+            "DATA_PATH": __import__("pathlib").Path(os.path.join(data_tmp, "data.json")),
+            "_delivery_public": lambda rec, status: dict(rec),
+            "_delivery_status": lambda rec: "ok",
+            "json": json, "sqlite3": sqlite3, "datetime": __import__("datetime").datetime,
+            "timezone": __import__("datetime").timezone,
+        }
+        # Use the source function body from the package segment for an actual
+        # execution rather than mirroring its idempotency logic in the test.
+        import ast
+        segment_path = os.path.join(HERE, "..", "modules", "oneday_seg_delivery.py")
+        tree = ast.parse(open(segment_path, encoding="utf-8").read())
+        func = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                    and n.name == "_delivery_backfill_markers")
+        exec(compile(ast.Module(body=[func], type_ignores=[]), segment_path, "exec"), segment_ns)
+        first_added = segment_ns["_delivery_backfill_markers"]()
+        existing = {(l.get("sessionId"), l.get("messageId"),
+                     l.get("deliveryId")) for l in ledger_lines(ledger)
+                    if l.get("link") is True}
+        second_added = segment_ns["_delivery_backfill_markers"]()
+        check("historical marker backfill idempotent",
+              first_added == 1 and second_added == 0
+              and (SID, 10, marker_delivery["id"]) in existing,
+              f"first={first_added} second={second_added}")
+        s, old_message = call(
+            "GET", f"/deliveries/by-message?session_id={SID}&message_id=10")
+        check("backfilled message index matches attachment metadata",
+              s == 200 and len(old_message.get("deliveries", [])) == 1
+              and old_message["deliveries"][0].get("id")
+              == marker_delivery.get("id"), str(old_message))
+
         # Live tail: a message inserted after boot gets picked up.
         db = sqlite3.connect(db_path)
         db.execute(
             "INSERT INTO messages VALUES (?,?,?,?,?,1)",
-            (9, SID, "assistant", f"新图：{late}", time.time() - 30))
+            (12, SID, "assistant", f"新图：{late}", time.time() - 30))
         db.commit()
         db.close()
-        body = wait_index(9)
+        body = wait_index(12)
         d9 = body.get("deliveries", [])
         check("live tail picks up new message",
               len(d9) == 1 and d9[0].get("name") == "late.jpg",
@@ -261,7 +336,7 @@ def main():
         with open(state, encoding="utf-8") as f:
             wm = json.load(f)
         check("watermark persisted at last message",
-              wm.get("lastMessageId") == 9, str(wm))
+              wm.get("lastMessageId") == 12, str(wm))
     finally:
         stop(proc)
 
