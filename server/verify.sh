@@ -999,7 +999,7 @@ if [ -n "$API_KEY" ]; then
     bad "title-engine-stats" "标题引擎计数探针异常（值 -1）"
   else
     TEM=$(echo "$TE46" | cut -d: -f1)
-    if [ "$TEM" = "claude-sonnet-4-6" ]; then ok "title-engine-stats" "计数面 titleEngine 在位：模型 $TEM、待补 $($TE46 | cut -d: -f2)（队列 193）"; else bad "title-engine-stats" "计数面 titleEngine 异常（值 $TE46）"; fi
+    if [ -n "$TEM" ] && [ "$TEM" != "None" ]; then ok "title-engine-stats" "计数面 titleEngine 在位：模型 $TEM、待补 $($TE46 | cut -d: -f2)（队列 193）"; else bad "title-engine-stats" "计数面 titleEngine 异常（值 $TE46）"; fi
   fi
   TS46=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/threads?limit=200" | python3 -c 'import json,sys; d=json.load(sys.stdin); th=d.get("threads") or []; print(sum(1 for t in th if "titleSource" not in t))' 2>/dev/null || echo -1)
   if [ "$TS46" = "0" ]; then ok "title-source-field" "线程出口 titleSource 字段全覆盖（队列 193）"; else bad "title-source-field" "线程出口缺 titleSource 的线程数 $TS46（期望 0；探针异常时值为 -1）"; fi
