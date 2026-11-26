@@ -149,15 +149,17 @@ struct VaultRequestCard: View {
             ForEach(fields, id: \.self) { field in
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(fieldDisplayName(field))
-                        .font(.meta)
-                        .foregroundStyle(Palette.inkMuted)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Palette.inkSecondary)
 
-                    SecureField("", text: Binding(
+                    SecureField("输入\(fieldDisplayName(field))", text: Binding(
                         get: { fieldValues[field] ?? "" },
                         set: { fieldValues[field] = $0 }
                     ))
-                    .font(.body)
-                    .textFieldStyle(.roundedBorder)
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Palette.settingsBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .privacySensitive()
