@@ -1543,28 +1543,11 @@ class Handler:
         parts = [p for p in path.split("/") if p]
         try:
             if parts == ["health"]:
-                health = {"ok": True, "service": "oneday-bridge",
-                          "degraded": bool(_degraded_reason)}
-                if _degraded_reason:
-                    health["degradedReason"] = _degraded_reason
-                    health["writesEnabled"] = False
-                try:
-                    store = _ledger()
-                    hb = store.collector_heartbeat_at
-                    health["ledger"] = {
-                        "degraded": bool(store.degraded_reason),
-                        "items": len(store.items)}
-                    if store.degraded_reason:
-                        health["ledger"]["degradedReason"] = \
-                            store.degraded_reason
-                    health["collector"] = {
-                        "lastRunAt": hb,
-                        "lagSeconds": (round(_now() - hb, 1)
-                                       if hb else None)}
-                except Exception as e:
-                    health["ledger"] = {"error": repr(e)[:120]}
-                health["deliverySentinel"] = dict(_sentinel_status)
-                return self._send(200, health)
+                return self._send(200, {
+                    "ok": True,
+                    "service": "oneday-bridge",
+                    "status": "degraded" if _degraded_reason else "ok",
+                })
             if parts and parts[0] == "internal":
                 return self._dispatch_cron_callback(parts)
             if not self._authed():

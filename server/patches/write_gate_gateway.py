@@ -25,6 +25,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from error_boundary import error_response, invalid_argument, not_found, unavailable
 
 logger = logging.getLogger("gateway.platforms.write_gate_gateway")
 
@@ -1108,7 +1109,7 @@ def get_status():
             "counts": _counts(),
         }
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def list_pending():
@@ -1116,7 +1117,7 @@ def list_pending():
     start()
     try:
         if not SUPPORTED:
-            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+            return unavailable()
         _sweep_rules()
         records = []
         resolver = _AnchorResolver()
@@ -1132,7 +1133,7 @@ def list_pending():
         return 200, {
             "records": records, "counts": _counts(), "supported": SUPPORTED}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def get_pending(subsystem, pending_id):
@@ -1140,12 +1141,12 @@ def get_pending(subsystem, pending_id):
     start()
     try:
         if subsystem not in SUBSYSTEMS or not ID_RE.match(pending_id):
-            return 400, {"error": "invalid subsystem or id"}
+            return invalid_argument("子系统或编号不合法", "subsystem" if subsystem not in SUBSYSTEMS else "id")
         if not SUPPORTED:
-            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+            return unavailable()
         rec = wa.get_pending(subsystem, pending_id)
         if rec is None:
-            return 404, {"error": "pending record not found"}
+            return not_found("待处理记录不存在")
         review = _memory_review(rec) if subsystem == "memory" else _skills_review(rec)
         resolver = _AnchorResolver()
         try:
@@ -1157,7 +1158,7 @@ def get_pending(subsystem, pending_id):
             "record": record,
             "review": review}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def decide(subsystem, pending_id, action_word):
@@ -1165,15 +1166,15 @@ def decide(subsystem, pending_id, action_word):
     start()
     try:
         if subsystem not in SUBSYSTEMS or not ID_RE.match(pending_id):
-            return 400, {"error": "invalid subsystem or id"}
+            return invalid_argument("子系统或编号不合法", "subsystem" if subsystem not in SUBSYSTEMS else "id")
         if action_word not in ("approve", "reject"):
-            return 400, {"error": "invalid action"}
+            return invalid_argument("动作不合法", "action")
         if not SUPPORTED:
-            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+            return unavailable()
         with _write_lock:
             rec = wa.get_pending(subsystem, pending_id)
             if rec is None:
-                return 404, {"error": "pending record not found"}
+                return not_found("待处理记录不存在")
             success, output = _apply_decision(subsystem, rec, action_word)
             decision = "approved" if action_word == "approve" else "rejected"
             resp = {
@@ -1188,7 +1189,7 @@ def decide(subsystem, pending_id, action_word):
                 _append_attempt(rec, subsystem, action_word, reason)
             return 200, resp
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def list_decisions(limit_raw):
@@ -1213,7 +1214,7 @@ def list_decisions(limit_raw):
             resolver.close()
         return 200, {"decisions": rows}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 # --- activity grouping (task-level human presentation) ----------------------
@@ -1289,7 +1290,7 @@ def list_activity(limit_raw, grouped_raw):
     start()
     try:
         if not SUPPORTED:
-            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+            return unavailable()
         _sweep_rules()
 
         # pending records
@@ -1414,7 +1415,7 @@ def list_activity(limit_raw, grouped_raw):
             "supported": SUPPORTED
         }
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def list_rules():
@@ -1426,7 +1427,7 @@ def list_rules():
         # once the gate is supported again).
         return 200, {"rules": _load_rules()}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def create_rule(raw_body: bytes):
@@ -1450,7 +1451,7 @@ def create_rule(raw_body: bytes):
         rule, created = _add_rule(sub, origin.strip())
         return (201 if created else 200), {"rule": rule}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def delete_rule(rule_id):
@@ -1458,12 +1459,12 @@ def delete_rule(rule_id):
     start()
     try:
         if not ID_RE.match(rule_id):
-            return 400, {"error": "invalid rule id"}
+            return invalid_argument("规则编号不合法", "rule_id")
         if _remove_rule(rule_id):
             return 200, {"success": True}
-        return 404, {"error": "rule not found"}
+        return not_found("规则不存在")
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def list_memories():
@@ -1471,13 +1472,13 @@ def list_memories():
     start()
     try:
         if not SUPPORTED:
-            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+            return unavailable()
         entries, _store = _mem_snapshot()
         return 200, {
             "entries": [_entry_public(e) for e in entries],
             "generatedAt": time.time()}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def get_memory(entry_id):
@@ -1494,7 +1495,7 @@ def get_memory(entry_id):
             return 404, {"error": "这条记忆已不存在"}
         return 200, {"entry": _entry_public(entry, detail=True)}
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)
 
 
 def propose_memory(raw_body: bytes):
@@ -1510,4 +1511,4 @@ def propose_memory(raw_body: bytes):
         code, obj = _propose_memory(body)
         return code, obj
     except Exception as e:
-        return 500, {"error": f"{type(e).__name__}: {e}"}
+        return error_response(e)

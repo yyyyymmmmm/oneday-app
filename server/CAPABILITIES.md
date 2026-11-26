@@ -92,6 +92,7 @@ verify.sh 按本表逐项探活；状态口径：在役＝已上线且有探针�
 | 71 | Bitwarden 链接与查找次序（凭据两步走棒 1，队列 195/208 合入定版） | bitwarden_link 模块＋api_server_oneday_routes 五路由＋api_server features.bitwarden_link 位 | GET /v1/vault/bitwarden/status、POST /v1/vault/bitwarden/connect|unlock|lock|disconnect（长钥闸）；vault_use 取用次序＝Bitwarden 先（同域唯一匹配才赢）、内置库后，未解锁/不可达/超时/版本不合整体降级内置库并审计；子命令白名单写死、写类子命令封装层拒；主密码只在解锁时 --passwordenv 瞬时过手、永不落盘/日志/存储；API Key 一对只经内置凭据库加密存；第一期只读、新填凭据仍落内置库；bw 钉版 2026.6.0 棒 3 随包分发 |
 | 72 | 服务端三拆分（5.1 移植第一批，队列 212） | 模块 device_gateway_catalog.py（自 device_gateway 拆出工具 schema/能力注册表）＋api_server_enrollment.py（自 api_server 拆出认领存储/异步队列）＋oneday_feed_helpers.py（自 oneday_seg_feed 拆出分类/评分纯函数）；三源文件改双路 import 引入、行为零改动 | verify 第 52 节：三新模块在位与接缝不变量（源文件不再内嵌定义）＋容器内 import 冒烟（catalog 工具数/注册表、enrollment 存储实例与队列、helpers 两函数行为）；包 2.18.13，只入包未部署 |
 | 73 | api_server 并发/幂等支撑原语拆分（队列 222） | 新模块 api_server_support.py：_IdempotencyCache（TTL/LRU 与同键 single-flight）、_ProviderAuthResolutionError（限流/认证错误分类及用户文案）、_SessionEventQueue（SSE 顺序与跨线程入队 flush）；api_server 只导入三原语并保留 _idem_cache 实例、provider 常量及路由业务调用。api_server_enrollment 的重复 SSE 常量块改为从 api_server 单源回取 | verify 第 53 节：support 三原语与 api_server 无内嵌残留、容器 import/对象身份冒烟及 enrollment 常量单源相等检查；包 2.18.14（占位号，主线定版时落），只入包未部署 |
+| 74 | 服务端统一错误边界（队列 230，dp-271） | error_boundary.py 提供参数/权限/未找到/上游/内部异常分类、路径与上游文本脱敏、人话消息、稳定错误码及字段定位；write_gate_gateway 全部异常出口接入，参数错误返回 code＋field | verify 第 54 节；包 2.18.16（定版），只入包未部署 |
 
 ## 状态契约（网关侧，随 #23b 入账）
 
