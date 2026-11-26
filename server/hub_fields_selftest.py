@@ -400,6 +400,197 @@ check("lone approval keys by its decision id",
                        "link": {"targetId": "p3"}}, "approval")
       == "thread:appr:p3")
 
+print("== title engine (queue 193) ==")
+te = load("title_engine", "patches/title_engine.py")
+
+# -- prompt: three gates as hard constraints + counter-examples,
+#    material caps from the proposal (intent 300, steps 20) --
+prompt193 = te.build_prompt("帮我查一下服务器内存", ["terminal：free -m", "read_file：/proc/meminfo"], "成功完成")
+check("prompt carries the three hard gates",
+      "三条硬约束" in prompt193 and "不许出现乱码" in prompt193
+      and "区分度" in prompt193 and "谁对什么做了什么" in prompt193)
+check("prompt carries counter-examples",
+      "反例" in prompt193 and "你是 OneDay 的点子生成器" in prompt193
+      and "处理了用户的请求" in prompt193)
+check("prompt bans instruction openings and internal terms",
+      "不要以「你是……」的指令口吻开头" in prompt193
+      and "内部术语" in prompt193)
+long_prompt = te.build_prompt("长" * 500, [f"step{i}" for i in range(40)], "成功完成")
+check("prompt intent capped at 300",
+      "长" * 300 in long_prompt and "长" * 301 not in long_prompt)
+check("prompt steps capped at 20",
+      "step19" in long_prompt and "step20" not in long_prompt)
+
+# -- output gates: the mechanical three-gate check --
+check("parse a clean two-line output",
+      te.parse_summary_output("检查服务器内存\n用 free 与 meminfo 核对，内存占用 52%，正常")
+      == ("检查服务器内存", "用 free 与 meminfo 核对，内存占用 52%，正常"))
+check("parse tolerates a code fence",
+      te.parse_summary_output("```\n新建了登录凭据\n在凭据库里建好条目并回读验证\n```")
+      == ("新建了登录凭据", "在凭据库里建好条目并回读验证"))
+check("parse rejects an instruction-head title",
+      te.parse_summary_output("你是 OneDay 的点子生成器\n生成了三张点子卡") is None)
+check("parse rejects internal terms",
+      te.parse_summary_output("处理了 run 任务\n跑完了") is None)
+check("parse rejects a fragment title",
+      te.parse_summary_output("{ #13\n做了点事") is None)
+check("parse rejects an overlong title",
+      te.parse_summary_output("查" * 31 + "\n副题") is None)
+check("parse rejects a truncated title",
+      te.parse_summary_output("检查服务器内…\n副题") is None)
+check("parse rejects a single line",
+      te.parse_summary_output("检查服务器内存") is None)
+check("parse rejects non-text",
+      te.parse_summary_output(None) is None)
+
+# -- fingerprint: same close same key, moved close new key --
+th_a = {"threadId": "thread:run:r1", "itemIds": ["run:r1"],
+        "endedAt": 200, "status": "completed"}
+th_b = dict(th_a)
+check("fingerprint is stable for the same close",
+      te.fingerprint(th_a) == te.fingerprint(th_b))
+check("fingerprint moves with the end time",
+      te.fingerprint(dict(th_a, endedAt=201)) != te.fingerprint(th_a))
+check("fingerprint moves with membership",
+      te.fingerprint(dict(th_a, itemIds=["run:r1", "run:r2"]))
+      != te.fingerprint(th_a))
+
+# -- queue: idempotent enqueue, newest first, bounded attempts,
+#    bounded requeues after cooldown, audit counters --
+qs = te.new_state(1000)
+check("enqueue is idempotent per close",
+      te.enqueue(qs, "thread:run:r1", "fp1", 1000) is True
+      and te.enqueue(qs, "thread:run:r1", "fp1", 1001) is False)
+te.enqueue(qs, "thread:run:r2", "fp2", 1002)
+check("pick takes the newest close first",
+      te.pick_next(qs)["threadId"] == "thread:run:r2")
+k2 = te.queue_key("thread:run:r2", "fp2")
+te.record_attempt(qs, k2, "run_x", 1003)
+check("attempt counts a submission",
+      qs["counters"]["submitted"] == 1
+      and qs["entries"][k2]["attempts"] == 1)
+te.record_failure(qs, k2, "HTTP 402", 1004)
+check("failure before the cap stays pending",
+      qs["entries"][k2]["state"] == "pending")
+te.record_attempt(qs, k2, "run_y", 1005)
+te.record_attempt(qs, k2, "run_z", 1006)
+te.record_failure(qs, k2, "HTTP 402", 1007)
+check("failure at the cap rests as failed",
+      qs["entries"][k2]["state"] == "failed"
+      and qs["counters"]["failedAttempts"] == 2)
+check("no requeue before the cooldown",
+      te.sweep_requeues(qs, 1007 + te.REQUEUE_COOLDOWN_SECONDS - 1) == 0)
+check("requeue after the cooldown resets attempts",
+      te.sweep_requeues(qs, 1007 + te.REQUEUE_COOLDOWN_SECONDS) == 1
+      and qs["entries"][k2]["state"] == "pending"
+      and qs["entries"][k2]["attempts"] == 0
+      and qs["entries"][k2]["requeues"] == 1)
+te.record_attempt(qs, k2, "run_w", 3000)
+te.record_success(qs, k2, 3001)
+check("success closes the entry and counts",
+      qs["entries"][k2]["state"] == "done"
+      and qs["counters"]["succeeded"] == 1)
+stats193 = te.stats(qs)
+check("stats expose the awaiting count for monitoring",
+      stats193["awaiting"] == 1 and stats193["done"] == 1
+      and stats193["submitted"] == 4)
+
+# -- degradation + exit shape at the assembly level: a thread
+#    with only a rule headline assembles untouched (the exit
+#    never waits for the model), and a model headline, once
+#    written onto one member, takes over title AND summary --
+feed193_items = [
+    {"id": "run:m1", "kind": "run", "sessionId": "oneday-main-1",
+     "runId": "m1", "title": "查内存", "status": "completed",
+     "startedAt": 100, "endedAt": 210,
+     "title_human": "旧规则标题", "summary": "规则副题"},
+    {"id": "run:m2", "kind": "run", "sessionId": "oneday-main-1",
+     "runId": "m1", "title": "查内存", "status": "completed",
+     "startedAt": 150, "endedAt": 200,
+     "title_human": "检查服务器内存",
+     "summary": "模型副题：占用 52%，正常",
+     "titleHumanSource": "model"},
+]
+th193 = feed.assemble_threads(feed193_items, SKIP)
+check("model headline wins over a later rule headline",
+      len(th193) == 1 and th193[0]["title"] == "检查服务器内存"
+      and th193[0]["summary"] == "模型副题：占用 52%，正常"
+      and th193[0]["titleSource"] == "model",
+      repr(th193))
+rule_only = feed.assemble_threads(feed193_items[:1], SKIP)
+check("rule headline stands as rule_fallback (degraded shelf)",
+      rule_only[0]["title"] == "旧规则标题"
+      and rule_only[0]["titleSource"] == "rule_fallback")
+bare = feed.assemble_threads(
+    [dict(feed193_items[0], title_human=None)], SKIP)
+check("no headline at all reads as raw, never blanked by the engine",
+      bare[0]["title"] == "查内存"
+      and bare[0]["titleSource"] == "raw")
+
+print("== title engine stock backfill (queue 200) ==")
+# -- queue: backfill entries carry the flag, live entries do
+#    not; stats keep the backfill's own ledger line --
+qs3 = te.new_state(5000)
+check("backfill enqueue records the flag, live enqueue does not",
+      te.enqueue(qs3, "thread:run:old1", "fpo1", 5000,
+                 backfill=True) is True
+      and qs3["entries"]["thread:run:old1@fpo1"]["backfill"]
+      is True
+      and te.enqueue(qs3, "thread:run:new1", "fpn1", 5001) is True
+      and qs3["entries"]["thread:run:new1@fpn1"]["backfill"]
+      is False)
+check("model source set covers live and backfill provenance",
+      te.is_model_source("model")
+      and te.is_model_source("model_backfill")
+      and not te.is_model_source("rule")
+      and not te.is_model_source(None))
+k_old = te.queue_key("thread:run:old1", "fpo1")
+te.record_attempt(qs3, k_old, "run_bf", 5002)
+te.record_success(qs3, k_old, 5003)
+stats200 = te.stats(qs3)
+check("stats expose the backfill breakdown and done stamp",
+      stats200["backfill"] == {"pending": 0, "done": 1,
+                               "failed": 0}
+      and stats200["backfillDoneAt"] is None)
+qs3["backfillDoneAt"] = 6000
+check("stats surface the backfill completion stamp",
+      te.stats(qs3)["backfillDoneAt"] == 6000)
+
+# -- assembly: a backfilled headline takes the thread over from
+#    the rule headline (title AND summary), reads as
+#    model_backfill, and a live model headline outranks it --
+bf_items = [
+    {"id": "run:b1", "kind": "run", "sessionId": "oneday-main-2",
+     "runId": "b1", "title": "老活", "status": "completed",
+     "startedAt": 50, "endedAt": 90,
+     "title_human": "规则标题", "summary": "规则副题"},
+    {"id": "run:b2", "kind": "run", "sessionId": "oneday-main-2",
+     "runId": "b1", "title": "老活", "status": "completed",
+     "startedAt": 60, "endedAt": 80,
+     "title_human": "补汇总标题",
+     "summary": "补汇总副题",
+     "titleHumanSource": "model_backfill"},
+]
+th200 = feed.assemble_threads(bf_items, SKIP)
+check("backfilled headline wins over the rule headline",
+      len(th200) == 1 and th200[0]["title"] == "补汇总标题"
+      and th200[0]["summary"] == "补汇总副题"
+      and th200[0]["titleSource"] == "model_backfill",
+      repr(th200))
+live_over_bf = feed.assemble_threads(
+    bf_items + [{"id": "run:b3", "kind": "run",
+                 "sessionId": "oneday-main-2", "runId": "b1",
+                 "title": "老活", "status": "completed",
+                 "startedAt": 55, "endedAt": 70,
+                 "title_human": " live 标题".strip(),
+                 "summary": "live 副题",
+                 "titleHumanSource": "model"}], SKIP)
+check("a live model headline outranks a backfilled one",
+      live_over_bf[0]["title"] == "live 标题"
+      and live_over_bf[0]["titleSource"] == "model",
+      repr(live_over_bf))
+
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)} 项: {FAILS}")
