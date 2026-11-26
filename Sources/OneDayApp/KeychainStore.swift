@@ -1,6 +1,9 @@
 import Foundation
 import OneDayCore
 import Security
+#if canImport(KeychainAccess)
+import KeychainAccess
+#endif
 
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
 enum CredentialKey {
@@ -74,6 +77,23 @@ enum RetiredBridgeKeyCleanup {
 enum KeychainStore {
     private static let service = "site.didichou.oneday"
 
+    #if canImport(KeychainAccess)
+    private static var store: Keychain {
+        Keychain(service: service)
+    }
+
+    static func save(_ value: String, account: String) {
+        try? store.set(value, key: account)
+    }
+
+    static func read(account: String) -> String? {
+        try? store.get(account)
+    }
+
+    static func delete(account: String) {
+        try? store.remove(account)
+    }
+    #else
     static func save(_ value: String, account: String) {
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
@@ -114,6 +134,7 @@ enum KeychainStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+    #endif
 
     static func clearAll() {
         for account in CredentialKey.all {

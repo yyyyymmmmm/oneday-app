@@ -28,7 +28,13 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
             // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
-            dependencies: [.external(name: "Markdown")]
+            // 移植 1.4：Highlightr 代码语法高亮（Tuist/Package.swift 钉版 2.3.0）
+            // 移植 1.5：EventSource 标准 SSE 客户端（Tuist/Package.swift 钉版 1.6.0）
+            dependencies: [
+                .external(name: "Markdown"),
+                .external(name: "Highlightr"),
+                .external(name: "EventSource"),
+            ]
         ),
         .target(
             name: "OneDayDesign",
@@ -143,6 +149,12 @@ let project = Project(
                 // NukeUI（版本钉死在 Tuist/Package.swift）
                 .external(name: "Nuke"),
                 .external(name: "NukeUI"),
+                // 移植 1.3：KeychainAccess 钥匙串存取
+                // （版本钉死在 Tuist/Package.swift）
+                .external(name: "KeychainAccess"),
+                // 移植 1.6：官方 MCP Swift SDK
+                // （版本钉死在 Tuist/Package.swift）
+                .external(name: "MCP"),
             ]
         ),
         .target(
