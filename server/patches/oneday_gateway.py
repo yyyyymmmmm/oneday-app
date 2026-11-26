@@ -1548,11 +1548,16 @@ class Handler:
         parts = [p for p in path.split("/") if p]
         try:
             if parts == ["health"]:
-                return self._send(200, {
+                health = {
                     "ok": True,
                     "service": "oneday-bridge",
                     "status": "degraded" if _degraded_reason else "ok",
-                })
+                    "degraded": bool(_degraded_reason)
+                }
+                if _degraded_reason:
+                    health["degradedReason"] = _degraded_reason
+                    health["writesEnabled"] = False
+                return self._send(200, health)
             if parts and parts[0] == "internal":
                 return self._dispatch_cron_callback(parts)
             if not self._authed():
