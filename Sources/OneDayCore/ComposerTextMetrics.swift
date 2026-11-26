@@ -1,3 +1,5 @@
+#if os(iOS)
+// Mac 地基棒平台守卫：发送舱量测链是 iOS 输入面专属（UIFont/TextKit），macOS 编译排除；iOS 侧内容一字未动。
 import UIKit
 
 /// 发送舱文本量测（0.2.9 纯逻辑定案，DESIGN-V4 §13）：
@@ -188,3 +190,5 @@ public enum ComposerTextMetrics {
         )
     }
 }
+
+#endif

@@ -1,8 +1,11 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 // MARK: - 无障碍设计层支撑（0.43.0 无障碍专项）
 
+#if os(iOS)
 public extension DynamicTypeSize {
     /// SwiftUI 字号档 → UIKit 内容大小档（0.43.0，
     /// A11Y-D1 量测贯穿）：发送舱量测在 Core/UIKit
@@ -28,6 +31,7 @@ public extension DynamicTypeSize {
         }
     }
 }
+#endif
 
 /// 行数上限的无障碍放宽（0.43.0，A11Y-D3）：标准
 /// 档保持原行数（默认外观逐字不变），AX 档

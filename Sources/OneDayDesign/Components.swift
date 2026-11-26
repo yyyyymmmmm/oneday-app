@@ -2,6 +2,8 @@ import OneDayCore
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 // MARK: - v2 组件层（定版 §3.5：每个组件全 App 只有一种实现）
@@ -653,7 +655,13 @@ public extension View {
 /// 的「复制」共用，不许两套写法
 public enum Pasteboard {
     public static func copy(_ text: String) {
+        #if os(iOS)
         UIPasteboard.general.string = text
+        #elseif os(macOS)
+        // Mac 等价面：NSPasteboard（地基棒平台垫片）
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        #endif
     }
 }
 
