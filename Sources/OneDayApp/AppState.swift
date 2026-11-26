@@ -1,5 +1,6 @@
 import Foundation
 import OneDayCore
+import SwiftData
 import SwiftUI
 
 /// 三步探活的步骤口径：连接页与设置页「重新测试连接」共用。
