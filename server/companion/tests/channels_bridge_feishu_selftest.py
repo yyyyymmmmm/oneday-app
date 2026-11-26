@@ -40,8 +40,8 @@ PORT = 18849
 STUB_PORT = 18850
 BASE = f"http://127.0.0.1:{PORT}"
 GOOD_APP_ID = "cli_good_app"
-GOOD_SECRET = "fs-good-secret"
-BAD_SECRET = "fs-bad-secret"
+GOOD_SECRET = "test-good-secret"
+BAD_SECRET = "test-bad-secret"
 GOOD_TG = "123456789:AAE" + "x" * 30
 
 passed = failed = 0
@@ -112,7 +112,7 @@ class StubFeishu(BaseHTTPRequestHandler):
             if self.headers.get("Authorization") \
                     == "Bearer t-stub":
                 self._reply({"code": 0, "msg": "ok", "bot": {
-                    "app_name": "三狗测试助手",
+                    "app_name": "小天测试助手",
                     "open_id": "ou_bot"}})
             else:
                 self._reply({"code": 99991663,

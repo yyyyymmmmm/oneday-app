@@ -33,19 +33,22 @@ def main():
 
     check("render: missing identity.json -> None", om.render_oneday_prompt() is None)
     (tmp / "identity.json").write_text(json.dumps(
-        {"agent_name": "三狗", "company_name": "知和数智", "product_name": "OneDay"}),
+        {"agent_name": "小天", "company_name": "示例科技", "product_name": "OneDay"}),
         encoding="utf-8")
     out = om.render_oneday_prompt()
     check("render: full identity renders", isinstance(out, str) and len(out) > 10000)
     check("render: placeholders gone", out is not None and "{{" not in out)
     check("render: identity values in text",
-          out is not None and "You are 三狗" in out and "知和数智" in out
+          out is not None and "You are 小天" in out and "示例科技" in out
           and "personal agent in OneDay" in out)
     check("render: safety chapter present",
           out is not None and "Safety — The Red Lines" in out
           and "sexual content involving minors" in out)
+    check("render: credential request marker instruction present",
+          out is not None and "[[vreq:vreq_...]]" in out
+          and "never put credential values in chat" in out)
     (tmp / "identity.json").write_text(json.dumps(
-        {"agent_name": "", "company_name": "知和数智", "product_name": "OneDay"}),
+        {"agent_name": "", "company_name": "示例科技", "product_name": "OneDay"}),
         encoding="utf-8")
     check("render: empty value -> None", om.render_oneday_prompt() is None)
     (tmp / "identity.json").write_text("{broken", encoding="utf-8")

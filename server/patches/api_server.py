@@ -72,6 +72,7 @@ _CAPABILITY_ENDPOINTS = (
     ("run_stop", ("POST", "/v1/runs/{run_id}/stop")),
     ("crash_reports", ("POST", "/v1/diagnostics/crash-reports")),
     ("crash_reports_list", ("GET", "/v1/diagnostics/crash-reports")),
+    # OneDay auth and push endpoints are declared by their route module.
     ("settings_registry", ("GET", "/v1/settings/registry", "settings_registry")),
     ("settings_write", ("POST", "/v1/settings/entries")),
     ("settings_events", ("GET", "/v1/settings/events")),
@@ -84,6 +85,7 @@ _CAPABILITY_ENDPOINTS = (
     ("write_gate_approve", ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/approve")),
     ("write_gate_reject", ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/reject")),
     ("write_gate_decisions", ("GET", "/v1/write-gate/decisions")),
+    ("write_gate_activity", ("GET", "/v1/write-gate/activity")),
     ("write_gate_rules_list", ("GET", "/v1/write-gate/rules")),
     ("write_gate_rules_create", ("POST", "/v1/write-gate/rules")),
     ("write_gate_rules_delete", ("DELETE", "/v1/write-gate/rules/{rule_id}")),
@@ -154,6 +156,12 @@ from gateway.platforms import api_server_room_dispatch as _room_dispatch
 from gateway.platforms import api_server_room_grants as _room_grants
 from gateway.platforms import api_server_runs as _api_runs
 from gateway.platforms.api_server_openai_routes import OpenAICompatRoutesMixin
+from gateway.platforms.api_server_oneday_routes import (
+    ONEDAY_CAPABILITY_ENDPOINTS as _ONEDAY_CAPABILITY_ENDPOINTS,
+    OneDayAuthPushRoutesMixin,
+    oneday_http_routes as _oneday_http_routes,
+)
+_CAPABILITY_ENDPOINTS = _CAPABILITY_ENDPOINTS + _ONEDAY_CAPABILITY_ENDPOINTS
 from gateway.platforms.api_server_memory_sessions import ApiServerMemorySessions
 from gateway.platforms.api_server_bot_chat import reset_local_title_owner
 from gateway.platforms.base import (
@@ -1327,7 +1335,7 @@ def _apply_toolset_toggle_api_server(name: str, enabled: bool) -> tuple[int, dic
     return 200, {"ok": True, "name": name, "platform": "api_server", "enabled": bool(enabled)}
 
 
-class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BasePlatformAdapter):
     """aiohttp server routing OpenAI-format requests through hermes-agent's AIAgent."""
 
     # Stateless request/response (``send()`` is a stub): async-delivery tools must not promise
@@ -1723,6 +1731,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
+            handled, short_err = self._check_short_lived_bearer(token, expected_key, request)
+            if handled:
+                return short_err
             # Compare as bytes: compare_digest raises TypeError on non-ASCII str, and the
             # token is raw client input — a stray byte must 401, not 500.
             if hmac.compare_digest(token.encode(), expected_key.encode()):
@@ -1864,6 +1875,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/v1/grants/revoke", self._handle_revoke_grant),
             ("POST", "/v1/diagnostics/crash-reports", self._handle_post_crash_reports),
             ("GET", "/v1/diagnostics/crash-reports", self._handle_list_crash_reports),
+            *_oneday_http_routes(self),
             ("GET", "/v1/settings/registry", self._handle_settings_registry),
             ("POST", "/v1/settings/entries", self._handle_settings_write),
             ("GET", "/v1/settings/events", self._handle_settings_events),
@@ -1883,6 +1895,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/approve", self._handle_write_gate_approve),
             ("POST", "/v1/write-gate/pending/{subsystem}/{pending_id}/reject", self._handle_write_gate_reject),
             ("GET", "/v1/write-gate/decisions", self._handle_write_gate_decisions),
+            ("GET", "/v1/write-gate/activity", self._handle_write_gate_activity),
             ("GET", "/v1/write-gate/rules", self._handle_write_gate_rules_list),
             ("POST", "/v1/write-gate/rules", self._handle_write_gate_rules_create),
             ("DELETE", "/v1/write-gate/rules/{rule_id}", self._handle_write_gate_rules_delete),
@@ -1975,6 +1988,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("POST", "/api/write-gate/pending/{subsystem}/{pending_id}/approve", self._handle_write_gate_approve),
             ("POST", "/api/write-gate/pending/{subsystem}/{pending_id}/reject", self._handle_write_gate_reject),
             ("GET", "/api/write-gate/decisions", self._handle_write_gate_decisions),
+            ("GET", "/api/write-gate/activity", self._handle_write_gate_activity),
             ("GET", "/api/write-gate/rules", self._handle_write_gate_rules_list),
             ("POST", "/api/write-gate/rules", self._handle_write_gate_rules_create),
             ("DELETE", "/api/write-gate/rules/{rule_id}", self._handle_write_gate_rules_delete),
@@ -3289,6 +3303,21 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         return web.json_response(payload, status=status)
 
     @_require_auth
+    async def _handle_write_gate_activity(self, request: web.Request) -> web.Response:
+        """GET /v1/write-gate/activity (+ /api/write-gate/activity shape mirror)."""
+        try:
+            from gateway.platforms import write_gate_gateway as _wg
+        except Exception:
+            return _error_response(
+                "write gate gateway module unavailable", 503,
+                code="write_gate_gateway_unavailable")
+        _wg.start()
+        limit = request.query.get("limit")
+        grouped = request.query.get("grouped")
+        status, payload = await asyncio.to_thread(_wg.list_activity, limit, grouped)
+        return web.json_response(payload, status=status)
+
+    @_require_auth
     async def _handle_write_gate_rules_list(self, request: web.Request) -> web.Response:
         """GET /v1/write-gate/rules (+ /api/write-gate/rules shape mirror)."""
         try:
@@ -3645,6 +3674,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             # deployment gate display.options_card (default off)
             # separately controls whether cards are actually produced.
             "options_card": True,
+            "push_tokens": True,
+            "short_lived_tokens": True,
+            "credential_vault": True,
             **_STATIC_FEATURE_FLAGS,
             "run_unknown_resolution": getattr(runner, "session_authority", None) is not None,
             "cors": bool(self._cors_origins)}
@@ -4970,7 +5002,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             return err
         try:
             include_disabled = request.query.get("include_disabled", "").lower() in {"true", "1"}
-            return web.json_response({"jobs": _cron_list(include_disabled=include_disabled)})
+            from gateway.platforms.cron_projection import project_jobs
+            jobs = _cron_list(include_disabled=include_disabled)
+            return web.json_response({"jobs": project_jobs(jobs)})
         except Exception as e:
             return self._cron_error_response(e)
 

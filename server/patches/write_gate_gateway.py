@@ -85,6 +85,27 @@ def _structured_fields(subsystem: str, rec: dict) -> dict:
                     kinds.append(o["action"])
             if kinds:
                 out["op_kinds"] = kinds
+            # batch: supplement target_name from operations if top payload lacks it
+            if "target_name" not in out:
+                names = []
+                for o in ops:
+                    if isinstance(o, dict):
+                        n = o.get("name")
+                        if isinstance(n, str) and n:
+                            names.append(n)
+                unique_names = list(dict.fromkeys(names))
+                if len(unique_names) == 1:
+                    out["target_name"] = unique_names[0]
+            # batch: content_preview from first text-bearing op
+            for o in ops:
+                if not isinstance(o, dict):
+                    continue
+                action = o.get("action")
+                fields = o
+                text = _skill_op_text(action, fields)
+                if isinstance(text, str) and text.strip():
+                    out["content_preview"] = " ".join(text.split())[:120]
+                    break
         if op == "create":
             content = payload.get("content")
             if isinstance(content, str) and content.strip():
@@ -135,6 +156,19 @@ def _memory_op_text(action, fields: dict):
         return fields.get("content") or fields.get("new_text")
     if action in ("remove", "delete"):
         return fields.get("old_text")
+    return None
+
+
+def _skill_op_text(action, fields: dict):
+    """Extract text from a single skill op for content preview."""
+    if action in ("create",):
+        return fields.get("content")
+    if action in ("write_file",):
+        return fields.get("file_content") or fields.get("content")
+    if action in ("edit",):
+        return fields.get("content") or fields.get("new_string")
+    if action in ("patch",):
+        return fields.get("new_string")
     return None
 
 
@@ -211,21 +245,6 @@ class _AnchorResolver:
         self._tried = True
         try:
             db = _home() / "state.db"
-            try:
-                from db_schema_guard import verify_state_db_schema
-            except ImportError:
-                verify_state_db_schema = None
-            if verify_state_db_schema is not None:
-                guard = verify_state_db_schema(db)
-                if not guard.get("ok"):
-                    print(
-                        f"write-gate state.db schema guard failed: "
-                        f"reason={guard.get('reason')} missing={guard.get('missing')}",
-                        file=sys.stderr,
-                    )
-                    self._conn = None
-                    self._sessions = []
-                    return False
             self._conn = sqlite3.connect(
                 f"file:{db}?mode=ro", uri=True, timeout=2.0)
             rows = self._conn.execute(
@@ -1178,6 +1197,207 @@ def list_decisions(limit_raw):
         finally:
             resolver.close()
         return 200, {"decisions": rows}
+    except Exception as e:
+        return 500, {"error": f"{type(e).__name__}: {e}"}
+
+
+# --- activity grouping (task-level human presentation) ----------------------
+
+_ACTIVITY_VERBS = {
+    "patch": "修改了", "edit": "修改了", "edit_file": "修改了",
+    "write_file": "写入了", "create": "新建了", "add": "新增了",
+    "replace": "替换了", "remove": "删除了", "delete": "删除了",
+}
+
+
+def _activity_object_label(rec):
+    """Object label from one record's structured fields."""
+    subsystem = rec.get("subsystem", "")
+    if subsystem == "skills":
+        target_name = rec.get("target_name")
+        if target_name:
+            return f"技能《{target_name}》"
+        return "技能"
+    elif subsystem == "memory":
+        mem_target = rec.get("mem_target")
+        if mem_target == "user":
+            return "用户档案"
+        return "长期记忆"
+    return None
+
+
+def _group_title_human(members):
+    """Human title for a group: members already sorted newest first."""
+    if not members:
+        return "一项写入"
+    verbs = set()
+    for rec in members:
+        op_kinds = rec.get("op_kinds")
+        if isinstance(op_kinds, list):
+            for k in op_kinds:
+                v = _ACTIVITY_VERBS.get(k)
+                if v:
+                    verbs.add(v)
+        else:
+            op = rec.get("op", "")
+            v = _ACTIVITY_VERBS.get(op)
+            if v:
+                verbs.add(v)
+    objects = []
+    for rec in members:
+        obj = _activity_object_label(rec)
+        if obj:
+            objects.append(obj)
+    unique_objs = list(dict.fromkeys(objects))
+    if len(unique_objs) == 1:
+        obj = unique_objs[0]
+        if len(verbs) == 1:
+            return f"{next(iter(verbs))} {obj}"
+        else:
+            return f"更新了 {obj}"
+    elif len(unique_objs) > 1:
+        verb = next(iter(verbs)) if len(verbs) == 1 else "更新了"
+        first_obj = objects[0] if objects else unique_objs[0]
+        return f"{verb} {first_obj} 等 {len(members)} 项"
+    else:
+        all_skills = all(rec.get("subsystem") == "skills" for rec in members)
+        all_memory = all(rec.get("subsystem") == "memory" for rec in members)
+        if all_skills:
+            return "技能写入"
+        elif all_memory:
+            return "记忆写入"
+        return "一项写入"
+
+
+def list_activity(limit_raw, grouped_raw):
+    """GET /activity?limit=N&grouped=0/1 → (status, payload)."""
+    start()
+    try:
+        if not SUPPORTED:
+            return 409, {"error": f"write gate unsupported: {SUPPORT_ERROR}"}
+        _sweep_rules()
+
+        # pending records
+        pending = []
+        resolver = _AnchorResolver()
+        try:
+            for sub in SUBSYSTEMS:
+                for rec in wa.list_pending(sub):
+                    normed = _norm_record(sub, rec, include_payload=False, resolver=resolver)
+                    normed["state"] = "pending"
+                    pending.append(normed)
+
+            # decisions
+            try:
+                limit = int(limit_raw) if limit_raw else 50
+            except Exception:
+                limit = 50
+            limit = max(1, min(limit, 200))
+            decisions = []
+            for row in _read_decisions(limit):
+                row["anchor"] = _anchor_for_record(
+                    row.get("subsystem", ""), row.get("id", ""),
+                    row.get("origin", "foreground"),
+                    _parse_epoch(row.get("created_at")),
+                    False, resolver)
+                row["state"] = "decided"
+                decisions.append(row)
+        finally:
+            resolver.close()
+
+        # check grouping mode
+        if grouped_raw in ("0", "false", "no") or os.environ.get("ONEDAY_WG_ACTIVITY_GROUPING") == "off":
+            merged = pending + decisions
+            merged.sort(key=lambda r: _parse_epoch(r.get("decided_at") or r.get("created_at")) or 0, reverse=True)
+            return 200, {
+                "groups": [],
+                "grouped": False,
+                "records": merged,
+                "counts": _counts(),
+                "supported": SUPPORTED
+            }
+
+        # grouping mode
+        from collections import defaultdict
+        groups_dict = defaultdict(list)
+        for rec in pending + decisions:
+            anchor = rec.get("anchor")
+            if anchor and isinstance(anchor, dict):
+                sid = anchor.get("sessionId")
+                if sid:
+                    key = f"session:{sid}"
+                else:
+                    key = f"record:{rec.get('subsystem', '')}:{rec.get('id', '')}"
+            else:
+                key = f"record:{rec.get('subsystem', '')}:{rec.get('id', '')}"
+            groups_dict[key].append(rec)
+
+        groups = []
+        for key, members in groups_dict.items():
+            members.sort(key=lambda r: _parse_epoch(r.get("decided_at") or r.get("created_at")) or 0, reverse=True)
+
+            sid = key.split(":", 1)[1] if key.startswith("session:") else None
+            first_anchor = None
+            for m in members:
+                a = m.get("anchor")
+                if a and isinstance(a, dict):
+                    first_anchor = a
+                    break
+            tier = first_anchor.get("tier") if first_anchor else None
+
+            title = _group_title_human(members)
+            preview = None
+            for m in members:
+                p = m.get("content_preview")
+                if p:
+                    preview = p
+                    break
+
+            has_pending = any(m.get("state") == "pending" for m in members)
+            has_rejected = any(m.get("decision") == "rejected" for m in members)
+            if has_pending:
+                status = "pending"
+            elif has_rejected:
+                status = "failed"
+            else:
+                status = "completed"
+
+            counts = {
+                "pending": sum(1 for m in members if m.get("state") == "pending"),
+                "approved": sum(1 for m in members if m.get("decision") == "approved"),
+                "rejected": sum(1 for m in members if m.get("decision") == "rejected"),
+                "total": len(members)
+            }
+
+            created_times = [_parse_epoch(m.get("created_at")) for m in members]
+            created_times = [t for t in created_times if t is not None]
+            created_at = min(created_times) if created_times else 0.0
+
+            updated_times = [_parse_epoch(m.get("decided_at") or m.get("created_at")) for m in members]
+            updated_times = [t for t in updated_times if t is not None]
+            updated_at = max(updated_times) if updated_times else 0.0
+
+            groups.append({
+                "id": key,
+                "session_id": sid,
+                "tier": tier,
+                "title_human": title,
+                "preview": preview,
+                "status": status,
+                "counts": counts,
+                "created_at": _iso(created_at),
+                "updated_at": _iso(updated_at),
+                "records": members
+            })
+
+        groups.sort(key=lambda g: _parse_epoch(g.get("updated_at")) or 0, reverse=True)
+
+        return 200, {
+            "groups": groups,
+            "grouped": True,
+            "counts": _counts(),
+            "supported": SUPPORTED
+        }
     except Exception as e:
         return 500, {"error": f"{type(e).__name__}: {e}"}
 

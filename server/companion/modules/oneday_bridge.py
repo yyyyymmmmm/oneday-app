@@ -766,7 +766,7 @@ def _clean_idea_category(value):
 #: 2026-11-24): a DOMAIN from Muse's own production domain
 #: set (ideas.ideas.domain, observed 2026-11-24) plus a FREE
 #: category label in the user's own words (Muse's
-#: category_label: 「婚礼」「服务器运维」「Ai 培训」...). The
+#: category_label: 「年会」「服务器运维」「Ai 培训」...). The
 #: legacy seven-bucket category above stays stored and served
 #: for the shipped App; domain/categoryLabel are the parity
 #: dimensions the next App consumes. Domain folds like the

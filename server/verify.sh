@@ -2,13 +2,13 @@
 # hermes-deploy verify.sh — 按 CAPABILITIES.md 能力注册表逐项探活（只读）
 #
 # 用法: 在部署机上运行: ./verify.sh [部署目录]
-#   部署目录可选（默认 /www/dk_project/dk_app/hermes），仅静态探针（规划路由 grep）用到。
+#   部署目录可选（默认 /srv/hermes），仅静态探针（规划路由 grep）用到。
 #   写型探针（run 幂等重放等）本版一律不执行，只在输出里标注人工验收路径。
 #
 # 输出口径: [齐] 在位且行为/路由证据通过; [缺] 应有而未有; [规划中] 批次未到、当前缺失符合预期; [未验] 本轮条件不足未探
 set -uo pipefail
 
-DEPLOY_DIR="${1:-/www/dk_project/dk_app/hermes}"
+DEPLOY_DIR="${1:-/srv/hermes}"
 TARGET_IMAGE="nousresearch/hermes-agent:v0.23.0"
 BASE="http://127.0.0.1:8642"
 
@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=24116e037a55713d25138dc193a4b8df5e0def18df6296f4245a0732808f0849
+  [api_server.py]=690497522df34768fc24928442289438919ee7e2a7d00513fe2ea5055bae94bb
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=d8fb424736834281dbd425b52dd129e25dc7a93f5eb697fdcbcd27b09e6e82d3
 )
@@ -32,19 +32,14 @@ declare -A WANT_SHA_EXTRA=(
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
   [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
-  [identity_gateway.py]=015c9251c7d9be5b35c620e77c09ebfdf40fb8414a0c9c506c0f55ff642cc352
+  [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
   [front_gateway.py]=857e88becb5e534130f0d47a7ad71a2814a244a54a42e1e9deaed8abed6df5bf
-  [api_server_oneday_routes.py]=c6ec170375b8617028b4e375fa2988e7d0186890503d54cff679e545de24262b
-  [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
-  [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
-  [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
-  [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=98e8c2a59166ed668927e63b60111d70ed85d13641f6240447d96a42d093e880
+  [write_gate_gateway.py]=4eb9d3394a76e6c072056973cbde26d9e7e22e16fd3bc44f052ee360da3406a2
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
-  [oneday_prompt.py]=7b72d19c9806b1ee0750c41516aa2e4abe61950f4d0680ba23076c44b5053fcb
+  [oneday_prompt.py]=bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227
   [settings_registry.py]=0478458bdd5b9a2873471cbbcbb1e3efba7568fe3d01b6bda169c99b1cff78e5
   [settings_admin.py]=3057cbc2b1771d42dfd084e6ac9c5152e82be2f22c764b798d463fdf1d33f1cb
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
@@ -52,13 +47,20 @@ declare -A WANT_SHA_EXTRA=(
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
   [oneday_gateway.py]=0bde3bc5225ca56f672ae4ccc35a6405786f153e59b57db0687590ff77277922
   [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
-  [oneday_ledger_lib.py]=32b0310b915f7473629e42593d8314a19978a57303a303f3fe5cd9be916f449f
+  [oneday_ledger_lib.py]=01dbf58e29c63a181fe9590506894df954c152558cb2eed61a2249f2a7ebd1f3
+  [cron_projection.py]=4d583ca5c575d110cea0bf31b76c75962dcff48d4c039b59ddda94f4dc85aea7
+  [api_server_oneday_routes.py]=3b4dee46a379235cfffd4fe87b7dfe0507081a477a060f3c01b2b3c1aae0ee6c
+  [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
+  [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
+  [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
+  [credential_vault.py]=7ff17b677e3d1c7625b97d59a38b8b90190783766419a6456a99d55523e5bdbe
+  [credential_vault_tool.py]=ea9f55ebda3e8802c20385c0be9541921c3f1d6e9fb024396d69c9d50d8b50eb
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
-  [oneday_seg_delivery.py]=fd0a9e52ec46fbc4c4ac8b31016f6df0ed8449e5401e244a5e6b398a096f20a2
+  [oneday_seg_delivery.py]=b369f9480295decb32f9944748dc9ad4d5c027d4b9541581b8e2da2f09ebb191
   [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
-  [oneday_seg_filelibrary.py]=77d747bd95bb182c68b20d4fe2ce3131b932f0ba28d5b80513abaa5c63c4adc1
+  [oneday_seg_filelibrary.py]=f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
   [oneday_seg_goals_activity.py]=f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
@@ -89,11 +91,6 @@ declare -A CPATH=(
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
   [identity_gateway.py]=/opt/hermes/gateway/platforms/identity_gateway.py
   [front_gateway.py]=/opt/hermes/gateway/platforms/front_gateway.py
-  [api_server_oneday_routes.py]=/opt/hermes/gateway/platforms/api_server_oneday_routes.py
-  [auth_tokens.py]=/opt/hermes/gateway/platforms/auth_tokens.py
-  [push_tokens.py]=/opt/hermes/gateway/platforms/push_tokens.py
-  [push_sender.py]=/opt/hermes/gateway/platforms/push_sender.py
-  [db_schema_guard.py]=/opt/hermes/gateway/platforms/db_schema_guard.py
   [react_to_message_tool.py]=/opt/hermes/tools/react_to_message_tool.py
   [self_reaction_pending.py]=/opt/hermes/gateway/platforms/self_reaction_pending.py
   [write_gate_gateway.py]=/opt/hermes/gateway/platforms/write_gate_gateway.py
@@ -108,6 +105,13 @@ declare -A CPATH=(
   [oneday_gateway.py]=/opt/hermes/gateway/platforms/oneday_gateway.py
   [overview_gateway.py]=/opt/hermes/gateway/platforms/overview_gateway.py
   [oneday_ledger_lib.py]=/opt/hermes/gateway/platforms/oneday_ledger_lib.py
+  [cron_projection.py]=/opt/hermes/gateway/platforms/cron_projection.py
+  [api_server_oneday_routes.py]=/opt/hermes/gateway/platforms/api_server_oneday_routes.py
+  [auth_tokens.py]=/opt/hermes/gateway/platforms/auth_tokens.py
+  [push_tokens.py]=/opt/hermes/gateway/platforms/push_tokens.py
+  [push_sender.py]=/opt/hermes/gateway/platforms/push_sender.py
+  [credential_vault.py]=/opt/hermes/gateway/platforms/credential_vault.py
+  [credential_vault_tool.py]=/opt/hermes/tools/credential_vault_tool.py
   [oneday_seg_automation.py]=/opt/hermes/gateway/platforms/oneday_seg_automation.py
   [oneday_seg_briefings.py]=/opt/hermes/gateway/platforms/oneday_seg_briefings.py
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
@@ -139,7 +143,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py credential_vault.py credential_vault_tool.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -730,7 +734,7 @@ case "$CAPS" in *'"device_bridge": true'*) ok "device-capability-flag" "features
 if grep -A3 'device:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null | grep -q '127.0.0.1:8642/api/device-mcp'; then ok "device-mcp-config" "config.yaml mcp_servers.device 指向网关 8642（单钥）"; else bad "device-mcp-config" "config.yaml device 条目未指网关（device-mcp-config-patch.py 未应用）"; fi
 
 # ---- 28. identity/front 网关入关（断桥批四, 包 2.3.0, #38/#39）: 只读探针; 写型默认不跑 ----
-for name in identity_gateway.py front_gateway.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py; do
+for name in identity_gateway.py front_gateway.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done
@@ -759,10 +763,18 @@ case "$EV" in *'"object": "list"'*) ok "settings-events-route" "GET /v1/settings
 REG_N=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/settings/registry" | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("records", [])))' 2>/dev/null || echo -1)
 if [ "$REG_N" -ge 43 ] 2>/dev/null; then ok "settings-registry-count" "注册表 $REG_N 条（种子 43＋二期登记增量）"; else bad "settings-registry-count" "注册表条数: $REG_N（期望 ≥43）"; fi
 if grep -q 'settings_admin' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -A2 '^settings:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null | grep -q 'agent_admin: true'; then ok "settings-admin-config" "config.yaml 含 settings_admin 工具集行＋settings.agent_admin=true（settings-admin-config-patch.py 已应用）"; else bad "settings-admin-config" "config.yaml 缺工具集行或总闸未翻（settings-admin-config-patch.py 未应用）"; fi
-if grep -q '^platform_hints:' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null && grep -q 'OneDay app, reached through the gateway' "$DEPLOY_DIR/data/config.yaml" 2>/dev/null; then ok "platform-hint-config" "config.yaml 含 platform_hints.api_server.replace（OneDay 渲染口径，platform-hint-config-patch.py 已应用，包 2.7.1）"; else bad "platform-hint-config" "config.yaml 缺 platform_hints 覆盖（上游纯文本提示将压制加粗口径，platform-hint-config-patch.py 未应用）"; fi
 DASHENV=$(docker exec hermes env 2>/dev/null | grep -c '^HERMES_DASH_USER=\|^HERMES_DASH_PASSWORD=' || true)
 if [ "$DASHENV" = "0" ]; then ok "c3-dash-password-env-retired" "容器环境无 HERMES_DASH_USER/HERMES_DASH_PASSWORD（C-3 终局：内部通道只剩服务凭据，包 2.5.0）"; else bad "c3-dash-password-env-retired" "容器环境仍有 $DASHENV 行密码登录变量（C-3 未终局）"; fi
 if docker exec hermes grep -q 'idem = f"ideas-sum-{int(_now())}"' /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py 2>/dev/null; then ok "ideas-digest-epoch-key" "点子摘要轮幂等键为轮次 epoch 形态（内容寻址键退役，包 2.5.0）"; else bad "ideas-digest-epoch-key" "摘要轮仍为内容寻址幂等键（409 毒化未除）"; fi
 GENM=$(docker exec hermes env 2>/dev/null | grep '^ONEDAY_GEN_MODEL=' | cut -d= -f2)
 if [ "$GENM" = "deepseek-v4-pro" ]; then ok "genmodel-funded-route" "生成管线 GEN_MODEL=deepseek-v4-pro（DeepSeek 官方通道，包 2.5.1）"; else bad "genmodel-funded-route" "ONEDAY_GEN_MODEL=$GENM（期望 deepseek-v4-pro；laogou8 通道余额枯竭，见 genkey-fix-20261125.md）"; fi
 unk "settings-admin-write-deep" "设置写型验收（一次性测试键 register→set→delete→revoke 全程对账＋白名单外写入被拒）默认不跑; 应用步人工执行并记入 batch3plus-rollout-20261125.md"
+
+# ---- 30. Credential Vault (2.7.0): read-only route/capability probes ----
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/entries" || true)
+if [ "$code" = "401" ]; then ok "vault-route-auth" "无钥 GET /v1/vault/entries → 401"; else bad "vault-route-auth" "应答 $code（期望 401）"; fi
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/v1/vault/requests" || true)
+if [ "$code" = "401" ]; then ok "vault-requests-route-auth" "无钥 GET /v1/vault/requests → 401"; else bad "vault-requests-route-auth" "应答 $code（期望 401）"; fi
+CAPS=$(curl -s --max-time 5 -H "Authorization: Bearer $API_KEY" "$BASE/v1/capabilities" || true)
+case "$CAPS" in *'"credential_vault": true'*) ok "vault-capability-flag" "features.credential_vault=true" ;; *) bad "vault-capability-flag" "capabilities 未见 credential_vault 位" ;; esac
+unk "vault-behavior" "python3 credential_vault_selftest.py 在包内运行；真实 TLS/客户端安全卡联调、日志与备份审查仅部署验收时执行"

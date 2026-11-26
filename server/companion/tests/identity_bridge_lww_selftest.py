@@ -28,20 +28,20 @@ check("legacy name source unknown", v["source"] == "unknown")
 
 # 2. set_name records server receipt time + source
 before = time.time()
-m._set_name("三狗", False, "agent")
+m._set_name("小天", False, "agent")
 v = m._get_name()
-check("renamed", v["soulName"] == "三狗")
+check("renamed", v["soulName"] == "小天")
 check("name updatedAt stamped", before <= v["updatedAt"] <= time.time())
 check("name source=agent", v["source"] == "agent")
 st = json.loads((tmp / "identity-data" / "name-state.json").read_text())
-check("name-state persisted", st["name"] == "三狗" and st["source"] == "agent")
+check("name-state persisted", st["name"] == "小天" and st["source"] == "agent")
 
 # 3. dry-run must not move the stamp
 stamp1 = v["updatedAt"]
 time.sleep(0.02)
 m._set_name("别的名字", True, "agent")
 v = m._get_name()
-check("dry-run keeps name", v["soulName"] == "三狗")
+check("dry-run keeps name", v["soulName"] == "小天")
 check("dry-run keeps stamp", v["updatedAt"] == stamp1)
 
 # 4. external soul edit (no bridge record for new name) -> mtime fallback

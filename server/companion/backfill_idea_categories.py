@@ -146,7 +146,7 @@ def main(argv) -> int:
         _env_file_value(env_file, "HERMES_API_KEY")
     base_url = (os.environ.get("HERMES_BASE_URL") or
                 _env_file_value(env_file, "HERMES_BASE_URL") or
-                "https://hermes.didichou.site").rstrip("/")
+                "https://hermes.example.com").rstrip("/")
     model_fn = _make_model_fn(base_url, api_key) \
         if api_key else None
     if model_fn is None:

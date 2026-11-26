@@ -3,7 +3,7 @@
 
 Seventh companion module (sixth bridge, after device 8647).
 Binds 0.0.0.0:8648 in-container;
-nginx exposes it at https://hermes.didichou.site/api/identity-bridge/
+nginx exposes it at https://hermes.example.com/api/identity-bridge/
 with the usual single-login-key auth_request + key swap.
 
 Scope (ai-internal-powers-audit-20261113, package P1):

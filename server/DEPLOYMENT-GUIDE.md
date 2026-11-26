@@ -1,7 +1,7 @@
 # OneDay ＋ Hermes 自部署完整指南（单容器终局，包 2.5.0）
 
 > 读者：拿到 OneDay 的自部署用户，以及部署者本人重装/迁移时照单执行。
-> 口径：本文所有步骤与事实均出自本机（118.24.41.52）2026-11-08 至 2026-11-10 的部署档案与实测记录（出处见文末）。2026-11-10 晚完成双容器收口：M1 直接切换回归门全套通过（`companion/M1-REPORT.md`）、M2 旧五桥容器已删（`companion/M2-DELETION-LOG.md`），本文即按切换后的定版形态改写。档案里查不到的一律写「未记录」，不补想象。标注「窗口回填」的条目是尚未实测的步骤——回填实测结论之前不要把它们当成已验证事实。
+> 口径：本文所有步骤与事实均出自部署包的部署档案与实测记录（出处见文末），按双容器收口后的定版形态编写。档案里查不到的一律写「未记录」，不补想象。标注「窗口回填」的条目是尚未实测的步骤——回填实测结论之前不要把它们当成已验证事实。
 > 安全：本文不含任何真实密钥值。所有密钥只写名称、存放位置与持有方。
 > **终局注记（包 2.0.0，2026-11-25，断桥批五）**：断桥五批已全部完成——write-gate（批二）、overview/oneday（批三）、fileproc（批一）、device（批五）全部职能入网关模块，**companion 伴生容器已整下线退役，部署终局为 hermes 单容器**。全文已按终局改写：凡写 companion 在役的旧文均已清改，companion 相关章节只保留退役说明与历史出处。连带状态：identity（8648）与 front 伴生面板（8650）随 companion 下线暂停，已于包 2.3.0（断桥批四）入关恢复；fileproc 桥口（8652）职能已在网关（批一）。应用与回滚见 bridge-teardown-rollout-20261125.md。
 > **2.1.0 注记（2026-11-25）**：台账 job 状态口径修复（§475）——网关启动结算孤儿 job 条目、三类轮次（动态/点子/简报）完成口径改「交付齐即完成」；仅换 oneday_ledger_lib／oneday_seg_ledger／oneday_seg_feed／oneday_seg_ideas_gen／oneday_seg_briefings 五文件，架构与路由零变化。应用与回滚见 ledgerfix-rollout-20261125.md。
@@ -80,7 +80,7 @@ docker compose up -d hermes                  # 只许服务级 up（compose 内 
 | — 模块·box（云电脑） | 把 Simular Box 云电脑能力转成 App 可消费的接口；companion 侧 box 模块早已不在末代伴生注册表内（1.0.77 注册表仅 device/identity/front/fileproc 四模块），App 电脑面以 Hermes 侧 Box MCP 注册为准（§7） | —（Hermes MCP 直连厂商） | Hermes MCP 注册 | `hermes mcp test box` | App「电脑」面不可用时先查 Hermes 侧注册与厂商连通性 |
 | — 模块·oneday（目标点子） | 目标/点子/监测/动态流（/feed）＋简报（brief）＋调度（点子每日 07:30、晨报 08:30、简报周一 08:00）；**已入关**（批三，网关模块 oneday_gateway＋16 分段） | 网关 8642 的 /api/oneday-bridge/*（66 路由）与三 MCP 门面 | 网关进程内模块，数据为单文件 data/oneday/data.json | `GET /api/oneday-bridge/health`（带单钥）→`{ok:true}`，且 `degraded:false` | 动态/点子/目标三页空白；定时产出停摆 |
 | — 模块·device（手机设备） | 智能体与手机之间的工具调用中转：会话注册/心跳/长轮询＋MCP 门面（**53 个工具**，2026-11-25 对在役桥注册表逐名对账）；**已入关**（批五，网关模块 device_gateway＋device_sync）；同步副本存五数据集（sync.db），审计只存元数据、**不存设备数据本体** | 网关 8642 的 /api/device-bridge/* 与 /api/device-mcp；数据目录 data/device/（DEVICE_DATA_DIR） | 网关进程内模块 | `GET /api/device-bridge/health`（免鉴权）→`{ok:true}`；设备会话全环冒烟（见 §10） | 智能体调不了手机日历/提醒/通讯录；目录里设备组显示离线 |
-| New API 网关（可选） | 模型流量网关：渠道调度、计费统计、令牌管理 | 内网 172.18.0.1:3000（容器 newapi_hhj7） | 独立容器，管理面为独立子域名站点 | 管理面可登录；用网关令牌 `GET /v1/models` 应列出渠道提供的模型 | Hermes 能连但每轮对话报错/无模型可用 |
+| New API 网关（可选） | 模型流量网关：渠道调度、计费统计、令牌管理 | 内网地址（按部署填写） | 独立容器，管理面为独立子域名站点 | 管理面可登录；用网关令牌 `GET /v1/models` 应列出渠道提供的模型 | Hermes 能连但每轮对话报错/无模型可用 |
 
 规划中、尚未上线的组件（不要按已部署对待）：
 
@@ -89,7 +89,7 @@ docker compose up -d hermes                  # 只许服务级 up（compose 内 
 
 ## 4. nginx 路由全表
 
-站点：`hermes.didichou.site`（443）。下表为现行全量路由；每条改动前必须备份站点 conf（命名 `hermes.didichou.site.conf.bak-<日期>-<事项>`，0600），`nginx -t` 通过才 reload。
+站点：`hermes.example.com`（443）。下表为现行全量路由；每条改动前必须备份站点 conf（命名 `hermes.example.com.conf.bak-<日期>-<事项>`，0600），`nginx -t` 通过才 reload。
 
 | 路由 | 转发到 | 为什么需要 | 缺了 App 哪项坏 |
 |---|---|---|---|
@@ -109,7 +109,7 @@ docker compose up -d hermes                  # 只许服务级 up（compose 内 
 
 桥时代的 auth_request＋换钥机制已全部退役（批一至批五）：现行所有业务路由都是透传单钥、模块自验，线上 conf 不再含任何钥字面值；conf 文件权限仍保持 600（历史纪律，其他段落可能含敏感配置）。
 
-companion 两条路由已随批五退役，本节旧注记（M1 不挂门定版）只作历史，见 bridge-batch1/5-rollout 记录。
+companion 两条路由已随批五退役，本节旧注记（M1 不挂门定版）只作历史，见包内版本注记。
 
 > 历史形态备忘：四桥曾有「旧桥钥直通」的过渡双模，2026-11-10 用户批准撤销、回归严格单钥。新部署不要复刻双模。
 
@@ -184,7 +184,7 @@ companion.env **不在部署档案里留填好值的副本**：模板只有 `com
 
 ## 9. App 侧要求
 
-- **服务器地址**：App 内置默认地址为部署域名（本机 `https://hermes.didichou.site`，构建期写死为默认值，连接屏预填）。自部署分发时这是**必改项**：换成自己的域名并重新打包，不要让别人的 App 连到本机。
+- **服务器地址**：App 内置默认地址为部署域名（本机 `https://hermes.example.com`，构建期写死为默认值，连接屏预填）。自部署分发时这是**必改项**：换成自己的域名并重新打包，不要让别人的 App 连到本机。
 - **登录**：欢迎/连接屏用户只填**一把 access key＝Hermes 登录密钥**（§5），不存在「桥钥匙」输入项（那是已被废弃的旧形态，App 内相关设置已整套删除）；凭据存 iOS Keychain。
 - **伴生探测**：companion 已退役（包 2.0.0），`/api/companion/info` 无应答属当前预期；依赖 front/identity 的 App 面待批四入关后按新契约恢复，此期间 App 应如实呈现不可用、不许静默坏死。
 - **权限用途文案清单**（Info.plist，缺一条对应功能在真机上直接被系统拒）：
@@ -198,7 +198,7 @@ companion.env **不在部署档案里留填好值的副本**：模板只有 `com
 
 ## 10. 上线验收清单（M1 回归门口径，逐项打勾，含缺失症状）
 
-本清单源自 2026-11-10 双容器切换的回归门（实录见 `companion/M1-REPORT.md` §6）。**包 2.0.0 终局口径**：第 1 组钥矩阵与第 2 组端点改走网关保形口＋单钥（路由见 §4 现行表）；第 4 组（面板与伴生本体）整组退役；程序化验收以包内 `verify.sh` 为准（2.0.0 应用时 84 项齐、0 缺，含第 26 节 device 八探针）。以下各组保留历史判据供回滚场景对照。
+本清单源自 2026-11-10 双容器切换的回归门。**包 2.0.0 终局口径**：第 1 组钥矩阵与第 2 组端点改走网关保形口＋单钥（路由见 §4 现行表）；第 4 组（面板与伴生本体）整组退役；程序化验收以包内 `verify.sh` 为准（2.0.0 应用时 84 项齐、0 缺，含第 26 节 device 八探针）。以下各组保留历史判据供回滚场景对照。
 
 **第 1 组 · 钥矩阵**（F03 口径：登录钥放行、自钥放行、他钥与无钥必拒）
 
@@ -274,11 +274,4 @@ companion.env **不在部署档案里留填好值的副本**：模板只有 `com
 
 ## 附：本文证据出处
 
-- 双容器定版形态（历史；终局单容器见 bridge-teardown-rollout-20261125.md）：`hermes-deploy/companion/` 工程（Dockerfile、docker-compose.yml、companion.env.example、front/front.py、supervisor/、README.md）；构建与本地验 `companion/M0-REPORT.md`（132 项自测）；切换与回归门实录 `companion/M1-REPORT.md`；旧容器删除与删后验证 `companion/M2-DELETION-LOG.md`；设计规格 `oneday-design-review/companion-service-design-20261110.md`（§2.4/§4.1 已按 M1 定版形态修订）。
-- 部署形态/端口/env：`hermes-deploy/docker-compose.yml`（Hermes 单体部分）、`hermes.didichou.site.conf`（注：该 conf 档案为 2026-11-09 快照，§4 现行路由以各 rollout 记录与 2026-11-10 追记、M1 线上 diff 结论为准）。
-- 五模块前身（五桥）上线与验收：`writegate-rollout-record-20261109.md`、`overview-bridge-rollout-20261109.md`、`box-bridge-rollout-20261109.md`、`oneday-bridge-rollout-20261109.md`、`device-bridge-rollout-20261110.md`（含 device MCP 注册与公网门面启用追记）。
-- 凭据分权与单钥入口：`bridge-keys-rollout-20261110.md`（含 F03 轮换矩阵与 0.33.1 单钥追记）。
-- 模型与 config：`model-switching-research.md`（2026-11-09；其中 Qwen/渠道 13 内容已被 2026-11-10 渠道禁用事实覆盖）、`oneday-design-review/model-provider-status-design-20261110.md`。
-- MCP 注册形态与 GitHub/Notion 落位：`oneday-design-review/connectors-phase1-report-20261110.md`。
-- 设备面与边界：`oneday-design-review/device-connectors-design-20261110.md`；文件面：`files-page-design-20261110.md`；台账：`work-ledger-design-20261110.md`；旁聊 B 期缓办：`sidechat-program-20261109.md`。
-- credentials.txt：仅确认存在且权限 0600，内容未读、未引。
+本文内容源自部署包的部署档案与实测记录；实例侧原始档案（部署日记、验收报告与盘点记录）不随分发副本提供。

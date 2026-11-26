@@ -24,7 +24,7 @@ change. Idempotent: a config already in final form verifies and
 exits 0 without writing. No secrets are read or printed.
 
 Usage: python3 settings-admin-config-patch.py [deploy-dir]
-       (default /www/dk_project/dk_app/hermes)
+       (default /srv/hermes)
 """
 import re
 import shutil
@@ -118,7 +118,7 @@ def verify(lines) -> bool:
 
 def main():
     deploy = Path(sys.argv[1] if len(sys.argv) > 1
-                  else "/www/dk_project/dk_app/hermes")
+                  else "/srv/hermes")
     cfg_path = deploy / "data" / "config.yaml"
     if not cfg_path.exists():
         die(f"config not found: {cfg_path}")

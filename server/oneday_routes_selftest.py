@@ -34,11 +34,12 @@ class _FakeWeb:
 
 
 class _FakeRequest(dict):
-    def __init__(self, *, headers=None, body=None, match_info=None):
+    def __init__(self, *, headers=None, body=None, match_info=None, query=None):
         super().__init__()
         self.headers = headers or {}
         self._body = body
         self.match_info = match_info or {}
+        self.query = query or {}
 
     async def json(self):
         return self._body
@@ -74,6 +75,10 @@ async def run() -> None:
             def _expected_api_key(self) -> str:
                 return api_key
 
+            @staticmethod
+            def _vault_scope() -> str:
+                return "default"
+
             def _check_auth(self, request):
                 hdr = request.headers.get("Authorization", "")
                 if not hdr.startswith("Bearer "):
@@ -88,10 +93,22 @@ async def run() -> None:
 
         adapter = _DummyAdapter()
 
-        # 1. Route table exposes all 7 endpoints
+        # 1. Route table exposes auth, push, and vault endpoints
         table = routes_mod.oneday_http_routes(adapter)
-        assert len(table) == 7, f"expected 7 routes, got {len(table)}"
-        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 7
+        assert len(table) == 15, f"expected 15 routes, got {len(table)}"
+        assert len(routes_mod.ONEDAY_CAPABILITY_ENDPOINTS) == 15
+        assert {(method, path) for method, path, _ in table[-8:]} == {
+            ("GET", "/v1/vault/entries"),
+            ("GET", "/v1/vault/entries/{entry_id}"),
+            ("POST", "/v1/vault/entries"),
+            ("PUT", "/v1/vault/entries/{entry_id}"),
+            ("DELETE", "/v1/vault/entries/{entry_id}"),
+            ("GET", "/v1/vault/requests"),
+            ("GET", "/v1/vault/requests/{request_id}"),
+            ("POST", "/v1/vault/requests/{request_id}/fulfill"),
+        }
+        assert [path for method, path, _ in table if method == "GET" and path.startswith("/v1/vault/requests")][:2] == [
+            "/v1/vault/requests", "/v1/vault/requests/{request_id}"]
 
         # 2. Exchange long-lived key -> short-lived pair
         r = await adapter._handle_auth_exchange(_FakeRequest(
@@ -111,6 +128,28 @@ async def run() -> None:
         assert r_list.status == 200
         assert req_sessions.get("auth_session_id") == sid
         assert len(r_list.data["data"]) == 1
+
+        # 3b. Vault request listing is session-bound and forwards the status query.
+        calls = []
+        class _VaultStub:
+            @staticmethod
+            def list_requests(session_id, scope, status):
+                calls.append((session_id, scope, status))
+                return [{"request_id": "vreq_test", "status": status}]
+        adapter._vault_module = lambda: _VaultStub
+        req_vault_list = _FakeRequest(
+            headers={"Authorization": f"Bearer {access}"}, query={"status": "expired"})
+        r_vault_list = await adapter._handle_vault_requests_list(req_vault_list)
+        assert r_vault_list.status == 200
+        assert r_vault_list.data == {"object": "list", "data": [{"request_id": "vreq_test", "status": "expired"}]}
+        assert calls == [(sid, "default", "expired")]
+        req_vault_default = _FakeRequest(headers={"Authorization": f"Bearer {access}"})
+        r_vault_default = await adapter._handle_vault_requests_list(req_vault_default)
+        assert r_vault_default.status == 200
+        assert calls[-1] == (sid, "default", "pending")
+        no_session = await adapter._handle_vault_requests_list(_FakeRequest(
+            headers={"Authorization": f"Bearer {api_key}"}))
+        assert no_session.status == 404
 
         # 4. Refresh without Authorization header
         r_ref = await adapter._handle_auth_refresh(_FakeRequest(body={"refresh_token": refresh}))

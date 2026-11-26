@@ -6,7 +6,7 @@
 """box-bridge: Simular Box browser/desktop capability as OneDay-consumable HTTP.
 
 Sidecar #4 (after write-gate 8643, overview 8644). Binds 127.0.0.1:8645,
-nginx exposes it at https://hermes.didichou.site/api/box-bridge/ -> /box/.
+nginx exposes it at https://hermes.example.com/api/box-bridge/ -> /box/.
 
 Design notes (from 2026-11-09 live probes, see box-bridge-rollout record):
 - Box is reached DIRECTLY over MCP streamable-http at

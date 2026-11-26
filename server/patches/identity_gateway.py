@@ -68,7 +68,14 @@ ONEDAY_CLIENT_KEY = os.environ.get("API_SERVER_KEY", "") \
 IDENTITY_GATEWAY_VERSION = os.environ.get(
     "IDENTITY_GATEWAY_VERSION", "1.0")
 
-PRESET_IDS = ("partner", "paw", "sparkles", "atom")
+# Active server catalog. The companion implementation is retired by
+# deployment package 2.0.0 (server/RULES.md and install.sh); keep the
+# shipped gateway catalog here as the sole server-side validation source.
+PRESET_IDS = (
+    "partner", "paw", "sparkles", "atom",
+    "blob-blue", "cat-violet", "bear-amber", "bot-cyan",
+    "sprout-green", "star-pink", "blob-coral", "bot-slate",
+)
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 NAME_FALLBACK = "Hermes"
 NAME_PUNCT = set("。．.：:、，,；;！!？?")
@@ -524,7 +531,7 @@ IDENTITY_TOOLS = [
      "description": "查看头像仓：当前头像与历史",
      "inputSchema": {"type": "object", "properties": {}}},
     {"name": "identity_set_avatar_preset",
-     "description": "把头像换成预置形象（partner/paw/sparkles/atom）",
+     "description": "把头像换成预置形象",
      "inputSchema": {"type": "object",
                      "properties": {
                          "presetId": {"type": "string",
