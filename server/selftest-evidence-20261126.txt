@@ -1,0 +1,290 @@
+=== Server Selftest Evidence (2026-11-26T14:11:58Z) ===
+Branch: refactor/v2-standard-on-main @ 98b4b689
+Python: /usr/bin/python3 (Python 3.9.6)
+--- RUN auth_tokens_selftest.py ---
+auth_tokens: reuse detected for sess_f3e426c18c394872; session family revoked
+auth_tokens_selftest: ALL PASSED
+--- RUN credential_vault_selftest.py ---
+== metadata allowlist and write-only response ==
+  SKIP encrypted storage and vault_use checks: AESGCM provider unavailable
+== request card lifecycle ==
+  ok request create and reject audited
+  ok request audit excludes secret
+== request list contract ==
+  ok session and scope isolation
+  ok newest first
+  ok client metadata exact keys
+  ok metadata field types
+  ok status filter and no-filter
+  ok lazy expiry mutates pending
+== owner mode (2.13.0: session_id=None, master-key callers) ==
+  ok owner lists across sessions in scope
+  ok owner still scope-filtered
+  ok owner request_status sees other session
+  ok device session still isolated
+  ok owner reject settles other-session request
+  ok owner-settled request leaves pending list
+== vault_use authorization ==
+== optional domains (2.17.2) ==
+  SKIP optional-domain write checks: AESGCM provider unavailable
+== request durability (2.17.2: persists across restart, TTL absolute) ==
+  ok requests file written
+  ok requests file mode 0600
+  ok request survives restart
+  ok expires_at survives restart unchanged
+  ok request_block canonical shape
+  ok request_block session isolation
+  ok fulfill works after restart reload
+  ok lapsed TTL expires after restart
+  ok block reports lapsed request as expired
+== vault_request_pending block shape (2.17.2) ==
+  ok validate_block accepts canonical
+  ok validate_block rejects wrong type
+  ok validate_block rejects bad id
+  ok validate_block rejects empty fields
+  ok validate_block rejects non-dict
+  ok pending put/list/drop roundtrip
+== canonical field order (2.18.3: shuffled in, account first out) ==
+  ok create_request stores canonical order
+  ok list_requests returns canonical order
+  ok request_block returns canonical order
+  ok persisted shuffled row re-reads canonical
+  ok validate_block normalizes to canonical order
+== envelope v2 single-key + v1 legacy dual-read ==
+  SKIP envelope v2 dual-read checks: AESGCM provider unavailable
+credential_vault_selftest: 0 failures, 3 skipped
+--- RUN bitwarden_link_selftest.py ---
+Traceback (most recent call last):
+  File "/Users/yangminjie/build/oneday/server/bitwarden_link_selftest.py", line 104, in <module>
+    def _grep_root(root: Path, needle: str, exclude: Path | None = None) -> int:
+TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
+--- RUN approval_history_selftest.py ---
+approval history: exec ledger read failed
+Traceback (most recent call last):
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 273, in list_approval_history
+    exec_stats = _read_exec_source()
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 122, in _read_exec_source
+    raise ValueError("approval ledger unreadable: %d/%d lines corrupt"
+ValueError: approval ledger unreadable: 2/2 lines corrupt
+approval history: exec ledger read failed
+Traceback (most recent call last):
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 273, in list_approval_history
+    exec_stats = _read_exec_source()
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 122, in _read_exec_source
+    raise ValueError("approval ledger unreadable: %d/%d lines corrupt"
+ValueError: approval ledger unreadable: 2/2 lines corrupt
+approval history: write-gate decisions read failed
+Traceback (most recent call last):
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 279, in list_approval_history
+    wg_stats = _read_writegate_source()
+  File "/Users/yangminjie/build/oneday/server/patches/approval_history.py", line 156, in _read_writegate_source
+    raise ValueError("write-gate decisions unreadable: %d/%d lines "
+ValueError: write-gate decisions unreadable: 1/1 lines corrupt
+== classify_guard_result (upstream shapes) ==
+  ok cron deny -> cron_deny
+  ok single-query deny -> unattended_deny
+  ok session pre-approved -> guard_allow
+  ok allowlist hit -> guard_allow
+  ok plain approved -> None
+  ok human deny -> None
+  ok parked pending -> None
+  ok cron-shaped deny without unattended ctx -> None
+  ok execute_code cron deny -> cron_deny
+  ok execute_code deny under command gate -> None
+== record_guard_event idempotency ==
+  ok same key twice -> same record
+  ok same key twice -> one ledger line
+  ok record is born terminal + sourced
+  ok distinct key -> distinct record
+== parked path intact ==
+  ok parked record settles + lists
+  ok guard events list alongside parked
+== observing shim: install / observe / uninstall / kill switch ==
+  ok hooks installed (>=3 entry points)
+  ok install is idempotent
+  ok shim returns the original result verbatim
+  ok cron deny via terminal binding recorded once
+  ok recorded with session + context
+  ok guard allow recorded
+  ok clean approval not recorded
+  ok execute_code cron deny recorded
+  ok uninstall restores originals
+  ok no recording after uninstall
+  ok kill switch blocks install
+== approval_history reconciliation ==
+  ok total = 4 exec + 3 writegate
+  ok reconciled
+  ok exec equation: folded == projected
+  ok exec breakdown: parked 2 + guard 2
+  ok writegate equation: rows == projected
+  ok via_rule counted apart
+  ok cron item: initiator scheduled
+  ok guard allow item: tier + scopes material
+  ok writegate rule item: tier rule + via_rule id
+  ok writegate item: title material carried
+  ok sorted newest first
+  ok limit respected, total stays honest
+== anti-fake-green ==
+  ok one corrupt source -> partial + named
+  ok both corrupt -> RuntimeError
+  ok empty-but-readable sources -> stated zero
+
+SELFTEST PASSED
+--- RUN mail_gateway_selftest.py ---
+== connection test classification ==
+  ok wrong password rejected
+  ok imap category credential
+  ok smtp category credential
+  ok human detail present
+  ok imap login attempted exactly once
+  ok smtp login attempted exactly once
+  ok bad host -> address
+  ok bad port -> port
+  ok security mismatch -> tls
+  ok good params pass
+  ok bad address shape -> 400
+== add account: test gate, vault storage, no plaintext ==
+  ok create with wrong password -> 422
+  ok nothing persisted
+  FAIL create ok -> 201
+Traceback (most recent call last):
+  File "/Users/yangminjie/build/oneday/server/mail_gateway_selftest.py", line 215, in <module>
+    check("meta hides credential reference", "credential_id" not in meta and meta["credential_configured"] is True)
+KeyError: 'credential_configured'
+--- RUN device_gateway_selftest.py ---
+[device-gateway] ready, data dir /var/folders/jj/z1tl5nn54zv6jl341_cv4rtr0000gn/T/device-gateway-selftest-ug67f72p
+  ok health key-free 200
+  ok no key -> 401
+  ok wrong key -> 401
+  ok mcp initialize
+  ok tools/list == module registry
+  .. tools count = 53
+  ok offline live call -> device_offline
+  ok session register 201
+  ok device_status online
+  ok live round-trip via poll/respond
+  ok write executes once
+  ok same idempotency key -> replay, no phone round-trip
+  ok sync batch staged
+  ok sync complete
+  ok contacts_count from moved store
+  ok sync status face
+  ok disconnect
+  ok device_status offline after disconnect
+  ok audit written, content-free
+  ok data files in new home with 0600
+
+19 passed, 0 failed
+--- RUN hub_fields_selftest.py ---
+== ledger summary ==
+  ok derive verb+object
+  ok derive object cap 30
+  ok derive verb only
+  ok derive preview only
+  ok derive empty
+  ok derive ws collapse
+  ok clean cap
+  ok clean empty
+  ok app summary stored
+  ok app summary in list view
+  ok no summary stays empty
+  ok derived summary stored
+  ok correction summary overwrite
+  ok replay keeps summary
+  ok replay keeps derived
+  ok approval title_human keeps long object
+  ok title_human reaches list projection
+  ok legacy approval title still excerpt
+  ok title_human survives ledger replay
+== write-gate structured fields ==
+  ok batch op_count
+  ok batch op_kinds
+  ok batch mem_target
+  ok batch content_preview
+  ok single add preview
+  ok single add no op_count
+  ok single patch preview
+  ok single remove preview
+  ok skills batch unchanged
+== cron system projection ==
+  ok known OneDay system name patterns
+  ok memory/goal family modes cover unlisted jobs
+  ok unknown user cron remains non-system
+  ok cron projection preserves source object
+  ok cron script source identifies system job
+== title-human real fix (queue 173) ==
+  ok derive from batch summary, one slug
+  ok derive from batch summary, two slugs
+  ok derive mixed kinds -> 更新了
+  ok derive from memory apply summary
+  ok derive truncated slug stays empty (object unrecoverable)
+  ok derive no facts stays empty
+  ok backfill heals from surviving decision line
+  ok backfill never guesses an orphan's object
+  ok schedule daily
+  ok schedule step minutes
+  ok schedule weekday
+  ok schedule workdays
+  ok schedule monthly
+  ok schedule dom+dow keeps raw
+  ok project_jobs renders human schedule
+  ok project_jobs marks unparseable schedule
+== activity feed classification + threads (queue 176) ==
+  ok classify bridge job is a system round
+  ok classify monitor self-check is out
+  ok classify instruction-headed stateless run is a round
+  ok classify llm-titled stateless run has no user intent
+  ok classify skip-session run is a system round
+  ok classify user session run is in
+  ok classify sessionless run is out
+  ok classify approval is in
+  ok classify device call is in
+  ok classify kanban unit is in
+  ok classify unknown kind is out
+  ok threads exclude rounds and keep the four prototypes
+  ok in-progress thread pins first with open end
+  ok settled thread carries merged counts
+  ok thread assembly is idempotent
+  ok cursor walk covers every thread exactly once
+  ok approval batch keys by source anchor when carried
+  ok lone approval keys by its decision id
+== title engine (queue 193) ==
+  ok prompt carries the three hard gates
+  ok prompt carries counter-examples
+  ok prompt bans instruction openings and internal terms
+  ok prompt intent capped at 300
+  ok prompt steps capped at 20
+  ok parse a clean two-line output
+  ok parse tolerates a code fence
+  ok parse rejects an instruction-head title
+  ok parse rejects internal terms
+  ok parse rejects a fragment title
+  ok parse rejects an overlong title
+  ok parse rejects a truncated title
+  ok parse rejects a single line
+  ok parse rejects non-text
+  ok fingerprint is stable for the same close
+  ok fingerprint moves with the end time
+  ok fingerprint moves with membership
+  ok enqueue is idempotent per close
+  ok pick takes the newest close first
+  ok attempt counts a submission
+  ok failure before the cap stays pending
+  ok failure at the cap rests as failed
+  ok no requeue before the cooldown
+  ok requeue after the cooldown resets attempts
+  ok success closes the entry and counts
+  ok stats expose the awaiting count for monitoring
+  ok model headline wins over a later rule headline
+  ok rule headline stands as rule_fallback (degraded shelf)
+  ok no headline at all reads as raw, never blanked by the engine
+== title engine stock backfill (queue 200) ==
+  ok backfill enqueue records the flag, live enqueue does not
+  ok model source set covers live and backfill provenance
+  ok stats expose the backfill breakdown and done stamp
+  ok stats surface the backfill completion stamp
+  ok backfilled headline wins over the rule headline
+  ok a live model headline outranks a backfilled one
+
+ALL PASS
+=== SUMMARY: PASS=5 FAIL=2 ===

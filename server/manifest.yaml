@@ -491,7 +491,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/credential_vault.py
       mount_mode: ro
-      sha256: 881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2
+      sha256: 7b170e142693aaa73a50d06a2678e42768b3332ecdca29701fad70059f5a89d3
       upstream_baseline_sha256: null
       provides: [credential-vault-store, credential-vault-request, credential-vault-request-list, credential-vault-request-owner]
       summary: AES-GCM encrypted credential metadata store, one-time request fulfillment, session/scope-isolated request listing, audited request create/fulfill/reject lifecycle and server-side use; operation allowlist remains empty. 2.13.0 增主人模式：长钥（部署主钥）调用 list/status/fulfill 时传 session_id=None、按 scope 全量可见可办——聊天会话键与设备 sess_* 两命名空间在聊天流不相交、且长钥旧口径在过滤前恒 404，聊天内创建的请求经 HTTP 不可达；短票设备会话过滤一字不变。 2.17.2 三件：域名改可选（_valid_domains 对缺省/空列表回 []、write_entry 只拒 None，格式校验对已填域名不变）；请求落盘（requests.json 与 entries 同款原子写，_ensure_requests_loaded 回填＋_persist_requests 写穿，consuming 崩溃态回滚 pending，TTL 按原绝对时刻）；新增 request_block 结构化块单源（attach 与回读共用）。包内自测 credential_vault_selftest.py 增三组用例（可选域名/落盘跨重启/块形状）。 operation allowlist registers three server-side zero-knowledge executors (cloud_computer fill_credential, browser_login fill_credential, cloud_computer type_password: in-process decrypt, then type into the cloud computer via the Simular Box MCP; plaintext never returns to the model, the logs, or the audit trail; feat/cloud-computer-vps-takeover line, registration aligned in package 2.18.11).

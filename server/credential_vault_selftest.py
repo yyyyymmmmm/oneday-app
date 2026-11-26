@@ -227,5 +227,29 @@ check("validate_block normalizes to canonical order",
       (vrp.validate_block({**good, "fields": ["password", "username"]}) or {}).get("fields")
       == ["username", "password"])
 
+print("== envelope v2 single-key + v1 legacy dual-read ==")
+if vault.AESGCM is None:
+    skip("envelope v2 dual-read checks", "AESGCM provider unavailable")
+else:
+    import base64 as _b64, os as _os
+    v2_sealed = vault._encrypt({"password": secret, "username": "alice"}, key)
+    check("v2 envelope format has wrapped_dek",
+          v2_sealed.get("v") == 2 and "wrapped_dek" in v2_sealed and "dek_nonce" in v2_sealed)
+    check("v2 envelope roundtrip decrypts",
+          vault._decrypt(v2_sealed, key) == {"password": secret, "username": "alice"})
+    v1_nonce = _os.urandom(12)
+    v1_ct = vault.AESGCM(vault._key(key)).encrypt(
+        v1_nonce, json.dumps({"password": "legacy-v1-secret"}, separators=(",", ":")).encode(), None
+    )
+    v1_sealed = {"nonce": _b64.b64encode(v1_nonce).decode(), "ciphertext": _b64.b64encode(v1_ct).decode()}
+    check("v1 legacy dual-read decrypts cleanly",
+          vault._decrypt(v1_sealed, key) == {"password": "legacy-v1-secret"})
+    _os.environ["VAULT_MASTER_KEY"] = "must-be-ignored-second-key"
+    try:
+        check("VAULT_MASTER_KEY env ignored (single-key ruling)",
+              vault._decrypt(v2_sealed, key) == {"password": secret, "username": "alice"})
+    finally:
+        _os.environ.pop("VAULT_MASTER_KEY", None)
+
 print(f"credential_vault_selftest: {len(fails)} failures, {len(skips)} skipped")
 raise SystemExit(1 if fails else 0)

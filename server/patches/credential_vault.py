@@ -82,9 +82,17 @@ _requests_loaded: set[str] = set()
 
 
 def _key(api_key: str) -> bytes:
+    """Legacy v1 single-key derivation (kept for dual-read decryption)."""
     if not api_key:
         raise ValueError("vault key unavailable")
     return hashlib.sha256(b"oneday-credential-vault-v1:" + api_key.encode()).digest()
+
+
+def _kek(api_key: str) -> bytes:
+    """Envelope v2 KEK derived strictly from the single API_SERVER_KEY."""
+    if not api_key:
+        raise ValueError("vault key unavailable")
+    return hashlib.sha256(b"oneday-credential-vault-kek-v2:" + api_key.encode()).digest()
 
 
 def _paths(scope: str) -> tuple[Path, Path]:
@@ -184,12 +192,47 @@ def _audit(event: dict[str, Any], scope: str = "default") -> None:
         os.close(fd)
 
 
-def _encrypt(values: dict[str, str], api_key: str) -> dict[str, str]:
+def _encrypt(values: dict[str, str], api_key: str) -> dict[str, Any]:
+    """Envelope encryption v2: random 256-bit DEK per entry wrapped by single-key KEK."""
     if AESGCM is None:
         raise RuntimeError("vault_crypto_unavailable")
+    dek = os.urandom(32)
+    dek_nonce = os.urandom(12)
+    wrapped_dek = AESGCM(_kek(api_key)).encrypt(dek_nonce, dek, None)
     nonce = os.urandom(12)
-    ciphertext = AESGCM(_key(api_key)).encrypt(nonce, json.dumps(values, separators=(",", ":")).encode(), None)
-    return {"nonce": base64.b64encode(nonce).decode(), "ciphertext": base64.b64encode(ciphertext).decode()}
+    plaintext = json.dumps(values, separators=(",", ":")).encode()
+    ciphertext = AESGCM(dek).encrypt(nonce, plaintext, None)
+    return {
+        "v": 2,
+        "dek_nonce": base64.b64encode(dek_nonce).decode(),
+        "wrapped_dek": base64.b64encode(wrapped_dek).decode(),
+        "nonce": base64.b64encode(nonce).decode(),
+        "ciphertext": base64.b64encode(ciphertext).decode(),
+    }
+
+
+def _decrypt(sealed: dict[str, Any], api_key: str) -> dict[str, Any]:
+    """Dual-read decryption: supports both envelope v2 and legacy v1 entries."""
+    if AESGCM is None:
+        raise RuntimeError("vault_crypto_unavailable")
+    if sealed.get("v") == 2:
+        dek = AESGCM(_kek(api_key)).decrypt(
+            base64.b64decode(sealed["dek_nonce"]),
+            base64.b64decode(sealed["wrapped_dek"]),
+            None,
+        )
+        raw = AESGCM(dek).decrypt(
+            base64.b64decode(sealed["nonce"]),
+            base64.b64decode(sealed["ciphertext"]),
+            None,
+        )
+    else:
+        raw = AESGCM(_key(api_key)).decrypt(
+            base64.b64decode(sealed["nonce"]),
+            base64.b64decode(sealed["ciphertext"]),
+            None,
+        )
+    return json.loads(raw)
 
 
 def _valid_domains(raw: Any) -> list[str] | None:
@@ -399,7 +442,7 @@ def vault_use(entry_id: str, domain: str, purpose: str, operation: str, *, api_k
         sealed = row["sealed"]
     try:
         values = None
-        values = json.loads(AESGCM(_key(api_key)).decrypt(base64.b64decode(sealed["nonce"]), base64.b64decode(sealed["ciphertext"]), None))
+        values = _decrypt(sealed, api_key)
         outcome = executor(domain=domain, values=values)
         if not isinstance(outcome, dict):
             outcome = {"status": "failed", "summary": "operation failed"}
