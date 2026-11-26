@@ -513,20 +513,20 @@ extension SwipeReplyPanInstallerView {
         return root
     }
 
-    /// 排除帧直算（G-07）：行子树内全部标记视图的
-    /// 帧（换算到本视图坐标系），判定时刻现算——
-    /// 与旧偏好发布同语义（被标记区＝代码块横滚
-    /// ScrollView 本体／表格整区），只是几何来源
-    /// 自布局期状态改为 UIKit 层级实帧
+    /// 排除帧直算（G-07 + Phase 6.4 动态水平滚动探测）：
+    /// 行子树内全部显式标记视图（`SwipeReplyExcludedMarkerView`）以及任意水平可滚
+    /// `UIScrollView`（如代码块/表格横向滚动容器）的帧均自动纳入排除区，无需各处手工补贴标记。
     func computeExcludedFrames() -> [CGRect] {
         let root = rowRootView()
         var frames: [CGRect] = []
         func walk(_ view: UIView) {
-            if let marker = view
-                as? SwipeReplyExcludedMarkerView {
-                frames.append(
-                    marker.convert(marker.bounds, to: self)
-                )
+            if let marker = view as? SwipeReplyExcludedMarkerView {
+                frames.append(marker.convert(marker.bounds, to: self))
+            } else if let scroll = view as? UIScrollView,
+                      scroll !== installedScrollView,
+                      scroll.isScrollEnabled,
+                      scroll.contentSize.width > scroll.bounds.width + 2 {
+                frames.append(scroll.convert(scroll.bounds, to: self))
             }
             for sub in view.subviews { walk(sub) }
         }
