@@ -10,7 +10,12 @@ MODULES table are present in the mount insertion table (specs array), or are
 explicitly listed in the legacy-mounted exceptions list.
 
 Usage (inside hermes container):
-    python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
+    **MUST execute from outside the deployment layout** to avoid sys.path[0]
+    masking bare import defects. Correct:
+        cd /tmp && python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
+
+    WRONG (sys.path[0] will be /opt/hermes/gateway/platforms, hiding bare imports):
+        python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py
 
 Exit codes:
     0: all imports succeeded and static checks passed
@@ -165,15 +170,15 @@ def three_tables_reconciliation_check():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = {
         'install.sh': [
-            os.path.join(script_dir, "../../../install.sh"),
+            os.path.join(script_dir, "../install.sh"),
             "install.sh",
         ],
         'manifest.yaml': [
-            os.path.join(script_dir, "../../../manifest.yaml"),
+            os.path.join(script_dir, "../manifest.yaml"),
             "manifest.yaml",
         ],
         'verify.sh': [
-            os.path.join(script_dir, "../../../verify.sh"),
+            os.path.join(script_dir, "../verify.sh"),
             "verify.sh",
         ],
     }
@@ -185,8 +190,8 @@ def three_tables_reconciliation_check():
                 paths[name] = candidate
                 break
         if name not in paths:
-            print(f"⚠ 三表对账跳过：找不到 {name}", file=sys.stderr)
-            return True, []
+            print(f"✗ 三表对账失败：找不到 {name}（路径解析错误即红，不许静默跳过）", file=sys.stderr)
+            return False, [f"missing file: {name}"]
 
     def compute_sha256(filepath):
         """Compute sha256 of a file."""
@@ -324,7 +329,7 @@ def static_reconciliation_check():
     # install.sh would be at repo root when building, but we check from patches/
     install_sh_candidates = [
         "/opt/hermes/install.sh",  # container deploy location
-        os.path.join(script_dir, "../../../install.sh"),  # relative from platforms/
+        os.path.join(script_dir, "../install.sh"),  # relative from platforms/
         "install.sh",  # current directory fallback
     ]
 
@@ -335,8 +340,8 @@ def static_reconciliation_check():
             break
 
     if not install_sh_path:
-        print("⚠ 静态对账跳过：找不到 install.sh（非容器环境）", file=sys.stderr)
-        return True  # Don't fail if we can't find install.sh (might be standalone test)
+        print("✗ 静态对账失败：找不到 install.sh（路径解析错误即红，不许静默跳过）", file=sys.stderr)
+        return False
 
     try:
         with open(install_sh_path, 'r', encoding='utf-8') as f:

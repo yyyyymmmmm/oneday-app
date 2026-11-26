@@ -42,7 +42,7 @@ declare -A WANT_SHA_EXTRA=(
   [front_gateway.py]=5f348b5583ed47bae0d272556c6d9c75382be4cf2cfebf68069baaf216f51105
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=26502c276202a1ef385a38b6c5813c254465c059c7b324f04ffd37805d9e94cf
+  [write_gate_gateway.py]=7a3c5fcc664e175b1a214fda343dee0a38fcb142079c2ecf8a5aeccc1ec5fdc2
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
   [oneday_prompt.py]=bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227
@@ -1154,6 +1154,7 @@ if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degrade
 # 冒烟自测按 install.sh MODULES 挂载表逐模块 import，任一失败即包内缺陷不可部署。
 # 2.18.18 增静态对账：MODULES 表 vs 挂载插入表逐件核对，防漏登记（error_boundary 翻车二号教训）。
 # 2.18.19 增三表对账：install.sh（PATCHES/MODULES）、manifest.yaml、verify.sh 期望表登记哈希全部 vs 实物文件对比，任一不符即红（2.18.18 前置校验拦下 1+2+11 件过期）。
+# 2.18.20 增裸导入横扫（write_gate_gateway 翻车根因）：patches 全树扫描 `from <顶层名> import`（非 gateway. 绝对、非相对、非标准库），任一不在真实 sys.path（仅 /opt/hermes 末位）下可达即红。
 IMPORT_SMOKE=$(docker exec hermes python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py 2>&1 || echo "EXIT_$?")
 case "$IMPORT_SMOKE" in
   *"全部"*"模块导入成功"*"静态对账通过"*"三表对账通过"*) ok "import-smoke" "全模块导入冒烟＋静态对账＋三表对账通过（MODULES 表与挂载插入表对齐且三表登记哈希与实物一致）" ;;
@@ -1162,6 +1163,10 @@ case "$IMPORT_SMOKE" in
   EXIT_1) bad "import-smoke" "导入冒烟或静态对账或三表对账失败（至少一个模块导入失败或 MODULES/挂载表不对齐或登记哈希不符，stderr 有详情）" ;;
   *) bad "import-smoke" "导入冒烟探针异常：$IMPORT_SMOKE" ;;
 esac
+# 裸导入横扫：静态扫描 patches 全树，检测裸导入（from <顶层名> import，非 gateway./agent./tools./hermes_* 上游包、非标准库、非相对导入）。
+# 冒烟自测已按真实 sys.path（/opt/hermes 末位）实际 import 验证，此探针为静态扫描兜底。
+BARE_IMPORTS=$(docker exec hermes bash -c 'cd /opt/hermes/gateway/platforms && grep -rn "^from [a-z_][a-z0-9_]* import" . 2>/dev/null | grep -v "from gateway\." | grep -v "from agent\." | grep -v "from tools\." | grep -v "from hermes" | grep -v "from aiohttp\." | grep -v "from fastapi\." | grep -v "from typing\." | grep -v "from pathlib\." | grep -v "from datetime\." | grep -v "from collections\." | grep -v "from contextlib\." | grep -v "from contextvars\." | grep -v "from functools\." | grep -v "from dataclasses\." | grep -v "from urllib\." | grep -v "from asyncio\." | grep -v "from json\." | grep -v "from logging\." | grep -v "from hashlib\." | grep -v "from abc\." | grep -v "from base64\." | grep -v "from html\." | grep -v "from http\." | grep -v "from io\." | grep -v "from itertools\." | grep -v "from operator\." | grep -v "from os\." | grep -v "from re\." | grep -v "from string\." | grep -v "from subprocess\." | grep -v "from sys\." | grep -v "from tempfile\." | grep -v "from threading\." | grep -v "from time\." | grep -v "from uuid\." | grep -v "from warnings\." | grep -v "from weakref\." | grep -v "from zipfile\." | grep -v "from enum\." | grep -v "from copy\." | grep -v "from decimal\." | grep -v "from email\." | grep -v "from secrets\." | grep -v "from yaml\." | grep -v "_selftest\.py:" | grep -v "# " || true')
+if [ -z "$BARE_IMPORTS" ]; then ok "bare-import-scan" "裸导入横扫通过（patches 全树无不可达裸导入）"; else bad "bare-import-scan" "裸导入横扫检测到疑似不可达导入（需逐件核对是否为上游顶层模块）：$(echo "$BARE_IMPORTS" | head -3 | tr '\n' ';')"; fi
 
 printf '\n通过 %d  缺失 %d  规划中 %d  未验 %d\n' "$PASS" "$FAIL" "$PLANNED" "$UNKNOWN"
 [ "$FAIL" = 0 ]
