@@ -2,7 +2,8 @@
  * OneDay Console — dashboard plugin (大活12 网页端对齐).
  *
  * 棒 0 地基 + 棒 1 功能面 (approvals decide + credential vault)
- * + 棒 2 内容三面 (feed activity/posts, ideas, goals): registers as
+ * + 棒 2 内容三面 (feed activity/posts, ideas, goals)
+ * + 棒 3 枢纽面 (work ledger / audit / grants / cron): registers as
  * a native dashboard tab via window.__HERMES_PLUGINS__ and renders
  * with the plugin SDK's React.
  *
@@ -14,6 +15,12 @@
  *   GET  /v1/vault/entries                        (metadata only, no values)
  *   GET  /v1/vault/requests?status=pending        (owner mode, master key)
  *   POST /v1/vault/requests/{id}/fulfill          (values go out, never back)
+ *   GET  /v1/oneday/ledger[/summary|/{id}]        (hub work ledger, bar 3)
+ *   GET  /v1/write-gate/status|decisions|rules ; DELETE rules/{id} (audit)
+ *   GET  /v1/grants                               (standing grants, both sources)
+ *   GET  /api/jobs                                (cron user-visible projection;
+ *                                                  nginx exact location -> gateway)
+ *   GET  /health ; GET /v1/capabilities           (hub connection band)
  * Route B (standalone SPA under /oneday/) reuses the same core verbatim;
  * only this shell would change. No credentials are ever baked into this
  * file; the revealed key lives in sessionStorage only (tab-scoped,
@@ -176,6 +183,25 @@
     },
     fetchGoalTasks: function (goalId) {
       return apiJson("GET", "/v1/oneday/goals/" + encodeURIComponent(goalId) + "/tasks");
+    },
+    // ---- bar 3: hub faces (work ledger / audit / grants / cron) ----
+    fetchLedgerSummary: function () { return apiJson("GET", "/v1/oneday/ledger/summary"); },
+    fetchLedger: function () { return apiJson("GET", "/v1/oneday/ledger"); },
+    fetchLedgerDetail: function (id) {
+      return apiJson("GET", "/v1/oneday/ledger/" + encodeURIComponent(id));
+    },
+    fetchWriteGateStatus: function () { return apiJson("GET", "/v1/write-gate/status"); },
+    fetchDecisions: function () { return apiJson("GET", "/v1/write-gate/decisions?limit=50"); },
+    fetchWriteGateRules: function () { return apiJson("GET", "/v1/write-gate/rules"); },
+    deleteWriteGateRule: function (ruleId) {
+      return apiJson("DELETE", "/v1/write-gate/rules/" + encodeURIComponent(ruleId));
+    },
+    fetchGrants: function () { return apiJson("GET", "/v1/grants"); },
+    fetchJobs: function () { return apiJson("GET", "/api/jobs"); },
+    fetchCapabilities: function () { return apiJson("GET", "/v1/capabilities"); },
+    fetchHealth: function () {
+      return fetch("/health").then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; });
     }
   };
   window.__ONEDAY_CONSOLE_CORE__ = Core;
@@ -227,6 +253,43 @@
     superseded: "已被新请求取代",
     smart_denied: "智能拒绝"
   };
+
+  // Ledger wording mirrors the App hub (LedgerBoard.swift LedgerText):
+  // list faces use human words only; raw enums stay in detail views.
+  var LEDGER_STATUS_WORDS = {
+    queued: "排队中",
+    running: "进行中",
+    blocked_approval: "等待审批",
+    completed: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+    stale: "失联待核"
+  };
+  var LEDGER_KIND_WORDS = {
+    run: "对话运行",
+    kanban: "看板任务",
+    job: "定时作业",
+    approval: "审批",
+    device: "设备调用",
+    monitor: "监测"
+  };
+  var LEDGER_SOURCE_WORDS = {
+    app: "OneDay 发起",
+    dashboard: "控制台",
+    cron: "定时任务",
+    api: "其他应用",
+    bridge: "自动作业",
+    device: "设备"
+  };
+  function ledgerStatusWord(s) { return LEDGER_STATUS_WORDS[s] || "状态未知"; }
+  function ledgerKindWord(k) { return LEDGER_KIND_WORDS[k] || (k || "其他"); }
+  function ledgerSourceWord(s) { return LEDGER_SOURCE_WORDS[s] || (s || "其他来源"); }
+  function ledgerStatusClass(s) {
+    if (s === "completed") return "odc-st odc-st-done";
+    if (s === "failed") return "odc-st odc-st-failed";
+    if (s === "queued" || s === "running" || s === "blocked_approval" || s === "stale") return "odc-st odc-st-pending";
+    return "odc-st";
+  }
 
   // ---------------- route A shell (dashboard plugin) ----------------
   var SDK = window.__HERMES_PLUGIN_SDK__;
@@ -1257,6 +1320,343 @@
     return faceShell("目标", "与 App 目标页同一数据源：新建/编辑/完成/删除、进展记录、周简报、关联任务与活动流同口径。", face, load, body);
   }
 
+  // ---------------- hub work face (bar 3, gap #6) ----------------
+  function LedgerItem(props) {
+    var item = props.item;
+    var openPair = hooks.useState(false);
+    var open = openPair[0];
+    var setOpen = openPair[1];
+    var detPair = hooks.useState(null); // null | "loading" | detail object | "error"
+    var det = detPair[0];
+    var setDet = detPair[1];
+    function toggle() {
+      var next = !open;
+      setOpen(next);
+      if (next && det === null) {
+        setDet("loading");
+        Core.fetchLedgerDetail(item.id).then(function (d) { setDet(d); })
+          .catch(function () { setDet("error"); });
+      }
+    }
+    var parts = [];
+    parts.push(h("div", { key: "hd", className: "odc-actions", style: { justifyContent: "space-between" } },
+      h("span", { key: "t", className: "odc-row-title" }, item.title || "（无标题）"),
+      h("span", { key: "s", className: ledgerStatusClass(item.status) }, ledgerStatusWord(item.status))));
+    var meta = [ledgerKindWord(item.kind), ledgerSourceWord(item.source), fmtTsShort(item.startedAt)];
+    if (item.endedAt) meta.push("结束 " + fmtTsShort(item.endedAt));
+    parts.push(h("p", { key: "m", className: "odc-row-meta" }, meta.filter(Boolean).join(" · ")));
+    if (item.status === "failed" && item.failReason && item.failReason.excerpt) {
+      parts.push(h("p", { key: "f", className: "odc-error" },
+        (item.failReason.category ? item.failReason.category + "：" : "") + item.failReason.excerpt));
+    }
+    parts.push(h("span", { key: "tg", className: "odc-actions" },
+      h("button", { className: "odc-btn odc-btn-text odc-btn-small", onClick: toggle }, open ? "收起详情" : "详情")));
+    if (open) {
+      if (det === "loading" || det === null) {
+        parts.push(h("p", { key: "d", className: "odc-row-meta" }, "正在读取详情……"));
+      } else if (det === "error") {
+        parts.push(h("p", { key: "d", className: "odc-error" }, "详情读取失败，可刷新本面重试。"));
+      } else {
+        var dparts = [];
+        if (det.summary) dparts.push(h("p", { key: "sum", className: "odc-body" }, det.summary));
+        var hist = Array.isArray(det.history) ? det.history : [];
+        if (hist.length) {
+          dparts.push(h("div", { key: "hist", className: "odc-detail" },
+            h("p", { className: "odc-summary-head" }, "状态变迁"),
+            hist.map(function (ev, i) {
+              return h("p", { key: i, className: "odc-summary-line" },
+                fmtTs(ev.at) + "：" + ledgerStatusWord(ev.from || "") + " → " + ledgerStatusWord(ev.to || "") +
+                (ev.by ? "（" + ev.by + "）" : ""));
+            })));
+        }
+        var tech = [];
+        tech.push("编号 " + det.id);
+        if (det.origin) tech.push("记账 " + det.origin);
+        if (det.titleSource) tech.push("标题来源 " + det.titleSource);
+        if (det.link && det.link.targetId) tech.push("关联 " + (det.link.kind || "") + "/" + det.link.targetId);
+        if (det.evidenceLagging) tech.push("证据滞后");
+        dparts.push(h("p", { key: "tech", className: "odc-row-meta" }, tech.join(" · ")));
+        parts.push(h("div", { key: "d", className: "odc-detail" }, dparts));
+      }
+    }
+    return h("li", { className: "odc-row odc-row-card" }, parts);
+  }
+
+  function HubFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        Core.fetchLedgerSummary(),
+        Core.fetchLedger(),
+        Core.fetchHealth(),
+        Core.fetchCapabilities().catch(function () { return null; })
+      ]).then(function (r) {
+        return { summary: r[0], ledger: r[1], health: r[2], caps: r[3] };
+      });
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data;
+      var s = d.summary || {};
+      var items = (d.ledger && d.ledger.items) || [];
+      var parts = [];
+      // connection band
+      var conn = [];
+      if (d.health) {
+        conn.push("网关健康：" + (d.health.status || "ok") + "（Hermes " + (d.health.version || "?") + "）");
+      } else {
+        conn.push("网关健康：读不到（/health 未应答）");
+      }
+      if (d.caps && d.caps.version_gate) {
+        conn.push("App 版本门：最低 " + d.caps.version_gate.min_app_version +
+          " / 推荐 " + d.caps.version_gate.recommended_app_version);
+      }
+      if (s.collectorHeartbeatAt && s.serverNow) {
+        conn.push("台账采集心跳：" + Math.max(0, Math.round(s.serverNow - s.collectorHeartbeatAt)) + " 秒前");
+      }
+      if (s.ledgerUpdatedAt) conn.push("台账更新于 " + fmtTsShort(s.ledgerUpdatedAt));
+      parts.push(h("p", { key: "conn", className: "odc-summary-line" }, conn.join(" · ")));
+      if (s.degraded) {
+        parts.push(h("p", { key: "deg", className: "odc-warn" }, "台账处于降级状态：个别来源暂不可读，计数可能不全。"));
+      }
+      // counts
+      var counts = [
+        ["进行中", s.inProgress], ["等待审批", s.blockedApproval], ["失联待核", s.stale],
+        ["今日完成", s.todayCompleted], ["今日失败", s.todayFailed], ["今日取消", s.todayCancelled],
+        ["总条目", s.total]
+      ];
+      parts.push(h("div", { key: "counts", className: "odc-counts" }, counts.map(function (c) {
+        return h("div", { key: c[0], className: "odc-count-cell" },
+          h("div", { className: "odc-count-num" }, c[1] == null ? "—" : String(c[1])),
+          h("div", { className: "odc-row-meta" }, c[0]));
+      })));
+      // kind chips over the returned window
+      var kindCounts = {};
+      items.forEach(function (it) { kindCounts[it.kind] = (kindCounts[it.kind] || 0) + 1; });
+      var kindKeys = Object.keys(kindCounts).sort(function (a, b) { return kindCounts[b] - kindCounts[a]; });
+      if (kindKeys.length) {
+        parts.push(h("div", { key: "kinds", className: "odc-chips" }, kindKeys.map(function (k) {
+          return h("span", { key: k, className: "odc-chip" }, ledgerKindWord(k) + " " + kindCounts[k]);
+        })));
+        parts.push(h("p", { key: "kn", className: "odc-row-meta" },
+          "分类计数按本次回读窗口（最近 " + items.length + " 条）统计，总量以台账摘要为准。"));
+      }
+      if (!items.length) {
+        parts.push(h("p", { key: "e", className: "odc-empty" }, "台账暂无条目。"));
+      } else {
+        parts.push(h("ul", { key: "list", className: "odc-list" },
+          items.slice(0, 30).map(function (it) { return h(LedgerItem, { key: it.id, item: it }); })));
+        if (items.length > 30) {
+          parts.push(h("p", { key: "more", className: "odc-row-meta" }, "仅显示最近 30 条，共回读 " + items.length + " 条。"));
+        }
+      }
+      body = parts;
+    }
+    return faceShell("枢纽 · 工作台账", "与 App 枢纽工作面同一台账（/v1/oneday/ledger）：计数摘要＋最近条目＋详情下钻（状态变迁）。只读呈现，裁决仍在批准面。", face, load, body);
+  }
+
+  // ---------------- hub audit face (bar 3, gap #7) ----------------
+  function AuditFace() {
+    var facePair = useFace(function () {
+      return Promise.all([
+        Core.fetchWriteGateStatus(),
+        Core.fetchDecisions(),
+        Core.fetchWriteGateRules()
+      ]).then(function (r) { return { status: r[0], decisions: r[1], rules: r[2] }; });
+    });
+    var face = facePair[0];
+    var load = facePair[1];
+    var busyPair = hooks.useState({});
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    function revokeRule(rule) {
+      var next = {}; Object.keys(busy).forEach(function (k) { next[k] = busy[k]; });
+      next[rule.id] = true; setBusy(next);
+      setNote("");
+      Core.deleteWriteGateRule(rule.id).then(function () {
+        load(); // verdict by read-back, same rule as the App hub
+      }).catch(function (err) {
+        setNote("撤销没成（" + ((err && err.message) || err) + "），已按服务端真值重读。");
+        load();
+      }).then(function () {
+        var n2 = {}; Object.keys(busy).forEach(function (k) { n2[k] = busy[k]; });
+        delete n2[rule.id]; setBusy(n2);
+      });
+    }
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data;
+      var parts = [];
+      var st = d.status || {};
+      var counts = st.counts || {};
+      parts.push(h("p", { key: "st", className: "odc-summary-line" },
+        "写闸" + (st.supported ? "在位" : "未在位") +
+        " · 待处理：记忆 " + (counts.memory || 0) + " / 技能 " + (counts.skills || 0)));
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      var decisions = (d.decisions && d.decisions.decisions) || [];
+      parts.push(h("p", { key: "dh", className: "odc-summary-head" }, "决策记录（锚点时间线，最近 " + decisions.length + " 条）"));
+      if (!decisions.length) {
+        parts.push(h("p", { key: "de", className: "odc-empty" }, "暂无决策记录。"));
+      } else {
+        parts.push(h("ul", { key: "dl", className: "odc-list" }, decisions.map(function (rec) {
+          var word = DECIDED_LABELS[rec.decision] || rec.decision || "";
+          var cls = rec.decision === "approved" ? "odc-st odc-st-done"
+            : (rec.decision === "denied" || rec.decision === "smart_denied") ? "odc-st odc-st-failed" : "odc-st";
+          var meta = [rec.subsystem, rec.origin, fmtTs(rec.decided_at || rec.created_at)];
+          if (rec.anchor && rec.anchor.tier) meta.push("锚点 " + rec.anchor.tier);
+          if (rec.op_count) meta.push(rec.op_count + " 项操作");
+          return h("li", { key: rec.id, className: "odc-row odc-row-card" },
+            h("div", { className: "odc-actions", style: { justifyContent: "space-between" } },
+              h("span", { className: "odc-row-title" }, rec.summary || rec.action || rec.id),
+              h("span", { className: cls }, word)),
+            h("p", { className: "odc-row-meta" }, meta.filter(Boolean).join(" · ")));
+        })));
+      }
+      var rules = (d.rules && d.rules.rules) || [];
+      parts.push(h("p", { key: "rh", className: "odc-summary-head" }, "写闸规矩（" + rules.length + " 条）"));
+      if (!rules.length) {
+        parts.push(h("p", { key: "re", className: "odc-empty" }, "暂无写闸规矩。"));
+      } else {
+        parts.push(h("ul", { key: "rl", className: "odc-list" }, rules.map(function (rule) {
+          return h("li", { key: rule.id, className: "odc-row" },
+            h("span", null,
+              h("span", { className: "odc-row-title" }, (rule.subsystem || "") + " · " + (rule.origin || "")),
+              h("p", { className: "odc-row-meta" }, "立于 " + fmtTs(rule.created_at))),
+            h("button", {
+              className: "odc-btn odc-btn-text", disabled: !!busy[rule.id],
+              onClick: function () { revokeRule(rule); }
+            }, busy[rule.id] ? "撤销中…" : "撤销"));
+        })));
+      }
+      body = parts;
+    }
+    return faceShell("枢纽 · 审计", "与 App 枢纽审计面同源：写闸状态＋决策记录（带会话锚点）＋写闸规矩。撤销规矩以事后回读为准。", face, load, body);
+  }
+
+  // ---------------- grants face (bar 3, gap #13, full management) ----------------
+  function GrantsFace() {
+    var facePair = useFace(Core.fetchGrants);
+    var face = facePair[0];
+    var load = facePair[1];
+    var busyPair = hooks.useState({});
+    var busy = busyPair[0];
+    var setBusy = busyPair[1];
+    var notePair = hooks.useState("");
+    var note = notePair[0];
+    var setNote = notePair[1];
+    function revoke(grant) {
+      var next = {}; Object.keys(busy).forEach(function (k) { next[k] = busy[k]; });
+      next[grant.grant_key] = true; setBusy(next);
+      setNote("");
+      var p = grant.source === "writegate"
+        ? Core.deleteWriteGateRule(grant.rule_id)
+        : Core.revokeGrant(grant.source, grant.pattern_key);
+      p.then(function () {
+        load(); // verdict by read-back (App hub rule)
+      }).catch(function (err) {
+        setNote("撤销没成（" + ((err && err.message) || err) + "），已按服务端真值重读。");
+        load();
+      }).then(function () {
+        var n2 = {}; Object.keys(busy).forEach(function (k) { n2[k] = busy[k]; });
+        delete n2[grant.grant_key]; setBusy(n2);
+      });
+    }
+    var body = null;
+    if (face.phase === "ready") {
+      var d = face.data || {};
+      var grants = d.grants || [];
+      var parts = [];
+      if (d.partial) {
+        parts.push(h("p", { key: "part", className: "odc-warn" },
+          "有一源读不到，清单不完整（" + ((d.source_errors || []).join("、") || "未知") + "）。"));
+      }
+      if (d.projection_degraded) {
+        parts.push(h("p", { key: "deg", className: "odc-warn" }, "授权投影处于降级状态，个别条目元数据可能不全。"));
+      }
+      if (note) parts.push(h("p", { key: "note", className: "odc-warn" }, note));
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "当前已立规矩：" + grants.length + " 条（命令授权 " +
+        (d.exec_count == null ? "读不到" : d.exec_count) + " · 写闸规矩 " +
+        (d.writegate_count == null ? "读不到" : d.writegate_count) + "）"));
+      if (!grants.length) {
+        parts.push(h("p", { key: "e", className: "odc-empty" }, "暂无已立规矩。在批准面选「总是允许这一类」后，规矩会出现在这里。"));
+      } else {
+        var groups = [
+          { source: "exec", title: "命令授权" },
+          { source: "writegate", title: "写闸规矩" }
+        ];
+        groups.forEach(function (g) {
+          var rows = grants.filter(function (x) { return x.source === g.source; });
+          if (!rows.length) return;
+          parts.push(h("p", { key: "h-" + g.source, className: "odc-summary-head" }, g.title + "（" + rows.length + "）"));
+          parts.push(h("ul", { key: "l-" + g.source, className: "odc-list" }, rows.map(function (grant) {
+            var meta = [];
+            if (grant.granted_at) meta.push("立于 " + fmtTs(grant.granted_at));
+            if (grant.source_decision) meta.push("来自裁决 " + grant.source_decision);
+            meta.push(grant.status || "active");
+            return h("li", { key: grant.grant_key, className: "odc-row" },
+              h("span", null,
+                h("span", { className: "odc-row-title" }, grant.scope_label || grant.pattern_key || grant.grant_key),
+                h("p", { className: "odc-row-meta" }, meta.join(" · "))),
+              h("button", {
+                className: "odc-btn odc-btn-text", disabled: !!busy[grant.grant_key],
+                onClick: function () { revoke(grant); }
+              }, busy[grant.grant_key] ? "撤销中…" : "撤销"));
+          })));
+        });
+      }
+      body = parts;
+    }
+    return faceShell("授权管理 · 规矩", "与 App 设置授权节同一清单（GET /v1/grants 双源投影）：在批准时选「总是允许」立下的规矩全量列在这里，逐条可撤销；命令授权走网关撤销口、写闸规矩走写闸规则口（服务端单一写者口径），成败以回读为准。", face, load, body);
+  }
+
+  // ---------------- cron face (bar 3, user-visible projection) ----------------
+  var JOB_STATUS_WORDS = { ok: "成功", success: "成功", error: "失败", failed: "失败", skipped: "跳过", running: "运行中" };
+  function CronFace() {
+    var facePair = useFace(Core.fetchJobs);
+    var face = facePair[0];
+    var load = facePair[1];
+    var body = null;
+    if (face.phase === "ready") {
+      var jobs = (face.data && face.data.jobs) || [];
+      var parts = [];
+      var sysCount = jobs.filter(function (j) { return j.is_system; }).length;
+      var offCount = jobs.filter(function (j) { return !j.enabled; }).length;
+      parts.push(h("p", { key: "cnt", className: "odc-count" },
+        "共 " + jobs.length + " 个定时任务 · 系统任务 " + sysCount + " 个 · 已停用 " + offCount + " 个"));
+      if (!jobs.length) {
+        parts.push(h("p", { key: "e", className: "odc-empty" }, "暂无定时任务。"));
+      } else {
+        parts.push(h("ul", { key: "list", className: "odc-list" }, jobs.map(function (job) {
+          var sched = job.schedule_display ||
+            (job.schedule && (job.schedule.display || job.schedule.expr)) || "";
+          var meta = [];
+          if (sched) meta.push(sched);
+          if (job.next_run_at) meta.push("下次 " + fmtTs(job.next_run_at));
+          if (job.last_run_at) {
+            meta.push("上次 " + fmtTs(job.last_run_at) +
+              (job.last_status ? "（" + (JOB_STATUS_WORDS[job.last_status] || job.last_status) + "）" : ""));
+          }
+          var badges = [];
+          if (job.is_system) badges.push(h("span", { key: "sys", className: "odc-st" }, "系统任务"));
+          if (!job.enabled) badges.push(h("span", { key: "off", className: "odc-st odc-st-failed" }, "已停用"));
+          else if (job.state) badges.push(h("span", { key: "st", className: "odc-st" }, job.state));
+          return h("li", { key: job.id, className: "odc-row odc-row-card" },
+            h("div", { className: "odc-actions", style: { justifyContent: "space-between" } },
+              h("span", { className: "odc-row-title" }, job.name || job.id),
+              h("span", { className: "odc-chips" }, badges)),
+            h("p", { className: "odc-row-meta" }, meta.join(" · ")));
+        })));
+      }
+      body = parts;
+    }
+    return faceShell("定时任务", "用户可见口径（网关 /api/jobs 投影：系统任务带标记，与 App 定时任务面同一分类）。只读总览；建改与启停在 dashboard 的 Cron 页办。", face, load, body);
+  }
+
   // ---------------- page ----------------
   var NAV_ITEMS = [
     { id: "odc-face-approvals", label: "批准" },
@@ -1264,7 +1664,11 @@
     { id: "odc-face-requests", label: "凭据请求" },
     { id: "odc-face-feed", label: "动态" },
     { id: "odc-face-ideas", label: "想法" },
-    { id: "odc-face-goals", label: "目标" }
+    { id: "odc-face-goals", label: "目标" },
+    { id: "odc-face-hub", label: "枢纽" },
+    { id: "odc-face-audit", label: "审计" },
+    { id: "odc-face-grants", label: "规矩" },
+    { id: "odc-face-cron", label: "定时任务" }
   ];
 
   function scrollToFace(id) {
@@ -1277,21 +1681,24 @@
       h("div", { key: "head", className: "odc-head" },
         h("h2", null, "OneDay 控制台"),
         h("p", { className: "odc-sub" },
-          "棒 2：批准＋凭据（棒 1）＋动态/想法/目标三面（棒 2）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；三面与 App 同一数据源。")),
+          "棒 3：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；各面与 App 同一数据源。")),
       h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
       h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
       h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
       h("div", { key: "w-feed", id: "odc-face-feed", className: "odc-anchor" }, h(FeedFace, null)),
       h("div", { key: "w-ideas", id: "odc-face-ideas", className: "odc-anchor" }, h(IdeasFace, null)),
       h("div", { key: "w-goals", id: "odc-face-goals", className: "odc-anchor" }, h(GoalsFace, null)),
+      h("div", { key: "w-hub", id: "odc-face-hub", className: "odc-anchor" }, h(HubFace, null)),
+      h("div", { key: "w-audit", id: "odc-face-audit", className: "odc-anchor" }, h(AuditFace, null)),
+      h("div", { key: "w-grants", id: "odc-face-grants", className: "odc-anchor" }, h(GrantsFace, null)),
+      h("div", { key: "w-cron", id: "odc-face-cron", className: "odc-anchor" }, h(CronFace, null)),
       h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
         NAV_ITEMS.map(function (n) {
           return h("button", {
             key: n.id, className: "odc-face odc-face-nav", type: "button",
             onClick: function () { scrollToFace(n.id); }
           }, n.label);
-        }),
-        h("span", { key: "hub", className: "odc-face" }, "枢纽 · 棒 3")));
+        })));
   }
 
   window.__HERMES_PLUGINS__.register("oneday-console", OneDayConsolePage);

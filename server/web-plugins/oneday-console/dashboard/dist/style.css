@@ -58,3 +58,7 @@
 .odc-chip-on { border-color: #2563eb; color: #2563eb; }
 .odc-brief summary { cursor: pointer; font-size: 13px; opacity: 0.85; }
 .odc-entry-body { opacity: 0.92; }
+/* bar 3 additions */
+.odc-counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.odc-count-cell { border: 1px solid rgba(127, 127, 127, 0.3); border-radius: 8px; padding: 6px 12px; min-width: 76px; }
+.odc-count-num { font-size: 18px; font-weight: 600; }

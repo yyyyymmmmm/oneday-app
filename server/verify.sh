@@ -849,3 +849,24 @@ else
   unk "webbar2-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "webbar2-browser" "棒 2 真浏览器目视（三面真数据渲染、底部导航锚点跳转、网页端新建目标后 App 侧可见的双向对账）属部署验收人工项；服务端等价链由部署单实测留据"
+
+# ---- 37. 网页端棒 3 枢纽面（包 2.15.0, #55）: 台账/审计/规矩/定时数据源只读探针 + /api/jobs 公网接线 ----
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger/summary" || true)
+  if [ "$code" = "200" ]; then ok "webledger-summary" "GET /v1/oneday/ledger/summary → 200（枢纽·工作台账摘要数据源）"; else bad "webledger-summary" "ledger summary 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/oneday/ledger" || true)
+  if [ "$code" = "200" ]; then ok "webledger-list" "GET /v1/oneday/ledger → 200（台账条目数据源）"; else bad "webledger-list" "ledger 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/write-gate/status" || true)
+  if [ "$code" = "200" ]; then ok "webgate-status" "GET /v1/write-gate/status → 200（审计面写闸状态）"; else bad "webgate-status" "write-gate status 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/write-gate/decisions?limit=1" || true)
+  if [ "$code" = "200" ]; then ok "webgate-decisions" "GET /v1/write-gate/decisions → 200（决策记录数据源）"; else bad "webgate-decisions" "write-gate decisions 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/write-gate/rules" || true)
+  if [ "$code" = "200" ]; then ok "webgate-rules" "GET /v1/write-gate/rules → 200（写闸规矩数据源）"; else bad "webgate-rules" "write-gate rules 应答 $code（期望 200）"; fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/grants" || true)
+  if [ "$code" = "200" ]; then ok "webgrants-list" "GET /v1/grants → 200（授权管理面数据源）"; else bad "webgrants-list" "grants 应答 $code（期望 200）"; fi
+  jobs_body=$(curl -s --max-time 8 -H "Authorization: Bearer $API_KEY" "https://hermes.didichou.site/api/jobs" || true)
+  if printf '%s' "$jobs_body" | grep -q '"is_system"'; then ok "webjobs-public" "公网 GET /api/jobs（Bearer）→ 200 且含 is_system 投影（nginx = /api/jobs 精确接线已生效、未落 dashboard 9119）"; else bad "webjobs-public" "公网 /api/jobs 未见 is_system 投影（404/无投影＝nginx 精确 location 未应用，查 services/nginx-batch6-apijobs-shape.conf 应用状态）"; fi
+else
+  unk "webbar3-lists" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+unk "webbar3-browser" "棒 3 真浏览器目视（枢纽台账计数与条目下钻、审计决策时间线、规矩逐条撤销后回读、定时任务系统标记）属部署验收人工项；服务端等价链由部署单实测留据"
