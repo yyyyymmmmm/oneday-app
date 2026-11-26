@@ -557,7 +557,7 @@ components:
       container: hermes
       container_path: /opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py
       mount_mode: ro
-      sha256: 7f2d33df2e80b0fa7ec4f761ad957c0892723bb8ca09781d0f2dd7bfbcfc148d
+      sha256: 93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
       upstream_baseline_sha256: null   # 本包自有新文件，无上游对应物
       provides: [oneday-gateway-segment]
       summary: OneDay 网关业务分段（1.19.0 新增，断桥批三）：非独立模块——由 oneday_gateway.py 以 _load_segment 在核心命名空间内按原序汇入，与桥内分段逐字对应（差异仅限批三登记的适配：输出改 _print、Dashboard 基址拆分与 C-3 令牌化、#47 调度收编、简报兜底）。 2.5.0 摘要轮幂等键改轮次 epoch（ideas-sum-{int(_now())}）：原内容寻址键 sha256(sid:messageCount) 在同队列异载荷（改名/摘录漂移/提示词升级）时跨轮撞键 409 且永久毒化该队列，照主生成键与 feed 同型收尾。
