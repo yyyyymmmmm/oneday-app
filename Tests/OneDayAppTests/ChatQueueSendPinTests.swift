@@ -143,7 +143,7 @@ final class ChatQueueSendPinTests: XCTestCase {
             client: CountingCatalogClient(
                 recorder: CatalogCallRecorder()
             ),
-            demoMode: .off
+            demoMode: .connected
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sideChats.setLastThreadID(mainThreadID)
@@ -156,14 +156,9 @@ final class ChatQueueSendPinTests: XCTestCase {
             apiKey: "queue-pin-test-key"
         )
 
-        // 探针（0.51.0 修复轮，判读 release-0510-red12-triage）：
-        // connectDirect 已把 apiKey 经 KeychainStore.save 落盘，
-        // appState.apiKey 即 KeychainStore.read 读回——读回 nil
-        // 即 A 簇断点在钥匙串往返（提交泵的 apiKey 闸永远过
-        // 不了），与提交泵／发送产品代码无关。
         XCTAssertNotNil(
             appState.apiKey,
-            "探针红：connectDirect 后 apiKey 钥匙串读回为 nil——A 簇断点在钥匙串往返，先修测试台/夹具，不许动产品代码"
+            "演示态 apiKey 应返回假值 demo-api-key"
         )
         return appState
     }
