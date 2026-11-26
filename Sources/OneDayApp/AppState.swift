@@ -1,5 +1,6 @@
 import Foundation
 import OneDayCore
+import SwiftData
 import SwiftUI
 
 /// 三步探活的步骤口径：连接页与设置页「重新测试连接」共用。
@@ -1530,6 +1531,10 @@ final class AppState {
     private var modelCatalogAttemptEpoch = -1
     /// §368 单飞句柄：并发触发搭同一轮，不各拉各的
     private var modelCatalogLoadTask: Task<Void, Never>?
+
+    func makeLocalStoreCoordinator(modelContext: ModelContext) -> LocalStoreCoordinator {
+        LocalStoreCoordinator(modelContext: modelContext, ledger: sessionLedger)
+    }
 
     /// §368 目录失效：模型写路径的成功点与强制刷新
     /// 调用；只动取数时机，目录消费语义一字不变
