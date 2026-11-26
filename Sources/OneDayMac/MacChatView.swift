@@ -320,8 +320,47 @@ struct MacChatView: View {
 
     // MARK: - 输入区（#15/#16）
 
+    /// 动态引用卡（#34/§208）：挂发送舱的引用快照呈
+    /// 现——标题＋来源行，✕ 即清；正文不进输入框、输
+    /// 入框恒空（亲笔才是草稿），与 iOS 同口径
+    private func feedQuoteChip(_ quote: FeedPostQuote) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "quote.bubble")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("引用动态：《\(quote.title)》")
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                if !quote.sourceLine.isEmpty {
+                    Text(quote.sourceLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            Button {
+                conversation.pendingFeedQuote = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("取消引用")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+    }
+
     private var composer: some View {
         VStack(spacing: 8) {
+            if let quote = conversation.pendingFeedQuote {
+                feedQuoteChip(quote)
+            }
             if !conversation.pendingAttachments.isEmpty {
                 attachmentChips
             }

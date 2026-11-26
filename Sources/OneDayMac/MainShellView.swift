@@ -1,5 +1,6 @@
 import SwiftUI
 import OneDayDesign
+import OneDayCore
 
 /// 一级项（拟案信息架构）：iOS 底栏五格＋凭据库提级
 /// ＋枢纽，逐件对位表落点见 docs/mac-parity.md
@@ -39,10 +40,10 @@ enum MacSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// 三栏主窗（棒 1 做实聊天列）：NavigationSplitView
-/// 三栏——侧边栏（一级项＋连接状态卡）、中栏（聊天
-/// 时为会话列表，其余面占位明示棒次）、详情区（聊
-/// 天面）。会话选中经列表店/会话店驱动聊天面打开。
+/// 三栏主窗：NavigationSplitView 三栏——侧边栏（一
+/// 级项＋连接状态卡）、中栏（随一级项切换的列表）、
+/// 详情区。棒 3 做实动态/想法/目标/文件四面（对位
+/// #2–#5/#34–#38）＋全局搜索（#10）唤出与落点。
 struct MainShellView: View {
     @Environment(SessionStore.self) private var session
     @Environment(MacStatusStore.self) private var statusStore
@@ -53,6 +54,16 @@ struct MainShellView: View {
     @State private var conversation = MacConversationStore()
     @State private var selectedSessionID: String?
     @State private var vaultSelection: MacVaultSelection?
+    // 棒 3 四面：状态店与选中态
+    @State private var feedStore = MacFeedStore()
+    @State private var ideasStore = MacIdeasStore()
+    @State private var goalsStore = MacGoalsStore()
+    @State private var filesStore = MacFilesStore()
+    @State private var feedSelection: String?
+    @State private var ideaSelection: String?
+    @State private var goalSelection: String?
+    @State private var fileSelection: String?
+    @State private var showSearch = false
 
     var body: some View {
         NavigationSplitView {
@@ -86,6 +97,51 @@ struct MainShellView: View {
         .task {
             statusStore.noteUnread(listStore.totalUnread)
         }
+        .sheet(isPresented: $showSearch) {
+            MacSearchView(
+                filesStore: filesStore,
+                onOpenSession: { id in
+                    showSearch = false
+                    openSession(id)
+                },
+                onOpenFile: { path in
+                    showSearch = false
+                    section = .files
+                    fileSelection = path
+                },
+                onClose: { showSearch = false }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .macOpenGlobalSearch)) { _ in
+            showSearch = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .macOpenSession)) { note in
+            if let id = note.userInfo?["sessionID"] as? String {
+                openSession(id)
+            }
+        }
+    }
+
+    /// 打开会话落点（搜索命中/速记窗共用）：先回读列
+    /// 表再选中，onChange 承接打开
+    private func openSession(_ id: String) {
+        section = .chat
+        Task {
+            if !(listStore.sessions + listStore.archivedSessions)
+                .contains(where: { $0.id == id }) {
+                await listStore.load(from: session)
+            }
+            selectedSessionID = id
+        }
+    }
+
+    /// 引用到聊天落点（#34/§208）：切聊天面、起新对
+    /// 话、引用挂发送舱（startNew 后写，防被清）
+    private func quoteToChat(_ post: BridgeFeedPost) {
+        section = .chat
+        selectedSessionID = nil
+        conversation.startNew()
+        conversation.pendingFeedQuote = FeedPostQuote(post: post)
     }
 
     // MARK: - 栏 1：侧边栏
@@ -93,21 +149,17 @@ struct MainShellView: View {
     private var sidebar: some View {
         List(selection: $section) {
             Section {
-                ForEach(
-                    [MacSection.chat, .feed, .ideas, .goals, .files, .vault]
-                ) { item in
+                ForEach([MacSection.chat, .feed, .ideas, .goals, .files, .vault]) { item in
                     HStack {
                         Label(item.title, systemImage: item.symbol)
-                        if item == .chat, listStore.totalUnread > 0 {
+                        if badgeCount(for: item) > 0 {
                             Spacer()
-                            Text("\(listStore.totalUnread)")
+                            Text("\(badgeCount(for: item))")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(
-                                    Palette.primary, in: Capsule()
-                                )
+                                .background(Palette.primary, in: Capsule())
                         }
                     }
                     .tag(item)
@@ -131,6 +183,14 @@ struct MainShellView: View {
             connectionCard
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+    }
+
+    private func badgeCount(for item: MacSection) -> Int {
+        switch item {
+        case .chat: return listStore.totalUnread
+        case .feed: return feedStore.unreadCount
+        default: return 0
+        }
     }
 
     /// 侧边栏顶：当前服务器＋健康点（拟案信息架构：
@@ -169,27 +229,35 @@ struct MainShellView: View {
                     conversation.startNew()
                 }
             )
-            .navigationSplitViewColumnWidth(
-                min: 240, ideal: 300, max: 380
-            )
+            .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
+        case .feed:
+            MacFeedView(store: feedStore, selection: $feedSelection)
+                .navigationSplitViewColumnWidth(
+                    min: 260, ideal: 320, max: 400
+                )
+        case .ideas:
+            MacIdeasView(store: ideasStore, selection: $ideaSelection)
+                .navigationSplitViewColumnWidth(
+                    min: 260, ideal: 320, max: 400
+                )
+        case .goals:
+            MacGoalsView(store: goalsStore, selection: $goalSelection)
+                .navigationSplitViewColumnWidth(
+                    min: 260, ideal: 320, max: 400
+                )
+        case .files:
+            MacFilesView(store: filesStore, selection: $fileSelection)
+                .navigationSplitViewColumnWidth(
+                    min: 260, ideal: 320, max: 400
+                )
         case .vault:
-            MacVaultView(
-                store: vaultStore, selection: $vaultSelection
-            )
-            .navigationSplitViewColumnWidth(
-                min: 240, ideal: 300, max: 380
-            )
+            MacVaultView(store: vaultStore, selection: $vaultSelection)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
         case .hub:
             ContentUnavailableView(
                 "枢纽",
                 systemImage: MacSection.hub.symbol,
                 description: Text("工作／审计／电脑／身份／邮件五面在枢纽棒接入。")
-            )
-        default:
-            ContentUnavailableView(
-                (section ?? .chat).title,
-                systemImage: (section ?? .chat).symbol,
-                description: Text("本面列表在后续棒按对位表接入。")
             )
         }
     }
@@ -198,21 +266,34 @@ struct MainShellView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if section == .chat {
-            MacChatView(
-                conversation: conversation, listStore: listStore
+        switch section ?? .chat {
+        case .chat:
+            MacChatView(conversation: conversation, listStore: listStore)
+        case .feed:
+            MacFeedDetailView(
+                store: feedStore, postID: feedSelection,
+                onQuoteToChat: quoteToChat
             )
-        } else if section == .vault {
-            MacVaultDetailView(
-                store: vaultStore, selection: vaultSelection
+        case .ideas:
+            MacIdeaDetailView(
+                store: ideasStore, ideaID: ideaSelection,
+                selection: $ideaSelection
             )
-        } else {
+        case .goals:
+            MacGoalDetailView(
+                store: goalsStore, goalID: goalSelection,
+                selection: $goalSelection
+            )
+        case .files:
+            MacFileDetailView(store: filesStore, path: fileSelection)
+        case .vault:
+            MacVaultDetailView(store: vaultStore, selection: vaultSelection)
+        case .hub:
             ContentUnavailableView(
-                (section ?? .chat).title,
-                systemImage: (section ?? .chat).symbol,
-                description: Text("本面在后续棒按对位表接入。")
+                "枢纽",
+                systemImage: MacSection.hub.symbol,
+                description: Text("本面在枢纽棒按对位表接入。")
             )
         }
     }
-
 }

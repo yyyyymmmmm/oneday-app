@@ -55,6 +55,10 @@ final class MacConversationStore {
     // 输入与附件（#15/#16/#17）
     var draftText = ""
     var pendingAttachments: [MacPendingAttachment] = []
+    /// 动态引用（#34/§208）：发送舱临时态——永不进草
+    /// 稿落盘、切线程作废、发送后随消息拼装落盘（Core
+    /// FeedPostQuote.outgoingContent 收口），与 iOS 同口径
+    var pendingFeedQuote: FeedPostQuote?
     var selectedModel: String?
     var sendError: String?
 
@@ -92,6 +96,7 @@ final class MacConversationStore {
         selectedModel = target.model ?? session.modelID
         draftText = loadDraft(for: target.id)
         pendingAttachments = []
+        pendingFeedQuote = nil
         sendError = nil
         findQuery = ""
         findMatchIDs = []
@@ -188,6 +193,7 @@ final class MacConversationStore {
         stubIDs = [:]
         draftText = ""
         pendingAttachments = []
+        pendingFeedQuote = nil
         sendError = nil
         loadError = nil
         findQuery = ""
@@ -251,7 +257,8 @@ final class MacConversationStore {
         !isGenerating
             && (!draftText.trimmingCharacters(
                 in: .whitespacesAndNewlines
-            ).isEmpty || !pendingAttachments.isEmpty)
+            ).isEmpty || !pendingAttachments.isEmpty
+                || pendingFeedQuote != nil)
     }
 
     func send(
@@ -262,15 +269,31 @@ final class MacConversationStore {
             in: .whitespacesAndNewlines
         )
         let attachments = pendingAttachments
+        let quote = pendingFeedQuote
         draftText = ""
         pendingAttachments = []
+        pendingFeedQuote = nil
         saveDraft()
+        // 引用拼装走 Core 收口：引用块在前、亲笔在后，
+        // 身份分开不冒充用户口吻（§208）
+        let outgoing = FeedPostQuote.outgoingContent(
+            userText: text, feedQuote: quote
+        )
         Task {
             await performSend(
-                text: text, attachments: attachments,
+                text: outgoing, attachments: attachments,
                 idempotencyKey: UUID().uuidString,
                 from: session, listStore: listStore
             )
+        }
+        // 讨论信号（契约 rev2 §1.9）：引用建聊后发一记
+        if let quote, let config = session.config,
+           let key = session.apiKey {
+            Task {
+                try? await session.chatClient.feedDiscussSignal(
+                    config: config, apiKey: key, id: quote.postID
+                )
+            }
         }
     }
 

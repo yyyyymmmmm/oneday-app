@@ -12,6 +12,8 @@ struct OneDayMacApp: App {
     /// 准面独立窗、菜单栏三处共用同一份状态
     @State private var approvalStore = MacApprovalStore()
     @State private var vaultStore = MacVaultStore()
+    /// 速记窗控制器（棒 3，M2）：全局热键 ⌥Space 唤出
+    @State private var quickEntry = MacQuickEntryController()
 
     init() {
         // 通知分类/动作/代理先装配（授权等首次待批
@@ -29,10 +31,24 @@ struct OneDayMacApp: App {
                 .task {
                     await session.restore()
                     statusStore.start(session: session)
+                    quickEntry.bind(session: session)
+                    quickEntry.registerHotKey()
                 }
         }
         .windowResizability(.contentMinSize)
         .commands {
+            CommandMenu("导航") {
+                Button("全局搜索") {
+                    NotificationCenter.default.post(
+                        name: .macOpenGlobalSearch, object: nil
+                    )
+                }
+                .keyboardShortcut("k", modifiers: .command)
+                Button("速记窗") {
+                    quickEntry.toggle()
+                }
+                .keyboardShortcut(.space, modifiers: .option)
+            }
             CommandMenu("服务器") {
                 Button("断开连接") {
                     session.disconnect()
