@@ -203,5 +203,29 @@ check("pending put/list/drop roundtrip",
       and vrp.drop("sess-p", vrp.list_pending("sess-p")[0]["card_id"]) is not None
       and vrp.list_pending("sess-p") == [])
 
+print("== canonical field order (2.18.3: shuffled in, account first out) ==")
+vault._requests.clear()
+shuffled = vault.create_request("Order", "order.test", "Sign in", ["password", "username"], "sess-order")
+check("create_request stores canonical order",
+      vault._requests[shuffled["request_id"]]["fields"] == ["username", "password"])
+order_rows = vault.list_requests("sess-order")
+check("list_requests returns canonical order",
+      bool(order_rows) and order_rows[0]["fields"] == ["username", "password"])
+order_block = vault.request_block(shuffled["request_id"], "sess-order")
+check("request_block returns canonical order",
+      bool(order_block) and order_block.get("fields") == ["username", "password"])
+# Rows persisted before the fix (alphabetical: password first) re-read canonically:
+vault._requests["vreq_legacy"] = {
+    "service": "Legacy", "domain": "legacy.test", "reason": "Sign in",
+    "fields": ["password", "username"], "session_id": "sess-order",
+    "created_at": now, "expires_at": now + 60, "status": "pending", "scope": "default",
+}
+legacy_rows = [r for r in vault.list_requests("sess-order") if r["request_id"] == "vreq_legacy"]
+check("persisted shuffled row re-reads canonical",
+      bool(legacy_rows) and legacy_rows[0]["fields"] == ["username", "password"])
+check("validate_block normalizes to canonical order",
+      (vrp.validate_block({**good, "fields": ["password", "username"]}) or {}).get("fields")
+      == ["username", "password"])
+
 print(f"credential_vault_selftest: {len(fails)} failures, {len(skips)} skipped")
 raise SystemExit(1 if fails else 0)

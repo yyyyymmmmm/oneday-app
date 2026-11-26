@@ -51,6 +51,30 @@ AUDIT_PATH = Path(os.environ.get("CREDENTIAL_VAULT_AUDIT_PATH", "/opt/data/vault
 REQUESTS_PATH = Path(os.environ.get("CREDENTIAL_VAULT_REQUESTS_PATH", "/opt/data/vault/requests.json"))
 REQUEST_TTL = 15 * 60
 FIELDS = frozenset({"username", "password", "token", "api_key", "secret", "otp"})
+
+# Canonical field order for the request card (queue 167): the card is a
+# login form, so account-class fields come first, password-class second,
+# everything else after. Neither the caller's order nor alphabetical
+# order is trusted -- sorted() puts "password" ahead of "username",
+# which is exactly how the card shipped password-first. Within one
+# class the caller's relative order is preserved (stable sort).
+_ACCOUNT_FIELDS = frozenset({"username", "account", "email", "用户名", "账号"})
+_PASSWORD_FIELDS = frozenset({"password", "密码"})
+
+
+def _field_rank(field: str) -> int:
+    name = field.strip().lower()
+    if name in _ACCOUNT_FIELDS:
+        return 0
+    if name in _PASSWORD_FIELDS:
+        return 1
+    return 2
+
+
+def canonical_field_order(fields: Any) -> list[str]:
+    """Dedupe *fields* (first occurrence wins), then order canonically."""
+    unique = [f for f in dict.fromkeys(fields) if isinstance(f, str) and f]
+    return sorted(unique, key=_field_rank)
 OPERATIONS: dict[tuple[str, str], Callable[..., dict[str, Any]]] = {}
 _lock = threading.RLock()
 _requests: dict[str, dict[str, Any]] = {}
@@ -272,14 +296,14 @@ def create_request(service: str, domain: str, reason: str, fields: Any, session_
                 req["status"] = "superseded"
         _requests[request_id] = {
             "service": service[:120], "domain": clean_domain,
-            "reason": (reason or "")[:240], "fields": sorted(set(fields)),
+            "reason": (reason or "")[:240], "fields": canonical_field_order(fields),
             "session_id": session_id, "created_at": now,
             "expires_at": now + REQUEST_TTL, "status": "pending", "scope": scope,
         }
         _persist_requests(scope)
         _audit({"at": int(now), "action": "request.created", "id": request_id,
                 "service": service[:120], "domain": clean_domain,
-                "fields": sorted(set(fields))}, scope)
+                "fields": canonical_field_order(fields)}, scope)
     return {"request_id": request_id, "status": "pending", "expires_at": int(now + REQUEST_TTL)}
 
 
@@ -302,7 +326,7 @@ def list_requests(session_id: str, scope: str = "default", status: str | None = 
                 "service": req["service"],
                 "domain": req["domain"],
                 "reason": req["reason"],
-                "fields": list(req["fields"]),
+                "fields": canonical_field_order(req["fields"]),
                 "status": req["status"],
                 "expires_at": int(req["expires_at"]),
             }))
@@ -425,7 +449,7 @@ def request_block(request_id: str, session_id: str | None, scope: str = "default
             "service": req["service"],
             "domain": req["domain"],
             "reason": req["reason"],
-            "fields": list(req["fields"]),
+            "fields": canonical_field_order(req["fields"]),
             "status": status,
             "expires_at": int(req["expires_at"]),
         }

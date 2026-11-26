@@ -39,6 +39,30 @@ _pending: dict[tuple[str, str, str], dict[str, Any]] = {}
 _BLOCK_FIELDS = ("request_id", "service", "domain", "reason", "fields", "status")
 
 
+def _canonical_field_order(fields: Any) -> list[str]:
+    """Canonical request-card field order (account, password, rest).
+
+    The single source lives in ``credential_vault.canonical_field_order``;
+    the local mirror only covers non-gateway import layouts (the package
+    selftest imports this module as ``patches.vault_request_pending``).
+    """
+    try:
+        from gateway.platforms.credential_vault import canonical_field_order
+        return canonical_field_order(fields)
+    except ImportError:
+        def rank(field: str) -> int:
+            name = field.strip().lower()
+            if name in ("username", "account", "email", "用户名", "账号"):
+                return 0
+            if name in ("password", "密码"):
+                return 1
+            return 2
+
+        unique = [f for f in dict.fromkeys(fields)
+                  if isinstance(f, str) and f]
+        return sorted(unique, key=rank)
+
+
 def validate_block(raw: Any) -> Optional[dict[str, Any]]:
     """Normalize a structured vault-request block, or None if invalid.
 
@@ -73,7 +97,7 @@ def validate_block(raw: Any) -> Optional[dict[str, Any]]:
         "service": service[:120],
         "domain": domain[:253],
         "reason": reason[:240],
-        "fields": sorted(set(fields)),
+        "fields": _canonical_field_order(fields),
         "status": status[:32],
     }
     expires_at = raw.get("expires_at")
