@@ -797,7 +797,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 6dc46298c163ee2d284f876cb85f9be909d85bb6209331654d652f17887d17f6" "dist/index.js de5f515dd2dc19782e95a77a3de8791b811b63560d09c6671a5e4380c48965f0" "dist/style.css 5432b99f85511734f89a42579fc7a680ac724059044c648026d4ad456ba73925"; do
+for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -889,8 +889,8 @@ fi
 unk "webbar4-dashfaces" "学习图谱（/api/learning/*）、连接器（/api/mcp/*）、委派（/api/delegation/*）、文件预览字节（/api/files/download）走 dashboard 会话 cookie，服务端探针无会话不代测；部署验收以真浏览器登录态实测留据（与 App 同文件双向对账）"
 unk "webbar4-browser" "棒 4 真浏览器目视（记忆分层/洞察/图谱节点编辑回读、文件库预览与 App 同文件对账、监控造单往返删净、连接器开关/测试回读、委派后端切换往返与路线保存回读）属部署验收人工项；服务端等价链由部署单实测留据"
 
-# ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57；插件版本期望随 0.6.1 修复同步，包 2.17.1 队列 130）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
-if grep -q '"version": "0.6.1"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.6.1（棒 5 修复）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.6.1（install 3f 未同步棒 5 修复资产）"; fi
+# ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57；插件版本期望随棒 6 收尾同步 0.7.0，包 2.18.0）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
+if grep -q '"version": "0.7.0"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.7.0（棒 6 收尾）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.7.0（install 3f 未同步棒 6 资产）"; fi
 if [ -n "$API_KEY" ]; then
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/toolsets" || true)
   if [ "$code" = "200" ]; then ok "webtoolsets-list" "GET /v1/toolsets → 200（工具集面数据源）"; else bad "webtoolsets-list" "toolsets 应答 $code（期望 200）"; fi
@@ -913,3 +913,14 @@ else
 fi
 unk "webbar5-dashfaces" "会话消息与反应读面（/api/sessions、/api/sessions/{id}/messages）、语音（/api/audio/voice-config、/api/audio/speak）走 dashboard 会话 cookie，服务端探针无会话不代测；反应写面（PUT/DELETE /v1/reactions）为写型探针、不在 verify 内代跑，部署验收以真浏览器登录态实测留据"
 unk "webbar5-browser" "棒 5 真浏览器目视（工具集启停往返复原、反应设置/撤回往返回读、播报实播、听写出字、身份头像廊渲染、设备/电脑/设置三面真数据、搜索跨面命中与锚点跳转）属部署验收人工项；服务端等价链由部署单实测留据。差集 #19 引用回复未销账·遗留（终端面约束），不在本节探针范围"
+
+# ---- 40. 网页端棒 6 收尾（包 2.18.0, #59；插件 0.7.0）: 崩溃报告数据源 + 诊断面/大图查看资产在位 + 浏览器人工项 ----
+if [ -n "$API_KEY" ]; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/diagnostics/crash-reports" || true)
+  if [ "$code" = "200" ]; then ok "webcrash-list" "GET /v1/diagnostics/crash-reports → 200（诊断面崩溃报告数据源）"; else bad "webcrash-list" "crash-reports 应答 $code（期望 200）"; fi
+else
+  unk "webcrash-list" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
+fi
+if grep -q 'odc-face-diag' "$PLUG_DIR/dist/index.js" 2>/dev/null; then ok "webdiag-asset" "数据卷插件资产含诊断面（odc-face-diag 锚点在位）"; else bad "webdiag-asset" "数据卷插件资产无诊断面锚点（install 3f 未同步棒 6 资产）"; fi
+if grep -q 'odc-lightbox' "$PLUG_DIR/dist/index.js" 2>/dev/null && grep -q 'odc-lightbox' "$PLUG_DIR/dist/style.css" 2>/dev/null; then ok "weblightbox-asset" "数据卷插件资产含图片大图查看（index.js 逻辑 + style.css 样式）"; else bad "weblightbox-asset" "数据卷插件资产缺大图查看件（棒 6 资产未同步全）"; fi
+unk "webbar6-browser" "棒 6 真浏览器目视（诊断面一键自检六项逐项出结果、崩溃报告真数据渲染、待批提醒开关与新增待批弹通知、动态/文件预览/头像图片点开大图与 Esc/点击关闭）属部署验收人工项；服务端等价链由部署单实测留据。会话置顶写口未补齐·遗留（浏览器可达的会话编辑走上游修订围栏协议、裸 PATCH 回 409 client_upgrade_required，见 web-plugins/oneday-console/BAR6-INVENTORY.md），不在本节探针范围"
