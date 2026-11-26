@@ -58,6 +58,11 @@ try:
 except ImportError:  # direct / selftest loading
     import oneday_ledger_lib as _ledger_mod
 
+try:
+    from gateway.platforms import activity_feed as _activity_mod
+except ImportError:  # direct / selftest loading
+    import activity_feed as _activity_mod
+
 import logging as _logging
 
 logger = _logging.getLogger(__name__)
@@ -1314,6 +1319,27 @@ class Handler:
                             raise _Err(400, "since 必须是整数")
                     return self._send(
                         200, _ledger_list_view(since))
+            elif parts == ["ledger", "threads"]:
+                if self.command == "GET":
+                    query = parse_qs(urlparse(self.path).query)
+                    raw_limit = query.get("limit", [None])[0]
+                    limit = 50
+                    if raw_limit is not None:
+                        try:
+                            limit = int(raw_limit)
+                        except (TypeError, ValueError):
+                            raise _Err(400, "limit 必须是整数")
+                    cursor = query.get("cursor", [None])[0]
+                    return self._send(
+                        200, _ledger_threads_view(cursor, limit))
+            elif len(parts) == 3 and parts[0] == "ledger" \
+                    and parts[1] == "threads":
+                if self.command == "GET":
+                    detail = _ledger_thread_detail(parts[2])
+                    if detail is None:
+                        return self._send(
+                            404, {"error": "线程不存在"})
+                    return self._send(200, detail)
             elif len(parts) == 2 and parts[0] == "ledger":
                 if self.command == "GET":
                     detail = store.detail(parts[1])

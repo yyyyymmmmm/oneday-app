@@ -721,6 +721,9 @@ def _ledger_start_collector() -> None:
             # Queue 173 headline pass: same cadence again, own
             # failure line inside the pass itself.
             _ledger_humanize_reconcile()
+            # Queue 176 activity classification pass: same
+            # cadence again, own failure line inside the pass.
+            _ledger_activity_reconcile()
             time.sleep(LEDGER_COLLECTOR_SECONDS)
 
     threading.Thread(target=loop, daemon=True).start()
@@ -764,9 +767,346 @@ def _ledger_list_view(since) -> dict:
     # filtered HERE, at the server exit -- the items stay in
     # the store (scheduled faces, job detail and the boot-time
     # orphan settle still read them), clients just render.
+    # Activity positioning (queue 176): the same exit also
+    # drops every item the classification pass has stamped
+    # activityExcluded (platform rounds, monitor self-checks,
+    # anything with no traceable user intent). The stamp is
+    # written by _ledger_activity_reconcile on this bridge's
+    # collector cadence; the system-run predicate above stays
+    # as the always-on first gate so bridge rounds never wait
+    # for a stamp.
     items = [it for it in items
-             if not _ledger_is_system_run(it)]
+             if not _ledger_is_system_run(it)
+             and not it.get("activityExcluded")]
     return {"items": items, "snapshotSeq": store.seq,
             "ledgerUpdatedAt": store.last_event_at,
             "collectorHeartbeatAt": store.collector_heartbeat_at,
             "serverNow": now, "counts": store.summary(now)}
+
+
+# -- activity feed: classification marks + threads (queue 176) -----
+#
+# The identity page's stream is the assistant's ACTIVITY (positioning
+# contract, briefs/identity-feed-positioning.md): one thread per
+# piece of work done FOR the user. The ledger stays the full audit
+# book -- nothing is deleted or hidden from it; the classification
+# in activity_feed.py decides what the activity exits may carry,
+# and this pass stamps the excluded items in the book itself
+# (activityExcluded + activityReason) so the verdict is auditable
+# and back-traceable from the audit faces. The pass is pure
+# bookkeeping: it never touches status, evidence or counts (the
+# C-4 discipline), and it is idempotent -- a steady-state pass
+# appends nothing.
+
+def _ledger_activity_reconcile() -> int:
+    """Stamp activityExcluded/activityReason on every item whose
+    classification disagrees with its current stamp. Returns the
+    number of items (re)stamped."""
+    marked = 0
+    try:
+        store = _ledger()
+        for item in list(store.items.values()):
+            excluded, reason, _proto = _activity_mod.classify_item(
+                item, LEDGER_SKIP_SESSIONS)
+            if excluded:
+                if item.get("activityExcluded") is not True \
+                        or item.get("activityReason") != reason:
+                    store.update_fields(
+                        item["id"],
+                        {"activityExcluded": True,
+                         "activityReason": reason},
+                        by="collector")
+                    marked += 1
+            elif item.get("activityExcluded"):
+                store.update_fields(
+                    item["id"],
+                    {"activityExcluded": False,
+                     "activityReason": None},
+                    by="collector")
+                marked += 1
+    except Exception as e:
+        _print(f"ledger activity classify failed: {e!r}",
+               file=sys.stderr, flush=True)
+    return marked
+
+
+def _ledger_threads_view(cursor, limit) -> dict:
+    """The activity feed as threads: included items grouped by
+    the deterministic identity keys in activity_feed.py,
+    in-progress threads pinned first, then endedAt descending,
+    keyset-paginated. Assembly is a pure function of the book,
+    so the same book always yields the same threads."""
+    store = _ledger()
+    items = [_ledger_mod.item_view(it)
+             for it in store.items.values()]
+    threads = _activity_mod.assemble_threads(
+        items, LEDGER_SKIP_SESSIONS)
+    page, next_cursor = _activity_mod.paginate_threads(
+        threads, cursor, limit)
+    return {"threads": page, "nextCursor": next_cursor,
+            "totalThreads": len(threads),
+            "inProgress": sum(1 for t in threads
+                               if t["inProgress"]),
+            "snapshotSeq": store.seq,
+            "ledgerUpdatedAt": store.last_event_at,
+            "serverNow": _now()}
+
+
+def _thread_call_parts(call):
+    """(tool_name, preview) from one state.db tool_calls entry --
+    the same extraction _humanize_last_tool performs for the
+    session's last call, factored for sequence walks."""
+    fn = (call or {}).get("function") or {}
+    name = fn.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    args = fn.get("arguments")
+    preview = ""
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except Exception:
+            args = None
+    if isinstance(args, dict):
+        for key in ("path", "file_path", "query", "url", "command",
+                    "pattern", "name", "title", "prompt", "text",
+                    "input"):
+            val = args.get(key)
+            if isinstance(val, str) and val.strip():
+                preview = val.strip()
+                break
+        if not preview:
+            for val in args.values():
+                if isinstance(val, str) and val.strip():
+                    preview = val.strip()
+                    break
+    return name, preview
+
+
+def _thread_result_failed(content) -> bool:
+    """A tool result counts as failed only on its own structured
+    say-so (a top-level error payload); prose mentioning errors
+    is not a verdict."""
+    text = content if isinstance(content, str) else ""
+    text = text.strip()
+    if not text:
+        return False
+    if text.startswith("{"):
+        try:
+            obj = json.loads(text)
+        except Exception:
+            return False
+        if isinstance(obj, dict):
+            if obj.get("error") or obj.get("is_error") \
+                    or obj.get("isError"):
+                return True
+    return False
+
+
+def _ledger_run_tool_steps(session_id):
+    """The session's tool-call sequence from state.db messages:
+    (tool, preview, ok) per call, in message order. ok is set
+    only when the paired tool result is on record. Returns
+    (steps, total_calls)."""
+    import sqlite3
+    if not session_id or not _HUMANIZE_STATE_DB.exists():
+        return [], 0
+    try:
+        con = sqlite3.connect(
+            f"file:{_HUMANIZE_STATE_DB}?mode=ro", uri=True,
+            timeout=5)
+        try:
+            rows = con.execute(
+                "SELECT role, content, tool_call_id, tool_calls"
+                " FROM messages WHERE session_id=?"
+                " ORDER BY id LIMIT 800",
+                (session_id,)).fetchall()
+        finally:
+            con.close()
+    except Exception:
+        return [], 0
+    results = {}
+    calls = []
+    for role, content, call_id, tool_calls in rows:
+        if role == "tool" and call_id:
+            results[call_id] = _thread_result_failed(content)
+        if role == "assistant" and tool_calls:
+            try:
+                parsed = json.loads(tool_calls)
+            except Exception:
+                continue
+            if not isinstance(parsed, list):
+                continue
+            for call in parsed:
+                parts = _thread_call_parts(call)
+                if parts is None:
+                    continue
+                calls.append((call.get("id"), parts[0], parts[1]))
+    steps = []
+    for call_id, name, preview in calls:
+        step = {"tool": name, "preview": preview}
+        if call_id in results:
+            step["ok"] = not results[call_id]
+        steps.append(step)
+    return steps, len(calls)
+
+
+def _ledger_decision_line(pid):
+    """The write-gate decision line for one approval id, or None
+    when the line has rotated away (the object is then
+    unrecoverable and steps fall back to the item's history --
+    never guessed)."""
+    if not pid:
+        return None
+    try:
+        raw = LEDGER_DECISIONS_PATH.read_text(encoding="utf-8")
+    except Exception:
+        return None
+    found = None
+    for chunk in raw.splitlines():
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            line = json.loads(chunk)
+        except Exception:
+            continue
+        if str(line.get("id") or "") == str(pid):
+            found = line
+    return found
+
+
+def _ledger_approval_steps(item):
+    """One step per decided op: verb + object + the decision
+    itself. The ops' facts live in the decision line (the same
+    source derive_title_human reads); a rotated-away line leaves
+    the history fallback to the caller."""
+    link = item.get("link") or {}
+    pid = link.get("targetId") or ""
+    line = _ledger_decision_line(pid)
+    if line is None:
+        return []
+    decision = str(line.get("decision") or "")
+    result = {"approved": "已批准", "rejected": "已驳回"}.get(
+        decision, decision)
+    summary = line.get("summary")
+    steps = []
+    parsed = _ledger_mod._parse_batch_summary(
+        summary if isinstance(summary, str) else "")
+    if parsed is not None:
+        kinds, slugs = parsed
+        obj = _ledger_mod._join_slugs(slugs)
+        for kind in kinds:
+            steps.append({
+                "action": _ledger_mod._human_verb([kind]) or kind,
+                "object": obj, "result": result})
+        return steps
+    m = _ledger_mod._APPLY_SUMMARY_RE.match(
+        summary if isinstance(summary, str) else "")
+    if m:
+        where = m.group(1).strip().lower()
+        obj = "用户档案" if "user" in where else (
+            "长期记忆" if ("memory" in where or "profile" in where)
+            else "")
+        if obj:
+            return [{"action": _ledger_mod._human_verb(
+                        [m.group(2)]) or m.group(2),
+                     "object": obj, "result": result}]
+    kinds = line.get("op_kinds")
+    if not isinstance(kinds, list) or not kinds:
+        kinds = [line.get("op")]
+    kinds = [str(k).strip() for k in kinds if k]
+    obj = ""
+    if line.get("mem_target") in ("memory", "user"):
+        obj = "长期记忆" if line["mem_target"] == "memory" \
+            else "用户档案"
+    elif isinstance(line.get("target_name"), str) \
+            and line["target_name"].strip():
+        obj = line["target_name"].strip()
+    for kind in kinds:
+        steps.append({
+            "action": _ledger_mod._human_verb([kind]) or kind,
+            "object": obj, "result": result})
+    return steps
+
+
+def _ledger_history_steps(item):
+    steps = []
+    for entry in item.get("history") or []:
+        if not isinstance(entry, dict):
+            continue
+        frm, to = entry.get("from"), entry.get("to")
+        if to is None:
+            continue
+        step = {"action": f"{frm or '∅'} → {to}",
+                "at": entry.get("at"), "by": entry.get("by")}
+        if entry.get("note"):
+            step["note"] = entry["note"]
+        steps.append(step)
+    return steps
+
+
+_LEDGER_THREAD_STEP_CAP = 50
+
+
+def _ledger_thread_steps(item):
+    """Assemble one member item's steps from data already on
+    record -- no new collection (proposal sec.2)."""
+    kind = item.get("kind")
+    if kind == "run":
+        steps, _total = _ledger_run_tool_steps(
+            item.get("sessionId"))
+        if steps:
+            return steps
+        return _ledger_history_steps(item)
+    if kind == "approval":
+        steps = _ledger_approval_steps(item)
+        if steps:
+            return steps
+        return _ledger_history_steps(item)
+    if kind == "device":
+        link = item.get("link") or {}
+        step = {"tool": link.get("targetId") or "",
+                "result": item.get("status")}
+        if item.get("failReason"):
+            step["failReason"] = item["failReason"]
+        return [step]
+    if kind == "kanban":
+        return _ledger_history_steps(item)
+    return _ledger_history_steps(item)
+
+
+def _ledger_thread_detail(thread_id):
+    """One thread with its steps (capped at 50, with the total
+    and a counts tail when truncated) and its member items."""
+    store = _ledger()
+    items = [_ledger_mod.item_view(it)
+             for it in store.items.values()]
+    threads = _activity_mod.assemble_threads(
+        items, LEDGER_SKIP_SESSIONS)
+    thread = None
+    for cand in threads:
+        if cand["threadId"] == thread_id:
+            thread = cand
+            break
+    if thread is None:
+        return None
+    out = dict(thread)
+    members = []
+    steps = []
+    for iid in thread["itemIds"]:
+        detail = store.detail(iid)
+        if detail is None:
+            continue
+        members.append(detail)
+        steps.extend(_ledger_thread_steps(detail))
+    total = len(steps)
+    if total > _LEDGER_THREAD_STEP_CAP:
+        steps = steps[:_LEDGER_THREAD_STEP_CAP]
+        steps.append({
+            "summary": f"共 {total} 步，仅显示前 "
+                       f"{_LEDGER_THREAD_STEP_CAP} 步"})
+    out["steps"] = steps
+    out["stepsTotal"] = total
+    out["items"] = members
+    return out
