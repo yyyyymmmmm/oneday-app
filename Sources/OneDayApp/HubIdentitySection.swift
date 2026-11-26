@@ -164,7 +164,7 @@ struct HubIdentitySection: View {
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity)
             .frame(height: OneDayMetrics.minTapTarget)
-            .background(Palette.fillSecondary, in: Capsule())
+            .glassEffect(.regular, in: Capsule())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.hubGutter)
