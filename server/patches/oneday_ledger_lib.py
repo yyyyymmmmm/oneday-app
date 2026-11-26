@@ -165,22 +165,26 @@ _HUMAN_ACTIONS = {
 
 
 def derive_title_human(fields: dict) -> str:
-    """Derive an approval headline from the write-gate's structured facts."""
+    """Derive an approval headline from the write-gate's structured facts.
+
+    Do not cap target_name: resolve_title's excerpt cap is for user prose,
+    and must not destroy the object used by this independent title.
+    """
     if not isinstance(fields, dict):
         return ""
     actions = fields.get("op_kinds")
     if not isinstance(actions, list) or not actions:
         actions = [fields.get("op")]
-    actions = [str(action).strip() for action in actions if action]
-    verbs = {_HUMAN_ACTIONS[action] for action in actions
-             if action in _HUMAN_ACTIONS}
+    actions = [str(a).strip() for a in actions if a]
+    verbs = {_HUMAN_ACTIONS[a] for a in actions if a in _HUMAN_ACTIONS}
     verb = next(iter(verbs)) if len(verbs) == 1 else "更新了"
 
     target = fields.get("target_name")
     if isinstance(target, str) and target.strip():
         obj = target.strip()
     elif fields.get("mem_target") in ("memory", "user"):
-        obj = "长期记忆" if fields["mem_target"] == "memory" else "用户档案"
+        obj = "长期记忆" if fields["mem_target"] == "memory" \
+            else "用户档案"
     else:
         return ""
     return f"{verb} {obj}"

@@ -16,6 +16,7 @@ import json
 import pathlib
 import sys
 import types
+import threading
 
 ROOT = pathlib.Path(__file__).resolve().parent
 PATCHES = ROOT / "patches"
@@ -70,10 +71,24 @@ check("validate strips controls", v([
     {"label": "a\x00b"}, {"label": "c"}])[0]["label"] == "ab")
 
 check("pending put/pop", pending.put("s1", "r1", good) and
-      pending.pop("s1")["run_key"] == "r1" and pending.pop("s1") is None)
+      pending.pop("s1", "r1")["run_key"] == "r1" and pending.pop("s1") is None)
 pending.put("s2", "r1", good)
-pending.put("s2", "r2", good)
-check("pending overwrite one entry", pending.pop("s2")["run_key"] == "r2")
+check("pending distinct runs coexist", pending.put("s2", "r2", good) and
+      {entry["run_key"] for entry in pending.list_pending("s2")} == {"r1", "r2"})
+check("pending same session key also gets unique card id", pending.put("s2", "r1", good) and
+      len({entry["card_id"] for entry in pending.list_pending("s2")}) == 3)
+first_card = next(entry for entry in pending.list_pending("s2")
+                  if entry["run_key"] == "r1")
+entry, settled = pending.settle("s2", first_card["card_id"], lambda current: "attached")
+check("pending settle removes exactly decided run", entry["run_key"] == "r1" and
+      settled == "attached" and
+      len(pending.list_pending("s2")) == 2)
+check("pending pop refuses ambiguous session match", pending.pop("s2") is None)
+check("pending failed settle keeps entry", pending.settle(
+    "s2", next(item["card_id"] for item in pending.list_pending("s2")
+                if item["run_key"] == "r2"), lambda current: "no_row")[1] == "no_row" and
+      len(pending.list_pending("s2")) == 2)
+pending.discard("s2")
 
 # ---------- tool handler (real module, stubbed deps) ----------
 gw = types.ModuleType("gateway")
@@ -172,7 +187,9 @@ class FakeDB:
 
 
 fake_pending = types.SimpleNamespace(
-    pop=pending.pop, validate_options=pending.validate_options,
+    pop=pending.pop, list_pending=pending.list_pending,
+    settle=pending.settle, drop=pending.drop,
+    validate_options=pending.validate_options,
     attach_options=lambda db, sid, rid, opts: CALLS.append((sid, rid, opts)) or True)
 hreg = types.ModuleType("hermes_state_registry")
 hreg.acquire = lambda: FakeDB(42)
@@ -182,7 +199,7 @@ platforms.options_pending = fake_pending
 
 import logging
 ns = {"logger": logging.getLogger("t"), "suppress": __import__("contextlib").suppress,
-      "Exception": Exception}
+      "Exception": Exception, "Any": object}
 # _attach_options references gateway.platforms import at call time; route it.
 real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
 
@@ -203,9 +220,13 @@ attach = ns["_attach_options"]
 
 pending.put("sess-9", "run-9", [{"label": "A", "send_text": "A"},
                                 {"label": "B", "send_text": "B"}])
+pending.put("sess-9", "run-OTHER", [{"label": "C", "send_text": "C"},
+                                     {"label": "D", "send_text": "D"}])
 attach(object(), "run-9", "sess-9")
 check("attach happy path writes", CALLS == [("sess-9", 42, [
     {"label": "A", "send_text": "A"}, {"label": "B", "send_text": "B"}])])
+check("attach settles only its card", [item["run_key"] for item in
+      pending.list_pending("sess-9")] == ["run-OTHER"])
 CALLS.clear()
 pending.put("sess-9", "run-OTHER", [{"label": "A", "send_text": "A"},
                                     {"label": "B", "send_text": "B"}])
@@ -218,6 +239,7 @@ pending.put("sess-9", "run-9", [{"label": "A", "send_text": "A"},
                                 {"label": "B", "send_text": "B"}])
 attach(object(), "run-9", "sess-9")
 check("attach no assistant row drops", CALLS == [])
+pending.discard("sess-9")
 
 # ---------- timing case (2.3.1): target row lands only after attach starts ----
 # Real-traffic shape: at _finish time the DB holds only the empty-text
@@ -252,6 +274,7 @@ while _time.time() < _deadline and not any(c[0] == "sess-T" for c in CALLS):
 check("attach retries until delivery row lands",
       [c for c in CALLS if c[0] == "sess-T"] == [("sess-T", 77, [
           {"label": "甲", "send_text": "甲"}, {"label": "乙", "send_text": "乙"}])])
+pending.discard("sess-T")
 hreg.acquire = lambda: FakeDB(42)
 
 # ---------- run binding (2.3.1 rev1): session-key run_key + freshness --------
@@ -275,9 +298,46 @@ check("attach binds session-key run_key by freshness",
 CALLS.clear()
 pending.put("sess-K", "agent:main:api_server:dm:conv-1",
             [{"label": "A", "send_text": "A"}, {"label": "B", "send_text": "B"}])
-pending._pending["sess-K"]["at"] = _now - 100.0  # stale: predates run-K
+next(value for key, value in pending._pending.items()
+     if key[0] == "sess-K")["at"] = _now - 100.0  # stale: predates run-K
 attach(_self, "run-K", "sess-K")
 check("attach drops stale entry from dead run", CALLS == [])
+pending.discard("sess-K")
+
+# Atomicity probe: a reader invoked from inside the durable write callback
+# blocks on the store lock; once released, the committed card is absent.
+pending.discard("sess-A")
+pending.put("sess-A", "run-A", good)
+pending.put("sess-A", "run-B", good)
+observed_during_settle = []
+reader_started = threading.Event()
+reader_thread = None
+
+
+def commit_and_read(_entry):
+    global reader_thread
+    def read_after_commit():
+        reader_started.set()
+        observed_during_settle.extend(pending.list_pending("sess-A"))
+
+    reader_thread = threading.Thread(target=read_after_commit)
+    reader_thread.start()
+    reader_started.wait(1.0)
+    _time.sleep(0.02)
+    check("pending reader waits for atomic settle", reader_thread.is_alive())
+    return "attached"
+
+
+entry_a = next(item for item in pending.list_pending("sess-A")
+               if item["run_key"] == "run-A")
+entry, result = pending.settle("sess-A", entry_a["card_id"], commit_and_read)
+reader_thread.join(1.0)
+check("atomic settle returns committed decision", result == "attached" and
+      entry["run_key"] == "run-A")
+check("immediate reread has only other pending card",
+      [item["run_key"] for item in observed_during_settle] == ["run-B"] and
+      [item["run_key"] for item in pending.list_pending("sess-A")] == ["run-B"])
+pending.discard("sess-A")
 
 failed = [n for n, ok in CHECKS if not ok]
 print(f"{len(CHECKS) - len(failed)}/{len(CHECKS)} checks passed")
