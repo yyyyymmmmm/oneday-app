@@ -26,31 +26,19 @@ struct MailApprovalCard: View {
                 metadataRow("主题", approval.subject.isEmpty ? "（无主题）" : approval.subject)
 
                 if !approval.bodyPreview.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("正文预览")
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                        Text(approval.bodyPreview)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(3)
-                    }
+                    bodyPreviewSection
                 }
             }
             .padding(.vertical, OneDayMetrics.spacingXS)
 
             HStack(spacing: OneDayMetrics.spacingSM) {
-                Button {
-                    onApprove()
-                } label: {
+                Button(action: onApprove) {
                     Text("批准发送")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button {
-                    onReject()
-                } label: {
+                Button(action: onReject) {
                     Text("驳回")
                         .frame(maxWidth: .infinity)
                 }
@@ -66,6 +54,18 @@ struct MailApprovalCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Palette.brandPrimary.opacity(0.3), lineWidth: 1)
         )
+    }
+
+    private var bodyPreviewSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("正文预览")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+            Text(approval.bodyPreview)
+                .font(.footnote)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(3)
+        }
     }
 
     private func metadataRow(_ label: String, _ value: String) -> some View {
