@@ -21,6 +21,8 @@ import SwiftUI
 /// PickerView 同组件同数据源复用（§153），枢纽
 /// 不另造一套；未注入时入口不出（测试装配台等
 /// 无会话上下文的宿主不假装有模型可换）。
+/// §名下状态行（2026-11-27）：增 onTap 回调——
+/// 身份段模型按钮点按时触发（宿主传开面动作）
 struct HubModelEntry {
     let groups: [ChatModelGroup]
     let current: ChatModelChoice
@@ -28,6 +30,9 @@ struct HubModelEntry {
     /// Names 同源派生，行尾展示）
     let currentLabel: String
     let onSelect: (ChatModelChoice) -> Void
+    /// 点按入口回调（§名下状态行）：身份段模型
+    /// 按钮点按时触发，宿主传 `{ showModelPicker = true }`
+    let onTap: () -> Void
 }
 
 /// 智能体枢纽页（三期，规格 phase3-hub-spec）：页头
@@ -790,7 +795,7 @@ struct AgentHubView: View {
             // 管，Simular Box 直连通道）
             HubBrowserSection()
         case .identity:
-            HubIdentitySection(store: store)
+            HubIdentitySection(store: store, modelEntry: modelEntry)
         case .mail:
             HubMailSection()
         }

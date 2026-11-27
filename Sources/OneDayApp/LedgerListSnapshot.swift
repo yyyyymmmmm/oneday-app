@@ -23,8 +23,10 @@ struct LedgerListSnapshot: Equatable {
         calendar: Calendar = .current,
         locale: Locale = AppLocale.uiLocale
     ) -> LedgerListSnapshot {
+        // §名下状态行改造：过滤内部系统任务（动态调研等不进活动流水）
+        let filteredItems = items.filter { !$0.isInternalSystemTask }
         let dayGroups = LedgerBoard.dayGroups(
-            items, now: now, calendar: calendar, locale: locale
+            filteredItems, now: now, calendar: calendar, locale: locale
         )
         var sections: [LedgerDaySessionSection] = []
         sections.reserveCapacity(dayGroups.count)

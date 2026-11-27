@@ -271,6 +271,19 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
     /// 仅详情面带（列表面桥侧剥除）
     public let history: [LedgerHistoryEntry]
 
+    /// 内部系统任务判定（§名下状态行改造 2026-11-26 定规）：
+    /// 动态调研/内部系统流程等不进活动流水——按标题特征判别
+    /// （含"动态"/"调研"关键词且来源为 bridge/cron 的条目）
+    public var isInternalSystemTask: Bool {
+        let keywords = ["动态", "调研"]
+        let matchesKeyword = keywords.contains { title.contains($0) }
+            || (titleHuman.map { humanTitle in
+                keywords.contains { humanTitle.contains($0) }
+            } ?? false)
+        let isSystemSource = source == .bridge || source == .cron
+        return matchesKeyword && isSystemSource
+    }
+
     public init(
         id: String, kind: LedgerKind, source: LedgerSource,
         title: String, titleSource: String,

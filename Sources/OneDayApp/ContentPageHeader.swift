@@ -15,9 +15,11 @@ struct ContentPageHeader<Trailing: View>: View {
         ZStack(alignment: .center) {
             HubIdentityCapsule(
                 displayName: appState.agentDisplayName,
-                statusWord: appState.liveActivityPhrase,
+                statusWord: nil,
                 avatar: appState.agentAvatarImage,
                 statusColor: statusColor,
+                liveActivityPhrase: appState.liveActivityPhrase,
+                connectionStatusWord: appState.connectionStatus.phaseWord,
                 onOpenHub: onOpenHub
             )
             HStack(alignment: .center) {

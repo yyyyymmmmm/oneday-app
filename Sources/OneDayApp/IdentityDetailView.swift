@@ -56,6 +56,7 @@ struct IdentityDetailView: View {
     /// 大头像＋显示名＋身份分工副行：主名走全 App 单
     /// 一出口（本机覆盖→服务器人设名→回落）；副行明
     /// 示服务器身份名（无本机覆盖时与主名同值、照显）
+    /// §名下状态行改造（2026-11-27）：名下增连接状态一行
     private var heroSection: some View {
         Section {
             VStack(spacing: OneDayMetrics.spacingS) {
@@ -74,6 +75,11 @@ struct IdentityDetailView: View {
                 Text(appState.agentDisplayName)
                     .font(.screenName)
                     .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                // §名下状态行改造：连接状态居中一行
+                Text(appState.connectionStatus.phaseWord)
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                 Text("本机显示名 · 服务器身份 \(appState.identityName ?? AgentName.fallback)")
                     .font(.rowSubtitle)

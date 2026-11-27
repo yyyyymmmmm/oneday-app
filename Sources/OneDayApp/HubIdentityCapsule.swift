@@ -5,12 +5,19 @@ import SwiftUI
 /// 身份胶囊（紧凑大厂 44–52pt 单行顶栏版）：
 /// 支持可选内嵌 28pt 头像与状态圆点，聊天页与内容页共用同一胶囊，
 /// 让全 App 四主屏保持统一高度与 iOS 26 原生顶部朦胧位置。
+/// §名下状态行改造（2026-11-27）：名胶囊下增「当前活动」
+/// 一行——优先显示 liveActivityPhrase（工具短语），无时
+/// 回落 connectionStatusWord（连接状态词），nil 不占位
 struct HubIdentityCapsule: View {
     var displayName: String
     var statusWord: String?
     var needsApproval: Bool = false
     var avatar: Image? = nil
     var statusColor: Color? = nil
+    /// §名下状态行改造：当前活动短语（工具执行中优先）
+    var liveActivityPhrase: String? = nil
+    /// §名下状态行改造：连接状态词（活动短语无时兜底）
+    var connectionStatusWord: String? = nil
     var onOpenHub: () -> Void
     var onFindInConversation: (() -> Void)? = nil
     var onForkSession: (() -> Void)? = nil
@@ -23,6 +30,18 @@ struct HubIdentityCapsule: View {
             return nil
         }
         return statusWord
+    }
+
+    /// §名下状态行改造：当前活动有效值（活动短语优先、
+    /// 无时回落连接状态词）
+    private var effectiveActivityText: String? {
+        if let liveActivityPhrase, !liveActivityPhrase.isEmpty {
+            return liveActivityPhrase
+        }
+        if let connectionStatusWord, !connectionStatusWord.isEmpty {
+            return connectionStatusWord
+        }
+        return nil
     }
 
     var body: some View {
@@ -91,6 +110,14 @@ struct HubIdentityCapsule: View {
                                     ? Palette.primary
                                     : Palette.inkSecondary
                             )
+                            .lineLimit(1)
+                    }
+                    // §名下状态行改造：当前活动行（活动
+                    // 短语或连接状态兜底，nil 不占位）
+                    if let activityText = effectiveActivityText {
+                        Text(activityText)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
                     }
                 }
