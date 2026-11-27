@@ -309,7 +309,9 @@ private struct MCPServerDetailView: View {
             List {
                 Section {
                     LabeledContent("名称", value: server.name)
-                    LabeledContent("传输方式", value: server.transport)
+                    if let transport = server.transport {
+                        LabeledContent("传输方式", value: transport)
+                    }
                     if let url = server.url {
                         LabeledContent("地址", value: url)
                     }
