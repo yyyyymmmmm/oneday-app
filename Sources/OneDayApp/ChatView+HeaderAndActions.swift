@@ -14,16 +14,6 @@ extension ChatView {
         overviewStore?.statusLine ?? "联系不上"
     }
 
-    /// 状态点色（0.19.0 改同源）：与状态词共用 Core 的
-    /// classify 一处判定（OverviewBridgeStore.statusTone）
-    var overviewStatusColor: Color {
-        switch overviewStore?.statusTone {
-        case .online: return Palette.success
-        case .attention: return Palette.warning
-        case .offline, nil: return Palette.inkMuted
-        }
-    }
-
     var overviewBadgeCount: Int {
         overviewStore?.badgeCount ?? 0
     }
