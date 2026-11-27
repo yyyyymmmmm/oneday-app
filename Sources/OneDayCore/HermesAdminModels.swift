@@ -1056,11 +1056,22 @@ public enum MessageReactions {
     }
 
     /// 自己的全部反应段（§432 分工：pill 只承 own
-    /// 段，agent 段走气泡角标，两面不合并）
+    /// 段，agent 段走气泡角标，两面不合并）。
+    /// 2026-11-27 聚合修正：同一 emoji 只保留一条
+    /// （Material Design / iOS Messages 通行口径），
+    /// 服务端若下发重复不再直接显示多枚
     public static func ownReactions(
         in reactions: [MessageReaction]
     ) -> [MessageReaction] {
-        reactions.filter(\.isOwn)
+        var seen: Set<String> = []
+        return reactions.filter { reaction in
+            guard reaction.isOwn else { return false }
+            if seen.contains(reaction.emoji) {
+                return false
+            }
+            seen.insert(reaction.emoji)
+            return true
+        }
     }
 
     /// 乐观镜像组装：以 emoji 替换自己的那条（nil＝
