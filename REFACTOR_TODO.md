@@ -65,13 +65,13 @@
 
 ### Batch 3：iOS 核心引擎、网络与大文件拆分（7 项）
 
-- [ ] `#33` 拆解 `ChatView.swift` 及超大视图（保留 `MessageVaultRequest`）
-- [ ] `#34` 结构化 JSON `content_blocks`（`MessageBlockCodec`）真切流
-- [ ] `#35` 淘汰离屏算高台（`ChatNativeRowHeight` 改原生 Sizing）
-- [ ] `#36` 合并 `Streaming*` 为 `StreamRenderCoordinator` 并真切流
-- [ ] `#37` 拆解 `HermesClient.swift` 为域 API
-- [ ] `#38` 本地存储收口 SSOT（`LocalStoreCoordinator` + `AppPreferences`）
-- [ ] `#39` 设备桥插件化 + `ConnectorsView` Schema 驱动
+- [x] `#33` 拆解 `ChatView.swift` 及超大视图（抽离 `ChatView+SendAndOutbox.swift` 与 `ChatView+OverlaysAndModifiers.swift`，完整保留 `MessageVaultRequest` 与 `HubUnderlayTreatment`）
+- [x] `#34` 结构化 JSON `content_blocks`（`MessageBlockCodec` 落盘 `OneDayCore/MessageContentBlocks.swift`、`CloudComputerTarget` 补全 `Codable`，`ChatEntry.decodedContentBlocks` 双轨真切流 + `ChatThread.sortedEntries` 单调 `serverRowID` 排序）
+- [x] `#35` `ChatNativeList.swift` 增加 `SizingMode`（默认 `.deterministicHeightLedger` 恪守 §329 防循环护栏，支持 `.adaptiveHostingSelfSizing` 原生 `.estimated` 模式）
+- [x] `#36` `StreamRenderCoordinator.swift`（30fps 固定节拍 + 已闭合 Markdown 块冻结缓存）落盘 `OneDayCore` 并接入 `StreamingText.swift`（`CoordinatedStreamingView`）
+- [x] `#37` 拆解 `HermesClient.swift` 为 4 个域文件（核心传输/流式 + `HermesClient+SessionsAndMemory.swift` + `HermesClient+AdminAndOps.swift` + `HermesClient+FilesAndKanban.swift`）
+- [x] `#38` 本地存储收口 SSOT（新增 `AppPreferences.swift` 与 `LocalStoreCoordinator.swift`，`AppState.swift` 全部 `UserDefaults` 读写统一收口）
+- [x] `#39` 设备桥按权限域插件化（新增 `DeviceCapabilityPlugin` 协议，拆出 `DeviceEventKitPlugin.swift` / `DeviceContactsAndFilesPlugin.swift` / `DeviceAlarmAndNotifyPlugin.swift`）
 
 ### Batch 4：服务端解耦与工程门禁（10 项）
 

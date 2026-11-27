@@ -439,3 +439,45 @@ struct StreamingCaret: View {
         .accessibilityHidden(true)
     }
 }
+
+
+/// #36：由 `StreamRenderCoordinator` 驱动的流式分段视图：
+/// 已闭合 Markdown 块冻结缓存不再每帧重排，仅尾部 `activeTail` 走 `StreamingText` 增量渲染。
+struct CoordinatedStreamingView: View {
+    let text: String
+    let isStreaming: Bool
+
+    @State private var coordinator = StreamRenderCoordinator()
+    @State private var snapshot = StreamRenderSnapshot(
+        frozenBlocks: [],
+        activeTail: "",
+        fullText: "",
+        isFinal: false
+    )
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            ForEach(Array(snapshot.frozenBlocks.enumerated()), id: \.offset) { _, block in
+                MarkdownText(block)
+            }
+            if !snapshot.activeTail.isEmpty {
+                StreamingText(snapshot.activeTail)
+            }
+        }
+        .onChange(of: text, initial: true) { _, newValue in
+            let now = ProcessInfo.processInfo.systemUptime
+            if isStreaming {
+                if let next = coordinator.ingest(fullText: newValue, now: now) {
+                    snapshot = next
+                }
+            } else {
+                snapshot = coordinator.flush(fullText: newValue)
+            }
+        }
+        .onChange(of: isStreaming) { _, streaming in
+            if !streaming {
+                snapshot = coordinator.flush(fullText: text)
+            }
+        }
+    }
+}

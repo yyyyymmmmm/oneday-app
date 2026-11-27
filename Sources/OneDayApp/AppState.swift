@@ -67,36 +67,16 @@ final class AppState {
     private(set) var selfReactionsAvailability:
         CapabilityAvailability = .unknown
 
-    private static let selfReactionsAvailabilityKey =
-        "selfReactionsAvailability.v1"
-
     private static func storedSelfReactionsAvailability(
         for base: String?
     ) -> CapabilityAvailability {
-        guard let base,
-              let dict = UserDefaults.standard.dictionary(
-                forKey: selfReactionsAvailabilityKey
-              ) as? [String: String]
-        else { return .unknown }
-        switch dict[base] {
-        case "available": return .available
-        case "unavailable": return .unavailable
-        default: return .unknown
-        }
+        AppPreferences.selfReactionsAvailability(for: base)
     }
 
     private static func storeSelfReactionsAvailability(
         _ verdict: CapabilityAvailability, for base: String
     ) {
-        guard verdict != .unknown else { return }
-        var dict = (UserDefaults.standard.dictionary(
-            forKey: selfReactionsAvailabilityKey
-        ) as? [String: String]) ?? [:]
-        dict[base] = verdict == .available
-            ? "available" : "unavailable"
-        UserDefaults.standard.set(
-            dict, forKey: selfReactionsAvailabilityKey
-        )
+        AppPreferences.setSelfReactionsAvailability(verdict, for: base)
     }
 
     /// AI 自反应能力回读（§432）：外观页出现时
@@ -142,12 +122,8 @@ final class AppState {
     /// 旧全局选择迁移标记（只迁一次：把 chatModelID
     /// 旧值播种给主线会话，免用户升级后被默认顶掉）
     private var legacyChatModelMigrated: Bool {
-        get {
-            UserDefaults.standard.bool(forKey: "chatModelMigrated149")
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "chatModelMigrated149")
-        }
+        get { AppPreferences.legacyChatModelMigrated }
+        set { AppPreferences.legacyChatModelMigrated = newValue }
     }
 
     /// 会话键：服务端会话 id 优先（跨设备/重装同认）；
@@ -195,7 +171,7 @@ final class AppState {
         ) {
             return resolved
         }
-        let legacy = UserDefaults.standard.string(forKey: "chatModelID")
+        let legacy = AppPreferences.legacyChatModelID
             ?? defaultModel ?? ChatModels.fallbackID
         return ChatModelChoice(
             model: ModelDisplayNames.canonicalID(for: legacy),
@@ -205,18 +181,9 @@ final class AppState {
 
     // MARK: - §158 已隐藏服务商（本机呈现治理）
 
-    /// 已隐藏服务商的组键集（本机持久化，UserDefaults
-    /// 一键 JSON；Core ProviderGroupVisibility 编解码
-    /// 唯一口径）。隐藏只撤呈现：服务端 config 不动、
-    /// 执行管线（availableModels/sessionModelChoices）
-    /// 不读本账
-    private(set) var hiddenProviderGroupKeys: Set<String> = {
-        ProviderGroupVisibility.decodeHidden(
-            UserDefaults.standard.data(
-                forKey: SectionCollapseStorageKeys.hiddenProviders
-            )
-        )
-    }()
+    /// 已隐藏服务商的组键集（本机持久化，经 AppPreferences 统一收口）。
+    private(set) var hiddenProviderGroupKeys: Set<String> =
+        AppPreferences.loadHiddenProviderGroupKeys()
 
     /// 选择器呈现分组：全量分组过隐藏过滤（Core 唯一
     /// 过滤口，含默认组结构闸在此）
@@ -230,23 +197,13 @@ final class AppState {
     /// 并重算呈现，不发任何网络请求、不改服务端
     func hideProviderGroup(key: String) {
         hiddenProviderGroupKeys.insert(key)
-        UserDefaults.standard.set(
-            ProviderGroupVisibility.encodeHidden(
-                hiddenProviderGroupKeys
-            ),
-            forKey: SectionCollapseStorageKeys.hiddenProviders
-        )
+        AppPreferences.saveHiddenProviderGroupKeys(hiddenProviderGroupKeys)
     }
 
     /// 恢复一组（设置页「已隐藏的服务商」唯一写入点）
     func restoreProviderGroup(key: String) {
         hiddenProviderGroupKeys.remove(key)
-        UserDefaults.standard.set(
-            ProviderGroupVisibility.encodeHidden(
-                hiddenProviderGroupKeys
-            ),
-            forKey: SectionCollapseStorageKeys.hiddenProviders
-        )
+        AppPreferences.saveHiddenProviderGroupKeys(hiddenProviderGroupKeys)
     }
 
     /// 本会话模型 id（发送与触发器共用此口，不许两处
@@ -307,33 +264,11 @@ final class AppState {
     }
 
     private func persistSessionModelChoices() {
-        let dict: [String: [String: String]] = sessionModelChoices
-            .mapValues { choice in
-                var fields = ["model": choice.model]
-                if let provider = choice.providerField {
-                    fields["provider"] = provider
-                }
-                return fields
-            }
-        if let data = try? JSONEncoder().encode(dict) {
-            UserDefaults.standard.set(data, forKey: "chatModelBySession")
-        }
+        AppPreferences.saveSessionModelChoices(sessionModelChoices)
     }
 
     private func loadSessionModelChoices() {
-        guard let data = UserDefaults.standard.data(
-            forKey: "chatModelBySession"
-        ),
-        let dict = try? JSONDecoder().decode(
-            [String: [String: String]].self, from: data
-        ) else { return }
-        sessionModelChoices = dict.compactMapValues { fields in
-            guard let model = fields["model"], !model.isEmpty
-            else { return nil }
-            return ChatModelChoice(
-                model: model, providerField: fields["provider"]
-            )
-        }
+        sessionModelChoices = AppPreferences.loadSessionModelChoices()
     }
 
     /// 已下线模型落回提示（0.32.1，F05 止血）：旧全局
@@ -341,7 +276,7 @@ final class AppState {
     /// 定输入改读旧键原值，语义不变）
     private(set) var modelFallbackNotice: String? =
         ChatModels.retiredFallbackNotice(
-            stored: UserDefaults.standard.string(forKey: "chatModelID")
+            stored: AppPreferences.legacyChatModelID
         )
 
     /// 消费落回提示：清提示（旧键自 §153 起只读不写，
@@ -453,9 +388,9 @@ final class AppState {
     /// 裁决一轮轮询才生成）；上限 200 条、超出弃最
     /// 旧（回执生成以分钟计，陈年 id 无联动价值）
     private(set) var selfDecidedApprovalIDs: Set<String> =
-        Set(UserDefaults.standard.stringArray(
-            forKey: "selfDecidedApprovalIDs"
-        ) ?? [])
+        AppPreferences.loadSelfDecidedApprovalIDs()
+    /// 本地单一真源协调器（#38）：收口凭据/账本/发件箱/偏好边界
+    let localStore: LocalStoreCoordinator
 
     /// 全局共享的枢纽 store（0.36.21，审批卡包）：聊
     /// 天内就地审批卡与枢纽审核段必须读同一份 /pending
@@ -597,10 +532,7 @@ final class AppState {
                 selfDecidedApprovalIDs.sorted().suffix(200)
             )
         }
-        UserDefaults.standard.set(
-            Array(selfDecidedApprovalIDs),
-            forKey: "selfDecidedApprovalIDs"
-        )
+        AppPreferences.saveSelfDecidedApprovalIDs(selfDecidedApprovalIDs)
     }
     /// 云电脑接管态（0.10.0，P3 互斥的客户端半边）：
     /// BrowserFaceView 在接管开关变化时回写（施工图
@@ -1033,10 +965,22 @@ final class AppState {
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
-        sideChats = SideChatStore(persisted: !demoMode.isDemo)
-        sessionLedger = SessionLedger(persisted: !demoMode.isDemo)
-        runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
-        outboxRetry = OutboxRetryStore(persisted: !demoMode.isDemo)
+        let persisted = !demoMode.isDemo
+        let sideChatsStore = SideChatStore(persisted: persisted)
+        let ledgerStore = SessionLedger(persisted: persisted)
+        let runLedgerStore = RunLedgerStore(persisted: persisted)
+        let outboxRetryStore = OutboxRetryStore(persisted: persisted)
+        sideChats = sideChatsStore
+        sessionLedger = ledgerStore
+        runLedger = runLedgerStore
+        outboxRetry = outboxRetryStore
+        localStore = LocalStoreCoordinator(
+            sessionLedger: ledgerStore,
+            sideChats: sideChatsStore,
+            runLedger: runLedgerStore,
+            outboxRetry: outboxRetryStore,
+            isPersisted: persisted
+        )
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
@@ -1666,8 +1610,7 @@ final class AppState {
         // 此后旧键只读不写
         if !isDemo, !legacyChatModelMigrated {
             legacyChatModelMigrated = true
-            if let legacy = UserDefaults.standard
-                .string(forKey: "chatModelID"),
+            if let legacy = AppPreferences.legacyChatModelID,
                ChatModels.contains(legacy),
                sessionModelChoices[Self.sessionModelKey(
                    serverSessionID: nil, threadID: nil

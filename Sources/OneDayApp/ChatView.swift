@@ -7,126 +7,6 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
-#if canImport(UIKit)
-import UIKit
-#endif
-
-/// 聊天页：本地会话（SwiftData）＋ /v1/chat/completions 流式。
-/// 上下文取当前会话最近 20 条；停止生成保留已生成的半截回复。
-/// v2 视觉（docs/DESIGN-V2.md §3.5）：用户是浅染气泡、输入区
-/// 是浮空胶囊，流式光标是本页的签名细节。助手消息形态三度
-/// 易稿：v2 定为裸排（学 ChatGPT/Claude），0.2.5 按用户真机
-/// 对照 Muse 推翻改浅灰软填充泡（DESIGN-V4 §9 追记），
-/// 2026-11-13 割裂感 A 止血档再改判回落面（散文直落大面、
-/// 异构件才成卡，见 assistantBubble 注），填充泡口径一度
-/// 作废；2026-11-14 §225 用户点选三项全改恢复气泡（中性
-/// 浅灰容器＋纯文字内容，A1 撤泡口径作废，见 §225.2）。
-/// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
-/// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
-
-/// 距底原始读数匣（§199）：滚动几何回调逐帧写、
-/// 落定评估（R4 事件化后为事件到场即读）的原始距
-/// 底——旧形态
-/// 存 @State，滚动中读数逐帧变、等值守卫挡不住，
-/// 等于每帧触发一次全页 body 重跑（审计 §2.1 的放
-/// 大器一半）。改存引用匣：写不触发任何视图失效，
-/// 读到的恒是读时点的最新值——消费者（落定评估
-/// 与同点打点）在读时点上与旧 @State
-/// 读数逐字相等，判定阈值与语义零变更，只降回写
-/// 频次（§199 包 1 第三件）。经 @State 持实例（初
-/// 值只用一次），跨 body 重建恒为同一匣
-private final class BottomDistanceRecorder {
-    var latest: CGFloat = 0
-    /// 内容末端（栈尾锚）是否完整落在可视区内（手感
-    /// A 档事实信号，见 Core BottomFactCalibration
-    /// 注）：由尾锚自身的几何回调写本匣——与 latest
-    /// 同纪律，写不失效任何视图，只在派生点与评估
-    /// 点被读；切线程时由线程切换路清零，防旧线程
-    /// 的末端事实误校新线程首帧
-    var contentEndVisible = false
-    /// 列表容器高（与 latest 同源的几何读数）：喂尾
-    /// 锚事实回调判「完整可见」的视口高——@State 的
-    /// listViewportHeight 只供内容栈撑满，两处同源
-    /// 不分叉，本匣是事实回调的读口
-    var containerHeight: CGFloat = 0
-    /// 列表底 inset 实值（adjustedContentInset.
-    /// bottom 的同拍读数）：喂尾锚回调的有效视口
-    /// 判定——视口高须扣除本带（＝输入舱遮挡带，
-    /// 尾锚落在带内不算「在屏可读」）；与 latest
-    /// 同纪律、写不失效任何视图
-    var bottomInset: CGFloat = 0
-}
-
-/// P2 架构解耦：对话内查找状态机控制器。
-/// 将原本散落在 ChatView 中的 6 个 @State 查找属性与防抖/导航/高亮生命周期收归独立可观测控制器，
-/// 避免查找输入高频刷新触发 ChatView 顶层状态膨胀。
-@MainActor
-@Observable
-final class ChatFindController {
-    var isPresented = false
-    var query = ""
-    var session = ChatFindSession()
-    var highlightEntryID: UUID?
-    var huntToken: UUID?
-    var huntedKey: String?
-
-    var trimmedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var normalizedQuery: String? {
-        ChatFind.normalizedQuery(query)
-    }
-
-    func open() {
-        isPresented = true
-    }
-
-    func clearMatches() {
-        var next = session
-        next.reset()
-        session = next
-        highlightEntryID = nil
-        huntedKey = nil
-    }
-
-    func close() {
-        isPresented = false
-        query = ""
-        huntToken = nil
-        clearMatches()
-    }
-
-    func highlightQuery(for entryID: UUID) -> String? {
-        guard isPresented, session.matches.contains(entryID) else { return nil }
-        return normalizedQuery
-    }
-
-    func applyTarget(_ targetID: UUID, focus: (UUID) -> Void) {
-        highlightEntryID = targetID
-        focus(targetID)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
-            if self?.highlightEntryID == targetID {
-                self?.highlightEntryID = nil
-            }
-        }
-    }
-
-    func moveNext(focus: (UUID) -> Void) {
-        var next = session
-        guard let target = next.moveNext() else { return }
-        session = next
-        applyTarget(target, focus: focus)
-    }
-
-    func movePrevious(focus: (UUID) -> Void) {
-        var next = session
-        guard let target = next.movePrevious() else { return }
-        session = next
-        applyTarget(target, focus: focus)
-    }
-}
 
 struct ChatView: View {
     // （0.4.5 删：onOpenServerSession／onSelectTab 两注
@@ -139,9 +19,9 @@ struct ChatView: View {
     /// 动格撤销后，身份胶囊身份域与回告卡点按改开本
     /// sheet（AgentHubView .activity 四段，自带导航栈；
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
-    @State private var showHub = false
-    @State private var showPendingApprovalSheet = false
-    @State private var activeCloudTakeover: CloudComputerTarget?
+    @State var showHub = false
+    @State var showPendingApprovalSheet = false
+    @State var activeCloudTakeover: CloudComputerTarget?
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -152,21 +32,21 @@ struct ChatView: View {
     // 枢、隐藏服务商整套迁中枢选择面，见 Agent-
     // HubView 与 DESIGN §449.2）
 
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self) var appState
     /// 锚点物化落盘口（§165）：store 刷新回调经它落盘
     /// （物化方 ApprovalAnchorMaterialization 用环境
     /// context，与 GoalEcho 物化同一落盘面）
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) var modelContext
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     /// 字号档（0.43.0，A11Y-D1）：发送舱量测按档贯穿
     /// ——经 OneDayDesign 映射交给 ComposerBarLayout，
     /// 与文本视图自身 trait 档同源（量测≡排版）
     @Environment(\.dynamicTypeSize)
-    private var systemDynamicTypeSize
+    var systemDynamicTypeSize
     /// §503 聊天文字大小档（外观页写、本页读）：未设
     /// ＝「跟随系统」
     @AppStorage(AppearanceStorageKeys.chatTextSize)
-    private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
+    var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
     /// 聊天面生效字阶（§503 单源）：档位覆盖优先、
     /// 「跟随系统」恒等环境值。档位→DynamicType-
     /// Size 的映射单源在 ChatTextSizeTier.fixed-
@@ -175,7 +55,7 @@ struct ChatView: View {
     /// 量测≡排版不分叉；聊天根另以同值施 .dynamic-
     /// TypeSize 环境覆盖（见 nativeListSurface 挂载
     /// 点），SwiftUI 渲染与原生量测同源
-    private var dynamicTypeSize: DynamicTypeSize {
+    var dynamicTypeSize: DynamicTypeSize {
         let tier = ChatTextSizeTier(
             rawValue: chatTextSizeRaw
         ) ?? .system
@@ -184,17 +64,17 @@ struct ChatView: View {
     /// 0.20.0 恢复链：本页自此观察前后台（此前全页无
     /// scenePhase 观察——切后台杀流后回前台无人对账，
     /// 是「显示无网络」误报的生命周期半侧定因）
-    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.scenePhase) var scenePhase
     /// R3（§295）：原生散文规格的拼装环境——全环
     /// 境值（颜色 resolve 与字号/字重档的同源读
     /// 口，与 SelectableInlineText 的 @Environ-
     /// ment(\.self) 同式）＋链接出口（原生文本委
     /// 托的 openURL 与托管形态同一环境动作）
-    @Environment(\.self) private var environment
-    @Environment(\.openURL) private var openURL
-    @Query(sort: \ChatThread.updatedAt, order: .reverse) private var threads: [ChatThread]
+    @Environment(\.self) var environment
+    @Environment(\.openURL) var openURL
+    @Query(sort: \ChatThread.updatedAt, order: .reverse) var threads: [ChatThread]
 
-    @State private var currentThreadID: UUID?
+    @State var currentThreadID: UUID?
     /// 留痕回响拉取缓冲（P2 会话包；§229 起只作
     /// 物化输入）：进页/切线程与每轮生成落定时经
     /// OneDayBridgeClient 拉桥侧留痕账（主线全量、
@@ -202,72 +82,72 @@ struct ChatView: View {
     /// rializationRunner 物化为真条目进消息流——
     /// 呈现不再读本缓冲（回响行读条目自带快照）；
     /// 拉取失败保留旧值（见 refreshEchoTraces）
-    @State private var echoTraces: [BridgeTrace] = []
-    @State private var expandedTraceGroupIDs: Set<UUID> = []
-    @State private var input = ""
+    @State var echoTraces: [BridgeTrace] = []
+    @State var expandedTraceGroupIDs: Set<UUID> = []
+    @State var input = ""
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
     /// 条占住发送舱；文本经 onTextChange 回写 input
-    @State private var dictation = DictationController()
+    @State var dictation = DictationController()
     /// 在飞旗（§409 步 A 语义收口）：非 nil＝本轮
     /// 生成在飞、nil＝不在飞——只承载生命周期，
     /// 不再承载正文快照（生成期呈现只有 §407 占位
     /// 行；正文/思考全文只在装配器与思考累积器里
     /// 累积，落盘与落定兜底直读、不经视图状态）
-    @State private var streamingText: String?
+    @State var streamingText: String?
     /// 本轮首个思考增量的到达时刻（0.5.1）：落盘
     /// reasoningSeconds 的计时起点（直播思考块已
     /// 随 §409 步 A 退役，呈现侧无读者，计时口径
     /// 保留待 S3 过程行）
-    @State private var reasoningStartedAt: Date?
+    @State var reasoningStartedAt: Date?
     /// 正文分段装配器（第 93 条，OneDayCore.Stream-
     /// SegmentAssembler）：§409 起纯数据面——工具
     /// 边界封段、新段新缓冲，fullSegments/merged-
     /// FullText 喂半截落盘与落定兜底（第 93 条账
     /// 本口径不变）；封存段真值在本体内，视图侧
     /// 镜像（旧 sealedStreamSegments）已退役
-    @State private var streamAssembler = StreamSegmentAssembler()
+    @State var streamAssembler = StreamSegmentAssembler()
     /// §494：流式发布门（呈现节流的单点裁定，
     /// Core StreamingPublishGate）＋已发布快照
     /// 与代次——装配器只管精确累积、发布归本门，
     /// §409 步 A 拆掉的「发布」一环在此接回
-    @State private var streamPublishGate = StreamingPublishGate()
-    @State private var livePublishedText = ""
-    @State private var livePublishGeneration = 0
+    @State var streamPublishGate = StreamingPublishGate()
+    @State var livePublishedText = ""
+    @State var livePublishGeneration = 0
     /// §494：直播行武装位——只许 driveRun 新发
     /// 轮置真（恢复轮半截条目已在屏、再挂直播
     /// 行必双份，见 liveStreamingRow 守卫）
-    @State private var streamPresentationArmed = false
+    @State var streamPresentationArmed = false
     /// 思考通道累积器（0.5.1 发布闸，§409 步 E 瘦
     /// 身为纯累积器）：fullText 是落盘推理文本的
     /// 源头、hasContent 喂占位行思考相判定，run
     /// 驱动起止归零
-    @State private var reasoningPublishGate = StreamPublishGate()
-    @State private var sendTask: Task<Void, Never>?
+    @State var reasoningPublishGate = StreamPublishGate()
+    @State var sendTask: Task<Void, Never>?
     /// 发件箱自动重排在飞标记（台账 154，DESIGN
     /// §336）：drain 重入闸——多触发点（回前台/网
     /// 络恢复/切线程/进页）同拍到达只跑一趟，趟内
     /// 串行逐条、await 发送任务收尾再看下一条
-    @State private var outboxDraining = false
+    @State var outboxDraining = false
     /// §451 提交泵：在跑线程集与任务句柄（同线程串
     /// 行 POST；提交窗停止时按线程取消泵任务）
-    @State private var submitPumpThreads: Set<UUID> = []
-    @State private var submitPumpTasks:
+    @State var submitPumpThreads: Set<UUID> = []
+    @State var submitPumpTasks:
         [UUID: Task<Void, Never>] = [:]
     /// §451 消费环任务（单例防重入）：按提交序逐轮
     /// 驱动当前线程已受理未落定轮次
-    @State private var consumeTask: Task<Void, Never>?
+    @State var consumeTask: Task<Void, Never>?
     /// §451 泵内正在提交的条目集（准备/提交段在
     /// 飞）：编辑/撤回/孤儿浮现对本条让路
-    @State private var pumpInFlightEntryIDs: Set<UUID> = []
+    @State var pumpInFlightEntryIDs: Set<UUID> = []
     /// §451 提交工单：send/重发登记时捕获的出站形
     /// 态（进程重启后无工单的条目由泵按重发口径现
     /// 组，见 rebuiltSubmitJob）
-    @State private var submitJobs: [UUID: SubmitJob] = [:]
+    @State var submitJobs: [UUID: SubmitJob] = [:]
 
     /// §451 提交工单（与 launchTurn 旧签名同集＋发
     /// 送打点起点：打点归工单自带，不再借全局起点
     /// 串到别条头上）
-    private struct SubmitJob {
+    struct SubmitJob {
         var thread: ChatThread
         var userEntry: ChatEntry
         var text: String
@@ -282,7 +162,7 @@ struct ChatView: View {
     /// 含「结果未知交对账」；rejected/prepareFailed
     /// 是未受理失败、堵泵；offlineParked 折回待发
     /// 巷不堵（等下一次触发）；stopped 静默收尾
-    private enum SubmissionOutcome {
+    enum SubmissionOutcome {
         case accepted
         case rejected
         case prepareFailed
@@ -299,44 +179,44 @@ struct ChatView: View {
     /// 恢复账（内存版）就此退役——记账改走持久账本
     /// （AppState.runLedger），恢复不再靠「是否经历
     /// 过后台」分型：断线恒为结果未知、恒走对账
-    @State private var runMachine = RunTurnStateMachine()
+    @State var runMachine = RunTurnStateMachine()
     /// 正在驱动/对账的 run 所属线程（呈现状态只对它
     /// 有意义；切线程时旧轮在后台任务里继续落定）
-    @State private var activeRunThreadID: UUID?
+    @State var activeRunThreadID: UUID?
     /// events 重挂的续传位（Last-Event-ID）
-    @State private var lastEventSeq = -1
+    @State var lastEventSeq = -1
     /// 驱动在途标记（防 resume 与 send 双驱同一轮）
-    @State private var isDrivingRun = false
+    @State var isDrivingRun = false
     /// 已落盘的半截条目 id（落定时整段替换的名单）
-    @State private var livePartialEntryIDs: [UUID] = []
+    @State var livePartialEntryIDs: [UUID] = []
     /// 终态事件携带的 output（transcript 滞后时的合
     /// 成落定兜底；failed 时是服务端说明原文）
-    @State private var terminalOutputHint: String?
+    @State var terminalOutputHint: String?
     /// 终态状态回执（合成落定与失败文案的证据源）
-    @State private var terminalStatusHint: RunStatusResponse?
+    @State var terminalStatusHint: RunStatusResponse?
 
     /// 外观·聊天主题/形象大小（0.26.0）：本页观察两
     /// 键——主题变更即重渲本页（气泡/强调重新求值）、
     /// 形象档喂胶囊头像与空态形象边长。键名单一出处
     /// ＝Core AppearanceStorageKeys
     @AppStorage(AppearanceStorageKeys.chatTheme)
-    private var chatThemeID = ChatThemes.defaultID
+    var chatThemeID = ChatThemes.defaultID
     @AppStorage(AppearanceStorageKeys.avatarSize)
-    private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+    var avatarSizeRaw = AvatarSizeTier.medium.rawValue
     @AppStorage(AppearanceStorageKeys.chatAccentOverride)
-    private var accentOverrideRaw = -1
+    var accentOverrideRaw = -1
     @AppStorage(AppearanceStorageKeys.chatBackground)
-    private var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
+    var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
     @AppStorage(AppearanceStorageKeys.chatBubbleStyle)
-    private var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
+    var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
 
     /// 当前形象档（脏值回中档，与 Appearance-
     /// Preferences 同口径）
-    private var avatarTier: AvatarSizeTier {
+    var avatarTier: AvatarSizeTier {
         AvatarSizeTier(rawValue: avatarSizeRaw) ?? .medium
     }
 
-    @State private var errorMessage: String?
+    @State var errorMessage: String?
     /// G-03（§389）：错误横幅的诊断详情与发生时
     /// 刻——技术原文（状态码/接口名/错误码）只许
     /// 随 HermesError.diagnosticDetail 进横幅的
@@ -344,9 +224,9 @@ struct ChatView: View {
     /// presentError 同点记下（字面赋值点由
     /// errorMessage 变化观察补记，见 bottomBar
     /// 组装口）
-    @State private var errorDetail: String?
-    @State private var errorOccurredAt: Date?
-    @State private var errorDetailExpanded = false
+    @State var errorDetail: String?
+    @State var errorOccurredAt: Date?
+    @State var errorDetailExpanded = false
     /// 0.2.1：非错误提示条。§140 提示纪律起分档自消：
     /// 呈现状态与代号在 Core NoticePresentation，赋值
     /// 一律走 showNotice（中性 5s／重要 8s 自清）；错
@@ -355,14 +235,14 @@ struct ChatView: View {
     /// 服务不可用）、无重发动作位——单条失败的呈
     /// 现与恢复全在条目行内（叹号）＋小提示，见
     /// presentSendFailure
-    @State private var noticePresentation = NoticePresentation()
-    @State private var noticeDismissTask: Task<Void, Never>?
+    @State var noticePresentation = NoticePresentation()
+    @State var noticeDismissTask: Task<Void, Never>?
     /// §119 未配模型引导卡：「先等等」点过后本次不再
     /// 显示（判定本体在 Core ModelSetupGuidance，有
     /// 任何可用模型时永不出现、生产恒不误报）
-    @State private var modelSetupCardDismissed = false
+    @State var modelSetupCardDismissed = false
 
-    private var showsModelSetupCard: Bool {
+    var showsModelSetupCard: Bool {
         currentThread == nil
             && !modelSetupCardDismissed
             && ModelSetupGuidance.needsSetup(
@@ -373,7 +253,7 @@ struct ChatView: View {
 
     /// 未配模型引导卡（空态处）：去设置直达服务商
     /// 管理页（pendingSettingsRoute 现成通道）
-    private var modelSetupCard: some View {
+    var modelSetupCard: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             Text("还没配置模型")
                 .font(.callout.weight(.semibold))
@@ -403,14 +283,14 @@ struct ChatView: View {
     // 话组状态随抽屉本体迁往 DrawerView 与壳层
     // ContentView，见 §30）
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
-    @State private var isNearBottom = true
+    @State var isNearBottom = true
     /// 发送贴底令牌（0.36.5，聊天审计 bug 1）：send()
     /// 的条目落盘且链接成功（条目确定留下）后递增，
     /// messageList 的 onChange 消费它执行贴底三步——
     /// send() 本体没有 ScrollViewProxy，滚动只能经
     /// 令牌通道回到列表作用域执行；链接失败回滚删条
     /// 目的分支不递增、不贴底
-    @State private var sendPinToken = 0
+    @State var sendPinToken = 0
     /// （最后一条可见事实信号与最近可见集已于 §135
     /// 退役，发送空屏诊断 A 案：回底钮显隐改几何单
     /// 源派生，可见集只余 topVisibleEntryID 一职喂
@@ -418,7 +298,7 @@ struct ChatView: View {
     /// 贴底单一所有者记账（§135）：一切贴底请求经
     /// scrollToBottom 单口裁决（同帧合并＋全局唯一
     /// 复贴），判定在 Core BottomStickCoordinator
-    @State private var stickCoordinator = BottomStickCoordinator()
+    @State var stickCoordinator = BottomStickCoordinator()
     /// 落定状态机（键盘整包 R4；Core BottomSettle-
     /// Machine，五量事件源与转移在 Core 钉死）＋本
     /// 笔观察的协调者代号＋有界单发兜底任务。旧形
@@ -427,25 +307,25 @@ struct ChatView: View {
     /// 评审口径留的口子——2 秒单发、只把当前读数
     /// 喂回同一判定、不循环、不自成机制（见 eva-
     /// luateSettleFallback）
-    @State private var settleMachine = BottomSettleMachine()
+    @State var settleMachine = BottomSettleMachine()
     /// §329 行状态账本：行内展开态（推理块/工具
     /// 卡/组）与审批详情四态的跨视图单源——托管
     /// cell 重建不丢、行高合成器同步可读（.abso-
     /// lute 回喂的前提，见 ChatRowStateLedger）
-    @State private var rowStateLedger = ChatRowStateLedger()
+    @State var rowStateLedger = ChatRowStateLedger()
     /// §331 后台量测台（题 3 根治）：行高未就绪
     /// 时投单后台量测、回填后经发布代次重喂列表
-    @State private var rowMeasureDesk =
+    @State var rowMeasureDesk =
         ChatNativeRowMeasureDesk()
     /// 2026-11-20 卡顿修复包：行描述备忘——未变
     /// 行整行复用上趟描述（喂入层增量化，见
     /// ChatNativeRowDescriptorMemo）
-    @State private var nativeRowMemo =
+    @State var nativeRowMemo =
         ChatNativeRowDescriptorMemo()
     /// §362（流畅度专项 S2）：行构建增量备忘——
     /// 未变行免 entryBase 全文哈希与 facet 扫描键
     /// 组装（见 ChatEntryRowBuildMemo）
-    @State private var rowBuildMemo =
+    @State var rowBuildMemo =
         ChatEntryRowBuildMemo()
     /// §374（换引擎步骤 1/2）：增量喂入开关
     /// （Core ChatListIncrementalFeature，缺省开；
@@ -456,22 +336,22 @@ struct ChatView: View {
     /// 现行逐字一致（追踪器零调用、零状态、喂入
     /// 走旧路 apply 全量对账）
     @AppStorage(ChatListIncrementalFeature.defaultsKey)
-    private var chatListIncrementalEnabled = true
-    @State private var feedChangeTracker =
+    var chatListIncrementalEnabled = true
+    @State var feedChangeTracker =
         ChatFeedChangeTracker()
-    @State private var settleGeneration: Int?
-    @State private var settleFallbackTask: Task<Void, Never>?
+    @State var settleGeneration: Int?
+    @State var settleFallbackTask: Task<Void, Never>?
     /// 渲染计划缓存（§135 B 案）：按键（Core Chat-
     /// RenderPlanKey）命中即复用上轮的排序＋分隔＋
     /// 成组结果，无关状态写入不再全线程重算
-    @State private var renderPlanCache = RenderPlanCache()
+    @State var renderPlanCache = RenderPlanCache()
     /// 发送帧打点（§135 D 案）：本轮发送的起手时刻
     /// ——落盘→链接、首帧复核、发送→落定三段读数经
     /// ChatDiagTrace 留痕供真机复验对读数；无在飞
     /// 发送时为 nil、不留痕
-    @State private var sendFrameStartedAt: Date?
+    @State var sendFrameStartedAt: Date?
     /// 发送帧首帧复核读数是否已留痕（每轮只记一笔）
-    @State private var sendFrameRestickLogged = false
+    @State var sendFrameRestickLogged = false
     /// 最近一次实测距底（0.36.13，修法 1 落定复贴）：
     /// 与 isNearBottom 同出 onScrollGeometryChange
     /// 一路——迟滞判定消费它之外，原始读数另存一份
@@ -479,14 +359,14 @@ struct ChatView: View {
     /// 24 → 7 收紧，Core BottomSettle 钉死）
     /// §199：原始读数改存 BottomDistanceRecorder 引
     /// 用匣（见文件头注），不再走 @State 逐帧回写
-    @State private var bottomDistanceRecorder =
+    @State var bottomDistanceRecorder =
         BottomDistanceRecorder()
     /// 离底未读计数（0.41.0 收口批，台账 H 节正修）：
     /// Core AwayUnreadCounter 记账——条目变化与可见
     /// 集变化两路喂 ingest（见 messageList 两处
     /// onChange）、发送走 noteOwnSend、切线程 resetAll；
     /// 呈现只读 count/displayText（回底钮角标）
-    @State private var awayUnread = AwayUnreadCounter()
+    @State var awayUnread = AwayUnreadCounter()
     /// （回底钮落位三轮沿革见 §124：发送区 frame 发
     /// 布链（§121）与宿主安全区推算（0.47.1）均已退
     /// 役——钮现居发送区布局流内（bottomBar 输入舱
@@ -495,7 +375,7 @@ struct ChatView: View {
     /// 计数口径的「在底」事实：与回底钮显隐同一政策
     /// 派生（BottomFollowPolicy）——钮不显即在底，两
     /// 处判定永不分叉
-    private var isAtBottomForUnread: Bool {
+    var isAtBottomForUnread: Bool {
         !BottomFollowPolicy.showsScrollToBottomButton(
             isNearBottom: isNearBottom
         )
@@ -505,7 +385,7 @@ struct ChatView: View {
     /// 未读计数的「在底」事实共用同一派生，不许两处
     /// 各算一遍分叉）——无现线程恒不显；政策本体在
     /// Core BottomFollowPolicy
-    private var showsBackToBottomButton: Bool {
+    var showsBackToBottomButton: Bool {
         currentThread != nil
             && BottomFollowPolicy.showsScrollToBottomButton(
                 isNearBottom: isNearBottom
@@ -514,26 +394,26 @@ struct ChatView: View {
 
     /// 未读计数喂入（条目/可见集两路共用一处，口径不
     /// 分叉）：当前线程有序条目 id 全表＋在底事实
-    private func feedAwayUnread() {
+    func feedAwayUnread() {
         awayUnread.ingest(
             entryIDs: currentThread?.sortedEntries.map(\.id) ?? [],
             isAtBottom: isAtBottomForUnread
         )
     }
     /// 演示模式自动开流只跑一次（演示态展示流式效果用）
-    @State private var demoStreamStarted = false
+    @State var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
-    @State private var attachments: [PendingAttachment] = []
+    @State var attachments: [PendingAttachment] = []
     /// 基础止血包（P4）：待发附件按线程分格暂存——
     /// attachments 只持当前线程的工作集，切线程时整
     /// 格存回/取出（Core ThreadBoundStash），附件不
     /// 许再跟着人串到别的会话里呈现或被发送
-    @State private var attachmentStash =
+    @State var attachmentStash =
         ThreadBoundStash<[PendingAttachment]>()
     /// 落地态（当前无线程）附件格的固定键：落地页选
     /// 的附件不属任何会话，用本键单独收纳、回到落地
     /// 态时原样恢复，不与任何真线程 id 相撞
-    private static let landingAttachmentStashID =
+    static let landingAttachmentStashID =
         UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
     /// 基础止血包（P1）：上传失败轮次的文件载荷暂存
     /// （条目 id → 载荷）——失败条目点重发时补传这批
@@ -542,7 +422,7 @@ struct ChatView: View {
     /// 格未命中时按条目 id 回磁盘重建，进程被杀后
     /// 重发不许退化成纯文本（条目已落盘的远端路径
     /// 在场时优先走路径、两格都不经）
-    @State private var failedFilePayloads:
+    @State var failedFilePayloads:
         [UUID: [(name: String, data: Data)]] = [:]
     /// §407（预排版步骤 1·预定高）：本会话亲手发
     /// 出的条目 id 集（send/编辑重发两处登记）——
@@ -552,65 +432,65 @@ struct ChatView: View {
     /// 历史行不入集（冷开长会话全表同步量测会把
     /// 成本压回主线程、正是量测台要避的）。集随
     /// 视图生命周期、量级＝本会话发送数
-    @State private var sessionSentEntryIDs:
+    @State var sessionSentEntryIDs:
         Set<UUID> = []
     /// §237（基础正解批 P1）：待发文件载荷的持久暂
     /// 存口——发送起手即按条目 id 落盘（文件名＋字节
     /// ＋清单原子换入），失败/待发重发时凭条目 id 重
     /// 建；上传全成并写回远端路径后删除
-    private var stagedSendStore: StagedSendAttachmentStore {
+    var stagedSendStore: StagedSendAttachmentStore {
         StagedSendAttachmentStore.defaultStore()
     }
     /// 发送失败机制包：退避/等待门唤醒钟——退避只
     /// 有闸没有钟是弱环 B3（到点靠偶然触发），本钟
     /// 由提交泵在判退避/停泊时排下、到期踢泵续发；
     /// 只留最早一记（更早的到期点后排者不覆盖）
-    @State private var outboxWakeTask: Task<Void, Never>?
-    @State private var outboxWakeAt: Date?
+    @State var outboxWakeTask: Task<Void, Never>?
+    @State var outboxWakeAt: Date?
     /// 发送失败机制包：App 启动排空发件箱的一次性
     /// 标记——触发源正确集合（语义 4）里「进/切线
     /// 程」只许对账、不许触发提交轴重投，drain 只
     /// 在启动首拍与回前台/网络恢复走
-    @State private var launchDrainedThreadIDs: Set<UUID> = []
+    @State var launchDrainedThreadIDs: Set<UUID> = []
     /// 基础止血包（P7）：本轮正处文件上传段的事实位
     /// ——等待呈现据此说上传中、不再冒充生成中
-    @State private var isUploadingFiles = false
+    @State var isUploadingFiles = false
     /// §237（基础正解批 P7）：本轮上传的真实聚合进
     /// 度（0...1）——源头是 URLSession 实报的已发送
     /// 字节（HermesClient 带进度版上传＋Core 聚合
     /// 器），非上传段为 nil；呈现只读它显示百分比，
     /// 不许任何地方再拿菊花冒充进度
-    @State private var uploadProgressFraction: Double?
+    @State var uploadProgressFraction: Double?
     /// 聊天可靠性包：发送准备失败被保留的待发条目，
     /// 其附件在同一次运行内按条目 id 暂存供点按重
     /// 发；§237 起发送起手已同步落磁盘暂存，进程重
     /// 启后本格为空时由 resendPending 回磁盘重建文
     /// 件载荷（图片仍走条目本体落盘数据），不再退
     /// 化为纯文本
-    @State private var pendingResendAttachments:
+    @State var pendingResendAttachments:
         [UUID: [PendingAttachment]] = [:]
     // 0.36.23 起选图多选（用户 03:02 点题）：绑数
     // 组、一次可选多张；旧单 PhotosPickerItem 绑定
     // 天然单选，数据侧 attachments 本就支持多个
-    @State private var photoItems: [PhotosPickerItem] = []
-    @State private var showPhotoPicker = false
-    @State private var showCamera = false
+    @State var photoItems: [PhotosPickerItem] = []
+    @State var showPhotoPicker = false
+    @State var showCamera = false
     // §147 附件面板改版：「+」改开底部附件面板
     // sheet（旧浮窗小卡 Menu 退役）；视频走独立
     // PhotosUI 选图器（视频过滤、与图片选图器分开
     // 两套绑定，互不串扰）
-    @State private var showAttachPanel = false
+    @State var showAttachPanel = false
     /// §317：面板行动作的收起后接力槽——afterAttach-
     /// PanelDismiss 只登记、sheet 的 onDismiss（收起
     /// 真完成信号）才执行（废 §147 固定 450ms 睡眠
     /// 竞速，见 afterAttachPanelDismiss 注）
-    @State private var attachPanelPendingAction:
+    @State var attachPanelPendingAction:
         (() -> Void)?
     /// §317：文件选择器状态旗——与相机行 showCamera
     /// 同制，DocumentPickerView（representable）经
     /// fullScreenCover 由框架排队呈现（命令式文件桥
     /// 退役，见 DocumentPickerView 头注）
-    @State private var showDocumentPicker = false
+    @State var showDocumentPicker = false
     // §303（A-08 收口）：面板定高改走呈现控制器
     // custom detent 单源求解（见 sheet 本体注），
     // §152 的内容实测高状态与 §154 的宿主真高回
@@ -635,7 +515,7 @@ struct ChatView: View {
     /// composerBottomSpace 自此降级：只余 A3 流式
     /// 跟随的结算拍触发与诊断读数两职，不再进留
     /// 位公式（D2：回报链退出控制环）
-    @State private var kbSnapshot = KeyboardGeometrySnapshot(
+    @State var kbSnapshot = KeyboardGeometrySnapshot(
         windowHeight: 874, dockTopInWindow: 791,
         pocketHeight: 105
     )
@@ -650,7 +530,7 @@ struct ChatView: View {
     /// 析点在写，快照本体恒一份。首版由本页 .onRe-
     /// ceive 自行解析通知：屏幕坐标原值与快照窗口
     /// 坐标不重合、锚恒偏——解析自此不归本页
-    @State private var kbFrameUpdate: KeyboardFrameUpdate?
+    @State var kbFrameUpdate: KeyboardFrameUpdate?
     /// §195：窗口顶安全区实测（ComposerGuideHost 在
     /// 布局拍回写；种子 62＝本机型不变量、首个布局
     /// 拍即被实测覆盖，与 composerBottomSpace 的
@@ -658,18 +538,18 @@ struct ChatView: View {
     /// gins 的唯一顶距来源（＋顶簇实高）。顶簇落位
     /// 本身不读本值（由 TopBarGuideHost 在 UIKit
     /// 侧直读窗口），本值只管列表留位记账
-    @State private var windowTopSafeInset: CGFloat = 62
+    @State var windowTopSafeInset: CGFloat = 62
     /// §195：顶簇实高（TopBarGuideHost 回写；种子
     /// 60＝顶栏单行高、进展胶囊出现/消失随实测跟进）
-    @State private var topBarHeight: CGFloat = 60
+    @State var topBarHeight: CGFloat = 60
     /// §321：顶簇底缘窗口坐标（TopBarGuideHost 以
     /// 活帧 convert 回写；种子 0＝未量得，新面顶
     /// inset 喂入未量得时回落 §195 相加口径、量得
     /// 后认本值单源——列表顶留位与顶簇真实底边
     /// 由构造恒等，不再靠两个独立种子数相加对齐）
-    @State private var topClusterBottomInWindow: CGFloat = 0
-    @State private var videoItems: [PhotosPickerItem] = []
-    @State private var showVideoPicker = false
+    @State var topClusterBottomInWindow: CGFloat = 0
+    @State var videoItems: [PhotosPickerItem] = []
+    @State var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
     // PickerBridge 命令式呈现，不再有 SwiftUI 呈现
     // 状态（旧 showFileImporter 随 .fileImporter
@@ -678,34 +558,34 @@ struct ChatView: View {
     /// 把关——本状态只是 delegate 回调的观察回写（当前无
     /// 视图据它分支，留作事实通道）；程序化收起/聚焦经
     /// composerFocusHandle 直达文本视图本体
-    @State private var composerFocused = false
-    @State private var composerFocusHandle = ComposerFocusHandle()
+    @State var composerFocused = false
+    @State var composerFocusHandle = ComposerFocusHandle()
     /// §213：聊天列表 UIScrollView 本体的交接句柄
     /// （与 composerFocusHandle 同式被动登记匣）：
     /// 列表内容栈的登记锚上行登记本体，两宿主据此
     /// 把滚动边缘效果注册到各自覆盖容器（见
     /// ScrollEdgeRegistration）
-    @State private var listScrollHandle = ChatListScrollViewHandle()
-    @State private var nativeHandle = ChatNativeListHandle()
+    @State var listScrollHandle = ChatListScrollViewHandle()
+    @State var nativeHandle = ChatNativeListHandle()
 
     /// 当前面命令分发（§291 收口；§374.9 步骤 6
     /// 再收口）：旧承载退役后在场面恒为原生面——跟
     /// 随/落定/锚恢复链只经本组分发器下达原生句柄，
     /// 链本体不为承载再分叉（分发器壳保留、调用点
     /// 不动）
-    private func surfaceScrollToBottom(animated: Bool) {
+    func surfaceScrollToBottom(animated: Bool) {
         nativeHandle.scrollToBottom(animated: animated)
     }
 
-    private func surfaceCaptureAnchor() -> ChatListAnchor? {
+    func surfaceCaptureAnchor() -> ChatListAnchor? {
         nativeHandle.captureAnchor()
     }
 
-    private func surfaceRestore(_ anchor: ChatListAnchor) {
+    func surfaceRestore(_ anchor: ChatListAnchor) {
         nativeHandle.restore(anchor)
     }
 
-    private func surfaceScrollToEntry(
+    func surfaceScrollToEntry(
         _ id: UUID, animated: Bool
     ) {
         nativeHandle.scrollToEntry(id, animated: animated)
@@ -713,7 +593,7 @@ struct ChatView: View {
 
     /// 搜索落点分发（台账 150）：原生面收敛式落
     /// 点（多次重滚＋漂移容差）
-    private func surfaceFocusEntry(_ id: UUID) {
+    func surfaceFocusEntry(_ id: UUID) {
         nativeHandle.focusEntry(id)
     }
     /// §503：流式呈现与打字渐显两开关退役（原
@@ -727,7 +607,7 @@ struct ChatView: View {
     /// →外观→回复呈现写、本页 messageMenu 读；关＝
     /// 长按回 0.50.80 系统菜单子菜单形态
     @AppStorage(ChatReactionsFloatingBarFeature.defaultsKey)
-    private var floatingBarEnabled = true
+    var floatingBarEnabled = true
     /// AI 反应开关（DESIGN §432；Core ChatReactions-
     /// AISelfFeature 单一事实源，缺省开）：设置→外
     /// 观→回复呈现写、本页角标判定读；关＝角标只在
@@ -736,111 +616,111 @@ struct ChatView: View {
     /// 失效重算（快照侧同读本键，见 ChatEntry-
     /// HeightSnapshot.aiSelfReactionsEnabled）
     @AppStorage(ChatReactionsAISelfFeature.defaultsKey)
-    private var aiSelfReactionsEnabled = true
+    var aiSelfReactionsEnabled = true
     /// 反应浮排会话（一次长按一份；nil＝无浮排）
-    @State private var reactionBarSession: ReactionBarSession?
+    @State var reactionBarSession: ReactionBarSession?
     /// §471 浮排动画三段状态（参数全走 Reaction-
     /// BarMotion＝Exyte 原文）：背景／快照／药丸卡
     /// 分别驱动入场，收起逆序；dismissing 防收起
     /// 途中重入（点按连发不双摘会话）
-    @State private var reactionBarBgShown = false
-    @State private var reactionBarSnapshotShown = false
-    @State private var reactionBarChromeShown = false
-    @State private var reactionBarDismissing = false
-    @State private var streamSettleMap = StreamingSettleMap()
+    @State var reactionBarBgShown = false
+    @State var reactionBarSnapshotShown = false
+    @State var reactionBarChromeShown = false
+    @State var reactionBarDismissing = false
+    @State var streamSettleMap = StreamingSettleMap()
     /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
-    @State private var showNotifications = false
+    @State var showNotifications = false
     /// P2：对话内查找独立控制器（取代原 6 个零散 @State 查找字段）
-    @State private var findController = ChatFindController()
+    @State var findController = ChatFindController()
     /// §503：查找栏自己的焦点句柄（打开即聚焦、键盘升起）
-    @FocusState private var findFieldFocused: Bool
+    @FocusState var findFieldFocused: Bool
     /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
     /// 行底色以 Palette.primaryTint 点亮、2.5 秒后清
     /// （沿 §123 枢纽聚焦同手法）；消费锚点请求的
     /// Task 持有清零，不叠加多行点亮
-    @State private var anchorHighlightEntryID: UUID?
+    @State var anchorHighlightEntryID: UUID?
     /// 台账 161：搜索落点窗口猎取的在飞令牌——新猎
     /// 取置新令牌、旧猎取据令牌作废（与线程切换守
     /// 卫叠用，防迟到的窗口落进别的线程）
-    @State private var searchHuntToken: UUID?
+    @State var searchHuntToken: UUID?
     /// 台账 148：NEW 未读分界线的水位店与本次观看
     /// 的定格锚——打开线程时以水位解析一次锚（见
     /// refreshUnreadAnchor）、随即推进水位，锚在
     /// 本次观看内不动、新消息到达不移位
-    @State private var readMarkStore = ThreadReadMarkStore()
+    @State var readMarkStore = ThreadReadMarkStore()
     /// 图片和助手文件牌依赖服务端目录回读结果。
     /// 读取共享可观察 Store，让回读完成后原生消息行重新装配。
-    @State private var fileMetadataStore = FileMetadataStore.shared
-    @State private var deliveryStore = DeliveryStore.shared
+    @State var fileMetadataStore = FileMetadataStore.shared
+    @State var deliveryStore = DeliveryStore.shared
     /// 凭据库 Store（补件 C 客户端半边）
-    @State private var vaultStore = VaultStore()
-    @State private var unreadAnchorEntryID: UUID?
+    @State var vaultStore = VaultStore()
+    @State var unreadAnchorEntryID: UUID?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
-    @State private var importingSessionID: String?
+    @State var importingSessionID: String?
     /// §237（基础正解批 P6）：分页导入已落盘条数——
     /// 等待卡据实显示（第一页落盘后即从首屏切换走、
     /// 本数只在首屏前短暂在场），不许整表载入后才
     /// 有第一个数字
-    @State private var importingLoadedCount: Int?
+    @State var importingLoadedCount: Int?
     /// 基础止血包（P6）：导入失败的重试上下文（会话
     /// id＋频道出处）——输入舱上方留一条重试行，点按
     /// 以原出处重走导入；导入成功/发起新导入/用户关
     /// 掉即清
-    @State private var importRetryContext:
+    @State var importRetryContext:
         (sessionID: String, channelID: String?)?
     /// §331（根治版包 2）：历史回补/种子同步的在飞
     /// 任务登记（按线程 id）——同线程同时只许一轮，
     /// 调度入口先查登记再起任务，落定自动注销
-    @State private var historyBackfillTasks:
+    @State var historyBackfillTasks:
         [UUID: Task<Void, Never>] = [:]
-    @State private var seedSyncTasks:
+    @State var seedSyncTasks:
         [UUID: Task<Void, Never>] = [:]
     /// 轻量增量尾对账任务与节流时间戳（防同线程并发/高频重复拉取）
-    @State private var tailSyncTasks:
+    @State var tailSyncTasks:
         [UUID: Task<Void, Never>] = [:]
-    @State private var lastTailSyncAt: [UUID: Date] = [:]
+    @State var lastTailSyncAt: [UUID: Date] = [:]
     /// （showSessionInfo 已于 0.20.0 第五条随会话名次
     /// 行一并拆除：聊天页不再有会话详情入口，管理页
     /// ServerSessionRow 承接）
     /// 0.4.1：长按「回复」待发送的引用（值快照，不持
     /// SwiftData 对象）；发送/取消/切换线程时清除
-    @State private var pendingQuote: MessageQuote?
+    @State var pendingQuote: MessageQuote?
     /// 0.7.0（M4 分流动作）：「在旁聊里接着问」的引用种子
     /// 暂存——新建旁聊的线程切换会触发 onChange 清引用，
     /// 种子经此暂存一道、切换落定后转入 pendingQuote
-    @State private var pendingForkQuote: MessageQuote?
+    @State var pendingForkQuote: MessageQuote?
     /// 0.7.0：当前待发送引用是否为分流种子（引用条文案分流）
-    @State private var pendingQuoteIsFork = false
+    @State var pendingQuoteIsFork = false
     /// D3（DESIGN §352）：编辑已发消息的武装态——只
     /// 钉目标条目 id＋服务端行 id；target 起条目名
     /// 单在发送时刻按 sortedEntries 现算（Rewind-
     /// TurnSlicing 单点切分），不在此持名单防过期
-    @State private var editSentTarget: EditSentTarget?
+    @State var editSentTarget: EditSentTarget?
     /// §414（修复包一·路三）：未发送条目原位编辑的
     /// 武装目标——editUnsentEntry 只装载发送舱并记
     /// 目标 id、不删原条目；send() 在目标所在线程
     /// 发送时把新内容写回原条目本体再走发件箱重
     /// 发口（performUnsentEditSend）
-    @State private var unsentEditTargetID: UUID?
+    @State var unsentEditTargetID: UUID?
     /// 武装时文件面是否由发送舱完整代表：文件载
     /// 荷可回载（或条目本无远端文件）为 true；文
     /// 件已上传、载荷不在本机而远端路径在场时为
     /// false——该形态下文件面不归编辑管辖、远端
     /// 路径原样保留
-    @State private var unsentEditFilesRepresented = false
+    @State var unsentEditFilesRepresented = false
     /// D3 破坏性确认的待发稿快照：非末轮编辑点发送
     /// 时暂存——确认期间发送舱原样不动，确认后经
     /// performEditSend 发出、取消即弃
-    @State private var pendingEditSend: EditSendDraft?
+    @State var pendingEditSend: EditSendDraft?
     /// D3/D2 乐观隐藏集（仅显示层，renderPlan 消
     /// 费）：rewind 在飞期间 target 起条目（D3）/
     /// 本轮助手段（D2）不呈现，存储一字不动；成→
     /// 真删后清空、败→直接清空全复原
-    @State private var rewindHiddenEntryIDs: Set<UUID> = []
+    @State var rewindHiddenEntryIDs: Set<UUID> = []
     /// D3/D2 的 rewind 驱动任务（发送管线另管
     /// sendTask，本任务只辖 rewind 段与回滚）
-    @State private var rewindTask: Task<Void, Never>?
+    @State var rewindTask: Task<Void, Never>?
     /// §208：动态讨论的待发送引用（FeedPostQuote 值
     /// 快照）——与 pendingQuote 共用发送舱同一引用
     /// 槽位：至多一个在场，后入覆盖先入。同守引用
@@ -852,7 +732,7 @@ struct ChatView: View {
     /// Reply 挤掉/send 快照与失败回滚）——状态不再
     /// 是视图本地 @State，视图重建/重现不丢、切线
     /// 程由 onChange 按离开线程定点作废（见该处）
-    private var pendingFeedQuote: FeedPostQuote? {
+    var pendingFeedQuote: FeedPostQuote? {
         get {
             currentThreadID.flatMap {
                 appState.pendingQuotes.feedQuotesByThread[$0]
@@ -879,7 +759,7 @@ struct ChatView: View {
     /// （跨族覆盖经两处呈现侧收口函数交叉清理两表
     /// 兑现，见 applyPendingFeedQuoteIfNeeded 与
     /// applyPendingSourceQuoteIfNeeded）
-    private var pendingSourceQuote: SourceQuote? {
+    var pendingSourceQuote: SourceQuote? {
         get {
             currentThreadID.flatMap {
                 appState.pendingQuotes.sourceQuotesByThread[$0]
@@ -898,36 +778,36 @@ struct ChatView: View {
     }
     /// 0.7.0（M1 轻保活）：列表首个可见条目 id（滚动锚
     /// 记录用，由 onScrollTargetVisibilityChange 回写）
-    @State private var topVisibleEntryID: UUID?
+    @State var topVisibleEntryID: UUID?
     /// 0.4.1：长按「选择」的纯文本 sheet 载荷
-    @State private var selectionPayload: SelectionPayload?
+    @State var selectionPayload: SelectionPayload?
     /// §330：原生面 UIKit 行菜单「分享」的分享单
     /// 状态口（见 MessageSharePayload）
-    @State private var messageSharePayload: MessageSharePayload?
+    @State var messageSharePayload: MessageSharePayload?
     /// §152 的选区在场记账已迁 ChatRowStateLedger
     /// （141/142 根治：选区永不进 @State/行修订，
     /// 见 noteTextSelection 与账本注）
     /// 0.8.0（P1 富内容）：图片全屏查看与文件 QuickLook
     /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
     /// 本轮收尾落盘，见 driveRun）
-    @State private var imageViewerSession: ImageViewerSession?
+    @State var imageViewerSession: ImageViewerSession?
     /// §125：文件牌点开统一进中间页（FileOpenView
     /// sheet），旧「点牌直达 QL（filePreviewItem）/
     /// 不可预览直落分享单（fileShareItem）」两件套呈
     /// 现状态退役——分享单改由中间页内的动作触发
-    @State private var fileOpenTarget: FileOpenTarget?
+    @State var fileOpenTarget: FileOpenTarget?
     /// §452.6：聊天侧 QuickLook 直达呈示项
-    @State private var chatQuickLookItem: ChatQuickLookItem?
+    @State var chatQuickLookItem: ChatQuickLookItem?
     /// §452.6：聊天侧兜底页呈示目标
-    @State private var chatFallbackTarget: FileOpenTarget?
-    @State private var liveToolCards: [ToolCard] = []
+    @State var chatFallbackTarget: FileOpenTarget?
+    @State var liveToolCards: [ToolCard] = []
     /// 直播区事件序标记（0.36.10，诊断 D3-10）：思考/
     /// 工具/正文按首达顺序记位，渲染层（liveZone）据
     /// 此交错呈现——旧形态恒「卡列在前、思考正文在
     /// 后」，与事件真实先后倒序
-    @State private var liveOrder: [LiveOrderItem] = []
+    @State var liveOrder: [LiveOrderItem] = []
 
-    private enum LiveOrderItem: Equatable {
+    enum LiveOrderItem: Equatable {
         case reasoning
         case text
         /// 已封存正文段（第 93 条）：下标＝sealed-
@@ -938,7 +818,7 @@ struct ChatView: View {
         case tool(String)
     }
 
-    private func noteLiveOrder(_ item: LiveOrderItem) {
+    func noteLiveOrder(_ item: LiveOrderItem) {
         if !liveOrder.contains(item) {
             liveOrder.append(item)
         }
@@ -955,7 +835,7 @@ struct ChatView: View {
     /// 0.2.6–0.3.4 的离散形态状态 composerMultiline 已
     /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
     /// 0.3.4 真机回车重影的定因（见 §20.1）
-    @State private var composerCapsuleHeight: CGFloat = 46
+    @State var composerCapsuleHeight: CGFloat = 46
     // （0.6.1 删残：composerBarHeight 随底缘 E11 带删
     // 除失去唯一消费者——它当年由 bottomBar 实测回写
     // 只喂带长计算，带删后状态与回写一并撤）
@@ -967,7 +847,7 @@ struct ChatView: View {
     /// 「失配静默回落最近活跃线程」就此删除：显示与
     /// 发送落点不许悄悄换到另一条线程，失配即空态、
     /// 发送在 ensureThread 处显式报错
-    private var currentThread: ChatThread? {
+    var currentThread: ChatThread? {
         guard let resolved = CurrentThreadResolution.resolve(
             currentID: currentThreadID, existingIDs: threads.map(\.id)
         ) else { return nil }
@@ -977,13 +857,13 @@ struct ChatView: View {
     /// 0.7.0：当前线程是否钦定主线——回告卡入线判定
     /// （判定纯函数在 Core；0.7.0 起同用此口径的标题行
     /// 「旁聊」标识已于 0.19.0 随用户点名删除）
-    private var isCurrentMainThread: Bool {
+    var isCurrentMainThread: Bool {
         guard let thread = currentThread,
               let mainID = appState.sessionLedger.mainThreadID else { return false }
         return SideChatClassifier.zone(localThreadID: thread.id, mainThreadID: mainID) == .main
     }
 
-    private var isStreaming: Bool { streamingText != nil }
+    var isStreaming: Bool { streamingText != nil }
 
     // MARK: - §158 隐藏服务商（§449 迁中枢选择面）
 
@@ -996,7 +876,7 @@ struct ChatView: View {
     /// 一条派生链——线程实际绑定优先，钦定主线未绑
     /// 定时回落 SideChatStore 的钦定 id（派生缓存、
     /// 非独立事实源）；不许再在各面内联拼这条回落链
-    private var currentModelAccountIDs:
+    var currentModelAccountIDs:
         (serverSessionID: String?, threadID: UUID?)
     {
         let thread = currentThread
@@ -1014,7 +894,7 @@ struct ChatView: View {
     /// 会话键：线程的服务端会话 id 优先（主线读
     /// SideChatStore 的主线 id），未链接时线程 id，
     /// 无线程（空态）落主线缺省键
-    private var currentChoice: ChatModelChoice {
+    var currentChoice: ChatModelChoice {
         let ids = currentModelAccountIDs
         return appState.sessionModelChoice(
             serverSessionID: ids.serverSessionID,
@@ -1023,7 +903,7 @@ struct ChatView: View {
     }
 
     /// 本会话选择的写入（§153）：与 currentChoice 同键
-    private func selectCurrentChoice(_ choice: ChatModelChoice) {
+    func selectCurrentChoice(_ choice: ChatModelChoice) {
         let ids = currentModelAccountIDs
         appState.selectSessionModel(
             choice, serverSessionID: ids.serverSessionID,
@@ -1036,7 +916,7 @@ struct ChatView: View {
     /// 再取名单源显示名，与逐请求发出的模型同物同名；
     /// 服务端默认（defaultModel）是设置页管理面口径，
     /// 不冒充本会话执行值
-    private var displayModelName: String {
+    var displayModelName: String {
         let model = currentChoice.model
         return ModelDisplayNames.displayName(for: model) ?? model
     }
@@ -1205,7 +1085,7 @@ struct ChatView: View {
     /// 独立属性：整链单表达式令类型检查器超时
     /// （CI 三轮实证 2026-11-20），拆段各自求解；
     /// 修饰顺序与语义逐字不变
-    private var chatScaffold: some View {
+    var chatScaffold: some View {
         // 0.4.5（§30）：抽屉覆盖层退役——抽屉承载已提
         // 到壳层（ContentView 根的推式结构），本页只剩
         // 聊天主面本体；旧结构里的 GeometryReader/ZStack
@@ -1488,7 +1368,7 @@ struct ChatView: View {
 
     /// 顶簇宿主 overlay（同上拆分）
     @ViewBuilder
-    private var topBarHostOverlay: some View {
+    var topBarHostOverlay: some View {
         TopBarGuideHost(
             barHeight: $topBarHeight,
             barBottom: $topClusterBottomInWindow,
@@ -1500,7 +1380,7 @@ struct ChatView: View {
 
     /// 顶部悬浮液态玻璃胶囊 Toast（大厂成熟形态，取代底部全宽丑横幅；不占输入栏布局流）
     @ViewBuilder
-    private var floatingToastOverlay: some View {
+    var floatingToastOverlay: some View {
         Group {
             if let errorMessage {
                 FloatingToastView(
@@ -1536,7 +1416,7 @@ struct ChatView: View {
     /// 全幅、原点同源）；未量得（首拍前）回落
     /// §195 相加口径（窗口顶安全区实测＋顶簇实
     /// 高），量级同档、无悬空帧
-    private var nativeFedTopInset: CGFloat {
+    var nativeFedTopInset: CGFloat {
         topClusterBottomInWindow > 0
             ? topClusterBottomInWindow
             : windowTopSafeInset + topBarHeight
@@ -1547,7 +1427,7 @@ struct ChatView: View {
     /// 闭包在链上触发类型检查超时；组装口径与原内
     /// 联版逐字一致——用户条目直取原文、助手条目
     /// 过工具/留痕/回响/审批四闸后取摘记文本）
-    private func preheatEntries(
+    func preheatEntries(
         for thread: ChatThread
     ) -> [LayoutProductService.PreheatEntry] {
         thread.sortedEntries.compactMap { entry in
@@ -1596,7 +1476,7 @@ struct ChatView: View {
     /// 数据刷新）两承载共享、不因分叉而异——两承
     /// 载的页面行为差只许出在列表与回底钮两处承载
     /// 本身
-    private var chatSurface: some View {
+    var chatSurface: some View {
         chatSurfaceLifecycle(
             chatSurfacePresentation(
                 Group {
@@ -1656,7 +1536,7 @@ struct ChatView: View {
     /// 出的泛型辅助段：自成不透明返回类型、链深与
     /// chatSurface 本体分开求值（§373.3）；修饰顺
     /// 序、值与闭包逐字沿原链，本段只搬不改
-    private func chatSurfacePresentation<Content: View>(
+    func chatSurfacePresentation<Content: View>(
         _ content: Content
     ) -> some View {
         content
@@ -1855,7 +1735,7 @@ struct ChatView: View {
     /// （生命周期/落定组）——同上拆分；§371 的
     /// drawerPresented 处理器仍在本段链尾（.task
     /// 之后），落点口径与 §371 钉测不变
-    private func chatSurfaceLifecycle<Content: View>(
+    func chatSurfaceLifecycle<Content: View>(
         _ content: Content
     ) -> some View {
         content
@@ -2063,7 +1943,7 @@ struct ChatView: View {
     /// 0.3.8 的本地三态（未连接/唤醒中/生成中/在线）
     /// 早已退役——生成中/唤醒中在本页消息区自有呈现，
     /// 不占顶栏状态行
-    private var overviewStatusWord: String {
+    var overviewStatusWord: String {
         overviewStore?.statusLine ?? "联系不上"
     }
 
@@ -2074,7 +1954,7 @@ struct ChatView: View {
     /// 与词的通道口径分叉：桥挂（未粘钥匙/401）＋通道在
     /// 时词报「在线」、点却是灰（用户 22:26 真机点名
     /// 「状态指示灯改绿色」的定因），自此两源归一
-    private var overviewStatusColor: Color {
+    var overviewStatusColor: Color {
         switch overviewStore?.statusTone {
         case .online: return Palette.success
         case .attention: return Palette.warning
@@ -2082,7 +1962,7 @@ struct ChatView: View {
         }
     }
 
-    private var overviewBadgeCount: Int {
+    var overviewBadgeCount: Int {
         overviewStore?.badgeCount ?? 0
     }
 
@@ -2092,7 +1972,7 @@ struct ChatView: View {
     /// （进展胶囊已随 §474 撤除）。顶簇实高由宿主
     /// 量测回报（见
     /// D9：对话内查找栏（对标 iOS Messages）
-    private var findBar: some View {
+    var findBar: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "magnifyingglass")
@@ -2211,7 +2091,7 @@ struct ChatView: View {
     /// 模型入口注入在此一处收口（各 showHub 置位
     /// 点共用同一呈现）
     @ViewBuilder
-    private var hubCover: some View {
+    var hubCover: some View {
         if HubCardPolicy.decide(
             reduceMotion: reduceMotion
         ) == .card {
@@ -2228,7 +2108,7 @@ struct ChatView: View {
 
     /// 中枢本体构造（§502）：卡片宿主给关页接缝、
     /// 标准呈现不给（✕ 回退系统 dismiss）
-    private func hubView(
+    func hubView(
         onCardClose: (() -> Void)?
     ) -> some View {
         AgentHubView(
@@ -2254,17 +2134,17 @@ struct ChatView: View {
     /// 防系统 cover 转场与入场弹簧双写；标准口径
     /// 走系统 cover 转场。各置位点统一走本点，不
     /// 许直写 showHub = true
-    private func presentHub() {
+    func presentHub() {
         showHub = true
     }
 
-    private func dismissHubWithoutAnimation() {
+    func dismissHubWithoutAnimation() {
         showHub = false
         appState.hubCardProgress.strength = 0
     }
 
     /// TopBarGuideHost），列表顶留位据此记账
-    private var topBarCluster: some View {
+    var topBarCluster: some View {
         VStack(spacing: OneDayMetrics.rowInnerGap) {
             // §449（六报之 1/2/3）：顶簇改单带——旧
             // 两段式（headerBar 整行＋其下身份区）退
@@ -2300,7 +2180,7 @@ struct ChatView: View {
     /// 变），仅承载行由独立行改同带叠放；旧行尾的
     /// 「会话名次行已撤销」注记随行退役（口径在
     /// §449 与 git 史里）
-    private var topBand: some View {
+    var topBand: some View {
         ZStack(alignment: .center) {
             headerIdentityHero
             HStack(alignment: .center, spacing: 0) {
@@ -2321,7 +2201,7 @@ struct ChatView: View {
     /// 字形 20 regular、0.23.0 起系统玻璃、命中域
     /// 外扩 44）；字形取汉堡线与抽屉隐喻对齐（第
     /// 31 条，「分栏」图标 sidebar.left 已退场）
-    private var drawerButton: some View {
+    var drawerButton: some View {
         Button {
             // 0.4.5：开抽屉只写语义状态，壳层据
             // drawerPresented 执行推式动画（并先
@@ -2358,7 +2238,7 @@ struct ChatView: View {
     /// （HeaderButtonSpec 玻璃盘 40／字形 20／命中
     /// 域外扩 44）。身份胶囊长按菜单内的同名入口保
     /// 留（§449.1，双入口并存）
-    private var findButton: some View {
+    var findButton: some View {
         Button {
             findController.open()
         } label: {
@@ -2388,7 +2268,7 @@ struct ChatView: View {
     /// 总览桥聚合）。本体自旧 headerBar 迁入、规
     /// 格一字未动（玻璃盘 40、命中域 44、角标
     /// dangerFill 白字压右上）
-    private var bellButton: some View {
+    var bellButton: some View {
         Button {
             showNotifications = true
         } label: {
@@ -2441,7 +2321,7 @@ struct ChatView: View {
     /// 不冒进，见 spec 第三节）。名/状态数据源与
     /// 旧顶簇头像钮同源（agentDisplayName＋over-
     /// viewStatusWord），不新造
-    private var headerIdentityHero: some View {
+    var headerIdentityHero: some View {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
             statusWord: appState.liveActivityPhrase,
@@ -2498,7 +2378,7 @@ struct ChatView: View {
     /// 单点迁层只挪耗尽点）。组装求值点与原内联版
     /// 相同（同在三处调用点求值本函数），子条构建
     /// 时机/条件逐字对应原 body 内条件。
-    private func bottomBar(
+    func bottomBar(
         showsArrowRow: Bool,
         onScrollToBottom: @escaping () -> Void
     ) -> some View {
@@ -2622,7 +2502,7 @@ struct ChatView: View {
     /// body 的 onAppear 闭包体（整段抽出为方法：
     /// 巨链上只留一行调用——闭包内联百行语句曾
     /// 令类型检查器在链上超时，CI 实证 2026-11-20）
-    private func handleChatAppear() {
+    func handleChatAppear() {
         // H2-a：进对话页刷新朗读可用性（节流在播
         // 放器内；拉不到保持未知、菜单先按未确认
         // 处理，不造假）
@@ -2737,7 +2617,7 @@ struct ChatView: View {
     /// 用同一停因口）。分工裁定（D1 对位表）：暂
     /// 停/继续只住本条，长按菜单的朗读项保持朗读/
     /// 停止朗读二义，不加第三义
-    private var speechPlaybackBar: some View {
+    var speechPlaybackBar: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Image(systemName: MessageActionSymbols.speak)
                 .font(.system(size: FrameworkIcon.actionGlyphSize, weight: .medium))
@@ -2783,7 +2663,7 @@ struct ChatView: View {
     /// 播放条按钮画法（D1：主钮/停止钮同族单源）：
     /// 图标＋文案横排，命中域 44（条族审计口径）——
     /// 字形行高不变、命中纵向撑满条高
-    private func speechBarButton(
+    func speechBarButton(
         symbol: String, title: String, label: String,
         style: some ShapeStyle, action: @escaping () -> Void
     ) -> some View {
@@ -2816,7 +2696,7 @@ struct ChatView: View {
     /// AwayUnreadCounter（displayText 封顶 99+），挂视
     /// 觉盘右上；点钮即清零（回底的 ingest 随后以在底
     /// 事实复核、水位推进，不双计）
-    private func scrollToBottomButton(
+    func scrollToBottomButton(
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -2881,7 +2761,7 @@ struct ChatView: View {
     /// 前面，见各共享函数）。页面级修饰在
     /// chatSurface 链上共享，本面只管列表本体与回
     /// 底钮浮层
-    private var nativeListSurface: some View {
+    var nativeListSurface: some View {
         // §331：量测台发布代次入 body 依赖——后台
         // 量测回填缓存后 bump、本面以确定高重喂
         _ = rowMeasureDesk.publishedRevision
@@ -2999,7 +2879,7 @@ struct ChatView: View {
     /// 原生面回调：与 carrierCallbacks 同式——几何
     /// 读数先同步进引用匣、判定推下一拍；读数源换
     /// 原生句柄
-    private var nativeCallbacks: ChatNativeListCallbacks {
+    var nativeCallbacks: ChatNativeListCallbacks {
         ChatNativeListCallbacks(
             onScrollGeometry: {
                 bottomDistanceRecorder.latest =
@@ -3047,7 +2927,7 @@ struct ChatView: View {
     /// AwayUnreadCounter），钮本体与旧承载共用同一
     /// 构建（scrollToBottomButton），只有承载与动
     /// 作口换
-    private var surfaceArrowView: AnyView? {
+    var surfaceArrowView: AnyView? {
         guard showsBackToBottomButton else { return nil }
         return AnyView(
             scrollToBottomButton(action: {
@@ -3070,7 +2950,7 @@ struct ChatView: View {
     /// 形态自此退役。§325 起修订值口径换结构化
     /// 派生（条目快照/卡与通知编码本体/锚定集本
     /// 体逐值入账），不再复用 gen3 的版本与估算
-    private func nativeRows() -> [ChatNativeRow] {
+    func nativeRows() -> [ChatNativeRow] {
         _ = fileMetadataStore.existenceByPath.count
         _ = deliveryStore.metaResults.count
         _ = deliveryStore.metaRevision
@@ -3301,7 +3181,7 @@ struct ChatView: View {
     /// sion.entry 单点），环境侧输入（分隔/点亮/
     /// 选区/样式键）同列入账——不再有手折版本哈
     /// 希与产物层行高估算
-    private func nativeEntryRow(
+    func nativeEntryRow(
         _ entry: ChatEntry, dividerText: String?,
         sources: [MessageSource],
         optionsCard: OptionsCardHeightInput? = nil,
@@ -3586,7 +3466,7 @@ struct ChatView: View {
     /// 主队列延后避开菜单收起竞态；反应排数据
     /// （canReact/现反应）以呈现时刻的条目状态
     /// 为准
-    private func actionSheetData(
+    func actionSheetData(
         for entry: ChatEntry
     ) -> ChatRowActionSheetData {
         let text = plainText(for: entry)
@@ -3674,7 +3554,7 @@ struct ChatView: View {
     /// （canEditSent）＋线程级条件在呈现时刻一并求
     /// 值——已绑服务端会话（rewind 有的放矢）、当
     /// 前线程、无在飞 run/流式
-    private func editSentAvailable(for entry: ChatEntry) -> Bool {
+    func editSentAvailable(for entry: ChatEntry) -> Bool {
         guard entry.canEditSent,
               let thread = entry.thread,
               thread.id == currentThreadID,
@@ -3689,7 +3569,7 @@ struct ChatView: View {
     /// D2 入口在否（DESIGN §352）：本条即本线程最
     /// 后一条已落定助手条目、且其轮可切分（user
     /// 行已钉桩），线程级条件同 D3
-    private func regenerateAvailable(
+    func regenerateAvailable(
         for entry: ChatEntry
     ) -> Bool {
         guard entry.canRegenerateCandidate,
@@ -3713,7 +3593,7 @@ struct ChatView: View {
 
     /// D3 确认弹窗正文（DESIGN §352 §五）：N＝将被
     /// 删除的轮数、呈现时刻实算
-    private var editSendConfirmMessage: String {
+    var editSendConfirmMessage: String {
         let rounds = editSentTarget.flatMap { target in
             currentThread.map {
                 RewindTurnSlicing.roundsAfter(
@@ -3731,7 +3611,7 @@ struct ChatView: View {
     /// 一行，回收时一字不动（不删、不改显），删除
     /// 只发生在发送时 rewind 成功之后。守卫同未发
     /// 编辑口径（发送舱占用先拦、run 在飞先拦）
-    private func editSentEntry(_ entry: ChatEntry) {
+    func editSentEntry(_ entry: ChatEntry) {
         guard entry.canEditSent,
               let rowID = entry.serverRowID,
               let thread = entry.thread,
@@ -3780,7 +3660,7 @@ struct ChatView: View {
 
     /// 解除编辑态（横幅 ✕）：回收稿只是副本、原条
     /// 目在列表里一字未动，清舱无损、无副作用
-    private func cancelEditSent() {
+    func cancelEditSent() {
         editSentTarget = nil
         input = ""
         attachments = []
@@ -3796,7 +3676,7 @@ struct ChatView: View {
     /// （rewind 未成）、用户改过的字回填发送舱一
     /// 字不丢。rewind 成功后禁止回滚：其后失败走
     /// 既有失败标记＋重发链（不再重复 rewind）
-    private func performEditSend(
+    func performEditSend(
         draft: EditSendDraft, target: EditSentTarget
     ) {
         guard let thread = currentThread,
@@ -3934,7 +3814,7 @@ struct ChatView: View {
     /// rewind 到本轮 user 行→成功真删助手段、以
     /// 原输入重提（新轮整段替换旧段）；失败显示
     /// 复原＋人话，服务端零残留
-    private func regenerateLastTurn(
+    func regenerateLastTurn(
         from assistantEntry: ChatEntry
     ) {
         guard assistantEntry.canRegenerateCandidate,
@@ -4029,7 +3909,7 @@ struct ChatView: View {
     /// 定性两类走调用方专属句（D3/D2 各一份），其
     /// 余走 HermesError 人话体系（登录/服务异常/
     /// busy 各归其类），不露英文码与状态数
-    private func rewindFailureCopy(
+    func rewindFailureCopy(
         _ error: Error, invalidTarget: String,
         conflict: String, fallback: String
     ) -> String {
@@ -4050,7 +3930,7 @@ struct ChatView: View {
     /// 点反应（台账 187，toggle 单点）：点自己已点
     /// 的 emoji＝撤回、点别的＝替换/新点——与服务端
     /// Tapback 同点取消同构；写口只有 applyReaction
-    private func toggleReaction(
+    func toggleReaction(
         _ emoji: String, for entry: ChatEntry
     ) {
         let own = MessageReactions.ownEmoji(
@@ -4067,7 +3947,7 @@ struct ChatView: View {
     /// 道——反应端点是网关 Bearer 面）；坐标/凭据缺
     /// 一即不发（门控谓词 canReact 已先拦，此处是
     /// 写口自守，不许乐观改了却无处落定）
-    private func applyReaction(
+    func applyReaction(
         _ emoji: String?, for entry: ChatEntry
     ) {
         guard entry.canReact,
@@ -4127,7 +4007,7 @@ struct ChatView: View {
     /// 可用性已被实调证伪（未开通）时不出项（施工
     /// 图失败降级表）；标题/图符按求值时刻的播放
     /// 态（原生面＝呈现时刻、SwiftUI 面＝body 时刻）
-    private func speakMenuItem(
+    func speakMenuItem(
         for entry: ChatEntry
     ) -> ChatRowSpeakItem? {
         guard entry.role == "assistant",
@@ -4160,7 +4040,7 @@ struct ChatView: View {
     /// （字阶/字号档/粗体/前景与次级墨的解析
     /// 值）——环境一变键即变、行修订值随之翻新、
     /// 托管行原位重渲
-    private var nativeRowStyleKey: String {
+    var nativeRowStyleKey: String {
         func components(_ color: Color) -> String {
             color.resolve(in: environment).cgColor
                 .components?
@@ -4201,7 +4081,7 @@ struct ChatView: View {
     /// 未到）／半截条目在屏（防双份）。§503 前
     /// 尚有「gen4 开关关回占位行」的回滚路——开
     /// 关退役后该路整条删除、呈现恒走本行
-    private func liveStreamingRow(
+    func liveStreamingRow(
         composer: ChatNativeRowHeightComposer
     ) -> ChatNativeRow? {
         guard streamPresentationArmed,
@@ -4231,7 +4111,7 @@ struct ChatView: View {
     /// 派生（与 applySettledTurn 落定登记同源同
     /// 值）；账本缺位（演示种子轮等）回落线程键
     /// （StreamingRowIdentity 既有回落口径）
-    private func liveStreamRowKey() -> String {
+    func liveStreamRowKey() -> String {
         let ledger = (activeRunThreadID ?? currentThread?.id)
             .flatMap {
                 appState.runLedger.entry(forThreadID: $0)
@@ -4252,7 +4132,7 @@ struct ChatView: View {
     /// 式泡无菜单、形态与落定泡逐字同，见 assi-
     /// stantBubble 注）＋块级正文；入场计划按发
     /// 布门拍数单点裁定（首批＝首拍、直显）
-    private func liveStreamingContent(
+    func liveStreamingContent(
         text: String
     ) -> some View {
         assistantBubble {
@@ -4277,7 +4157,7 @@ struct ChatView: View {
     /// 发布快照上屏单点：等值不重写（防无谓重
     /// 喂行集），代次随真发布递增（入场计划与
     /// 行修订同源）
-    private func noteStreamPublish(_ snapshot: String?) {
+    func noteStreamPublish(_ snapshot: String?) {
         guard let snapshot,
               snapshot != livePublishedText
         else { return }
@@ -4287,7 +4167,7 @@ struct ChatView: View {
 
     /// 增量到达拍：装配器最新全文喂发布门、到
     /// 拍即上屏（首拍直发＝首字延迟 ≤1 拍）
-    private func offerStreamPublish() {
+    func offerStreamPublish() {
         guard streamPresentationArmed else { return }
         noteStreamPublish(
             streamPublishGate.offer(
@@ -4299,7 +4179,7 @@ struct ChatView: View {
 
     /// 心跳拍（driveRun 期 50ms 驱动）：无新事
     /// 件时排空积压——工具间隙里尾巴不许滞留
-    private func tickStreamPublish() {
+    func tickStreamPublish() {
         guard streamPresentationArmed else { return }
         noteStreamPublish(
             streamPublishGate.tick(
@@ -4311,21 +4191,21 @@ struct ChatView: View {
     /// 边界/终态全量发布：封段拍与终态拍调——
     /// 已累积全文立即全量上屏（落定前的最后
     /// 一帧与装配器兜底全文逐字一致）
-    private func flushStreamPublish() {
+    func flushStreamPublish() {
         guard streamPresentationArmed else { return }
         noteStreamPublish(streamPublishGate.flush())
     }
 
     /// 发布态整清（新轮起点/恢复轮/落定收尾共
     /// 用）：门、快照、代次、武装位一并归零
-    private func resetStreamPresentation() {
+    func resetStreamPresentation() {
         streamPublishGate.reset()
         livePublishedText = ""
         livePublishGeneration = 0
         streamPresentationArmed = false
     }
 
-    private func livePlaceholderRow(
+    func livePlaceholderRow(
         composer: ChatNativeRowHeightComposer
     ) -> ChatNativeRow {
         var revision = ChatNativeRowRevision()
@@ -4466,7 +4346,7 @@ struct ChatView: View {
     /// 占位行状态文案的实例取数口：相位读状态
     /// 机、run 确立与尾条状态读本轮账本与条目，
     /// 判定全在 placeholderStatusText 单源
-    private func livePlaceholderStatusText() -> String {
+    func livePlaceholderStatusText() -> String {
         let ledger = (activeRunThreadID ?? currentThread?.id)
             .flatMap {
                 appState.runLedger.entry(forThreadID: $0)
@@ -4491,7 +4371,7 @@ struct ChatView: View {
     /// 口——与 livePlaceholderStatusText 同源同读
     /// （账本＋尾条状态＋相位＋上传态），判定全在
     /// placeholderVisual 单源
-    private func livePlaceholderVisual() -> PlaceholderVisual {
+    func livePlaceholderVisual() -> PlaceholderVisual {
         let ledger = (activeRunThreadID ?? currentThread?.id)
             .flatMap {
                 appState.runLedger.entry(forThreadID: $0)
@@ -4518,7 +4398,7 @@ struct ChatView: View {
     /// 点（无文字）、未受理只显文字（无三点），
     /// 分工见 placeholderVisual；行恒高口径不变
     /// （合成器常量不读内容形态）
-    private func livePlaceholderContent() -> some View {
+    func livePlaceholderContent() -> some View {
         HStack {
             HStack(spacing: OneDayMetrics.spacingS) {
                 if livePlaceholderVisual() == .typingDots {
@@ -4562,7 +4442,7 @@ struct ChatView: View {
     /// 钮 44。本估算只作量实到达前的占位（同
     /// provisionalRowHeight 纪律：产物/量实到达
     /// 即被覆盖，不冒充量实）
-    private func fileChipStackEstimate(
+    func fileChipStackEstimate(
         for entry: ChatEntry, style: LayoutStyleContext
     ) -> CGFloat {
         let paths = entry.remoteFilePaths
@@ -4626,7 +4506,7 @@ struct ChatView: View {
     /// 产物缓存同步直读（键与服务/预热同构：条目
     /// id×内容哈希×宽×样式键）——只读不产，产归
     /// 预热与服务异步路
-    private func cachedLayoutProduct(
+    func cachedLayoutProduct(
         entryID: UUID,
         renderedText: String,
         width: CGFloat,
@@ -4651,7 +4531,7 @@ struct ChatView: View {
     /// 环境样式快照）；未命中回 nil（呈现走 §168
     /// 回落、预计算让位旧口径），产物由预热/量测
     /// 副产随后补齐、下趟重喂自然命中
-    private func entryLayoutProduct(
+    func entryLayoutProduct(
         _ entry: ChatEntry
     ) -> LayoutProduct? {
         let style = LayoutStyleContext(
@@ -4700,7 +4580,7 @@ struct ChatView: View {
     /// 条目产物段串（§335 呈现注入）：命中回段下
     /// 标→属性串表供 MarkdownText/Selectable-
     /// InlineText 直贴；未命中回 nil
-    private func entrySegmentProducts(
+    func entrySegmentProducts(
         _ entry: ChatEntry
     ) -> [Int: NSAttributedString]? {
         guard let product = entryLayoutProduct(entry)
@@ -4714,7 +4594,7 @@ struct ChatView: View {
     /// 行数（每行约 18 字、CJK/英文混排中位口
     /// 径）——只决定未量实行在滚动几何中的占位，
     /// 产物/量实到达即被覆盖，不冒充量实
-    private func provisionalRowHeight(
+    func provisionalRowHeight(
         for entry: ChatEntry, lineFloor: CGFloat
     ) -> CGFloat {
         let chars = max(entry.content.count, 1)
@@ -4733,7 +4613,7 @@ struct ChatView: View {
     /// 位推进到当前末条：锚在本次观看内定格（新消
     /// 息到达不移位、只演一次），下次打开水位已在
     /// 末条、无锚不画线。无线程/空线程只清锚
-    private func refreshUnreadAnchor() {
+    func refreshUnreadAnchor() {
         guard let thread = currentThread else {
             unreadAnchorEntryID = nil
             return
@@ -4761,7 +4641,7 @@ struct ChatView: View {
     /// 对会话条目走查——工具卡条目（toolCard 非 nil）
     /// 不单独占分隔、也不重置锚点，以其所属回合的会
     /// 话条目时间为准；返回 条目 id → 分隔条文案
-    private func timelineDividers(
+    func timelineDividers(
         for entries: [ChatEntry]
     ) -> [UUID: String] {
         let conversational = entries.filter { $0.toolCard == nil }
@@ -4783,7 +4663,7 @@ struct ChatView: View {
     /// 的气泡上方、时间分隔条之下；入场只演一次
     /// （账本记账、键由 ChatRowStateKeys 单点派生，
     /// 节拍与形态见 ChatUnreadDividerView）
-    private func unreadDivider(for entry: ChatEntry) -> some View {
+    func unreadDivider(for entry: ChatEntry) -> some View {
         let key = ChatRowStateKeys.unreadDivider(entry.id)
         return ChatUnreadDividerView(
             arrived: rowStateLedger.hasAnimatedUnreadDivider(
@@ -4801,7 +4681,7 @@ struct ChatView: View {
     /// note 级（meta 角色）灰字、无气泡无底色块；文
     /// 案与落点全由 Core ChatTimeline 计算、本视图
     /// 只渲染
-    private func timelineDivider(_ text: String) -> some View {
+    func timelineDivider(_ text: String) -> some View {
         Text(text)
             .font(.meta)
             .foregroundStyle(Palette.inkSecondary)
@@ -4816,7 +4696,7 @@ struct ChatView: View {
     /// 行，流内不再有工具卡（组卡形态随之退役）；时
     /// 间分隔走查只认会话条目、与本计划无关（映射在
     /// timelineDividers 独立计算）
-    private enum EntryRenderItem: Identifiable {
+    enum EntryRenderItem: Identifiable {
         case entry(ChatEntry)
         case traceGroup([ChatEntry])
 
@@ -4828,20 +4708,20 @@ struct ChatView: View {
         }
     }
 
-    private func isInlineInteractiveToolCard(_ entry: ChatEntry) -> Bool {
+    func isInlineInteractiveToolCard(_ entry: ChatEntry) -> Bool {
         guard let card = entry.toolCard else { return false }
         return TodoChecklistParser.parse(from: card) != nil
             || ClarifyPromptParser.parse(from: card) != nil
     }
 
-    private var currentThreadAnchoredIDs: Set<String> {
+    var currentThreadAnchoredIDs: Set<String> {
         guard let entries = currentThread?.entries else { return [] }
         return ApprovalAnchor.anchoredRecordIDs(
             keys: entries.compactMap { $0.approvalKey }
         )
     }
 
-    private func isHiddenReadOnlyTraceEntry(_ entry: ChatEntry) -> Bool {
+    func isHiddenReadOnlyTraceEntry(_ entry: ChatEntry) -> Bool {
         guard let snapshot = entry.traceEcho, !snapshot.isFailed else {
             return false
         }
@@ -4852,7 +4732,7 @@ struct ChatView: View {
             || headline.contains("检查了资源库")
     }
 
-    private func entryRenderItems(
+    func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
         // 同轮连续的留痕/工具活动条目折叠为单行安静活动行，避免刷屏
@@ -4878,7 +4758,7 @@ struct ChatView: View {
         return result
     }
 
-    private func nativeTraceGroupRow(
+    func nativeTraceGroupRow(
         _ entries: [ChatEntry],
         dividerText: String?,
         styleKey: String
@@ -4916,7 +4796,7 @@ struct ChatView: View {
         )
     }
 
-    private func traceActivityGroupRow(
+    func traceActivityGroupRow(
         _ entries: [ChatEntry],
         groupID: UUID,
         dividerText: String?,
@@ -4981,7 +4861,7 @@ struct ChatView: View {
     /// 件每帧现算等于没减负）。键的投影取 thread.
     /// entries 原始集（未排序）：投影不解码、不排序，
     /// 键内自带定序（见 Core make）
-    private func renderPlan(
+    func renderPlan(
         for thread: ChatThread
     ) -> (
         dividers: [UUID: String], items: [EntryRenderItem],
@@ -5067,7 +4947,7 @@ struct ChatView: View {
     /// tion 注）。消费方同源：滚动几何回调逐帧、
     /// 落定评估的校准收官。写加等值守卫，同值不
     /// 重算
-    private func applyBottomProximity(distance: CGFloat) {
+    func applyBottomProximity(distance: CGFloat) {
         let calibrated = BottomArrowVisibility.isNearBottom(
             distance: distance,
             contentEndVisible: bottomDistanceRecorder
@@ -5086,7 +4966,7 @@ struct ChatView: View {
     /// 近似——视觉主导是舱本体的 UIView 动画（真
     /// 曲线、§194），留位侧的曲线差只在动画中段
     /// 产生亚帧级间距差、落定帧两路同值归零
-    private func keyboardSnapshotAnimation(
+    func keyboardSnapshotAnimation(
         duration: TimeInterval, curveRaw: Int
     ) -> Animation {
         switch curveRaw {
@@ -5109,7 +4989,7 @@ struct ChatView: View {
     /// 柄→容器）。判定与状态机零改——两承载共用
     /// 同一份 stickCoordinator/settleMachine 状态，
     /// 切换承载不重置跟随账
-    private func scrollToBottom(
+    func scrollToBottom(
         animated: Bool = true
     ) {
         switch stickCoordinator.requestStick(
@@ -5135,7 +5015,7 @@ struct ChatView: View {
 
     /// 新承载贴底本体（不带落定观察，与旧承载
     /// performScrollToBottom 对位）
-    private func performScrollToBottom(
+    func performScrollToBottom(
         animated: Bool
     ) {
         surfaceScrollToBottom(animated: animated)
@@ -5144,7 +5024,7 @@ struct ChatView: View {
     /// 落定评估的新承载事件口：读数出自句柄引用匣
     /// （已由 carrierCallbacks 同步进 bottomDis-
     /// tanceRecorder），状态机与旧链同一台
-    private func evaluateSettleOnEvent() {
+    func evaluateSettleOnEvent() {
         guard settleMachine.isWatching,
               let generation = settleGeneration
         else { return }
@@ -5163,7 +5043,7 @@ struct ChatView: View {
         )
     }
 
-    private func evaluateSettleFallback() {
+    func evaluateSettleFallback() {
         guard settleMachine.isWatching,
               let generation = settleGeneration
         else { return }
@@ -5185,7 +5065,7 @@ struct ChatView: View {
     /// 落定一步的执行（新承载版）：与 handleSettle-
     /// Step 逐值同义（打点/收官/校准/复贴），只换
     /// 复贴执行口
-    private func handleSettleStep(
+    func handleSettleStep(
         _ step: BottomSettleMachine.Step,
         generation: Int,
         distance: CGFloat, viaFallback: Bool
@@ -5228,7 +5108,7 @@ struct ChatView: View {
     /// 的 onChange 逐项对位）：存锚双写（扩展锚＋
     /// 旧锚，回落一致）、贴底在途状态全清、未读清
     /// 零、入线程按锚恢复
-    private func handleThreadSwitch(
+    func handleThreadSwitch(
         oldID: UUID?, newID: UUID?
     ) {
         if let oldID, oldID != newID,
@@ -5263,7 +5143,7 @@ struct ChatView: View {
     /// 入线程恢复（新承载）：扩展锚（条目 id＋条内
     /// 偏移）优先、旧锚回落；等一拍布局落定再滚
     /// （与旧承载恢复同拍口径）
-    private func restoreThreadPosition(for threadID: UUID) {
+    func restoreThreadPosition(for threadID: UUID) {
         if let anchor = ChatListAnchorStore.anchor(
             for: threadID
         ) {
@@ -5297,7 +5177,7 @@ struct ChatView: View {
     /// 冷开首屏定版的新承载版（与旧承载 .task 定
     /// 版链同口径）：无任何存量锚的线程出现一拍后
     /// 无动画贴底，以已落定 inset 重新钳制 offset
-    private func firstFrameSettle(for threadID: UUID) {
+    func firstFrameSettle(for threadID: UUID) {
         guard ChatListAnchorStore.anchor(for: threadID) == nil,
               appState.sideChats.scrollAnchor(for: threadID) == nil
         else { return }
@@ -5314,12 +5194,12 @@ struct ChatView: View {
     // MARK: - D9 对话内查找（§503 全件接线）
 
     /// 执行查找（键盘「搜索」键）
-    private func performFind() {
+    func performFind() {
         recomputeFind()
     }
 
     /// 重算命中：计算委托给 Core ChatFind，状态与高亮生命周期归 findController
-    private func recomputeFind(allowHunt: Bool = true) {
+    func recomputeFind(allowHunt: Bool = true) {
         guard let thread = currentThread,
               let query = findController.normalizedQuery
         else {
@@ -5360,23 +5240,23 @@ struct ChatView: View {
         }
     }
 
-    private func findHighlightQuery(for entryID: UUID) -> String? {
+    func findHighlightQuery(for entryID: UUID) -> String? {
         findController.highlightQuery(for: entryID)
     }
 
-    private func navigateToNextMatch() {
+    func navigateToNextMatch() {
         findController.moveNext { surfaceFocusEntry($0) }
     }
 
-    private func navigateToPreviousMatch() {
+    func navigateToPreviousMatch() {
         findController.movePrevious { surfaceFocusEntry($0) }
     }
 
-    private func closeFind() {
+    func closeFind() {
         findController.close()
     }
 
-    private func huntFindWindow(
+    func huntFindWindow(
         query: String, thread: ChatThread
     ) {
         guard let sessionID = thread.serverSessionID,
@@ -5453,7 +5333,7 @@ struct ChatView: View {
 
     /// 观察收官清账：代号与兜底任务一并落空（状态
     /// 机已在 step 内自回未观察态）
-    private func closeSettleWatch() {
+    func closeSettleWatch() {
         settleGeneration = nil
         settleFallbackTask?.cancel()
         settleFallbackTask = nil
@@ -5469,7 +5349,7 @@ struct ChatView: View {
     /// 盘的快照）。呈现判定全走 Core（rowState＋store
     /// 的缺席计数），本视图只渲染
     @ViewBuilder
-    private func approvalAnchorRow(_ entry: ChatEntry) -> some View {
+    func approvalAnchorRow(_ entry: ChatEntry) -> some View {
         let store = appState.sharedHubStore()
         let recordID = ApprovalAnchor.recordID(
             fromKey: entry.approvalKey ?? ""
@@ -5541,7 +5421,7 @@ struct ChatView: View {
     /// 动定位＋点亮；目标条目不在该线程里（数据已变）
     /// 如实落空：停在该线程顶部附近、不滚不亮。请求
     /// 无键（threadOnly）只切线程
-    private func consumeApprovalAnchorRequest() {
+    func consumeApprovalAnchorRequest() {
         guard let request = appState.router.approvalAnchorRequest
         else { return }
         appState.router.approvalAnchorRequest = nil
@@ -5573,7 +5453,7 @@ struct ChatView: View {
     /// （它不是谁发的言）。入口四问备注：入口＝目标详
     /// 情「安排一件事」绑定的线程本身；形态与聊天流里
     /// 的系统性提示同族（居中、次级色），不新建视觉件
-    private func echoRow(_ entry: ChatEntry) -> some View {
+    func echoRow(_ entry: ChatEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingXS) {
             Image(systemName: "flag.checkered")
                 .font(.system(size: FrameworkIcon.tinyGlyphSize))
@@ -5601,7 +5481,7 @@ struct ChatView: View {
     /// 承旧回响卡同族（surface 底＋hairline 边＋
     /// containerCorner），只收紧内距与字阶——它现
     /// 在是消息流里的一条，不再是流尾大卡
-    private func traceEchoRow(_ entry: ChatEntry) -> some View {
+    func traceEchoRow(_ entry: ChatEntry) -> some View {
         let snapshot = entry.traceEcho
         let isFailed = snapshot?.isFailed ?? false
         let openableSessionID = snapshot?.openableSessionID
@@ -5701,7 +5581,7 @@ struct ChatView: View {
     /// 回响行时间要素：今天只给时刻、跨日带月日（与
     /// 旧回响卡同口径；时刻取条目 createdAt——§229
     /// 起它就是事件时间本身，不再是另一处存的时间）
-    private func traceEchoTimeText(_ date: Date) -> String {
+    func traceEchoTimeText(_ date: Date) -> String {
         if Calendar.current.isDateInToday(date) {
             return date.formatted(.dateTime.hour().minute())
         }
@@ -5713,7 +5593,7 @@ struct ChatView: View {
     /// 径）：已在本会话里点指向自己的回响不重复导
     /// 入；其余置位待续聊 id，由本页既有消费口导
     /// 入/切换（与管理页/频道页同路）
-    private func openEchoSession(_ sessionID: String) {
+    func openEchoSession(_ sessionID: String) {
         if sessionID != currentThread?.serverSessionID {
             appState.router.pendingChatSessionID = sessionID
         }
@@ -5726,7 +5606,7 @@ struct ChatView: View {
     /// 池；点按即发送（走现行 send() 全链，不另建发
     /// 送路），点过即记账、短期内不重复出
     @ViewBuilder
-    private var emptyStateSuggestions: some View {
+    var emptyStateSuggestions: some View {
         let suggestions = StarterSuggestionsAssembly
             .currentSuggestions(appState: appState)
         VStack(spacing: OneDayMetrics.spacingS) {
@@ -5772,7 +5652,7 @@ struct ChatView: View {
     /// VStack、新承载托管进容器 cell，行内容只有
     /// 本一处出处
     @ViewBuilder
-    private func entryRowContent(
+    func entryRowContent(
         _ entry: ChatEntry, dividerText: String?,
         showsUnreadDivider: Bool = false,
         sources: [MessageSource] = []
@@ -5848,7 +5728,7 @@ struct ChatView: View {
     /// 记即此病灶；点按动作仍走 resendPending 的
     /// isPendingSend 守卫（真待发条目才重发）
     @ViewBuilder
-    private func sendStateMark(
+    func sendStateMark(
         for entry: ChatEntry
     ) -> some View {
         let markKind = Self.sendStateMarkKind(
@@ -5877,7 +5757,7 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private func failedStatusRow(
+    func failedStatusRow(
         for entry: ChatEntry
     ) -> some View {
         let kind = appState.outboxRetry
@@ -5903,7 +5783,7 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private func bubble(_ entry: ChatEntry) -> some View {
+    func bubble(_ entry: ChatEntry) -> some View {
         if entry.traceKey != nil {
             // §229（回响物化归位）：留痕回响条目——流
             // 内紧凑回响行，不是气泡、不冒充任何一方
@@ -6588,7 +6468,7 @@ struct ChatView: View {
     /// 选择框状态派生（§441）：覆盖层卡与本条目
     /// 钉桩对上才有资格，再按线程尾位/在飞/演示
     /// 态过 Core 纯派生（OptionsCardLogic）
-    private func optionsCardState(
+    func optionsCardState(
         for entry: ChatEntry, in thread: ChatThread
     ) -> OptionsCardState {
         guard let card = appState.optionsOverlay
@@ -6618,7 +6498,7 @@ struct ChatView: View {
 
     /// 选择框行高输入（§441）：状态非 hidden 才成
     /// facet（行高合成器 optionsCardSlot 消费）
-    private func optionsCardHeightInput(
+    func optionsCardHeightInput(
         for entry: ChatEntry, in thread: ChatThread
     ) -> OptionsCardHeightInput? {
         let state = optionsCardState(for: entry, in: thread)
@@ -6637,7 +6517,7 @@ struct ChatView: View {
     /// 未被覆盖的正文标记出一项（取到 meta＝卡
     /// 高、已加载查无此号＝「已处理或已过期」灰
     /// 行高、未加载＝零，等拉回后修订折变重算）
-    private func vaultCardHeightInputs(
+    func vaultCardHeightInputs(
         for entry: ChatEntry, in thread: ChatThread
     ) -> [VaultCardHeightInput] {
         guard entry.role == "assistant" else { return [] }
@@ -6679,7 +6559,7 @@ struct ChatView: View {
 
     /// 选择框呈现（§441）：状态 hidden 恒不出行
     @ViewBuilder
-    private func optionsCard(for entry: ChatEntry) -> some View {
+    func optionsCard(for entry: ChatEntry) -> some View {
         if let thread = currentThread {
             let state = optionsCardState(
                 for: entry, in: thread
@@ -6705,7 +6585,7 @@ struct ChatView: View {
     /// 的发送。点选即消费：先记已选（卡收起为回
     /// 执行），发送失败走 §414 发件箱原位重试、
     /// 卡不复活防双发
-    private func sendOption(
+    func sendOption(
         _ option: MessageOption, in thread: ChatThread
     ) {
         guard unsentEditTargetID == nil else { return }
@@ -6724,7 +6604,7 @@ struct ChatView: View {
     /// 在 ChatReactionViews（用户/助手两支共用一
     /// 份形态与挂载几何）
     @ViewBuilder
-    private func reactionChrome(for entry: ChatEntry) -> some View {
+    func reactionChrome(for entry: ChatEntry) -> some View {
         let own = MessageReactions.ownReactions(
             in: entry.reactions
         )
@@ -6756,7 +6636,7 @@ struct ChatView: View {
     /// Sizing.rowCardSizes（成行收窄口径单源、钉
     /// 测覆盖）；解码失败的单张不出卡（与旧单图块
     /// 的 UIImage(data:) 守卫同口径），其余照显
-    private func localImageRow(
+    func localImageRow(
         _ datas: [Data], entry: ChatEntry
     ) -> some View {
         // §199：解码改走本地图解码口（§418 起为
@@ -6796,7 +6676,7 @@ struct ChatView: View {
     /// 图时等于 cardSize），图居中完整显示不裁
     /// 切、图窄于卡时两侧露 bubbleFill 底；点开
     /// 查看器（0.36.4 集合载荷、同线程可翻页）
-    private func localImageCard(
+    func localImageCard(
         data: Data, image: UIImage, cardSize: CGSize,
         entry: ChatEntry
     ) -> some View {
@@ -6853,7 +6733,7 @@ struct ChatView: View {
     /// ImagePaths，按消息时间序、工具卡不占位）；
     /// 点中项不在集合内（如正文文件牌探测出的图）
     /// 时回落单图集合，不假装它在会话图片序里
-    private func openImageViewer(_ item: ChatImageViewerItem) {
+    func openImageViewer(_ item: ChatImageViewerItem) {
         var collected: [ChatImageViewerItem] = []
         if let thread = currentThread {
             for entry in thread.sortedEntries
@@ -6892,7 +6772,7 @@ struct ChatView: View {
     /// 载→直达 QL 或分享单」。§121 的 QL 资格门与五
     /// 分文案机制不变、落点升级进中间页（见 DESIGN
     /// §125 修订声明）
-    private func openDeliveryFile(_ meta: BridgeDelivery) {
+    func openDeliveryFile(_ meta: BridgeDelivery) {
         if meta.kind == "image" || FileRefDetector.isImagePath(meta.path) {
             openImageViewer(
                 ChatImageViewerItem(source: .remotePath(meta.path))
@@ -6927,7 +6807,7 @@ struct ChatView: View {
         }
     }
 
-    private func openChatFile(
+    func openChatFile(
         _ path: String, anchor: FileLineAnchor? = nil
     ) {
         if FileRefDetector.isImagePath(path) {
@@ -6972,7 +6852,7 @@ struct ChatView: View {
 
     /// 凭据请求元数据查找（补件 C 客户端半边）：
     /// 从 VaultStore pending 列表按 request_id 匹配
-    private func vaultRequestMeta(for requestID: String) -> VaultRequestMeta? {
+    func vaultRequestMeta(for requestID: String) -> VaultRequestMeta? {
         vaultStore.requests.first { $0.requestId == requestID }
     }
 
@@ -6980,7 +6860,7 @@ struct ChatView: View {
     /// QL 资格以本地文件 canPreview 实测为准——判
     /// quickLook 而 QL 不认、或判 infoOnly 而 QL 能
     /// 认（未知格式），都按实测改道，不按扩展名硬判
-    private func presentChatFileRoute(
+    func presentChatFileRoute(
         _ target: FileOpenTarget, localURL: URL
     ) {
         let qlOK = QLPreviewController.canPreview(
@@ -7015,7 +6895,7 @@ struct ChatView: View {
     /// 长按菜单的文本口径（0.4.1）：助手消息剥 Markdown
     /// 标记符号成可读文本（MessagePlainText 纯函数），
     /// 用户消息原文即纯文本
-    private func plainText(for entry: ChatEntry) -> String {
+    func plainText(for entry: ChatEntry) -> String {
         // §199：助手侧走条目级备忘（同内容不重剥，
         // Core EntryScanMemo）；用户侧原文直用不变
         entry.role == "assistant"
@@ -7028,7 +6908,7 @@ struct ChatView: View {
     /// 回复动作（0.4.1 长按菜单立制，0.36.19 起右滑引
     /// 用共用同一入口——两路触发的落点逐字一致：设待
     /// 发送引用、清分流种子标、聚焦输入舱）
-    private func beginReply(to entry: ChatEntry) {
+    func beginReply(to entry: ChatEntry) {
         pendingQuote = MessageQuote(
             role: entry.role, content: entry.content
         )
@@ -7048,7 +6928,7 @@ struct ChatView: View {
     /// 来即可直接打字）。引用本体不在此搬动：它已
     /// 按线程寻址存于 AppState，呈现是派生——§208
     /// 的种子消费（tryApplyFeedSeed）至此退役
-    private func applyPendingFeedQuoteIfNeeded() {
+    func applyPendingFeedQuoteIfNeeded() {
         guard pendingFeedQuote != nil else { return }
         pendingQuote = nil
         pendingQuoteIsFork = false
@@ -7067,7 +6947,7 @@ struct ChatView: View {
     /// 名下有引用在场时挤掉消息引用、让位同线程的
     /// 动态待发引用（后入覆盖）、聚焦输入舱。引用
     /// 本体已按线程寻址存于 AppState，呈现是派生
-    private func applyPendingSourceQuoteIfNeeded() {
+    func applyPendingSourceQuoteIfNeeded() {
         guard pendingSourceQuote != nil else { return }
         pendingQuote = nil
         pendingQuoteIsFork = false
@@ -7089,7 +6969,7 @@ struct ChatView: View {
     /// 据此暂存该行重配（选区清账后 flush）。消选
     /// 延迟 350ms 清账在账本内（防同条换块选字时
     /// 旧块消选先于新块报选到达、把保护误清）
-    private func noteTextSelection(entryID: UUID, active: Bool) {
+    func noteTextSelection(entryID: UUID, active: Bool) {
         rowStateLedger.noteTextSelection(
             entryID: entryID, active: active,
             onProtectionEnded: { [nativeHandle] in
@@ -7108,7 +6988,7 @@ struct ChatView: View {
     /// 载点回调用——呈现时刻组装菜单数据（与系统菜
     /// 单同一 actionSheetData 单源）、记挂载帧作快
     /// 照原位对齐原点
-    private func presentReactionBar(
+    func presentReactionBar(
         for entry: ChatEntry, frame: CGRect
     ) {
         // 选字在场让行（§152 同口径：选区优先、浮
@@ -7133,7 +7013,7 @@ struct ChatView: View {
     /// 同拍起、药丸/卡延迟 0.33D 后以 bouncy 入
     /// 场）：各段独立 withAnimation、各用各的曲线
     /// （ReactionBarMotion），同一时钟不混曲线
-    private func beginReactionBarEntrance() {
+    func beginReactionBarEntrance() {
         withAnimation(ReactionBarMotion.backgroundIn) {
             reactionBarBgShown = true
         }
@@ -7157,7 +7037,7 @@ struct ChatView: View {
     /// 迟 0.33D 后 easeOut 淡出，全程走完才摘会
     /// 话——不再 session=nil 整组瞬时消失。投递
     /// 路（pick/pickAction 成功后）同走本路
-    private func dismissReactionBar() {
+    func dismissReactionBar() {
         guard reactionBarSession != nil,
               !reactionBarDismissing else { return }
         reactionBarDismissing = true
@@ -7197,7 +7077,7 @@ struct ChatView: View {
     /// Motion 时钟（背景/快照/药丸卡三段状态），
     /// 收起一律经 dismissReactionBar 逆序退场
     @ViewBuilder
-    private func reactionBarOverlay(
+    func reactionBarOverlay(
         _ session: ReactionBarSession
     ) -> some View {
         GeometryReader { screen in
@@ -7329,7 +7209,7 @@ struct ChatView: View {
     /// （connectedScenes→keyWindow）；浮排根
     /// GeometryReader 的 safeAreaInsets 因根挂
     /// ignoresSafeArea 恒为零、不可作数
-    private static var keyWindowSafeAreaInsets: EdgeInsets {
+    static var keyWindowSafeAreaInsets: EdgeInsets {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
@@ -7349,7 +7229,7 @@ struct ChatView: View {
     /// 按原帧偏移、clipped＋裁切边渐隐 mask。可见
     /// 带高 0（极端贴边行）整快照不出
     @ViewBuilder
-    private func reactionSnapshot(
+    func reactionSnapshot(
         _ entry: ChatEntry,
         frame: CGRect,
         layout: ReactionBarLayout
@@ -7415,7 +7295,7 @@ struct ChatView: View {
     /// 快照裁切边渐隐 mask（DESIGN §346）：仅裁切
     /// 边生效——28pt 线性淡出（带高不足时按比收
     /// 窄），未裁切边实色直通
-    private func snapshotFadeMask(
+    func snapshotFadeMask(
         _ layout: ReactionBarLayout
     ) -> LinearGradient {
         let height = layout.snapshotVisibleRect.height
@@ -7461,7 +7341,7 @@ struct ChatView: View {
     /// delegate 提供；正文触点归 UITextView 原生选区，
     /// 气泡边距与附件铬件仍走行菜单。此修饰符在原生
     /// 列表面关闭，保留给回退承载。
-    private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
+    func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
         // 长按上下文菜单已收归 ChatNativeList 原生 UICollectionView Context Menu，
         // 此处关闭行内 SwiftUI 抢跑手势，避免双菜单竞争
         MessageMenuModifier(
@@ -7477,7 +7357,7 @@ struct ChatView: View {
     /// 触发走 beginReply 同一入口；与长按菜单并存不
     /// 互斥（长按是静止按压、右滑是横向拖动，形态不
     /// 重叠）
-    private func swipeReply(for entry: ChatEntry) -> SwipeReplyModifier {
+    func swipeReply(for entry: ChatEntry) -> SwipeReplyModifier {
         SwipeReplyModifier(
             // §152 的选区停用自 141/142 根治起不再
             // 走 isEnabled（结构翻转＝行重渲染＝原
@@ -7501,7 +7381,7 @@ struct ChatView: View {
     /// 种子经 pendingForkQuote 穿过切换时的引用清理转入
     /// 新旁聊待发送引用（见 body 的 onChange）；新旁聊标
     /// 题走既有首句派生（send() 的「新会话」定题）
-    private func forkToSideChat(from entry: ChatEntry) {
+    func forkToSideChat(from entry: ChatEntry) {
         let thread = ChatThread()
         modelContext.insert(thread)
         try? modelContext.save()
@@ -7515,7 +7395,7 @@ struct ChatView: View {
     /// 已发送消息顶部的引用块（0.4.1）：小字、次级色、
     /// 左细线——只作回指，不抢正文层级；摘要与引用条
     /// 共用 MessageQuote.summary 同一口径
-    private func quoteBlock(_ quote: MessageQuote) -> some View {
+    func quoteBlock(_ quote: MessageQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -7558,7 +7438,7 @@ struct ChatView: View {
     /// （feedOpenPostRequest 置位＋切动态格，FeedView
     /// 消费定位；帖已不在时 FeedView 给诚实提示，
     /// 本块快照内容不受影响仍可读）
-    private func feedQuoteBlock(_ quote: FeedPostQuote) -> some View {
+    func feedQuoteBlock(_ quote: FeedPostQuote) -> some View {
         Button {
             appState.router.feedOpenPostRequest = quote.postID
             appState.router.mainTabSwitchRequest = .feed
@@ -7596,7 +7476,7 @@ struct ChatView: View {
     /// 三族共用消息行槽位，按族渲染各自块形态
     /// （几何同源：左细线＋底垫＋小字两行）
     @ViewBuilder
-    private func sourceQuoteBlock(
+    func sourceQuoteBlock(
         _ quote: SourceQuote
     ) -> some View {
         switch quote {
@@ -7617,7 +7497,7 @@ struct ChatView: View {
     /// Request 置位＋切点子格，IdeasView 消费定位；
     /// 点子已不在时 IdeasView 给诚实提示，本块快
     /// 照内容不受影响仍可读）
-    private func ideaQuoteBlock(_ quote: IdeaQuote) -> some View {
+    func ideaQuoteBlock(_ quote: IdeaQuote) -> some View {
         Button {
             appState.router.ideaOpenRequest = quote.ideaID
             appState.router.mainTabSwitchRequest = .ideas
@@ -7656,7 +7536,7 @@ struct ChatView: View {
     /// 点以快照路径直接重开文件页（fileOpenTarget
     /// 既有通道，不切格）；文件已被移走时文件页本
     /// 身如实呈现打不开，不在此假装
-    private func fileQuoteBlock(_ quote: FileQuote) -> some View {
+    func fileQuoteBlock(_ quote: FileQuote) -> some View {
         Button {
             fileOpenTarget = quote.target
         } label: {
@@ -7692,7 +7572,7 @@ struct ChatView: View {
     /// 要一行；整块可点回目标格（目标在对话里聊定后
     /// 由智能体落桥、出现在目标页；还没聊定时目标页
     /// 自然还没有它，本块快照内容不受影响仍可读）
-    private func goalQuoteBlock(_ quote: GoalQuote) -> some View {
+    func goalQuoteBlock(_ quote: GoalQuote) -> some View {
         Button {
             appState.router.mainTabSwitchRequest = .goals
         } label: {
@@ -7745,7 +7625,7 @@ struct ChatView: View {
     /// 紧凑距须改列表布局匣间距模型、属列表引擎领
     /// 地，本包明示缺件登记 §503（卡同宽同色成组
     /// 衔接先行）
-    private func assistantBubble<Content: View>(
+    func assistantBubble<Content: View>(
         menuEntry: ChatEntry? = nil,
         @ViewBuilder _ content: () -> Content
     ) -> some View {
@@ -7792,7 +7672,7 @@ struct ChatView: View {
     /// 轻量增量尾对账（大厂「流式预览 + 服务端真源对账」双保险）：
     /// 当当前线程空闲（无在飞流与未落定账本）且已绑定服务端会话时，
     /// 静默拉取最新一页消息，自动修复半截截断正文并补插漏帧消息。
-    private func syncTailIfIdle(force: Bool = false) {
+    func syncTailIfIdle(force: Bool = false) {
         guard let thread = currentThread,
               !isStreaming, !isDrivingRun,
               appState.runLedger.entry(forThreadID: thread.id) == nil,
@@ -7817,7 +7697,7 @@ struct ChatView: View {
         }
     }
 
-    private func refreshEchoTraces() async {
+    func refreshEchoTraces() async {
         guard let config = appState.config else { return }
         guard let thread = currentThread else { return }
         let threadID = thread.id
@@ -7851,7 +7731,7 @@ struct ChatView: View {
         }
     }
 
-    private func reportCard(
+    func reportCard(
         _ item: OverviewNotification, store: OverviewBridgeStore
     ) -> some View {
         // §379：整卡迁原生 Button（原点按手势＋自研按压
@@ -7932,7 +7812,7 @@ struct ChatView: View {
     /// 描边，与引导卡同族）；不挡操作（allowsHit-
     /// Testing false）——导入防重入由 importing-
     /// SessionID 闸自理，呈现只管让人知道在动
-    private var importingOverlay: some View {
+    var importingOverlay: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             ProgressView()
             Text(L10n.string("正在载入这段对话…"))
@@ -7989,7 +7869,7 @@ struct ChatView: View {
     /// 只是长期占位（状态与同步逻辑本体不动，落
     /// 定时的一次性通知保留）
     @ViewBuilder
-    private var historySyncBar: some View {
+    var historySyncBar: some View {
         if let thread = currentThread,
            let text = historySyncText(for: thread) {
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -8007,7 +7887,7 @@ struct ChatView: View {
         }
     }
 
-    private func historySyncText(for thread: ChatThread) -> String? {
+    func historySyncText(for thread: ChatThread) -> String? {
         if thread.historyUnsynced {
             return "历史未同步完 · "
                 + SessionHistorySync.progressText(
@@ -8032,7 +7912,7 @@ struct ChatView: View {
         }
     }
 
-    private func importRetryBar(
+    func importRetryBar(
         _ context: (sessionID: String, channelID: String?)
     ) -> some View {
         VStack(spacing: 0) {
@@ -8096,7 +7976,7 @@ struct ChatView: View {
     /// 席时不刷新时刻不重建——旧口径无条件覆写，
     /// 失败环里横幅以失败周期整条重建（录屏叠字
     /// 的呈现一环）
-    private func presentError(_ error: HermesError) {
+    func presentError(_ error: HermesError) {
         if errorMessage == error.userMessage,
            errorDetail == error.diagnosticDetail {
             return
@@ -8117,7 +7997,7 @@ struct ChatView: View {
     /// 各自直写 errorMessage＋横幅单槽指向最近失败
     /// 条（B6：连环失败时重发钮指错条），呈现与成
     /// 因两本账
-    private func presentSendFailure(
+    func presentSendFailure(
         kind: SendFailureKind,
         message: String? = nil,
         detail: String? = nil
@@ -8140,7 +8020,7 @@ struct ChatView: View {
     /// 只投影全局状况——无「重新发送」动作位（单
     /// 条失败的恢复只在条目行内，旧横幅重发钮指向
     /// 最近失败条、连环失败时指错条，B6 退役）
-    private func errorBanner(
+    func errorBanner(
         _ message: String
     ) -> some View {
         VStack(spacing: 0) {
@@ -8223,7 +8103,7 @@ struct ChatView: View {
     /// 那条根本没发出去；五处守卫提示（编辑已发
     /// 送/重新生成/失败重发/待发重发/编辑未发送）
     /// 共用本口，不许各写一份
-    private func ledgerBusyNotice(threadID: UUID) -> String {
+    func ledgerBusyNotice(threadID: UUID) -> String {
         if let entry = appState.runLedger.entry(
             forThreadID: threadID
         ), entry.runID == nil {
@@ -8239,7 +8119,7 @@ struct ChatView: View {
     /// 计时，自清只清自己那一代（Core expire 代号判
     /// 定），手关后旧计时到期不复活。计时模式沿听写
     /// 提示行先例（DictationController.showNotice）
-    private func showNotice(
+    func showNotice(
         _ text: String, tier: ChatNoticeTier = .brief
     ) {
         let item = ChatNotice(text: text, tier: tier)
@@ -8257,13 +8137,13 @@ struct ChatView: View {
 
     /// 提示条关闭唯一口（✕／发送起手）：即清并废掉
     /// 在途计时，防自清把已关条的后续状态搅乱
-    private func dismissNotice() {
+    func dismissNotice() {
         noticeDismissTask?.cancel()
         noticeDismissTask = nil
         noticePresentation.dismiss()
     }
 
-    private func noticeBar(_ message: String) -> some View {
+    func noticeBar(_ message: String) -> some View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(Palette.hairline)
@@ -8303,7 +8183,7 @@ struct ChatView: View {
     // MARK: - 输入区（0.2.2 定版：＋键与发送键同径 36pt 圆形；
     // 0.2.5 去嵌套与右端状态机，见 trailingControl）
 
-    private var canSend: Bool {
+    var canSend: Bool {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !attachments.isEmpty
     }
@@ -8324,7 +8204,7 @@ struct ChatView: View {
     /// 的连续函数（单行与 Capsule 几何等价、多行封顶
     /// composerCorner）；旧「单行 Capsule／多行固定圆
     /// 角矩形」的离散两态已废——它滞后布局一拍出重影。
-    private var composerShape: AnyShape {
+    var composerShape: AnyShape {
         AnyShape(RoundedRectangle(
             cornerRadius: ComposerLayout.cornerRadius(
                 forCapsuleHeight: composerCapsuleHeight,
@@ -8336,7 +8216,7 @@ struct ChatView: View {
 
     /// 语音失败行（0.36.6）：左警示图标＋三段式文案
     /// ＋右端 ✕；权限类多一个「去设置」文字动作
-    private func dictationFailureBar(
+    func dictationFailureBar(
         _ failure: DictationFailure
     ) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
@@ -8392,7 +8272,7 @@ struct ChatView: View {
 
     /// 语音到限提示行（0.36.6）：非失败类告知（已自
     /// 动落稿保内容），控制器 5 秒后自清
-    private func dictationNoticeBar(_ notice: String) -> some View {
+    func dictationNoticeBar(_ notice: String) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: FrameworkIcon.inlineGlyphSize))
@@ -8419,7 +8299,7 @@ struct ChatView: View {
     /// 垫撤销（卡面即玻璃，不卡上叠卡），✕ 自右中改
     /// 右上贴首行。发送后由 send() 清除、点 ✕ 即时清
     /// 除、切换线程经 onChange 清除（见 body）
-    private func quoteBar(_ quote: MessageQuote) -> some View {
+    func quoteBar(_ quote: MessageQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -8474,7 +8354,7 @@ struct ChatView: View {
     /// 行；有图帖右端带小缩略图（feed 变体与消息
     /// 引用条唯一的形态差，图加载失败整块不显、不
     /// 占位）。点 ✕ 即清、无任何落盘
-    private func feedQuoteBar(_ quote: FeedPostQuote) -> some View {
+    func feedQuoteBar(_ quote: FeedPostQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -8541,7 +8421,7 @@ struct ChatView: View {
     /// 动态引用条次行（§208）：来源行＋正文摘要以
     /// 「·」相连，任一为空只显另一个（来源缺失不编
     /// 造、正文为空只报来源）
-    private func feedQuoteSecondLine(_ quote: FeedPostQuote) -> String {
+    func feedQuoteSecondLine(_ quote: FeedPostQuote) -> String {
         let summary = quote.summary()
         guard !quote.sourceLine.isEmpty else { return summary }
         guard !summary.isEmpty else { return quote.sourceLine }
@@ -8555,7 +8435,7 @@ struct ChatView: View {
     /// 渲染，本分发只在其余三族在场时被走到（.feed
     /// 分支为枚举完备性保留、同渲染）
     @ViewBuilder
-    private func sourceQuoteBar(
+    func sourceQuoteBar(
         _ quote: SourceQuote
     ) -> some View {
         switch quote {
@@ -8576,7 +8456,7 @@ struct ChatView: View {
     /// 点子标题（一行截断）、次行＝载荷摘要一行
     /// （载荷为空即空行、与 feed 条次行同口径，不
     /// 编占位文）。点 ✕ 即清、无任何落盘
-    private func ideaQuoteBar(_ quote: IdeaQuote) -> some View {
+    func ideaQuoteBar(_ quote: IdeaQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -8618,7 +8498,7 @@ struct ChatView: View {
     /// 内容换文件面：首行＝文件名（一行截断）、次
     /// 行＝服务端原路径摘要一行。点 ✕ 即清、无任
     /// 何落盘
-    private func fileQuoteBar(_ quote: FileQuote) -> some View {
+    func fileQuoteBar(_ quote: FileQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -8658,7 +8538,7 @@ struct ChatView: View {
     /// 何，内容换目标面：首行＝「新建目标：类名」、
     /// 次行＝介绍首句摘要一行。点 ✕ 即清、无任何
     /// 落盘
-    private func goalQuoteBar(_ quote: GoalQuote) -> some View {
+    func goalQuoteBar(_ quote: GoalQuote) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
@@ -8711,7 +8591,7 @@ struct ChatView: View {
     /// （0.36.17 起只剩控制行，录时零文字），其余时候
     /// 是标准三件行；玻璃与实测高回写挂在卡层，两态
     /// 共用（见 composerCard 的 glassEffect 施加点）
-    private var composerRow: some View {
+    var composerRow: some View {
         Group {
             if dictation.isActive {
                 // 0.36.17 改判：录音条只剩控制行（废弃
@@ -8730,7 +8610,7 @@ struct ChatView: View {
         // §84：整卡实测、引用块计入舱高）
     }
 
-    private var standardComposerRow: some View {
+    var standardComposerRow: some View {
         ComposerBarLayout(
             draft: input,
             contentSizeCategory: dynamicTypeSize.contentSizeCategory
@@ -8789,7 +8669,7 @@ struct ComposerBarLayout: Layout {
     /// 源；档位变更即值变更、布局自然重算
     var contentSizeCategory: UIContentSizeCategory = .large
 
-    private func metrics(rowWidth: CGFloat) -> (
+    func metrics(rowWidth: CGFloat) -> (
         multiline: Bool, textWidth: CGFloat, textHeight: CGFloat,
         totalHeight: CGFloat
     ) {
@@ -8889,13 +8769,13 @@ struct ComposerBarLayout: Layout {
     /// - 流式中且空输入：停止键（0.31.0 起走
     ///   requestRunStop 真取消）
     /// - 空输入：裸麦克风符号占位（无圆盘底、无描边）
-    private var trailingState: ComposerTrailingState {
+    var trailingState: ComposerTrailingState {
         ComposerTrailingState.resolve(
             isStreaming: isStreaming, canSend: canSend
         )
     }
 
-    private var trailingControl: some View {
+    var trailingControl: some View {
         ZStack {
             if trailingState.isDiscKey {
                 sendStopButton
@@ -8919,7 +8799,7 @@ struct ComposerBarLayout: Layout {
     /// 个按钮硬切；系统「减少动态效果」开启时符号过渡
     /// 自动降级。圆盘与字号口径沿旧两键（直径
     /// ComposerLayout.buttonHeight、停止 12/发送 13）
-    private var sendStopButton: some View {
+    var sendStopButton: some View {
         // §446：圆盘键语义由 trailingState 裁决，
         // 不再直读 isStreaming——.stop 态出停止；
         // .send 态出发送（流式中有字时点按走 §419
@@ -8973,7 +8853,7 @@ struct ComposerBarLayout: Layout {
     /// 入态的右端形态一致（形态自 0.2.5 未动）。点按
     /// 先收键盘、再交语音控制器走权限门/开录（点按切
     /// 换、非按住；录音中本键被录音条取代不再出现）
-    private var micButton: some View {
+    var micButton: some View {
         Button {
             composerFocusHandle.dismiss()
             // H2-a：开始听写即停朗读（施工图 3.3——
@@ -9010,7 +8890,7 @@ struct ComposerBarLayout: Layout {
         .accessibilityLabel("语音输入")
     }
 
-    private var attachButton: some View {
+    var attachButton: some View {
         // §147 改版：点「+」开底部附件面板 sheet（资
         // 源库照片条＋添加文件/视频动作行，见 Attach-
         // mentPanelView；§152 修订照片条多选＋定高贴
@@ -9065,7 +8945,7 @@ struct ComposerBarLayout: Layout {
     /// 相机/选图两行同走本口：其 SwiftUI 状态旗原靠
     /// 框架排队呈现，改由完成信号驱动时序更确凿、
     /// 行为不变
-    private func afterAttachPanelDismiss(
+    func afterAttachPanelDismiss(
         _ action: @escaping () -> Void
     ) {
         attachPanelPendingAction = action
@@ -9084,7 +8964,7 @@ struct ComposerBarLayout: Layout {
     /// 缘，无滚动轴、无内容宽收缩、无栈对齐可乘之
     /// 机。横向内边距 spacingSM（与卡内引用块/分
     /// 隔线同一起点）、纵向 spacingXS 沿旧条口径
-    private var attachmentsStrip: some View {
+    var attachmentsStrip: some View {
         AttachmentFlowLayout(
             horizontalSpacing: OneDayMetrics.spacingS,
             verticalSpacing: OneDayMetrics.spacingSM
@@ -9098,7 +8978,7 @@ struct ComposerBarLayout: Layout {
     }
 
     @ViewBuilder
-    private func attachmentChip(_ attachment: PendingAttachment) -> some View {
+    func attachmentChip(_ attachment: PendingAttachment) -> some View {
         ZStack(alignment: .topTrailing) {
             switch attachment.kind {
             case .image(let data):
@@ -9184,7 +9064,7 @@ struct ComposerBarLayout: Layout {
     /// 饰）。筹码一律按理想尺寸落位（图片 54×54、
     /// 文件名牌自然宽），落位提议 .unspecified 与
     /// 旧 HStack 口径一致
-    private struct AttachmentFlowLayout: Layout {
+    struct AttachmentFlowLayout: Layout {
         /// 筹码横向间距（与旧 HStack spacing 同值）
         var horizontalSpacing: CGFloat = OneDayMetrics.spacingS
         /// 换行后的行距
@@ -9257,7 +9137,7 @@ struct ComposerBarLayout: Layout {
 
     /// 图片统一转 JPEG 再入列：data URL 的 mime 恒为
     /// image/jpeg，多模态编码不说谎
-    private func appendImage(_ rawData: Data) {
+    func appendImage(_ rawData: Data) {
         if let image = UIImage(data: rawData), let jpeg = image.jpegData(compressionQuality: 0.85) {
             attachments.append(PendingAttachment(kind: .image(jpeg)))
         } else {
@@ -9271,7 +9151,7 @@ struct ComposerBarLayout: Layout {
     /// 明示（图片闸独立于文件路：图片走多模态 parts
     /// 内嵌发送、不经文件上传契约，0.36.31 文件闸
     /// 抬 100MB 不牵动本闸）
-    private func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
+    func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
         var dataList: [Data?] = []
         for item in items {
             dataList.append(
@@ -9286,7 +9166,7 @@ struct ComposerBarLayout: Layout {
     /// （Core AttachmentPanel.photoFits）、同一汇总
     /// 口径（超限/失败各一条 notice、不静默吞，P-18）；
     /// §152 照片条改多选后整批一次汇入此处，口径不变
-    private func ingestPhotoData(_ dataList: [Data?]) {
+    func ingestPhotoData(_ dataList: [Data?]) {
         var oversized = 0
         var failed = 0
         for data in dataList {
@@ -9315,7 +9195,7 @@ struct ComposerBarLayout: Layout {
     /// Data——与选图器同闸同汇总口径（20MB 闸/超限
     /// 与失败各一条汇总 notice、不静默吞，P-18），
     /// 批量不另开一套
-    private func loadStripPhotos(assetIDs: [String]) async {
+    func loadStripPhotos(assetIDs: [String]) async {
         var dataList: [Data?] = []
         for assetID in assetIDs {
             dataList.append(await loadStripPhotoData(assetID: assetID))
@@ -9326,7 +9206,7 @@ struct ComposerBarLayout: Layout {
     /// 单张取数本体（§147 原 loadStripPhoto 的取数
     /// 段）：资产已删/取不到回 nil，计数与出声归批
     /// 量汇入口，不在此自报
-    private func loadStripPhotoData(assetID: String) async -> Data? {
+    func loadStripPhotoData(assetID: String) async -> Data? {
         let result = PHAsset.fetchAssets(
             withLocalIdentifiers: [assetID], options: nil
         )
@@ -9349,7 +9229,7 @@ struct ComposerBarLayout: Layout {
     /// ——以文件形态入条（名由 Core 拼装、大小走
     /// FileIntake 同闸、被拒点名汇总），后续上传与
     /// 发送拼装与普通文件完全同路
-    private func loadPickedVideos(_ items: [PhotosPickerItem]) async {
+    func loadPickedVideos(_ items: [PhotosPickerItem]) async {
         var oversized: [String] = []
         var unreadable: [String] = []
         for item in items {
@@ -9382,7 +9262,7 @@ struct ComposerBarLayout: Layout {
     /// 线程——旧链在选择器回调里同步直读，点「确定」即
     /// 冻界面到读完为止；现后台读完再回主线入条与汇总
     /// 提示，名单/文案/入条顺序与旧链逐字一致
-    private func loadPickedFiles(urls: [URL]) {
+    func loadPickedFiles(urls: [URL]) {
         guard !urls.isEmpty else {
             showNotice(
                 "没有选到文件，未加入待发列表。", tier: .extended
@@ -9510,7 +9390,7 @@ struct ComposerBarLayout: Layout {
     /// 选但线程不存在＝定位失败，置可见错误并返
     /// nil，调用方整轮不发——不许再回落最近线程把
     /// 消息写进别人的对话
-    private func ensureThread() -> ChatThread? {
+    func ensureThread() -> ChatThread? {
         switch CurrentThreadResolution.ensureDecision(
             currentID: currentThreadID, existingIDs: threads.map(\.id)
         ) {
@@ -9527,7 +9407,7 @@ struct ComposerBarLayout: Layout {
         }
     }
 
-    private func newThread() {
+    func newThread() {
         let thread = ChatThread()
         modelContext.insert(thread)
         try? modelContext.save()
@@ -9543,7 +9423,7 @@ struct ComposerBarLayout: Layout {
     /// 定 id（§330：不在此铸造）。服务端承载的实际
     /// 存在性由 ensureMainLink 异步链接，本函数纯本地
     @discardableResult
-    private func ensureMainThread() -> UUID? {
+    func ensureMainThread() -> UUID? {
         let store = appState.sessionLedger
         switch MainThreadDesignation.resolve(
             storedID: store.mainThreadID, existingIDs: threads.map(\.id)
@@ -9588,7 +9468,7 @@ struct ComposerBarLayout: Layout {
     /// user/assistant（过滤口径在 Core seedTranscript，
     /// 此处先把条目拍平成 Core 的 SeedEntry 形态，
     /// 时间戳带本地落盘时刻）
-    private static func seedEntries(of thread: ChatThread) -> [SeedEntry] {
+    static func seedEntries(of thread: ChatThread) -> [SeedEntry] {
         // 聊天可靠性包：待发条目（服务端尚未受理）不
         // 进种子——种子是「服务端应有的历史」，待发
         // 消息只能由它自己的（重）发送轮作尾条投递，
@@ -9609,7 +9489,7 @@ struct ComposerBarLayout: Layout {
     /// （③路/收养持有人有消息，种子义务消解）。两
     /// 旗皆假且本地有种子＝种子转后台待导入。调用
     /// 方据此落线程 seedSyncState，不许再靠猜
-    private struct LinkOutcome {
+    struct LinkOutcome {
         let sessionID: String
         let seedLanded: Bool
         let serverHeldHistory: Bool
@@ -9630,7 +9510,7 @@ struct ComposerBarLayout: Layout {
     /// 养（判定走 Core MainlineAdoptionDirective）——
     /// 本地绑定脱钩（钦定 id 不存在＋标题被休眠旧会
     /// 话占着）不再是死路；旁聊调用恒 false，口径不变
-    private func performLink(
+    func performLink(
         desiredID: String, title: String?, model: String?,
         seedEntries: [SeedEntry], adoptsOnTitleConflict: Bool = false
     ) async throws -> LinkOutcome {
@@ -9720,7 +9600,7 @@ struct ComposerBarLayout: Layout {
     /// 补种（与既存②路同义）。收养事件留痕（含多条
     /// 匹配的候选数），多条的取舍口径在纯函数内。
     /// 返回 nil＝不收养（调用方照抛原错误）
-    private func adoptOnTitleConflict(
+    func adoptOnTitleConflict(
         failed error: Error, title: String, model: String?,
         seed: [SeedEntry]
     ) async throws -> LinkOutcome? {
@@ -9789,7 +9669,7 @@ struct ComposerBarLayout: Layout {
     /// 收据重放防二次落种；旧「每发新铸」作废）；
     /// 落定不看回执——performLink 返回后由发送/回
     /// 读链自然验证，此处 2xx 之外全抛
-    private func importSeed(
+    func importSeed(
         id: String, title: String?, model: String?,
         seed: [SeedEntry], expectedRevision: Int
     ) async throws {
@@ -9811,7 +9691,7 @@ struct ComposerBarLayout: Layout {
     /// 当前连接配置（链接动作的网关面直发用；未连接
     /// 时以 sessionExpired 抛——与 driveRun 的未连
     /// 接处理同错误面）
-    private func requireConfig() throws -> ServerConfig {
+    func requireConfig() throws -> ServerConfig {
         guard let config = appState.config else {
             throw HermesError.sessionExpired
         }
@@ -9834,7 +9714,7 @@ struct ComposerBarLayout: Layout {
     /// 后的尾条发送在服务端落两份）；进页预热传 nil
     /// 时现取主线全量条目（彼时无发送在飞）
     @discardableResult
-    private func ensureMainLink(seedSnapshot: [SeedEntry]? = nil) async -> Bool {
+    func ensureMainLink(seedSnapshot: [SeedEntry]? = nil) async -> Bool {
         let store = appState.sessionLedger
         // §332：本地状态解码失败的自愈对账排在最前
         // ——标记在册时先向服务端重新发现对账（一
@@ -9971,7 +9851,7 @@ struct ComposerBarLayout: Layout {
     /// 非且本地有种子记待导入（后台同步器接手）；旧
     /// serverSeeded 位在义务结清时同步置真（记账面
     /// 保留、发送判据已不读它）
-    private func applySeedOutcome(
+    func applySeedOutcome(
         _ outcome: LinkOutcome, to thread: ChatThread,
         seed: [SeedEntry]
     ) {
@@ -9993,7 +9873,7 @@ struct ComposerBarLayout: Layout {
     /// 在、返回其 id；不存在则空建会话保住存在性
     /// （种子留待后台）；探针自身失败（回读不到/
     /// 建不出）回 nil，调用方按原错误收口
-    private func recoverLinkByProbe(
+    func recoverLinkByProbe(
         desiredID: String, title: String?, model: String?
     ) async -> String? {
         let existing: ServerSession?
@@ -10041,7 +9921,7 @@ struct ComposerBarLayout: Layout {
     /// 位恒真——旧发送路落定即置位，不入此路）：
     /// 种子义务按实情补记 pending，落不落由同步器
     /// 回读定夺，不许升级一次就静默丢账
-    private func deriveLegacySeedObligation(_ thread: ChatThread) {
+    func deriveLegacySeedObligation(_ thread: ChatThread) {
         guard thread.seedSyncState == .notOwed,
               !thread.serverSeeded,
               let id = thread.serverSessionID,
@@ -10057,7 +9937,7 @@ struct ComposerBarLayout: Layout {
     /// 刷新给设置页呈现。触发点：ensureMainLink 快
     /// 路/落定后、主线发送前——都是顺带推进、从不
     /// 等待、从不拦路
-    private func scheduleMainBackgroundSync() {
+    func scheduleMainBackgroundSync() {
         let store = appState.sessionLedger
         guard let mainThread = store.mainThreadID.flatMap({ id in
             threads.first { $0.id == id }
@@ -10085,7 +9965,7 @@ struct ComposerBarLayout: Layout {
 
     /// 主线同步快照回写（呈现面单点：ChatView 的同
     /// 步动作落点统一经此刷新账本快照，设置页只读）
-    private func refreshMainSyncStatus(_ thread: ChatThread) {
+    func refreshMainSyncStatus(_ thread: ChatThread) {
         guard thread.id == appState.sessionLedger.mainThreadID
         else { return }
         appState.sessionLedger.updateMainSyncStatus(
@@ -10100,7 +9980,7 @@ struct ComposerBarLayout: Layout {
     /// 不齐按退避再续两轮，仍不齐就留在未同步态等
     /// 下个触发点（打开线程/发送/进页），不许无限
     /// 空转
-    private func scheduleHistoryBackfillIfNeeded(
+    func scheduleHistoryBackfillIfNeeded(
         thread: ChatThread
     ) {
         guard thread.historyUnsynced,
@@ -10139,7 +10019,7 @@ struct ComposerBarLayout: Layout {
     /// 点。落定（仅文本/仅本地）时若用户正看着这条
     /// 线程，给一记安静提示——事实要可见，但不弹窗
     /// 不拦路
-    private func scheduleSeedSync(
+    func scheduleSeedSync(
         thread: ChatThread, seedSnapshot: [SeedEntry]?
     ) {
         guard thread.seedSyncState.needsSyncAttempt,
@@ -10190,7 +10070,7 @@ struct ComposerBarLayout: Layout {
     /// 切入线程时的欠账推进（syncDrawerObject 钩子
     /// 调用）：当前线程有未同步历史/待导入种子各排
     /// 一轮——打开即补、不用等发送
-    private func scheduleSyncForCurrentThread() {
+    func scheduleSyncForCurrentThread() {
         guard let thread = currentThread else { return }
         deriveLegacySeedObligation(thread)
         if thread.historyUnsynced {
@@ -10215,7 +10095,7 @@ struct ComposerBarLayout: Layout {
     /// 时无痕不动。存量主线账由 sessionModelChoice
     /// 在读时与同步目录行比较；匹配的创建时代化石只
     /// 在该次解析中视作未设置，不改写持久化账本。
-    private func reconcileMainlineModelFromServer(
+    func reconcileMainlineModelFromServer(
         linkedID: String, mainThread: ChatThread?
     ) async {
         guard let session = try? await appState.performAdmin({ client, config in
@@ -10256,7 +10136,7 @@ struct ComposerBarLayout: Layout {
     /// 养线程的场合（§10.4-⑤），出处由抽屉旁聊行点
     /// 按先行清零，本函数随之派生 .side，不在此处
     /// 特殊处理
-    private func syncDrawerObjectFromCurrentThread() {
+    func syncDrawerObjectFromCurrentThread() {
         // §331：切入线程顺带推进历史/种子欠账（打开
         // 即补；调度器自带防重入，本钩子高频调用无害）
         scheduleSyncForCurrentThread()
@@ -10285,7 +10165,7 @@ struct ComposerBarLayout: Layout {
     /// 给一行 notice「已转入我的对话」让去向可知
     /// （呈现层拼装、不写入任何会话，沿回告卡 D4
     /// 红线精神）
-    private func consumePendingChatSession(_ id: String) async {
+    func consumePendingChatSession(_ id: String) async {
         guard appState.router.pendingChatSessionID == id else { return }
         appState.router.pendingChatSessionID = nil
         let channelID = appState.router.pendingChatChannelID
@@ -10307,7 +10187,7 @@ struct ComposerBarLayout: Layout {
     /// 行落位、按结果收尾；失败除横幅外另记重试上下
     /// 文（基础止血包 P6——旧口径失败只剩一句横幅、
     /// 想重试只能回列表再点一次）
-    private func runImport(
+    func runImport(
         sessionID id: String, channelID: String?,
         focusSnippet: String? = nil, focusRole: String? = nil
     ) async {
@@ -10353,7 +10233,7 @@ struct ComposerBarLayout: Layout {
     /// 161 的窗口猎取（timeline＋around 取窗落盘后
     /// 再解析），猎取也无果才如实落空（会话照常开
     /// 着、不假装定位）。线程在等待间被切走即作废
-    private func scheduleSearchFocus(
+    func scheduleSearchFocus(
         snippet: String, role: String?
     ) {
         guard let thread = currentThread else { return }
@@ -10373,7 +10253,7 @@ struct ComposerBarLayout: Layout {
 
     /// 搜索落点目标解析（台账 150 口径不变）：在已
     /// 落盘条目里按摘要回找目标条目 id
-    private func resolveSearchTarget(
+    func resolveSearchTarget(
         in thread: ChatThread, snippet: String, role: String?
     ) -> UUID? {
         SearchTargetResolution.targetEntryID(
@@ -10390,7 +10270,7 @@ struct ComposerBarLayout: Layout {
     /// 落点执行（台账 150 原拍不变）：等一拍让条目
     /// 进行集，点亮目标行＋经面分发器下达收敛落点；
     /// 线程在等待间被切走即作废
-    private func landSearchFocus(on targetID: UUID, threadID: UUID) {
+    func landSearchFocus(on targetID: UUID, threadID: UUID) {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
             guard currentThreadID == threadID else { return }
@@ -10412,7 +10292,7 @@ struct ComposerBarLayout: Layout {
     /// 任一步失败/线程被切走即静默收官——会话照常
     /// 开着、回补仍在后台补齐，不假装定位（150 落
     /// 空口径不变）
-    private func huntSearchWindow(
+    func huntSearchWindow(
         thread: ChatThread, snippet: String, role: String?
     ) {
         guard let sessionID = thread.serverSessionID,
@@ -10499,7 +10379,7 @@ struct ComposerBarLayout: Layout {
     /// 猎取命中页落盘：与后台回补同一套组装/去重口
     /// 径（§331 SessionHistoryInserter＋指纹未见过
     /// 滤），已落条目不重复落、反应先对账
-    private func insertHuntedWindow(
+    func insertHuntedWindow(
         _ messages: [SessionMessage], into thread: ChatThread
     ) {
         let ordered = SessionHistoryPagePlanner.chronological(messages)
@@ -10524,7 +10404,7 @@ struct ComposerBarLayout: Layout {
     /// 入都算落点已定，只有新建导入算「首次收养」；
     /// .missing（§223）＝会话已不在服务器上、本地残
     /// 留已就地清理，与 .failed 的别只在不挂重试条
-    private enum OpenServerSessionOutcome: Equatable {
+    enum OpenServerSessionOutcome: Equatable {
         case switchedExisting
         case importedNew
         case failed
@@ -10548,7 +10428,7 @@ struct ComposerBarLayout: Layout {
     /// 片标记剥成路径，呈现层有卡有图；工具卡
     /// role="tool" 不进发送上下文（send 组装只取
     /// user/assistant）
-    private func insertImportedEntries(
+    func insertImportedEntries(
         _ messages: [SessionMessage], into thread: ChatThread
     ) {
         // §331：组装单点收口 SessionHistoryInserter
@@ -10558,7 +10438,7 @@ struct ComposerBarLayout: Layout {
         )
     }
 
-    private func openServerSession(
+    func openServerSession(
         _ id: String
     ) async -> OpenServerSessionOutcome {
         if let existing = threads.first(where: { $0.serverSessionID == id }) {
@@ -10775,7 +10655,7 @@ struct ComposerBarLayout: Layout {
     /// 且线程内尚无任何用户条目（本轮将落的即首
     /// 句）才返回帖 id；关联在但已有用户条目＝首句
     /// 时机已过（信号只认首句，过期不补发）
-    private func feedDiscussSignalTarget(thread: ChatThread) -> String? {
+    func feedDiscussSignalTarget(thread: ChatThread) -> String? {
         guard let postID = appState.sessionLedger.feedDiscussPostID(
             forThreadID: thread.id
         ) else { return nil }
@@ -10796,7 +10676,7 @@ struct ComposerBarLayout: Layout {
     /// input 时，原帖正文随首句被标记词扫描误提偏
     /// 好（诊断 §1.4）；注入通道退役后此面自动收
     /// 净，本注钉死：不许改传组装后文本
-    private func fireFeedDiscussSignal(
+    func fireFeedDiscussSignal(
         postID: String, threadID: UUID, firstText: String
     ) {
         appState.sessionLedger.clearFeedDiscuss(forThreadID: threadID)
@@ -10812,7 +10692,7 @@ struct ComposerBarLayout: Layout {
         }
     }
 
-    private func send() {
+    func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = attachments
         // 0.4.1：引用随本条发送，起手先快照、随即清除
@@ -11083,7 +10963,7 @@ struct ComposerBarLayout: Layout {
     /// 如实呈现，不假装发过）——图片全集取尾条条目
     /// 本体（send 落盘时即全集入条目、重发时条目即
     /// 事实源，两路同值）
-    private func outgoingContext(
+    func outgoingContext(
         of thread: ChatThread, tailEntry: ChatEntry,
         text: String, quote: MessageQuote?,
         sourceQuote: SourceQuote?
@@ -11129,7 +11009,7 @@ struct ComposerBarLayout: Layout {
     /// 是「同会话至多一轮在飞」客户端排队的结构根
     /// 源。回滚路见 DESIGN §451（不设旗开关、
     /// revert 本包提交、无数据迁移）
-    private func launchTurn(
+    func launchTurn(
         thread: ChatThread, userEntry: ChatEntry, text: String,
         filePayloads: [(name: String, data: Data)],
         presetFilePaths: [String],
@@ -11156,7 +11036,7 @@ struct ComposerBarLayout: Layout {
     /// 部变量里，政策只能看状态、呈现只能拼整句。
     /// 横幅单槽指向（failedResendEntryID）随语义 5
     /// 退役：横幅不再指向任何单条
-    private func markTurnFailed(
+    func markTurnFailed(
         entry: ChatEntry,
         filePayloads: [(name: String, data: Data)] = [],
         failureKind: SendFailureKind
@@ -11184,7 +11064,7 @@ struct ComposerBarLayout: Layout {
     /// 内存格，未命中回磁盘暂存按条目 id 重建（进程
     /// 重启后的唯一出处）；磁盘也无（从未带文件/已
     /// 上传清格）返回空，调用方按远端路径口径走
-    private func resendFilePayloads(
+    func resendFilePayloads(
         entryID: UUID
     ) -> [(name: String, data: Data)] {
         if let inMemory = failedFilePayloads[entryID] {
@@ -11200,7 +11080,7 @@ struct ComposerBarLayout: Layout {
     /// 条目 id 回找条目挂标记——条目已不在（线程被
     /// 清）则静默跳过。成因走运行面分类（语义 3：
     /// 生成失败永不自动重发，kind 落账即钉死）
-    private func markRunFailure(
+    func markRunFailure(
         entry: RunLedgerEntry, in thread: ChatThread,
         failure: HermesError
     ) {
@@ -11229,7 +11109,7 @@ struct ComposerBarLayout: Layout {
     /// 发序位剔除本条自身、其余历史原样。账本在
     /// 飞守卫防叠发（与 send() 同一道闸），成功落
     /// 定自动清标记、再失败由各失败分支重新挂上
-    private func resendFailedEntry(_ entry: ChatEntry) {
+    func resendFailedEntry(_ entry: ChatEntry) {
         guard entry.sendFailed,
               let thread = entry.thread else { return }
         // §451：在飞闸退役——重发只登记工单入泵，
@@ -11275,7 +11155,7 @@ struct ComposerBarLayout: Layout {
     /// send() 的互斥口径同步退役——同线程未落定
     /// 轮次不再挡重发（服务端 FIFO 排班），本条按
     /// 线程内序位提交
-    private func resendPending(_ entry: ChatEntry) {
+    func resendPending(_ entry: ChatEntry) {
         guard entry.isPendingSend,
               let thread = entry.thread ?? currentThread
         else { return }
@@ -11307,3803 +11187,4 @@ struct ComposerBarLayout: Layout {
         )
     }
 
-    // MARK: - 发件箱（台账 154／G-04，DESIGN §336）
-
-    /// 发件箱成员判定（单点）：本条用户消息还没落
-    /// 定在服务端——失败（sendFailed）、待发（de-
-    /// liveryState=pending）、准备段瞬态被进程中断
-    /// （queued/uploading/linking 落盘后无人接管）、
-    /// 提交段孤儿（sending 但 run 账本无此轮且泵未
-    /// 在提交本条）。呈现（动作面项集）、手动入口
-    /// （重发/编辑/撤回）与提交泵共用本判定，不许
-    /// 各写一份
-    private func isOutboxEntry(_ entry: ChatEntry) -> Bool {
-        guard entry.role == "user", !entry.isSystemAnchored,
-              entry.toolCardData == nil else { return false }
-        if entry.sendFailed || entry.isPendingSend {
-            return true
-        }
-        guard let state = entry.sendState else { return false }
-        switch state {
-        case .queued, .uploading, .linking, .failed:
-            return true
-        case .sending:
-            // §451：逐条核账——本条无账本且泵未在提
-            // 交本条，才是提交段孤儿（多轮并存后「整
-            // 线程账本判空＋无流在跑」的旧口径作废：
-            // 别的轮次在飞不该把本条的孤儿身份藏起
-            // 来）
-            return appState.runLedger.entry(
-                forUserEntryID: entry.id
-            ) == nil
-                && !pumpInFlightEntryIDs.contains(entry.id)
-        case .accepted:
-            // 发送失败机制包（双轴语义）：已受理条目
-            // 恒有账本、对账链管辖，不进发件箱动作
-            // 面；账本缺失的受理态是孤儿变体（账本被
-            // 异常清走）——浮回发件箱面交用户裁决，
-            // 不许无声卡死
-            return appState.runLedger.entry(
-                forUserEntryID: entry.id
-            ) == nil
-        case .delivered:
-            return false
-        }
-    }
-
-    /// 发件箱条目的统一重发口（动作面与提交泵共
-    /// 用）：失败条目走既有 resendFailedEntry；待
-    /// 发与准备段中断条目先折回待发巷（markPend-
-    /// ingSend——获得「未发送」可见标记与 resend-
-    /// Pending 的入场资格）再走 resendPending。不
-    /// 新建发送链、与手点同一条路
-    private func resumeOutboxEntry(_ entry: ChatEntry) {
-        // §451：在飞守卫退役——重发只登记工单入
-        // 泵、与任何在飞轮次共存（泵按序位提交）；
-        // 旧守卫防的是 launchTurn 直驱叠发，入泵后
-        // 无此患
-        guard isOutboxEntry(entry) else { return }
-        if entry.sendFailed {
-            resendFailedEntry(entry)
-            return
-        }
-        if !entry.isPendingSend {
-            entry.markPendingSend(in: modelContext)
-        }
-        resendPending(entry)
-    }
-
-    /// 撤回未发送条目（台账 154）：本条从未在服务
-    /// 端落定（失败/待发/中断态），撤回是纯本地动
-    /// 作——删条目、清暂存载荷（内存格＋磁盘暂
-    /// 存）、清自动重试记账、清指向本条的失败横幅
-    /// 账。服务端无此条、不发任何请求
-    private func withdrawUnsentEntry(_ entry: ChatEntry) {
-        // 在飞守卫（与 editUnsentEntry 同口径）：正
-        // 被 launchTurn/driveRun 驱动的条目（发送在
-        // 飞的 queued/uploading 本体）不许删——驱动
-        // 链持其引用继续走，删之即与落定写口相撞。
-        // 孤儿态条目无流在跑、恒可撤
-        guard isOutboxEntry(entry),
-              appState.runLedger.entry(
-                  forUserEntryID: entry.id
-              ) == nil,
-              !pumpInFlightEntryIDs.contains(entry.id)
-        else { return }
-        let entryID = entry.id
-        // §414：撤回的若是原位编辑的武装目标，武装
-        // 同点作废（条目已删、写回无从谈起）
-        if unsentEditTargetID == entryID {
-            unsentEditTargetID = nil
-            unsentEditFilesRepresented = false
-        }
-        failedFilePayloads[entryID] = nil
-        pendingResendAttachments[entryID] = nil
-        try? stagedSendStore.remove(entryID: entryID)
-        appState.outboxRetry.clear(entryID: entryID)
-        modelContext.delete(entry)
-        try? modelContext.save()
-    }
-
-    /// 编辑未发送条目（台账 154；§414 改判原位）：
-    /// 把内容与附件装载进发送舱并武装目标——装载
-    /// 走既有载荷口径（图片全集在条目本体、文件
-    /// 凭条目 id 回暂存重建、引用两槽按 send() 快
-    /// 照的同款互斥回填）；原条目不删、不动，用户
-    /// 改完点发送时由 send() 把新内容写回原条目
-    /// 本体原位重发（performUnsentEditSend，同
-    /// id/同位置）。旧「回收删条＋新条目新一轮」
-    /// 作废：删条重建让失败消息在编辑一次后换位
-    /// 换身份，与失败不消失定版相悖；旧虑「原地
-    /// 改字让已拼装出站形态与条目分叉」由写回后
-    /// 重走发件箱重发口消解（出站形态在重发时按
-    /// 新条目内容现拼，不存在先拼后改）
-    private func editUnsentEntry(_ entry: ChatEntry) {
-        guard isOutboxEntry(entry),
-              let thread = entry.thread,
-              thread.id == currentThreadID else { return }
-        // §451：账本在飞不再挡编辑（本条未受理、编
-        // 辑后由 send() 写回原位再入泵）；只挡泵正
-        // 在提交本条的瞬时窗（写回会与提交段相撞）
-        guard !pumpInFlightEntryIDs.contains(entry.id)
-        else {
-            showNotice("这条正在发送中，稍等一下再编辑。")
-            return
-        }
-        // 发送舱有未发完的内容时不许回收覆盖（用户
-        // 亲笔优先）：正文/附件/引用槽任一在场都算
-        // 占用，先请用户处理完
-        guard input.trimmingCharacters(
-                  in: .whitespacesAndNewlines
-              ).isEmpty,
-              attachments.isEmpty, pendingQuote == nil,
-              pendingFeedQuote == nil,
-              pendingSourceQuote == nil
-        else {
-            showNotice("输入框里还有没发完的内容，先发掉或清空，再来编辑这条。")
-            return
-        }
-        let text = entry.content
-        let imageDatas = entry.allImageDatas
-        let filePayloads = resendFilePayloads(
-            entryID: entry.id
-        )
-        let quote = entry.quote
-        let sourceQuote = entry.sourceQuote
-        // §414：只武装＋装载，原条目原样留列（失败/
-        // 待发标记、暂存、远端路径全不动）；文件面
-        // 管辖按载荷可代表性记账（载荷不在而远端路
-        // 径在场＝文件已在服务端，编辑只管正文/图
-        // 片/引用，文件面在写回时原样保留）
-        unsentEditTargetID = entry.id
-        unsentEditFilesRepresented = !filePayloads.isEmpty
-            || entry.remoteFilePaths.isEmpty
-        input = text
-        attachments = imageDatas.map {
-            PendingAttachment(kind: .image($0))
-        } + filePayloads.map {
-            PendingAttachment(
-                kind: .file(name: $0.name, data: $0.data)
-            )
-        }
-        pendingQuote = quote
-        switch sourceQuote {
-        case .feed(let feedQuote):
-            pendingFeedQuote = feedQuote
-        case .idea, .file, .goal:
-            pendingSourceQuote = sourceQuote
-        case nil:
-            break
-        }
-        composerFocusHandle.focus()
-    }
-
-    /// §414（修复包一·路三）：未发送编辑的发送落点
-    /// ——新内容写回原条目本体（applyUnsentEdit：
-    /// 同 id、同时刻、同位置，发送状态不动），附
-    /// 件面按武装时的可代表性分工：可代表时以发
-    /// 送舱快照重建——旧暂存（内存格＋磁盘）全
-    /// 清、新载荷重暂存、远端路径作废待重传（上
-    /// 传同名覆盖、口径见 uploadPendingFiles）；
-    /// 不可代表时（文件已在服务端、载荷不在本
-    /// 机）文件面一字不动、只改正文/图片/引用。
-    /// 写回后走发件箱统一重发口 resumeOutbox-
-    /// Entry（失败/待发/准备段中断三态同口分
-    /// 发），标记与状态由重发链自理
-    private func performUnsentEditSend(
-        target: ChatEntry, thread: ChatThread, text: String,
-        pending: [PendingAttachment], quote: MessageQuote?,
-        combinedSourceQuote: SourceQuote?,
-        filesRepresented: Bool
-    ) {
-        let imageDatas = pending.compactMap(\.imageData)
-        let filePayloads = pending.compactMap(\.filePayload)
-        target.applyUnsentEdit(
-            content: text, imageDatas: imageDatas,
-            quote: quote, sourceQuote: combinedSourceQuote,
-            in: modelContext
-        )
-        if filesRepresented {
-            failedFilePayloads[target.id] = nil
-            pendingResendAttachments[target.id] = nil
-            try? stagedSendStore.remove(entryID: target.id)
-            if !filePayloads.isEmpty {
-                try? stagedSendStore.stage(
-                    entryID: target.id,
-                    payloads: filePayloads.map {
-                        StagedSendPayload(
-                            name: $0.name, data: $0.data
-                        )
-                    }
-                )
-            }
-            target.remoteFilePathsData = nil
-            try? modelContext.save()
-        }
-        // 发送失败机制包（语义 1 清账点③）：编辑重
-        // 投＝用户显式新尝试——重试记账在此清零（预
-        // 算由用户意志重置）；手点原样重发不清（见
-        // resendFailedEntry 注）
-        appState.outboxRetry.clear(entryID: target.id)
-        resumeOutboxEntry(target)
-    }
-
-    // MARK: - §451 发送机制换代（提交泵＋消费环）
-
-    /// 重发口组装（resendFailedEntry/resendPending/
-    /// 泵的无工单重组共用）：种子按非待发序位摘除
-    /// 本条自身（本条只以尾条身份经 run 投递、不许
-    /// 在种子里先落一份）、出站只喂本条（引用拼装
-    /// ＋本地图多模态，与 send() 尾条同口径）
-    private func resendJobParts(
-        thread: ChatThread, entry: ChatEntry
-    ) -> (seedSnapshot: [SeedEntry], outgoing: ChatMessage) {
-        let nonPendingIDs = thread.sortedEntries
-            .filter { !$0.isPendingSend }
-            .map(\.id)
-        var seedSnapshot = Self.seedEntries(of: thread)
-        if let seedIndex = nonPendingIDs.firstIndex(
-            of: entry.id
-        ), seedIndex < seedSnapshot.count {
-            seedSnapshot.remove(at: seedIndex)
-        }
-        var outgoing = ChatMessage(
-            role: "user",
-            content: MessageQuote.outgoingContent(
-                userText: entry.content, quote: entry.quote,
-                sourceQuote: entry.sourceQuote
-            )
-        )
-        let entryImageDatas = entry.allImageDatas
-        if !entryImageDatas.isEmpty {
-            outgoing = ChatMessage(
-                role: "user",
-                text: MessageQuote.outgoingContent(
-                    userText: entry.content, quote: entry.quote,
-                    sourceQuote: entry.sourceQuote
-                ),
-                imageDataURLs: entryImageDatas.map {
-                    "data:image/jpeg;base64,\($0.base64EncodedString())"
-                }
-            )
-        }
-        return (seedSnapshot, outgoing)
-    }
-
-    /// 泵的无工单重组（进程重启后的存量待发/失败条
-    /// 目）：与手点重发同一组装口＋载荷回暂存重建
-    private func rebuiltSubmitJob(
-        thread: ChatThread, entry: ChatEntry
-    ) -> SubmitJob {
-        let parts = resendJobParts(thread: thread, entry: entry)
-        return SubmitJob(
-            thread: thread, userEntry: entry,
-            text: entry.content,
-            filePayloads: resendFilePayloads(entryID: entry.id),
-            presetFilePaths: entry.remoteFilePaths,
-            seedSnapshot: parts.seedSnapshot,
-            context: [parts.outgoing],
-            frameStartedAt: nil
-        )
-    }
-
-    /// 提交泵踢动口：同线程单泵防重入（泵内串行
-    /// POST，跨线程各跑各的泵）
-    private func kickSubmitPump(thread: ChatThread) {
-        guard !appState.isDemo else { return }
-        let threadID = thread.id
-        guard !submitPumpThreads.contains(threadID)
-        else { return }
-        submitPumpThreads.insert(threadID)
-        submitPumpTasks[threadID] = Task {
-            await runSubmitPump(thread: thread)
-            submitPumpThreads.remove(threadID)
-            submitPumpTasks[threadID] = nil
-        }
-    }
-
-    /// §451 提交泵（App-1）：逐条按 SubmissionLane
-    /// 车道判定取下一条提交，受理即走（不等落定，
-    /// 消费环另接）；未受理失败堵泵（严格保序，用
-    /// 户 2026-11-24 亲选）——停在失败条上、后续不
-    /// 越过，等其自动重试到点（后续触发重跑本泵）
-    /// 或用户手点重发解堵；离线折回待发巷同停泵
-    /// （网络恢复等触发再跑）
-    private func runSubmitPump(thread: ChatThread) async {
-        guard appState.config != nil, appState.apiKey != nil
-        else { return }
-        while !Task.isCancelled {
-            surfaceSendingOrphans(in: thread)
-            let ledgerIDs = Set(
-                appState.runLedger.entries(
-                    forThreadID: thread.id
-                ).map(\.userEntryID)
-            )
-            var laneEntries: [SubmissionLane.Entry] = []
-            var byID: [UUID: ChatEntry] = [:]
-            // 本趟见到的最早退避到期点：泵退出时排唤
-            // 醒钟（语义 4——闸与钟同源，B3 关账）
-            var earliestBackoff: Date?
-            for entry in thread.sortedEntries
-            where isOutboxEntry(entry)
-                || ledgerIDs.contains(entry.id.uuidString) {
-                byID[entry.id] = entry
-                let record = appState.outboxRetry.record(
-                    for: entry.id
-                )
-                let policy = OutboxAutoRetryPolicy.decision(
-                    state: entry.sendState, record: record,
-                    now: Date()
-                )
-                if case .backoff(let until) = policy {
-                    earliestBackoff = min(
-                        earliestBackoff ?? until, until
-                    )
-                }
-                let hasLedger = ledgerIDs.contains(
-                    entry.id.uuidString
-                )
-                // 运行面失败（生成失败/超时/模型报错等）说明该条早已
-                // 提交并被服务端受理过，不属于“未受理提交失败”，不许堵
-                // 后续新消息的提交车道
-                if entry.sendState == .failed,
-                   !hasLedger,
-                   submitJobs[entry.id] == nil,
-                   record?.lastFailureKind?.isRunFace == true {
-                    continue
-                }
-                let failed = entry.sendState == .failed
-                    && !hasLedger
-                // 准备段条目在退避中（P1-2 记账后）：与
-                // 未受理失败同格堵泵等到点——不许被车
-                // 道当残影跳过、更不许越过它先发后条
-                // （严格保序）；有登记工单（用户编辑重
-                // 投/手点）在场时不走此格、走提交格
-                let prepInBackoff = !hasLedger && !failed
-                    && submitJobs[entry.id] == nil
-                    && (entry.sendState == .queued
-                        || entry.sendState == .uploading
-                        || entry.sendState == .linking)
-                    && policy != .autoNow
-                    && policy != .manualOnly
-                    && policy != .notInQueue
-                laneEntries.append(SubmissionLane.Entry(
-                    entryID: entry.id,
-                    hasLedgerEntry: hasLedger,
-                    // 登记工单在场＝用户显式意志（手点
-                    // 重发/编辑重投）：压过政策的人工接
-                    // 管与成因钉死——否则钉死类成因的
-                    // 条目点重发会被车道先堵死、工单永
-                    // 不消费（钉测实证的生产缺陷）
-                    manualOnly: policy == .manualOnly
-                        && submitJobs[entry.id] == nil,
-                    unacceptedFailure: failed || prepInBackoff,
-                    failureRetryDue: failed
-                        && (policy == .autoNow
-                            || submitJobs[entry.id] != nil),
-                    awaitingSubmission: !hasLedger && !failed
-                        && entry.sendState != .sending
-                        && entry.sendState != .accepted
-                        && (submitJobs[entry.id] != nil
-                            || policy == .autoNow)
-                ))
-            }
-            switch SubmissionLane.decision(
-                entries: laneEntries
-            ) {
-            case .submit(let entryID):
-                guard let entry = byID[entryID] else { return }
-                let registeredJob = submitJobs[entryID]
-                let job = registeredJob
-                    ?? rebuiltSubmitJob(
-                        thread: thread, entry: entry
-                    )
-                submitJobs[entryID] = nil
-                // 派发前状态快照：记账只认「已失败条目
-                // 的再投」——首投（待发条目进程重启后
-                // 被泵重建工单派发）不是重试、不记账
-                // （ChatFailKeepPinTests 存储面钉）
-                let wasFailed = entry.sendState == .failed
-                let outcome = await performSubmission(job: job)
-                // 自动重投记账（语义 2）：无登记工单＋
-                // 派发前已失败＝策略批准的自动重投，
-                // 执行完毕才记一笔（与成因同落——成因
-                // 已在失败落点写入）；登记工单（本会话
-                // 主动发送/手点重发/编辑重投）不计。
-                // 离线停泊（没出门）与停止不计。旧口径
-                // 执行前记账＋受理清账，两头夹击把账
-                // 扫没
-                if registeredJob == nil, wasFailed {
-                    switch outcome {
-                    case .accepted, .rejected, .prepareFailed:
-                        // 抖动手本点一次抽定（语义 4）：
-                        // 退避到期点须全程同值；泵每秒一轮
-                        // 重算，若在判定处重抽会翻面
-                        appState.outboxRetry.noteAutoAttempt(
-                            entryID: entryID, at: Date(),
-                            jitterUnit: Double.random(in: 0...1)
-                        )
-                    case .offlineParked, .rateLimitedParked,
-                         .stopped:
-                        break
-                    }
-                }
-                switch outcome {
-                case .accepted:
-                    // 受理不清账（语义 1）：重试账活到
-                    // run 真终态——落定成功在 applySet-
-                    // tledTurn 清、落定失败留账钉死。
-                    // 旧口径在此整线程扫清非发件箱条目
-                    // 的账，是死循环的清账入口之一
-                    kickConsumer()
-                case .offlineParked:
-                    if registeredJob != nil {
-                        presentSendFailure(kind: .offlineNotSent)
-                    }
-                    armOutboxWake(
-                        earliestBackoff, threadID: thread.id
-                    )
-                    return
-                case .rejected, .prepareFailed,
-                     .rateLimitedParked,
-                     .stopped:
-                    armOutboxWake(
-                        earliestBackoff, threadID: thread.id
-                    )
-                    return
-                }
-            case .blocked, .blockedManual, .idle:
-                armOutboxWake(
-                    earliestBackoff, threadID: thread.id
-                )
-                return
-            }
-        }
-    }
-
-    /// 退避唤醒钟排布（语义 4）：泵退出时若本线程有
-    /// 条目在退避中，把最早到期点排给调度器——到期
-    /// 由 scheduleOutboxWake 踢泵续发，不许有闸无钟
-    /// 靠下一次偶然触发（B3）
-    private func armOutboxWake(
-        _ earliestBackoff: Date?, threadID: UUID
-    ) {
-        guard let earliestBackoff else { return }
-        scheduleOutboxWake(at: earliestBackoff, threadID: threadID)
-    }
-
-    /// 唤醒调度器：只留最早一记（已有更早的到期点
-    /// 在排时不覆盖）；到期先踢本线程提交泵、在看
-    /// 线程同走 drain 记账卫生。回前台/网络恢复仍
-    /// 是触发源（drain），本钟只补退避/等待门到期
-    /// 这一类「时间到了」的事件
-    private func scheduleOutboxWake(
-        at date: Date, threadID: UUID
-    ) {
-        if let scheduled = outboxWakeAt, scheduled <= date {
-            return
-        }
-        outboxWakeTask?.cancel()
-        outboxWakeAt = date
-        outboxWakeTask = Task { @MainActor in
-            let delay = date.timeIntervalSinceNow
-            if delay > 0 {
-                try? await Task.sleep(for: .seconds(delay))
-            }
-            guard !Task.isCancelled else { return }
-            outboxWakeAt = nil
-            guard let thread = threads.first(
-                where: { $0.id == threadID }
-            ) else { return }
-            kickSubmitPump(thread: thread)
-            if thread.id == currentThreadID {
-                drainOutboxIfNeeded()
-            }
-        }
-    }
-
-    /// §451 提交段（泵内单条）：上传待发文件（或沿
-    /// 用已落盘远端路径）→ 定发送形态 → POST。失败
-    /// 落点与旧 launchTurn 一字同：上传/链接失败
-    /// markTurnFailed 原位挂标记（§414 路一）；上传
-    /// 进度 UI 只写当前线程（他线程条目后台提交不
-    /// 许污染在看线程的占位呈现）
-    private func performSubmission(
-        job: SubmitJob
-    ) async -> SubmissionOutcome {
-        let thread = job.thread
-        let userEntry = job.userEntry
-        pumpInFlightEntryIDs.insert(userEntry.id)
-        defer { pumpInFlightEntryIDs.remove(userEntry.id) }
-        let showsUploadUI = thread.id == currentThreadID
-        var fileServerPaths: [String] = job.presetFilePaths
-        if fileServerPaths.isEmpty, !job.filePayloads.isEmpty {
-            if showsUploadUI { isUploadingFiles = true }
-            userEntry.markSendState(
-                .uploading, in: modelContext
-            )
-            if showsUploadUI { uploadProgressFraction = 0 }
-            do {
-                fileServerPaths = try await uploadPendingFiles(
-                    job.filePayloads
-                )
-            } catch let failure as FileUploadFailure {
-                if showsUploadUI { isUploadingFiles = false }
-                markTurnFailed(
-                    entry: userEntry,
-                    filePayloads: job.filePayloads,
-                    failureKind: .prepareFailed
-                )
-                // 拼接走收尾归一（P2-2）：reason 是服
-                // 务端/系统自由文本、自带尾标点时旧拼
-                // 法出双句号
-                presentSendFailure(
-                    kind: .prepareFailed,
-                    message: SendFailureCopy.joiningReason(
-                        head: "文件「\(failure.fileName)」没能上传，这条还没发出去：",
-                        reason: failure.reason,
-                        tail: "处理后点这条消息旁的感叹号重新发送。"
-                    )
-                )
-                Haptics.error()
-                return .prepareFailed
-            } catch is CancellationError {
-                if showsUploadUI { isUploadingFiles = false }
-                return .stopped
-            } catch {
-                if showsUploadUI { isUploadingFiles = false }
-                // 未知上传异常的文案也走分类（P5-1）：
-                // 旧口径一句「文件上传失败…请稍后再
-                // 试」包打天下，网络/服务端/解码不分。
-                // 成因落账恒 .prepareFailed（语义 3：
-                // 准备段失败钉死），分类只供呈现取词
-                let presentKind = (error as? HermesError).map {
-                    SendFailureKind.classify(submit: $0)
-                } ?? .prepareFailed
-                if presentKind == .offlineNotSent {
-                    if !job.filePayloads.isEmpty {
-                        failedFilePayloads[userEntry.id] = job.filePayloads
-                        stagedSendStore.stageDetached(
-                            entryID: userEntry.id,
-                            payloads: job.filePayloads.map {
-                                StagedSendPayload(name: $0.name, data: $0.data)
-                            }
-                        )
-                    }
-                    userEntry.markPendingSend(in: modelContext)
-                    return .offlineParked
-                }
-                markTurnFailed(
-                    entry: userEntry,
-                    filePayloads: job.filePayloads,
-                    failureKind: presentKind == .prepareFailed ? .prepareFailed : presentKind
-                )
-                presentSendFailure(kind: presentKind)
-                Haptics.error()
-                return .prepareFailed
-            }
-            if showsUploadUI {
-                isUploadingFiles = false
-                uploadProgressFraction = nil
-            }
-            if Task.isCancelled { return .stopped }
-            failedFilePayloads[userEntry.id] = nil
-            try? stagedSendStore.remove(entryID: userEntry.id)
-            userEntry.markSendState(.linking, in: modelContext)
-            if !fileServerPaths.isEmpty {
-                userEntry.remoteFilePathsData =
-                    try? JSONEncoder().encode(fileServerPaths)
-                try? modelContext.save()
-                for (path, payload) in zip(
-                    fileServerPaths, job.filePayloads
-                ) {
-                    FileMetadataStore.shared.record(
-                        path: path,
-                        size: Int64(payload.data.count),
-                        modifiedAt: nil
-                    )
-                }
-            }
-        }
-        let shape: (messages: [ChatMessage], sessionID: String?)
-        do {
-            shape = try await prepareSendShapeWithRetry(
-                thread: thread, fullContext: job.context,
-                seedEntries: job.seedSnapshot
-            )
-        } catch is CancellationError {
-            return .stopped
-        } catch {
-            if Task.isCancelled { return .stopped }
-            if let hermesError = error as? HermesError {
-                let kind = SendFailureKind.classify(submit: hermesError)
-                if kind == .offlineNotSent {
-                    userEntry.markPendingSend(in: modelContext)
-                    return .offlineParked
-                }
-                markTurnFailed(
-                    entry: userEntry, failureKind: kind
-                )
-                presentSendFailure(
-                    kind: kind,
-                    detail: hermesError.diagnosticDetail
-                )
-                Haptics.error()
-                return .prepareFailed
-            }
-            markTurnFailed(
-                entry: userEntry, failureKind: .prepareFailed
-            )
-            // 拼接走收尾归一（P2-1）：userMessage 自
-            // 带「。」时旧拼出「请稍后再试。。链接恢
-            // 复后…」双句号叠字
-            presentSendFailure(
-                kind: .prepareFailed,
-                message: SendFailureCopy.joiningReason(
-                    head: "会话链接失败，这条还没发出去：",
-                    reason: "服务端会话建立失败",
-                    tail: "链接恢复后，点这条消息旁的感叹号重新发送。"
-                )
-            )
-            Haptics.error()
-            return .prepareFailed
-        }
-        if Task.isCancelled { return .stopped }
-        // §135 D 案打点：落盘→链接一段（起点归工单
-        // 自带——泵内后条不许借前条的起点串账）
-        if let started = job.frameStartedAt {
-            ChatDiagTrace.record(
-                "发送打点 落盘→链接 "
-                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
-            )
-        }
-        sendPinToken += 1
-        let tail = FileSendAssembly.appendingFileRefs(
-            to: shape.messages.last
-                ?? ChatMessage(role: "user", content: job.text),
-            serverPaths: fileServerPaths
-        )
-        userEntry.markSendState(.sending, in: modelContext)
-        return await performSubmit(
-            thread: thread, tail: tail,
-            sessionID: shape.sessionID, userEntry: userEntry
-        )
-    }
-
-    /// §451 POST 提交段：账本先落（runID 后补）、得
-    /// 202 即受理——照 driveRun 提交段同口径：瞬态
-    /// 有界重试（同 key 重演回原 run）、结果未知归
-    /// 对账（账本留席交消费环）、明确拒绝定失败、
-    /// 离线折回待发巷。154 幂等键与 driveRun 同铸
-    /// 法（ensureIdempotencyKey：条目既有键恒沿用、
-    /// 缺时铸造落盘），同条重投恒同 key、不双跑
-    private func performSubmit(
-        thread: ChatThread, tail: ChatMessage,
-        sessionID: String?, userEntry: ChatEntry
-    ) async -> SubmissionOutcome {
-        guard let config = appState.config,
-              let apiKey = appState.apiKey, !apiKey.isEmpty
-        else {
-            markTurnFailed(
-                entry: userEntry, failureKind: .authRejected
-            )
-            presentSendFailure(kind: .authRejected)
-            return .rejected
-        }
-        let input: RunInput = tail.parts == nil
-            ? .text(tail.content) : .message(tail)
-        let choice = appState.sessionModelChoice(
-            serverSessionID: sessionID, threadID: thread.id
-        )
-        let idempotencyKey = ensureIdempotencyKey(
-            for: userEntry
-        )
-        appState.runLedger.upsert(RunLedgerEntry(
-            threadID: thread.id.uuidString,
-            sessionID: sessionID ?? "",
-            runID: nil,
-            idempotencyKey: idempotencyKey,
-            userEntryID: userEntry.id.uuidString,
-            submittedAt: Date()
-        ))
-        var attempt = 0
-        var unknownAttempts = 0
-        var gateWaits = 0
-        while true {
-            attempt += 1
-            do {
-                let response = try await appState.client
-                    .submitRun(
-                        config: config, apiKey: apiKey,
-                        sessionID: sessionID ?? "",
-                        input: input, model: choice.model,
-                        provider: choice.providerField,
-                        idempotencyKey: idempotencyKey
-                    )
-                appState.runLedger.upsert(RunLedgerEntry(
-                    threadID: thread.id.uuidString,
-                    sessionID: sessionID ?? "",
-                    runID: response.runID,
-                    idempotencyKey: idempotencyKey,
-                    userEntryID: userEntry.id.uuidString,
-                    submittedAt: Date()
-                ))
-                markAcceptedEntryAccepted(
-                    thread: thread,
-                    userEntryID: userEntry.id.uuidString
-                )
-                clearPendingDeliveryMark(entry: userEntry)
-                return .accepted
-            } catch let submitError {
-                if Task.isCancelled {
-                    markLedgerStopRequested(
-                        userEntryID: userEntry.id
-                    )
-                    return .stopped
-                }
-                // 限流等待门（语义 3）：服务端明示等
-                // 多久就等多久——不落失败、不计账；门
-                // 内等满两轮仍被限，折回待发停泊＋排
-                // 唤醒钟，到点自动续（仍不是失败）
-                if let hermesError = submitError as? HermesError,
-                   case .rateLimited(let retryAfter) = hermesError {
-                    if gateWaits < 2 {
-                        gateWaits += 1
-                        try? await Task.sleep(
-                            for: .seconds(min(retryAfter ?? 1, 30))
-                        )
-                        if Task.isCancelled {
-                            markLedgerStopRequested(
-                                userEntryID: userEntry.id
-                            )
-                            return .stopped
-                        }
-                        continue
-                    }
-                    appState.runLedger.remove(
-                        userEntryID: userEntry.id
-                    )
-                    userEntry.markPendingSend(
-                        in: modelContext
-                    )
-                    scheduleOutboxWake(
-                        at: Date().addingTimeInterval(
-                            min(retryAfter ?? 1, 300)
-                        ),
-                        threadID: thread.id
-                    )
-                    return .rateLimitedParked
-                }
-                switch RunSubmitRetry.classify(submitError) {
-                case .notSentOffline:
-                    appState.runLedger.remove(
-                        userEntryID: userEntry.id
-                    )
-                    userEntry.markPendingSend(
-                        in: modelContext
-                    )
-                    return .offlineParked
-                case .transient:
-                    if attempt
-                        <= RunSubmitRetry.maxTransientRetries {
-                        // 间隔走 RetryBackoff 同源退避＋
-                        // 全抖动（P1-1）：旧固定 1.2s 无抖
-                        // 动，多条同拍重撞
-                        try? await Task.sleep(
-                            for: .seconds(RetryBackoff.delay(
-                                afterFailure: attempt,
-                                jitterUnit: Double.random(
-                                    in: 0...1
-                                )
-                            ))
-                        )
-                        if Task.isCancelled {
-                            markLedgerStopRequested(
-                                userEntryID: userEntry.id
-                            )
-                            return .stopped
-                        }
-                        continue
-                    }
-                    // 瞬态耗尽：结果未知——账本留席、待
-                    // 发标记清，消费环对账同 key 重演取
-                    // 回（不定性为错误、不双跑）
-                    clearPendingDeliveryMark(entry: userEntry)
-                    return .accepted
-                case .unknown:
-                    // 判不出成因（P1-1）：只许再试 1
-                    // 次，耗尽同走结果未知交对账——旧
-                    // 口径非 HermesError 一律判瞬态全额
-                    // 重试，把未知错误当网络抖动
-                    unknownAttempts += 1
-                    if unknownAttempts
-                        <= RunSubmitRetry.maxUnknownRetries {
-                        try? await Task.sleep(
-                            for: .seconds(RetryBackoff.delay(
-                                afterFailure: unknownAttempts,
-                                jitterUnit: Double.random(
-                                    in: 0...1
-                                )
-                            ))
-                        )
-                        if Task.isCancelled {
-                            markLedgerStopRequested(
-                                userEntryID: userEntry.id
-                            )
-                            return .stopped
-                        }
-                        continue
-                    }
-                    clearPendingDeliveryMark(entry: userEntry)
-                    return .accepted
-                case .rejected:
-                    appState.runLedger.remove(
-                        userEntryID: userEntry.id
-                    )
-                    let hermesError =
-                        (submitError as? HermesError)
-                        ?? .unreachable(
-                            submitError.localizedDescription
-                        )
-                    if hermesError.isSessionNotFound {
-                        // 会话已在服务端消失（§223）：按
-                        // 凭据面收口呈现，成因记 auth
-                        markTurnFailed(
-                            entry: userEntry,
-                            failureKind: .authRejected
-                        )
-                        presentSendFailure(kind: .authRejected)
-                    } else {
-                        // 成因落账＋分类呈现（语义 3/5）：
-                        // 旧口径落 .failed 时成因只剩一句
-                        // 兜底文案，政策无从分档
-                        let kind = SendFailureKind.classify(
-                            submit: hermesError
-                        )
-                        markTurnFailed(
-                            entry: userEntry, failureKind: kind
-                        )
-                        presentSendFailure(
-                            kind: kind,
-                            detail: hermesError.diagnosticDetail
-                        )
-                    }
-                    return .rejected
-                }
-            }
-        }
-    }
-
-    /// 154 幂等键铸法（与 driveRun 同口径单源）：条
-    /// 目 clientMessageID 在席恒沿用，缺时铸造并落
-    /// 盘——首投/自动重试/手点重发/中段原位重发跨
-    /// 链恒同 key
-    private func ensureIdempotencyKey(
-        for userEntry: ChatEntry
-    ) -> String {
-        if let existing = userEntry.clientMessageID {
-            return existing
-        }
-        let minted = UUID().uuidString
-        userEntry.clientMessageID = minted
-        try? modelContext.save()
-        return minted
-    }
-
-    /// 受理同点清待发标记（driveRun 旧口径：非失败
-    /// 出口 deliveryState 清零，条目出待发巷）
-    private func clearPendingDeliveryMark(
-        entry: ChatEntry
-    ) {
-        if entry.deliveryState != nil {
-            entry.deliveryState = nil
-            try? modelContext.save()
-        }
-    }
-
-    /// 提交窗内停止：账本本条记停止意图，消费环接
-    /// 管后对账先行真停止（driveRun 旧口径同）
-    private func markLedgerStopRequested(
-        userEntryID: UUID
-    ) {
-        guard var ledgerEntry = appState.runLedger.entry(
-            forUserEntryID: userEntryID
-        ) else { return }
-        ledgerEntry.stopRequested = true
-        appState.runLedger.upsert(ledgerEntry)
-    }
-
-    /// 消费环踢动口：单例防重入
-    private func kickConsumer() {
-        guard !appState.isDemo, consumeTask == nil
-        else { return }
-        consumeTask = Task {
-            await runConsumerLoop()
-            consumeTask = nil
-        }
-    }
-
-    /// §451 消费环（App-3）：当前线程已受理未落定
-    /// 轮次按提交序逐轮驱动——一轮落定才接下一轮
-    /// （streamAssembler/轮次状态机单轮假设不动）。
-    /// 驱动后本条仍在账（对账预算耗尽未落定）即停
-    /// 环：留待回前台/进线程的 resumeRunIfNeeded
-    /// 续，不许空转重试
-    private func runConsumerLoop() async {
-        while !Task.isCancelled {
-            guard scenePhase == .active,
-                  let thread = currentThread,
-                  let head = appState.runLedger.entries(
-                      forThreadID: thread.id
-                  ).first
-            else { return }
-            await driveAcceptedTurn(
-                thread: thread, entry: head
-            )
-            if let uid = UUID(uuidString: head.userEntryID),
-               appState.runLedger.entry(
-                   forUserEntryID: uid
-               ) != nil {
-                return
-            }
-        }
-    }
-
-    /// §451 单轮驱动：已受理一轮的呈现重置＋半截回
-    /// 填＋对账落定——本体即原 resumeRunIfNeeded 的
-    /// 驱动段（参数化出账本条目），恢复与消费环共
-    /// 用一份，不许两处分叉
-    private func driveAcceptedTurn(
-        thread: ChatThread, entry: RunLedgerEntry
-    ) async {
-        runMachine = RunTurnStateMachine()
-        if entry.runID != nil {
-            runMachine.apply(.submitAccepted)
-            // §426（缺陷一）：runID 在上一进程生命
-            // 周期已确立＝服务器早已确认收到——恢
-            // 复同点补记送达，不许条目在本进程里继
-            // 续挂未确认态
-            markAcceptedEntryAccepted(
-                thread: thread,
-                userEntryID: entry.userEntryID
-            )
-            runMachine.apply(.streamLost)
-        } else {
-            runMachine.apply(.submitAmbiguous)
-        }
-        if entry.stopRequested {
-            runMachine.apply(.stopRequested)
-        }
-        activeRunThreadID = thread.id
-        lastEventSeq = -1
-        terminalOutputHint = nil
-        terminalStatusHint = nil
-        streamAssembler.reset()
-        reasoningPublishGate.reset()
-        resetStreamPresentation()
-        reasoningStartedAt = nil
-        // 半截呈现回填：上次落盘的本轮条目即当前可见
-        // 内容（落定时以 transcript 整段替换）
-        liveToolCards = []
-        liveOrder = []
-        livePartialEntryIDs = []
-        if let userEntry = thread.entries.first(
-            where: { $0.id.uuidString == entry.userEntryID }
-        ) {
-            // §123（H1）：回响条目（echoKey 非空）不是
-            // 本轮半截——不进半截名单、正文回填也不许
-            // 把它当作助手半截正文吞进流式区
-            // §165：审批锚定条目同族同守（谓词统一）
-            // §414：候选面收口到 turnPartialCandidates
-            // ——补待发豁免（账本滞留期落位的待发条目
-            // 不许被当作本轮半截吞掉/删掉）与下一轮界
-            // （中段重发轮之后已落定轮次不进半截名单）
-            let partials = Self.turnPartialCandidates(
-                in: thread, userEntry: userEntry
-            )
-            livePartialEntryIDs = partials.map(\.id)
-            liveToolCards = partials
-                .filter { $0.role == "tool" }
-                .compactMap(\.toolCard)
-            // 第 93 条：半截按段回填——落盘条目按时
-            // 序走查，工具卡与助理段各自归位重建事件
-            // 序；时序最末一条若是助理段，它就是断线
-            // 时打开着的段（重挂后的增量只许拼进它），
-            // 其余助理段一律封存只读。旧形态只取最末
-            // 一段正文吞回单一缓冲：多段半截的前段就
-            // 此从呈现消失、且与打开段混存。旧版落盘
-            // 的单条合并半截（一段到底）在此即整条作
-            // 打开段，行为与旧形态一致
-            let ordered = partials.sorted {
-                $0.createdAt < $1.createdAt
-            }
-            let openEntryID = ordered.last?.id
-            var sealedTexts: [String] = []
-            var openText = ""
-            var rebuiltOrder: [LiveOrderItem] = []
-            for partial in ordered {
-                if partial.role == "tool",
-                   let card = partial.toolCard {
-                    rebuiltOrder.append(.tool(card.id))
-                } else if partial.role == "assistant",
-                          !partial.content.isEmpty {
-                    if partial.id == openEntryID {
-                        openText = partial.content
-                        rebuiltOrder.append(.text)
-                    } else {
-                        rebuiltOrder.append(
-                            .sealedText(sealedTexts.count)
-                        )
-                        sealedTexts.append(partial.content)
-                    }
-                }
-            }
-            if !rebuiltOrder.contains(.text) {
-                rebuiltOrder.append(.text)
-            }
-            streamAssembler.restore(
-                sealed: sealedTexts, current: openText
-            )
-            liveOrder = rebuiltOrder
-            streamingText = ""
-        } else {
-            streamingText = ""
-            // 0.36.10：无半截可回填时事件序仍立正文位
-            // （卡列恒空、只剩 .text 一记）
-            liveOrder = [.text]
-        }
-        // §385（总表 163）：续接在跑的一轮同起实时
-        // 活动，落定即收（与 driveRun 同口径）
-        await RunLiveActivityCenter.shared.begin(
-            taskName: thread.title
-        )
-        isDrivingRun = true
-        var mutableEntry = entry
-        await reconcileRun(
-            thread: thread, entry: &mutableEntry,
-            demoMode: false
-        )
-        isDrivingRun = false
-        await RunLiveActivityCenter.shared.end()
-        // 发送失败机制包（语义 4）：对账收尾的全
-        // 量 drain 删除（触发源收敛），只留定向踢
-        // 泵一脚——泵已退出时排进来的条目要等本轮
-        // 落定才成车道头条，没有这一脚只能等无关
-        // 的外部事件。这一脚不可能自激成环：落定
-        // 失败的头条在新记账口径下被车道堵住等手
-        // 点（准入看成因＋退避带钟），踢泵只让车道
-        // 重新判定一次、不会把失败条重投出去（死
-        // 循环的必要条件是清账重置、已在语义 1/2
-        // 切断；钉测 ChatFailKeepPinTests 钉此面）
-        kickSubmitPump(thread: thread)
-    }
-
-    /// §451（App-4）落定锚解析：条目已钉 server-
-    /// RowID 直用；未钉（本进程新发条目落定前恒未
-    /// 钉）走 Core 配对图按本地序位查（与落定补缺
-    /// 同一配对、判同口径单源）。解析不到回 nil，
-    /// 由 settleRunFromTranscript 按在账轮数裁决
-    /// （多轮并存时不许走无锚口径）
-    private func transcriptAnchorRowID(
-        thread: ChatThread, entry: RunLedgerEntry,
-        messages: [SessionMessage]
-    ) -> Int? {
-        guard let userEntry = thread.entries.first(
-            where: { $0.id.uuidString == entry.userEntryID }
-        ) else { return nil }
-        if let pinned = userEntry.serverRowID {
-            return pinned
-        }
-        let localUsers = thread.entries.filter {
-            $0.role == "user"
-        }
-        guard let position = localUsers.firstIndex(
-            where: { $0.id == userEntry.id }
-        ) else { return nil }
-        let pairs = RunTranscriptSettle.pairedRowIDs(
-            messages: messages,
-            localUserEntries: localUsers.map {
-                (content: $0.content,
-                 createdAt: $0.createdAt,
-                 filePaths: $0.remoteFilePaths,
-                 imagePaths: $0.remoteImagePaths)
-            }
-        )
-        return pairs[position]
-    }
-
-    /// §451（App-6）：已受理未执行谓词——账本在
-    /// 席、有 runID、且不是本线程最早未落定条（队
-    /// 首可能已在服务端执行中、撤它走停止语义；非
-    /// 队首必在服务端 FIFO 里排队未开轮）。消费环
-    /// 恒驱动队首，谓词与驱动天然互斥
-    private func acceptedWithdrawAvailable(
-        for entry: ChatEntry
-    ) -> Bool {
-        guard entry.role == "user",
-              let thread = entry.thread,
-              let ledgerEntry = appState.runLedger.entry(
-                  forUserEntryID: entry.id
-              ),
-              ledgerEntry.runID != nil,
-              let head = appState.runLedger.entries(
-                  forThreadID: thread.id
-              ).first,
-              head.userEntryID != entry.id.uuidString
-        else { return false }
-        return true
-    }
-
-    /// §451（App-6）撤回已受理未执行条目：服务端
-    /// stop（排队中的 admission 走 cancel_queued、
-    /// 不会开轮）→ 摘本轮账本 → 删本地条目＋清暂
-    /// 存/重试记账（与 withdrawUnsentEntry 同尾）。
-    /// 极小竞态下若已开轮，stop 即中断该轮、其服
-    /// 务端行按既有补缺口径回补呈现，本动作的保证
-    /// 是「不再继续执行」
-    private func withdrawAcceptedEntry(_ entry: ChatEntry) {
-        guard acceptedWithdrawAvailable(for: entry),
-              let thread = entry.thread,
-              let ledgerEntry = appState.runLedger.entry(
-                  forUserEntryID: entry.id
-              ),
-              let runID = ledgerEntry.runID,
-              let config = appState.config,
-              let apiKey = appState.apiKey
-        else { return }
-        let entryID = entry.id
-        Task {
-            try? await appState.client.stopRun(
-                config: config, apiKey: apiKey, runID: runID
-            )
-        }
-        appState.runLedger.remove(userEntryID: entryID)
-        if unsentEditTargetID == entryID {
-            unsentEditTargetID = nil
-            unsentEditFilesRepresented = false
-        }
-        failedFilePayloads[entryID] = nil
-        pendingResendAttachments[entryID] = nil
-        try? stagedSendStore.remove(entryID: entryID)
-        appState.outboxRetry.clear(entryID: entryID)
-        modelContext.delete(entry)
-        try? modelContext.save()
-        kickSubmitPump(thread: thread)
-        kickConsumer()
-    }
-
-    /// 发件箱触发口（台账 154／G-04）：回前台/网络
-    /// 恢复/切线程/进页四处同调本口。§451 起 drain
-    /// 退役投递职责（旧 drainOutboxLoop 的串行派发
-    /// 整条删除）——本口只剩记账卫生＋踢提交泵/消
-    /// 费环：投递归泵（落盘即提交、严格保序）、已
-    /// 受理轮次的驱动归消费环；连接配置缺失时不踢
-    /// （没连上时尝试只会白烧重试次数）
-    private func drainOutboxIfNeeded() {
-        guard !appState.isDemo,
-              appState.config != nil, appState.apiKey != nil,
-              let thread = currentThread
-        else { return }
-        outboxHousekeeping(in: thread)
-        kickSubmitPump(thread: thread)
-        kickConsumer()
-    }
-
-    /// 记账卫生（原 drain 趟首两件）：只清条目已不
-    /// 存在的残账。
-    /// 发送失败机制包（语义 1）：旧第二件「已落定
-    /// 条目的旧重试账同清」（clearDeliveredOutbox-
-    /// Records）整体退役——它按 !isOutboxEntry 在
-    /// 受理后立刻把在飞条目的账扫掉，是 B1 清账错
-    /// 位与死循环的一环；清账点全集只剩三处：落
-    /// 定成功（applySettledTurn 按条）、用户撤
-    /// 回、编辑重投
-    private func outboxHousekeeping(in thread: ChatThread) {
-        let validIDs = Set(
-            threads.flatMap {
-                $0.entries.map { $0.id.uuidString }
-            }
-        )
-        appState.outboxRetry.prune(validEntryIDs: validIDs)
-    }
-
-    /// 提交段孤儿浮现（DESIGN §336）：状态 sending
-    /// 但 run 账本无此轮的条目——落账与提交之间极
-    /// 小窗口内进程身亡所致，服务端是否受理不可
-    /// 知。处置只两步：折回待发巷让它可见（未发送
-    /// 行）、打人工接管标记让自动链永不重发它，
-    /// 是否重发由用户看内容裁决。有账本在飞或正
-    /// 在驱动的 sending 不在此列（对账链管辖）
-    private func surfaceSendingOrphans(in thread: ChatThread) {
-        for entry in thread.sortedEntries
-        where entry.sendState == .sending
-            && !entry.sendFailed && !entry.isPendingSend {
-            // §451：逐条核账——本条有账本＝对账链管
-            // 辖（多轮并存后「整线程账本为空＋无流在
-            // 跑」的旧守卫作废：别的轮次在飞不该把本
-            // 条的孤儿身份藏起来）；泵正在提交本条
-            // （.sending 已写、账本未落的瞬时窗）同
-            // 跳过
-            if appState.runLedger.entry(
-                forUserEntryID: entry.id
-            ) != nil { continue }
-            if pumpInFlightEntryIDs.contains(entry.id) {
-                continue
-            }
-            entry.markPendingSend(in: modelContext)
-            appState.outboxRetry.markManualOnly(
-                entryID: entry.id
-            )
-        }
-    }
-
-    /// 待发文件逐个上传（0.36.29，件四）：顺序即待
-    /// 发顺序（@file 拼装顺序从它）；逐个经 9119
-    /// 文件通道写 attachments/<文件名>（overwrite
-    /// 覆盖同名）、取回执绝对路径；任一失败或回执
-    /// 无落点即抛 FileUploadFailure 点名该文件——
-    /// 整条拦下在 send 侧，不在此处吞单个文件。
-    /// 服务端 attachments/ 副本无自动过期，本轮只
-    /// 记账不做清理策略（契约报告边界口径）
-    private func uploadPendingFiles(
-        _ payloads: [(name: String, data: Data)]
-    ) async throws -> [String] {
-        // §237 P7：进度聚合按原始字节计（data_url 在
-        // 客户端内的比例与原始字节同比例放大、比值
-        // 不变）；tracker 线程安全，URLSession 回调
-        // 队列直接写、呈现读聚合值。401 重登整传重试
-        // 时单文件比例会从 0 重报，聚合峰值口径保证
-        // 界面百分比不倒退
-        let tracker = UploadProgressTracker(
-            fileSizes: payloads.map(\.data.count)
-        )
-        var paths: [String] = []
-        for payload in payloads {
-            tracker.beginFile(size: payload.data.count)
-            let receipt: ManagedFileUploadReceipt
-            do {
-                receipt = try await appState.performAdmin {
-                    client, cfg in
-                    // §410：只递原始字节——data_url 与请
-                    // 求体组包在客户端内后台完成（流式写
-                    // 临时文件），主 actor 不再同步付
-                    // base64＋JSON 体的成形成本与内存峰值
-                    try await client.uploadAttachment(
-                        config: cfg,
-                        path: FileSendAssembly.uploadPath(
-                            fileName: payload.name
-                        ),
-                        fileName: payload.name,
-                        data: payload.data,
-                        onProgress: { fileFraction in
-                            let aggregate = tracker
-                                .updateCurrentFile(
-                                    fraction: fileFraction
-                                )
-                            Task { @MainActor in
-                                uploadProgressFraction = aggregate
-                            }
-                        }
-                    )
-                }
-            } catch let error as HermesError {
-                throw FileUploadFailure(
-                    fileName: payload.name,
-                    reason: error.userMessage
-                )
-            }
-            tracker.finishCurrentFile()
-            uploadProgressFraction = tracker.fractionCompleted
-            guard let serverPath = receipt.serverPath else {
-                throw FileUploadFailure(
-                    fileName: payload.name,
-                    reason: "服务端没有返回文件落点。"
-                )
-            }
-            ChatFileStore.shared.seedLocal(path: serverPath, data: payload.data)
-            paths.append(serverPath)
-        }
-        return paths
-    }
-
-    /// 本轮出门形态（0.27.0 重写，状态机见 OneDayCore
-    /// .SideChatLink）：全线程同口径两路——
-    /// ①已链接（绑定非桶＋种子已落；主线的绑定/种
-    ///   子位读 SideChatStore 双位）：会话模式——载
-    ///   荷只取尾条＋会话头；旁聊锁模型与胶囊不一致
-    ///   （且锁为我方所设）时先推一次会话内切换（尽
-    ///   力而为：失败不挡发送、下轮再试——该端点的
-    ///   公网送达缺口登记于 §54，属已知残留）；
-    /// ②未链接：先走 performLink（建会话或 import
-    ///   种子，seedEntries 为本轮条目落盘前的快照）
-    ///   ——成功落绑定/种子位/锁模型、失败计数清零，
-    ///   本轮随即以会话模式发出；**失败抛错整轮不
-    ///   发**（0.21.0 的「失败回退无状态重放」整类
-    ///   删除：无头发送在服务端按开头合并落库、是
-    ///   串话入口，诊断档判死）；失败计数＋1、原因
-    ///   留痕（旁聊落线程、主线落 SideChatStore）由
-    ///   本函数记账，呈现与条目回滚在 send() 的
-    ///   catch。用户在链接窗口内主动停止抛
-    ///   CancellationError、不留痕（send 按停止语义
-    ///   静默收尾）。
-    /// 发送链接步退避重试（0.36.20，§86.3，治审计
-    /// R2）：prepareSendShape 此前单发无重试——点发送
-    /// 撞上瞬断即整轮不发＋弹横幅，是全发送链重试覆盖
-    /// 最薄一环。本包装只对瞬断类失败（HermesError.
-    /// isTransient，既有失败分型）做有界退避重试：总
-    /// 尝试与提交步同量级（Core RetryBackoff.max-
-    /// Attempts＝首发＋2 次）、全抖动退避同源；鉴权/
-    /// 业务失败不重试、原样上抛走既有失败分支。重试
-    /// 期间不产任何新文案（§86.5 呈现一档：静默期），
-    /// 耗尽后才由调用方既有分支出失败横幅——本条消息
-    /// 从未进入提交步，「未发送」口径属实。重试语义与
-    /// 用户手动重按发送完全一致（主线是 ensure 幂等；
-    /// 旁聊每次尝试内现铸定 id，极端时序下可能在服务
-    /// 端多留一个空会话——无消息落入、与手按重发同
-    /// 性质，不为此另造跨尝试 id 托管）
-    private func prepareSendShapeWithRetry(
-        thread: ChatThread, fullContext: [ChatMessage],
-        seedEntries: [SeedEntry]
-    ) async throws -> (messages: [ChatMessage], sessionID: String?) {
-        var attempts = 0
-        while true {
-            attempts += 1
-            do {
-                return try await prepareSendShape(
-                    thread: thread, fullContext: fullContext,
-                    seedEntries: seedEntries
-                )
-            } catch let error as HermesError {
-                if Task.isCancelled {
-                    throw CancellationError()
-                }
-                guard error.isTransient,
-                      RetryBackoff.shouldRetry(afterAttempts: attempts)
-                else { throw error }
-                let wait = RetryBackoff.delay(
-                    afterFailure: attempts,
-                    jitterUnit: Double.random(in: 0...1)
-                )
-                if wait > 0 {
-                    try? await Task.sleep(for: .seconds(wait))
-                }
-                if Task.isCancelled {
-                    throw CancellationError()
-                }
-            }
-        }
-    }
-
-    private func prepareSendShape(
-        thread: ChatThread, fullContext: [ChatMessage],
-        seedEntries: [SeedEntry]
-    ) async throws -> (messages: [ChatMessage], sessionID: String?) {
-        let store = appState.sessionLedger
-        let isMain = thread.id == store.mainThreadID
-        // §331 改判：计划只看绑定 id（主线代入钦定
-        // id）——种子位退出判据：自有会话种子未落也
-        // 直发、种子转后台义务（欠账在本分支顺带排
-        // 调度，不拦本轮）；id 未知才走建立路
-        let plan = isMain
-            ? SideChatLink.sendPlan(
-                serverSessionID: store.mainServerSessionID
-            )
-            : SideChatLink.sendPlan(
-                serverSessionID: thread.serverSessionID
-            )
-        switch plan {
-        case .session(let sessionID):
-            if isMain {
-                scheduleMainBackgroundSync()
-            }
-            if !isMain, SideChatLink.needsModelRelock(
-                linkedModel: thread.linkedModel,
-                capsuleModel: appState.chatModel(
-                    serverSessionID: thread.serverSessionID,
-                    threadID: thread.id
-                )
-            ) {
-                let capsule = appState.chatModel(
-                    serverSessionID: thread.serverSessionID,
-                    threadID: thread.id
-                )
-                var pushed = false
-                do {
-                    try await appState
-                        .performAdmin { client, config in
-                            try await client
-                                .updateServerSessionModel(
-                                    config: config, id: sessionID,
-                                    model: capsule
-                                )
-                        }
-                    pushed = true
-                } catch {
-                    pushed = false
-                }
-                if pushed {
-                    thread.linkedModel = capsule
-                    try? modelContext.save()
-                }
-            }
-            if !isMain {
-                // §331：种子/回补欠账顺带排后台（防重
-                // 入在调度器；本轮发送不等待、不受其
-                // 成败影响）；旧账先派生再判欠账
-                deriveLegacySeedObligation(thread)
-                if thread.seedSyncState.needsSyncAttempt {
-                    scheduleSeedSync(
-                        thread: thread, seedSnapshot: seedEntries
-                    )
-                }
-                if thread.historyUnsynced {
-                    scheduleHistoryBackfillIfNeeded(thread: thread)
-                }
-            }
-            return (
-                SideChatLink.payload(
-                    plan: plan, fullContext: fullContext
-                ),
-                sessionID
-            )
-        case .linkAndSeed:
-            do {
-                let linkedID: String
-                if isMain {
-                    guard await ensureMainLink(
-                        seedSnapshot: seedEntries
-                    ) else {
-                        throw HermesError.unreachable(
-                            store.mainLinkLastError
-                                ?? "主线会话链接失败"
-                        )
-                    }
-                    linkedID = store.ensureMainServerSessionID()
-                } else {
-                    // 目标 id：已存自有 id 沿用，其余（无
-                    // 绑定/绑合并桶/绑他方会话待解绑）一
-                    // 律新铸——合并桶绑定在此被自有 id
-                    // 覆盖、桶本体零动作
-                    let desiredID = thread.serverSessionID
-                        .flatMap {
-                            SideChatLink.isOwnSessionID($0)
-                                ? $0 : nil
-                        } ?? SideChatLink.newSessionID()
-                    let linkModel = appState.chatModel(
-                        serverSessionID: desiredID,
-                        threadID: thread.id
-                    )
-                    do {
-                        let outcome = try await performLink(
-                            desiredID: desiredID, title: nil,
-                            model: linkModel,
-                            seedEntries: seedEntries
-                        )
-                        linkedID = outcome.sessionID
-                        applySeedOutcome(
-                            outcome, to: thread, seed: seedEntries
-                        )
-                    } catch let linkError {
-                        // §331 探针恢复：链接多半死在种
-                        // 子导入一步——回读确认锚点在
-                        // （或空建保住存在性）即按已链
-                        // 发送，种子转待导入由后台补；
-                        // 探针也失败才按原错误整轮不发
-                        guard let recoveredID =
-                            await recoverLinkByProbe(
-                                desiredID: desiredID, title: nil,
-                                model: linkModel
-                            )
-                        else { throw linkError }
-                        linkedID = recoveredID
-                        thread.seedSyncState = SideChatLink
-                            .seedTranscript(from: seedEntries).isEmpty
-                            ? .notOwed : .pending
-                    }
-                    thread.serverSessionID = linkedID
-                    thread.linkedModel = appState.chatModel(
-                        serverSessionID: linkedID, threadID: thread.id
-                    )
-                    thread.linkFailureCount = 0
-                    thread.linkLastError = nil
-                    try? modelContext.save()
-                    if thread.seedSyncState.needsSyncAttempt {
-                        scheduleSeedSync(
-                            thread: thread, seedSnapshot: seedEntries
-                        )
-                    }
-                }
-                return (
-                    SideChatLink.payload(
-                        plan: .session(sessionID: linkedID),
-                        fullContext: fullContext
-                    ),
-                    linkedID
-                )
-            } catch {
-                if Task.isCancelled {
-                    throw CancellationError()
-                }
-                if !isMain {
-                    thread.linkFailureCount = SideChatLink
-                        .failureCount(
-                            afterFailure: thread.linkFailureCount
-                        )
-                    thread.linkLastError =
-                        (error as? HermesError)?.userMessage
-                        ?? "建会话失败"
-                    try? modelContext.save()
-                }
-                throw error
-            }
-        }
-    }
-
-    /// 演示模式：种子对话的最后一句用户消息由假客户端
-    /// 的 run 通道回完（0.31.0：演示也走 run 驱动——假
-    /// 客户端 submitRun/runEvents 产定稿回复，落定走
-    /// 状态 output 合成路径，不碰账本与 transcript）。
-    /// 正常模式直接返回，零影响。
-    private func startDemoStreamIfNeeded() async {
-        guard DemoMode.current.isDemo, !demoStreamStarted else {
-            return
-        }
-        // 演示流稳健性（DESIGN-V4 §11.6 历史）：等待改有界
-        // 长预算（线程与连接态齐备才开流，上限 20s），演示
-        // 专用路径，正常模式第一行已返回
-        for _ in 0..<80 where currentThread == nil {
-            try? await Task.sleep(for: .milliseconds(250))
-        }
-        guard let thread = currentThread else {
-            return
-        }
-        demoStreamStarted = true
-        // 等种子渲染落稳再开流，截图窗口对齐流式中段
-        try? await Task.sleep(for: .seconds(1))
-        guard let userEntry = thread.sortedEntries
-            .last(where: { $0.role == "user" }) else { return }
-        streamingText = ""
-        await driveRun(
-            thread: thread,
-            tail: ChatMessage(role: "user", content: userEntry.content),
-            sessionID: nil, userEntry: userEntry, demoMode: true
-        )
-    }
-
-    // MARK: - Run 驱动（0.31.0，任务制生成）
-
-    /// 一轮 run 的全程驱动：提交（Idempotency-Key 同
-    /// key 重演兜底）→ events 订阅呈现 → 断线转对账
-    /// （状态轮询＋events 重挂＋transcript 落定）。旧
-    /// runStream（chat completions 单连接流）与 0.20.0
-    /// 的对账恢复（删半截以原上下文自动重发）整类退
-    /// 役：生成与连接分家后，断线只是「结果未知」，
-    /// 永不映射网络错误、永不自动重发（§58 铁律）。
-    private func driveRun(
-        thread: ChatThread, tail: ChatMessage,
-        sessionID: String?, userEntry: ChatEntry,
-        demoMode: Bool = false
-    ) async {
-        guard let config = appState.config,
-              let apiKey = appState.apiKey else {
-            streamingText = nil
-            resetStreamPresentation()
-            reasoningStartedAt = nil
-            presentSendFailure(kind: .authRejected)
-            // 基础止血包（P1）：连接态缺失同样是本轮
-            // 失败——条目留痕挂标记，恢复连接后点标
-            // 记重发（演示态不挂，种子条目不是用户真
-            // 发送）
-            if !demoMode {
-                markTurnFailed(
-                    entry: userEntry, failureKind: .authRejected
-                )
-            }
-            // 失败改判 error（0.36.2，表 D 语义归位）
-            Haptics.error()
-            sendTask = nil
-            return
-        }
-        isDrivingRun = true
-        // §385（总表 163）：实时活动随一轮起落——起
-        // 跑沿启动、退出沿（defer 覆盖失败/取消一切
-        // 出口）收
-        await RunLiveActivityCenter.shared.begin(
-            taskName: thread.title
-        )
-        defer {
-            isDrivingRun = false
-            Task { await RunLiveActivityCenter.shared.end() }
-        }
-        runMachine = RunTurnStateMachine()
-        activeRunThreadID = thread.id
-        lastEventSeq = -1
-        livePartialEntryIDs = []
-        terminalOutputHint = nil
-        terminalStatusHint = nil
-        streamAssembler.reset()
-        reasoningPublishGate.reset()
-        resetStreamPresentation()
-        // §494：直播行只在新发轮武装（恢复轮走
-        // resumeActiveRun、不经此点）
-        streamPresentationArmed = true
-        reasoningStartedAt = nil
-        // 输入组装：尾条纯文本走字符串形态、多模态走
-        // 单元素消息形态（探针实测两形态均成立）
-        let input: RunInput = tail.parts == nil
-            ? .text(tail.content) : .message(tail)
-        let choice = appState.sessionModelChoice(
-            serverSessionID: sessionID, threadID: thread.id
-        )
-        let provider = choice.providerField
-        // 台账 154（DESIGN §383）：消息级幂等身份——
-        // 账本幂等键自此取条目的 clientMessageID：首
-        // 轮铸造并落盘，之后发件箱自动重试/手点重发/
-        // 中段原位重发（§414）跨 driveRun 复用同一
-        // id，服务
-        // 端按此 id 回原 run（hermes-deploy 1.5.0 的
-        // client_message_id 语义，头＋body 同值双带）；
-        // 单轮内账本重演口径不变。demo 无服务端、键
-        // 只在内存账本里用，仍现铸不落盘。
-        let idempotencyKey: String
-        if demoMode {
-            idempotencyKey = UUID().uuidString
-        } else if let existing = userEntry.clientMessageID {
-            idempotencyKey = existing
-        } else {
-            idempotencyKey = UUID().uuidString
-            userEntry.clientMessageID = idempotencyKey
-            try? modelContext.save()
-        }
-        var ledgerEntry = RunLedgerEntry(
-            threadID: thread.id.uuidString,
-            sessionID: sessionID ?? "",
-            runID: nil,
-            idempotencyKey: idempotencyKey,
-            userEntryID: userEntry.id.uuidString,
-            submittedAt: Date()
-        )
-        if !demoMode {
-            // 提交前先落账：进程在此后任何时点被杀，回
-            // 来靠账本＋同 key 重演取回本轮（不双跑）
-            appState.runLedger.upsert(ledgerEntry)
-        }
-        // 提交：瞬断同 key 重试至多两次（受理回执丢失
-        // 时重演回原 run）；明确拒绝才是真失败；耗尽
-        // 仍不明＝结果未知，进对账不定性为错误
-        var submitError: HermesError?
-        var attempts = 0
-        var gateWaits = 0
-        while true {
-            do {
-                let response = try await appState.client.submitRun(
-                    config: config, apiKey: apiKey,
-                    sessionID: sessionID ?? "",
-                    input: input, model: choice.model,
-                    provider: provider,
-                    idempotencyKey: ledgerEntry.idempotencyKey
-                )
-                ledgerEntry.runID = response.runID
-                if !demoMode {
-                    appState.runLedger.upsert(ledgerEntry)
-                }
-                runMachine.apply(.submitAccepted)
-                if !demoMode {
-                    markAcceptedEntryAccepted(
-                        thread: thread,
-                        userEntryID: userEntry.id.uuidString
-                    )
-                }
-                submitError = nil
-                break
-            } catch let error as HermesError {
-                if Task.isCancelled {
-                    // 提交窗口内被停止：账本留停止意图、
-                    // 本地静默收尾；下次进本线程时对账链
-                    // 重演取回 run 并真停止（resumeRun-
-                    // IfNeeded），不在此处假装已取消
-                    ledgerEntry.stopRequested = true
-                    if !demoMode {
-                        appState.runLedger.upsert(ledgerEntry)
-                    }
-                    runMachine.apply(.stopRequested)
-                    finishRunPresentation(failed: false)
-                    return
-                }
-                if case .notSentOffline = error {
-                    // §414 增补（断网规格 5.2）：设备明
-                    // 确无网、请求根本没出设备——不是
-                    // 结果未知：不重试、不判 ambiguous、
-                    // 不进对账。折回待发巷（待发标记＋
-                    // queued 态、mayAutoResume）、清账
-                    // 本、收尾呈现（占位行随 sendTask
-                    // 收尾撤）；网络恢复/回前台后由发
-                    // 件箱 drain 自动续发（同 key 幂等
-                    // 不变）。真未知（回执丢失）仍走下
-                    // 方瞬态重试→ambiguous→对账全套，
-                    // 154 幂等本体不动
-                    if !demoMode {
-                        appState.runLedger.remove(
-                            threadID: thread.id
-                        )
-                        userEntry.markPendingSend(
-                            in: modelContext
-                        )
-                    }
-                    finishRunPresentation(failed: false)
-                    return
-                }
-                if case .rateLimited(let retryAfter) = error,
-                   gateWaits < 2 {
-                    // 限流等待门（语义 3，与提交泵同
-                    // 规）：按服务端等待值等、不落失
-                    // 败；等满两轮仍被限才落下方拒绝
-                    // 收口（成因 .rateLimited 钉死）
-                    gateWaits += 1
-                    try? await Task.sleep(
-                        for: .seconds(min(retryAfter ?? 1, 30))
-                    )
-                    if Task.isCancelled {
-                        ledgerEntry.stopRequested = true
-                        if !demoMode {
-                            appState.runLedger.upsert(ledgerEntry)
-                        }
-                        runMachine.apply(.stopRequested)
-                        finishRunPresentation(failed: false)
-                        return
-                    }
-                    continue
-                }
-                if error.isTransient, attempts < 2 {
-                    attempts += 1
-                    // 间隔走 RetryBackoff 同源退避
-                    // （P1-1，与提交泵同口径）
-                    try? await Task.sleep(
-                        for: .seconds(RetryBackoff.delay(
-                            afterFailure: attempts,
-                            jitterUnit: Double.random(in: 0...1)
-                        ))
-                    )
-                    continue
-                }
-                submitError = error
-                runMachine.apply(
-                    error.isTransient
-                        ? .submitAmbiguous : .submitRejected
-                )
-                break
-            } catch {
-                submitError = .unreachable("网络错误")
-                runMachine.apply(.submitAmbiguous)
-                break
-            }
-        }
-        // 聊天可靠性包：重发轮的待发标记在此脱落——
-        // 提交被受理、或结果未知转对账（.unknown 系），
-        // 本轮自此归 run 账本/对账链负责，条目不再是
-        // 「未发送」；只有明确拒绝（.failed）保持待
-        // 发，让用户还能点按再试（拒绝横幅在下方分支
-        // 照旧如实报）
-        if userEntry.isPendingSend, runMachine.phase != .failed {
-            userEntry.deliveryState = nil
-            try? modelContext.save()
-        }
-        if let submitError, runMachine.phase == .failed {
-            // 提交被明确拒绝（真失败）：本轮从未在服务
-            // 端成立——消息留痕、横幅照实报、账本清除
-            // 基础止血包（P1/P2）：留痕之外补失败标记
-            // 与重发入口（旧口径只有横幅、再试只能重打）
-            if !demoMode {
-                appState.runLedger.remove(threadID: thread.id)
-                markTurnFailed(
-                    entry: userEntry,
-                    failureKind: SendFailureKind.classify(
-                        submit: submitError
-                    )
-                )
-            }
-            presentSendFailure(
-                kind: SendFailureKind.classify(
-                    submit: submitError
-                ),
-                detail: submitError.diagnosticDetail
-            )
-            finishRunPresentation(failed: true)
-            return
-        }
-        // §494：发布心跳——50ms 一拍问发布门排
-        // 空积压，与本轮同生共死（defer 取消）；
-        // 未武装/无积压时 tick 恒空转、无副作用
-        let publishTicker = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(
-                    for: .milliseconds(50)
-                )
-                if Task.isCancelled { break }
-                tickStreamPublish()
-            }
-        }
-        defer { publishTicker.cancel() }
-        if case .generating(_) = runMachine.phase {
-            await followRunEvents(
-                thread: thread, entry: ledgerEntry,
-                demoMode: demoMode
-            )
-        }
-        if !runMachine.isSettled {
-            await reconcileRun(
-                thread: thread, entry: &ledgerEntry,
-                demoMode: demoMode
-            )
-        }
-    }
-
-    /// events 订阅：增量入装配器/思考累积器（数据
-    /// 面）、§494 起增量同点喂发布门出呈现快照
-    /// （§409 步 A「不再发布呈现快照」口径作废）、
-    /// 工具卡
-    /// 实时拼装、思考预览（若服务端发出）同路；见
-    /// 到终态事件记账返回，流自结束（断线/缓冲过
-    /// 期）按「未见终态」进结果未知——不在此报错、
-    /// 不做失败分型
-    private func followRunEvents(
-        thread: ChatThread, entry: RunLedgerEntry,
-        demoMode: Bool
-    ) async {
-        // §449.9：新一轮跟随起手先清活动短语（上一轮
-        // 残值不许串轮）；工具在飞栈为本趟局部账
-        appState.liveActivityPhrase = nil
-        var liveToolStack: [(id: String, phrase: String)] = []
-        guard let runID = entry.runID,
-              let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        let stream = appState.client.runEvents(
-            config: config, apiKey: apiKey,
-            runID: runID, lastSeq: lastEventSeq
-        )
-        for await envelope in stream {
-            if let seq = envelope.seq { lastEventSeq = seq }
-            switch envelope.event {
-            case .contentDelta(let delta),
-                 .interim(let delta):
-                if !delta.isEmpty {
-                    // 0.36.10：正文首达记位（事件序编排）
-                    // 第 93 条：封段后 .text 标记已被换成
-                    // .sealedText，新段首增量在此重新记位
-                    // ——位置即新段的事件位（工具卡之后）
-                    noteLiveOrder(.text)
-                    // §409 步 A/E：增量只入装配器累
-                    // 积（纯累积器）；§494：同点把装
-                    // 配器全文喂发布门、到拍出快照
-                    streamAssembler.offer(delta)
-                    offerStreamPublish()
-                }
-            case .reasoningPreview(let text):
-                if reasoningStartedAt == nil {
-                    reasoningStartedAt = Date()
-                }
-                // 0.36.10：思考首达记位（事件序编排）
-                noteLiveOrder(.reasoning)
-                // §409 步 A/E：思考增量只入累积器
-                // （落盘源头），不再发布快照
-                reasoningPublishGate.offer(text)
-            case .toolStarted(let id, let name, let preview):
-                // 第 93 条：工具开始＝服务端段边界——
-                // 先封当前正文段再落卡，卡后的新段增量
-                // 进新缓冲，不许再拼回本段
-                sealStreamSegment()
-                appendLiveToolCard(
-                    id: id, name: name, preview: preview
-                )
-                // §449.9：活动短语入 AppState 单源（胶
-                // 囊第二行/中枢状态行同读）；短语由
-                // Core 映射表单点派生
-                liveToolStack.append((
-                    id: id,
-                    phrase: ToolCardClassifier.activityPhrase(
-                        forToolName: name
-                    )
-                ))
-                appState.liveActivityPhrase =
-                    liveToolStack.last?.phrase
-            case .toolCompleted(
-                let id, let name, let preview, let failed
-            ):
-                completeLiveToolCard(
-                    id: id, name: name, preview: preview,
-                    failed: failed
-                )
-                liveToolStack.removeAll { $0.id == id }
-                appState.liveActivityPhrase =
-                    liveToolStack.last?.phrase
-            case .terminal(let kind, let output):
-                appState.liveActivityPhrase = nil
-                terminalOutputHint = output
-                // §494：终态拍全量发布——对账落定
-                // 前直播行先呈全文（与装配器兜底逐
-                // 字一致），落定同键换装无跳变
-                flushStreamPublish()
-                runMachine.apply(.statusTerminal(kind))
-                return
-            case .other(_):
-                continue
-            }
-        }
-        // 流结束而未见终态：结果未知（非错误）。半截
-        // 先落盘，进程被回收也不凭空消失
-        appState.liveActivityPhrase = nil
-        if !runMachine.isSettled,
-           case .generating(_) = runMachine.phase {
-            runMachine.apply(.streamLost)
-            // §494：半截落盘接管呈现前先全量发布
-            // （落盘条目与直播行同文、换装无回退）
-            flushStreamPublish()
-            persistRunPartials(thread: thread)
-        }
-    }
-
-    /// 封段（第 93 条）：工具边界到达时把当前正文段
-    /// 在装配器内定稿入封存列——liveOrder 的 .text
-    /// 标记原位换成 .sealedText（段的事件位不动，
-    /// 半截落盘按此序成条）。§494：封段拍同点全
-    /// 量发布（段已定稿、呈现不许等下一增量才追
-    /// 上封存段）。当前段为空（工具先行/并行工
-    /// 具连发边界）时装配器无段可封，此处整件空转
-    private func sealStreamSegment() {
-        guard streamAssembler
-            .sealCurrentSegment() != nil
-        else { return }
-        flushStreamPublish()
-        let marker = LiveOrderItem.sealedText(
-            streamAssembler.sealedSegments.count - 1
-        )
-        if let textIndex = liveOrder.firstIndex(of: .text) {
-            liveOrder[textIndex] = marker
-        } else {
-            noteLiveOrder(marker)
-        }
-    }
-
-    private func appendLiveToolCard(
-        id: String, name: String, preview: String
-    ) {
-        let cardID = id.isEmpty ? "live-\(lastEventSeq)" : id
-        guard !liveToolCards.contains(
-            where: { $0.id == cardID }
-        ) else { return }
-        // 0.36.10（诊断 D3-3/D3-4）：标题回落改中文类
-        // 名（旧实现英文短名直出卡面）；摘要过净化与
-        // 落定同口径。events 通道不带参数分片，靠参数
-        // 分形的标题（memory/skill 动作形）直播期用泛
-        // 称、落定以 transcript 真参数重建修正——两期
-        // 形态差异只在标题粒度，落定为准
-        let title = ToolCardClassifier.title(
-            forToolName: name, arguments: ""
-        ) ?? ToolCardClassifier.fallbackTitle(forToolName: name)
-        liveToolCards.append(ToolCard(
-            id: cardID, toolName: name,
-            category: ToolCardClassifier.category(
-                forToolName: name
-            ),
-            title: title,
-            summary: ToolCardClassifier.sanitizedSummary(preview),
-            result: nil, resultFailed: false
-        ))
-        noteLiveOrder(.tool(cardID))
-    }
-
-    private func completeLiveToolCard(
-        id: String, name: String, preview: String,
-        failed: Bool
-    ) {
-        let cardID = id.isEmpty ? "live-\(lastEventSeq)" : id
-        guard let index = liveToolCards.firstIndex(
-            where: { $0.id == cardID }
-        ) else {
-            appendLiveToolCard(id: id, name: name, preview: "")
-            completeLiveToolCard(
-                id: id, name: name, preview: preview,
-                failed: failed
-            )
-            return
-        }
-        let old = liveToolCards[index]
-        // 0.36.10（诊断 D3-6）：直播结果先过 unwrap 与
-        // 落定同口径——旧实现 preview 原文直存，与落
-        // 定的剥包裹/分型形态前后两套，同一卡直播与
-        // 落定可能长得不一样；失败标记取事件信号与
-        // 结果自带信号的并集，落定时再以 transcript
-        // 信号为准重算（D3-9）
-        let unwrapped = ToolResultUnwrap.unwrap(preview)
-        liveToolCards[index] = ToolCard(
-            id: old.id, toolName: old.toolName,
-            category: old.category, title: old.title,
-            summary: old.summary, result: unwrapped.text,
-            resultFailed: failed || unwrapped.failed
-        )
-    }
-
-    /// 对账：以服务端为准把本轮落定。链路＝（缺
-    /// runID 时同 key 重演取回）→（停止意图先行发
-    /// stop）→ 状态轮询＋events 重挂＋transcript 落
-    /// 定（状态只报命运、transcript 才是成品；状态
-    /// 记录缺失时 transcript 单独定性）。预算（10 分
-    /// 钟）耗尽停在未知：账本保留、下次进本线程续对
-    /// 账，不报错、不重发。
-    /// run 丢失的访问记账＋终局裁决（发送失败机制
-    /// 包·语义 6）：记一次「查无此 run」的访问——计
-    /// 数＋首查时刻回写账本（跨访问累计，旧口径每
-    /// 次访问从零磨 600s、账本永不终局）；累计达
-    /// 标（访问 ≥3 次或首查距今 ≥24h，双闸取或，RunLedger.
-    /// missingRunIsLost）→ 摘账本＋条目判失败可重
-    /// 发（成因 .runResultLost 落账钉死、不自动重
-    /// 发）＋终局呈现，返回 true；未达标返回 false
-    /// （账本保留、下次访问续查）。极少数同访双记
-    /// （观察窗与耗尽段同访各记一次）至多让次数闸
-    /// 提前一次访问触发——run 持续查不到本身已是
-    /// 强证据，口径可接受
-    private func recordMissingRunVisit(
-        thread: ChatThread, entry: inout RunLedgerEntry,
-        demoMode: Bool
-    ) -> Bool {
-        entry.missingReconcileCount += 1
-        if entry.firstMissingAt == nil {
-            entry.firstMissingAt = Date()
-        }
-        if !demoMode {
-            appState.runLedger.upsert(entry)
-        }
-        guard RunLedger.missingRunIsLost(
-            missingCount: entry.missingReconcileCount,
-            firstMissingAt: entry.firstMissingAt,
-            now: Date()
-        ) else { return false }
-        if !demoMode,
-           let uid = UUID(uuidString: entry.userEntryID) {
-            appState.runLedger.remove(userEntryID: uid)
-        }
-        if let userEntry = thread.entries.first(
-            where: { $0.id.uuidString == entry.userEntryID }
-        ) {
-            markTurnFailed(
-                entry: userEntry, failureKind: .runResultLost
-            )
-        }
-        presentSendFailure(kind: .runResultLost)
-        Haptics.error()
-        return true
-    }
-
-    private func reconcileRun(
-        thread: ChatThread, entry: inout RunLedgerEntry,
-        demoMode: Bool
-    ) async {
-        guard let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        if runMachine.phase == .unknown {
-            runMachine.apply(.foregrounded)
-        }
-        var deadline = Date().addingTimeInterval(600)
-        // 对账分型（发送失败机制包·语义 7）：查询失
-        // 败＝无证据，不烧 600s 预算——每次无证据轮
-        // 询顺延期限，总顺延封顶 600s 防死服务端无
-        // 限续命
-        var deadlineExtensions: TimeInterval = 0
-        // 本次访问首次见真 missing（状态端点 404）
-        // 的时刻：持续 60s 仍无 transcript 证据才记
-        // 一次「丢失访问」（跨访问累计见 RunLedger-
-        // Entry.missingReconcileCount）
-        var missingPollsStartedAt: Date?
-        // §153：重演取回用本会话当前执行选择（与首提同源）
-        let replayChoice = appState.sessionModelChoice(
-            serverSessionID: entry.sessionID, threadID: thread.id
-        )
-        var transcriptMisses = 0
-        while !runMachine.isSettled {
-            if Task.isCancelled { return }
-            // runID 缺失（受理回执丢失/提交窗口被杀）：
-            // 同 key 重演取回——服务端幂等保证不双跑
-            if entry.runID == nil {
-                guard let replayInput = runReplayInput(
-                    thread: thread, entry: entry
-                ) else {
-                    // 用户条目已不在（线程被清）：本轮无
-                    // 从恢复，清账收尾（§451：只清本轮
-                    // 这条，同线程其他未落定轮不许牵连）
-                    if !demoMode,
-                       let uid = UUID(
-                           uuidString: entry.userEntryID
-                       ) {
-                        appState.runLedger.remove(
-                            userEntryID: uid
-                        )
-                    }
-                    finishRunPresentation(failed: false)
-                    return
-                }
-                do {
-                    let response = try await appState.client
-                        .submitRun(
-                            config: config, apiKey: apiKey,
-                            sessionID: entry.sessionID,
-                            input: replayInput,
-                            model: replayChoice.model,
-                            provider: replayChoice.providerField,
-                            idempotencyKey: entry.idempotencyKey
-                        )
-                    entry.runID = response.runID
-                    if !demoMode {
-                        appState.runLedger.upsert(entry)
-                    }
-                    runMachine.apply(.submitAccepted)
-                    if !demoMode {
-                        markAcceptedEntryAccepted(
-                            thread: thread,
-                            userEntryID: entry.userEntryID
-                        )
-                    }
-                } catch let replayError {
-                    if let hermesError = replayError as? HermesError,
-                       case .rateLimited(let retryAfter) = hermesError {
-                        try? await Task.sleep(
-                            for: .seconds(min(retryAfter ?? 1, 30))
-                        )
-                        continue
-                    }
-                    switch RunSubmitRetry.classify(replayError) {
-                    case .notSentOffline:
-                        if !demoMode,
-                           let uid = UUID(uuidString: entry.userEntryID),
-                           let userEntry = thread.entries.first(where: { $0.id == uid }) {
-                            appState.runLedger.remove(userEntryID: uid)
-                            userEntry.markPendingSend(in: modelContext)
-                        }
-                        presentSendFailure(kind: .offlineNotSent)
-                        finishRunPresentation(failed: false)
-                        return
-                    case .rejected:
-                        let hermesError = (replayError as? HermesError)
-                            ?? .unreachable(replayError.localizedDescription)
-                        let kind: SendFailureKind = hermesError.isSessionNotFound
-                            ? .authRejected
-                            : SendFailureKind.classify(submit: hermesError)
-                        if !demoMode,
-                           let uid = UUID(uuidString: entry.userEntryID) {
-                            appState.runLedger.remove(userEntryID: uid)
-                            if let userEntry = thread.entries.first(where: { $0.id == uid }) {
-                                markTurnFailed(entry: userEntry, failureKind: kind)
-                            }
-                        }
-                        presentSendFailure(
-                            kind: kind,
-                            detail: hermesError.diagnosticDetail
-                        )
-                        finishRunPresentation(failed: true)
-                        return
-                    case .transient, .unknown:
-                        // 重演提交抛错同属无证据（传输/服务
-                        // 端问题）：顺延期限、不烧预算
-                        if deadlineExtensions < 600 {
-                            deadline = deadline
-                                .addingTimeInterval(3)
-                            deadlineExtensions += 3
-                        }
-                        if Date() > deadline { break }
-                        try? await Task.sleep(for: .seconds(3))
-                        continue
-                    }
-                }
-            }
-            guard let runID = entry.runID else { continue }
-            // 停止意图先行（账本/机器任一置位）
-            if runMachine.stopRequested || entry.stopRequested {
-                if !runMachine.stopRequested {
-                    runMachine.apply(.stopRequested)
-                }
-                try? await appState.client.stopRun(
-                    config: config, apiKey: apiKey, runID: runID
-                )
-            }
-            // 已有终态证据（events 先行到达）：trans-
-            // cript 落定；迟迟不落（或演示态无 trans-
-            // cript）以状态 output 合成落定
-            if runMachine.terminalKind != nil {
-                if !demoMode,
-                   await settleRunFromTranscript(
-                       thread: thread, entry: entry
-                   ) {
-                    return
-                }
-                transcriptMisses += 1
-                if demoMode || transcriptMisses >= 2 {
-                    settleRunFromStatusOutput(
-                        thread: thread, entry: entry
-                    )
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(1500))
-                continue
-            }
-            // 状态轮询（对账分型，语义 7）：抛错＝查
-            // 询失败＝无证据——旧口径 try? 把抛错与
-            // 404 一并压成 nil 判 missing，网络抖动/
-            // 鉴权失败/5xx 全被记成「run 不见了」，
-            // 600s 磨完给假终局；现只有客户端明确
-            // 404（runStatus 返 nil）才是真 missing
-            let status: RunStatusResponse?
-            do {
-                status = try await appState.client.runStatus(
-                    config: config, apiKey: apiKey, runID: runID
-                )
-            } catch {
-                if deadlineExtensions < 600 {
-                    deadline = deadline.addingTimeInterval(3)
-                    deadlineExtensions += 3
-                }
-                try? await Task.sleep(for: .seconds(3))
-                continue
-            }
-            switch status {
-            case .some(let value) where value.status.isTerminal:
-                terminalStatusHint = value
-                let effectiveStatus =
-                    (value.status == .failed && (runMachine.stopRequested || entry.stopRequested))
-                    ? .cancelled
-                    : value.status
-                runMachine.apply(.statusTerminal(effectiveStatus))
-            case .some(let value) where value.status.isActive:
-                runMachine.apply(.statusRunning)
-                // 仍在生成：重挂 events 续看（缓冲还在
-                // 能接上直播；已扫则流立即结束回轮询）
-                await followRunEvents(
-                    thread: thread, entry: entry,
-                    demoMode: demoMode
-                )
-                if runMachine.terminalKind != nil { continue }
-                // 缓冲已扫时 events 会立即空转返回：轮询
-                // 必须带间隔，防忙循环空烧
-                try? await Task.sleep(for: .seconds(2))
-                if Date() > deadline { break }
-            case .some:
-                // 状态词无法归类：无证据，继续轮询
-                try? await Task.sleep(for: .seconds(3))
-            case .none:
-                // 真 missing（状态端点 404）：转 trans-
-                // cript 单独定性；transcript 也无证据且
-                // missing 持续 60s → 本次访问记账＋裁
-                // 决（终局判失败，或留账下次续查）
-                if missingPollsStartedAt == nil {
-                    missingPollsStartedAt = Date()
-                }
-                runMachine.apply(.statusMissing)
-                if await settleRunFromTranscript(
-                    thread: thread, entry: entry
-                ) {
-                    return
-                }
-                if let started = missingPollsStartedAt,
-                   Date().timeIntervalSince(started) > 60 {
-                    if recordMissingRunVisit(
-                        thread: thread, entry: &entry,
-                        demoMode: demoMode
-                    ) {
-                        finishRunPresentation(failed: true)
-                    } else {
-                        showNotice(
-                            "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
-                            tier: .extended
-                        )
-                        finishRunPresentation(failed: false)
-                    }
-                    return
-                }
-                try? await Task.sleep(for: .seconds(3))
-            }
-            if Date() > deadline { break }
-        }
-        if !runMachine.isSettled {
-            runMachine.apply(.settleExhausted)
-            persistRunPartials(thread: thread)
-            if entry.runID == nil {
-                // §414 增补（断网规格 5.2）：本轮从未
-                // 被服务端受理（runID 恒 nil）却磨满
-                // 预算——「生成仍在服务器进行中」对
-                // 它是假话。折回待发巷（待发标记＋
-                // queued 态）、清账本（账本留着只会
-                // 让后续发送全撞忙碌守卫、条目永无标
-                // 记），提示照实说还没发出去；网络恢
-                // 复后 drain 自动续发
-                if !demoMode,
-                   let userEntry = thread.entries.first(
-                       where: {
-                           $0.id.uuidString == entry.userEntryID
-                       }
-                   ) {
-                    userEntry.markPendingSend(
-                        in: modelContext
-                    )
-                    // §451：清账只清本轮这条
-                    if let uid = UUID(
-                        uuidString: entry.userEntryID
-                    ) {
-                        appState.runLedger.remove(
-                            userEntryID: uid
-                        )
-                    }
-                }
-                showNotice(
-                    "这条还没发出去，网络恢复后会自动发送，也可以点按消息旁的时钟重发。",
-                    tier: .extended
-                )
-                finishRunPresentation(failed: false)
-            } else if missingPollsStartedAt != nil {
-                // 本次访问见过真 missing、预算先磨完
-                // （未满 60s 观察窗）：同样记一次访问
-                // ＋裁决，不许带「还在生成」的假话退
-                // 场（语义 6）
-                if recordMissingRunVisit(
-                    thread: thread, entry: &entry,
-                    demoMode: demoMode
-                ) {
-                    finishRunPresentation(failed: true)
-                } else {
-                    showNotice(
-                        "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
-                        tier: .extended
-                    )
-                    finishRunPresentation(failed: false)
-                }
-            } else {
-                // 体面出口：生成仍在服务端进行（或结
-                // 果待查），账本保留、下次进本线程自
-                // 动续对账——runID 在席时这句是真话，
-                // 保留现行语义
-                showNotice(
-                    "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。",
-                    tier: .extended
-                )
-                finishRunPresentation(failed: false)
-            }
-        }
-    }
-
-    /// 同 key 重演提交的输入重建：源头是本地用户条目
-    /// 本身（正文＋引用折叠＋图片），不另存载荷副本
-    private func runReplayInput(
-        thread: ChatThread, entry: RunLedgerEntry
-    ) -> RunInput? {
-        guard let userEntry = thread.entries.first(
-            where: { $0.id.uuidString == entry.userEntryID }
-        ) else { return nil }
-        let text = MessageQuote.outgoingContent(
-            userText: userEntry.content, quote: userEntry.quote,
-            sourceQuote: userEntry.sourceQuote
-        )
-        // §152：重演源头是本地条目全集——旧口径只
-        // 取 imageData 首图，同 key 重演（提交回执
-        // 丢失时）会把多图消息在服务端降成单图
-        let localImages = userEntry.allImageDatas
-        if !localImages.isEmpty {
-            return .message(ChatMessage(
-                role: "user", text: text,
-                imageDataURLs: localImages.map {
-                    "data:image/jpeg;base64,"
-                        + $0.base64EncodedString()
-                }
-            ))
-        }
-        return .text(text)
-    }
-
-    /// transcript 落定：拉服务端会话历史、提取本轮段
-    /// （Core RunTranscriptSettle）、整段替换本地半
-    /// 截。段已落定返回 true；尚未出现（服务端还没
-    /// flush 完）返回 false 由对账重试
-    private func settleRunFromTranscript(
-        thread: ChatThread, entry: RunLedgerEntry
-    ) async -> Bool {
-        guard let messages = try? await appState
-            .performAdmin({ client, cfg in
-                try await client.sessionMessages(
-                    config: cfg, id: entry.sessionID
-                )
-            }) else { return false }
-        // 0.36.29（题 B 自愈）：段落定之前先对账补
-        // 缺——存档有、本地缺的 user 条目补回（定
-        // 案与口径见 healMissingUserEntries），补完
-        // 再走既有落定，助手条目不归此路补造
-        healMissingUserEntries(
-            thread: thread, sessionID: entry.sessionID,
-            messages: messages
-        )
-        // §451（App-4 硬门）：落定提取改锚本轮
-        // serverRowID——多轮已受理时旧「末条 user
-        // 行」锚会把后轮的段落到本轮头上（串段）。
-        // 锚解析不到且同线程还有别的未落定轮时不许
-        // 走无锚口径：本轮按未落定回对账重试（终态
-        // 证据在席时对账自会转状态合成落定兜底——
-        // 那条路按 runID 取数、不串段）
-        let anchorRowID = transcriptAnchorRowID(
-            thread: thread, entry: entry, messages: messages
-        )
-        if anchorRowID == nil,
-           appState.runLedger.entries(
-               forThreadID: thread.id
-           ).count > 1 {
-            runMachine.apply(.transcriptPending)
-            return false
-        }
-        let settled = RunTranscriptSettle.settle(
-            messages: messages, anchorRowID: anchorRowID
-        )
-        guard settled.found else {
-            runMachine.apply(.transcriptPending)
-            return false
-        }
-        // transcript-only 定性（无状态证据）时先把段的
-        // 性质喂给状态机：失败段＝failed；停止意图在
-        // 场＝cancelled；其余＝completed
-        if runMachine.terminalKind == nil {
-            if runMachine.stopRequested || entry.stopRequested {
-                runMachine.apply(.statusTerminal(.cancelled))
-            } else if settled.failed {
-                runMachine.apply(.statusTerminal(.failed))
-            } else {
-                runMachine.apply(.statusTerminal(.completed))
-            }
-        }
-        applySettledTurn(
-            thread: thread, entry: entry, settled: settled
-        )
-        return true
-    }
-
-    /// 落定对账补缺（0.36.29，题 B 自愈）：新建旁聊
-    /// 首发出现过「服务端存档完好、本地线程只剩助
-    /// 手回复」的首句消失——静态审计已排除发送/落
-    /// 盘/导入/落定四链的删除与过滤路径，剩余嫌疑
-    /// 在新建＋切换＋首发同瞬间的本地时序缝（未证
-    /// 死，定案等级中）。修法不赌竞态细节：以已拉
-    /// 取的 transcript 为锚，Core 对账判缺（内容＋
-    /// 时间窗、只认 user 条目），缺的补回呈现层；
-    /// 发送链与落盘删除面一律不动。补缺发生时记
-    /// 一条诊断读数（会话 id＋补回条数）留证，供
-    /// 后续升格定案
-    private func healMissingUserEntries(
-        thread: ChatThread, sessionID: String,
-        messages: [SessionMessage]
-    ) {
-        let localUsers = thread.entries
-            .filter { $0.role == "user" }
-            .map {
-                (content: $0.content, createdAt: $0.createdAt,
-                 filePaths: $0.remoteFilePaths,
-                 imagePaths: $0.remoteImagePaths)
-            }
-        let reconcile = RunTranscriptSettle.reconcileUserMessages(
-            messages: messages, localUserEntries: localUsers
-        )
-        // §121 题二 a（对账回填）：配上对但本地条目缺
-        // 服务端附件路径的，把路径集回填落盘——发送
-        // 回填（sendTask）管新消息，本路管存量（发送
-        // 回填上线前已发的消息在本线程下一次落定自
-        // 动补牌）。定位键＝规范正文＋createdAt（与
-        // Core 配对同锚）；回填只补缺字段、不动正文
-        if !reconcile.pathBackfills.isEmpty {
-            var backfilled = 0
-            for backfill in reconcile.pathBackfills {
-                guard let entry = thread.entries.first(where: {
-                    $0.role == "user"
-                        && $0.createdAt == backfill.createdAt
-                        && SessionHistoryImport
-                            .normalizedUserContent($0.content)
-                            .text.trimmingCharacters(
-                                in: .whitespacesAndNewlines
-                            ) == backfill.text
-                }) else { continue }
-                if !backfill.filePaths.isEmpty,
-                   entry.remoteFilePaths.isEmpty {
-                    entry.remoteFilePathsData =
-                        try? JSONEncoder().encode(backfill.filePaths)
-                    backfilled += 1
-                }
-                if !backfill.imagePaths.isEmpty,
-                   entry.remoteImagePaths.isEmpty {
-                    entry.remoteImagePathsData =
-                        try? JSONEncoder().encode(backfill.imagePaths)
-                    backfilled += 1
-                }
-            }
-            if backfilled > 0 {
-                try? modelContext.save()
-                ChatDiagTrace.record(
-                    "落定回填附件路径 session=\(sessionID) fields=\(backfilled)"
-                )
-            }
-        }
-        let missing = reconcile.missing
-        guard !missing.isEmpty else { return }
-        for message in missing {
-            // 0.46.1（§116）：补回也走规范化——展开块
-            // 还原成干净正文＋附件路径落盘，不把给模型
-            // 的脚手架原文补进气泡
-            let normalized = SessionHistoryImport
-                .normalizedUserContent(message.content)
-            let healed = ChatEntry(
-                role: "user", content: normalized.text,
-                thread: thread,
-                remoteImagePaths: normalized.imagePaths,
-                remoteFilePaths: normalized.fileRefs
-            )
-            // 时刻以服务端存档为准（排序锚）；存档
-            // 无时刻时保留插入时刻（落定助手条目随
-            // 后以当前时刻落位，相对序仍成立）
-            if let date = message.date {
-                healed.createdAt = date
-            }
-            // 台账 187：补回条目出自服务端行——同点
-            // 钉桩＋镜像（与导入落盘同口径）
-            if message.id > 0 {
-                healed.serverRowID = Int(exactly: message.id)
-            }
-            healed.applyReactions(message.reactions)
-            modelContext.insert(healed)
-        }
-        try? modelContext.save()
-        ChatDiagTrace.record(
-            "落定补缺 session=\(sessionID) healed=\(missing.count)"
-        )
-    }
-
-    /// 状态 output 合成落定（transcript 迟迟不落或演
-    /// 示态）：终局文本取状态/事件 output，工具卡用
-    /// 直播拼装的现成品——只作兜底，正常轮次以
-    /// transcript 为准
-    private func settleRunFromStatusOutput(
-        thread: ChatThread, entry: RunLedgerEntry
-    ) {
-        let userStopped = runMachine.stopRequested || entry.stopRequested
-        if runMachine.terminalKind == .failed && !userStopped {
-            deleteTurnPartialEntries(
-                thread: thread, entry: entry
-            )
-            if !appState.isDemo,
-               let uid = UUID(uuidString: entry.userEntryID) {
-                // §451：清账只清本轮这条
-                appState.runLedger.remove(userEntryID: uid)
-            }
-            // 基础止血包（P5/P2）：服务端原文只作分型
-            // 输入与诊断留痕，界面只呈现 HermesError
-            // 人话档（RunFailureClassifier）；本轮用户
-            // 条目挂失败标记、点标记重发
-            let failure = RunFailureClassifier.classify(
-                errorText: terminalStatusHint?.error,
-                outputText: terminalStatusHint?.output
-                    ?? terminalOutputHint
-            )
-            ChatDiagTrace.record(
-                "run 失败分型（状态合成落定）kind=\(failure)"
-                    + " run=\(entry.runID ?? "-")"
-            )
-            if !appState.isDemo {
-                markRunFailure(
-                    entry: entry, in: thread, failure: failure
-                )
-            }
-            presentSendFailure(
-                kind: SendFailureKind.classify(run: failure),
-                detail: failure.diagnosticDetail
-            )
-            runMachine.apply(.transcriptSettled)
-            finishRunPresentation(failed: true)
-            return
-        }
-        let output = terminalStatusHint?.output
-            ?? terminalOutputHint
-        // 第 93 条：兜底全文走装配器合并口径（各段
-        // 以 "\n\n" 连接，与 transcript 落定拼接同
-        // 制）——旧单闸全文是跨段直接拼接，与落库
-        // 形态不一致
-        let fallbackText = streamAssembler.mergedFullText
-        let settled = SettledRunTurn(
-            found: true,
-            toolCards: liveToolCards,
-            reasoning: nil,
-            finalText: (output?.isEmpty == false)
-                ? output
-                : (fallbackText.isEmpty ? nil : fallbackText),
-            failed: false, failureText: nil
-        )
-        applySettledTurn(
-            thread: thread, entry: entry, settled: settled,
-            unverified: true
-        )
-    }
-
-    /// §426（缺陷一）：提交受理同点把本轮用户条
-    /// 目标记送达——服务器确认收到＝发送成功，气
-    /// 泡即刻回全色、时钟离席，不等整轮落定。旧
-    /// 链 delivered 唯一写点在 applySettledTurn
-    /// （落定），受理后整段生成期条目恒挂未确认
-    /// 态（用户真机截图钉死）。三受理点（首提/
-    /// 对账重演/恢复确立）与占位文案相位门共用
-    /// .submitAccepted 同一信号、不新造第二信
-    /// 号；落定点的既有写点保留作兜底（幂等同
-    /// 值）。已送达/无状态条目不动（remainsIn-
-    /// Queue 守卫），失败态条目在重发受理时经此
-    /// 清失败标记（markSendState 的 accepted/
-    /// delivered 同组语义自带）
-    private func markAcceptedEntryAccepted(
-        thread: ChatThread, userEntryID: String
-    ) {
-        guard let userEntry = thread.entries.first(
-                  where: { $0.id.uuidString == userEntryID }
-              ),
-              userEntry.sendState?.remainsInQueue == true
-        else { return }
-        // 发送失败机制包（语义 1 双轴）：内部状态落
-        // .accepted 而非 .delivered——呈现与 §426 不
-        // 变（markSendState 的 accepted 组合同 deliv-
-        // ered：清失败标记＋送达投影，气泡全色、时钟
-        // 离席），但条目在 run 真终态前不脱离发件箱
-        // 语义：重试记账活到落定、发件箱判定不再把
-        // 在飞条目当已完成（B1 清账错位的根）
-        userEntry.markSendState(.accepted, in: modelContext)
-    }
-
-    /// 落定入账：整段替换本轮半截条目（工具卡＋带思
-    /// 考回填的助手正文），触感与标题回流沿旧口径，
-    /// 账本清除
-    private func applySettledTurn(
-        thread: ChatThread, entry: RunLedgerEntry,
-        settled: SettledRunTurn,
-        unverified: Bool = false
-    ) {
-        // H2-a 自动朗读的在场判读：本轮是不是用户在
-        // 本页亲手发出并看着落定的（发送打点起点只
-        // 在这种轮有；恢复轮/后台轮无起点）——必须
-        // 在下方打点消费清零之前先记下来
-        let watchedTurn = sendFrameStartedAt != nil
-        // §135 D 案打点：发送→落定全程一段（仅用户
-        // 在飞发送的落定轮有起点；恢复轮与后台轮无
-        // 起点、不记）。入口先记先清：失败分支同样
-        // 消费读数，不许残留起点污染下一轮
-        if entry.threadID == thread.id.uuidString,
-           let started = sendFrameStartedAt {
-            ChatDiagTrace.record(
-                "发送打点 发送→落定 "
-                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
-            )
-            sendFrameStartedAt = nil
-            sendFrameRestickLogged = false
-        }
-        runMachine.apply(.transcriptSettled)
-        let phase = runMachine.phase
-        deleteTurnPartialEntries(thread: thread, entry: entry)
-        let userStopped = runMachine.stopRequested || entry.stopRequested
-        if settled.failed && !userStopped {
-            // 基础止血包（P5/P2）：同状态合成落定——
-            // 原文（终态回执＋段失败文本）只作分型输
-            // 入，界面只呈现人话档；用户条目挂失败标
-            // 记、点标记重发
-            let failure = RunFailureClassifier.classify(
-                errorText: terminalStatusHint?.error,
-                outputText: terminalStatusHint?.output
-                    ?? settled.failureText
-            )
-            ChatDiagTrace.record(
-                "run 失败分型（落定）kind=\(failure)"
-                    + " run=\(entry.runID ?? "-")"
-            )
-            if !appState.isDemo {
-                // §451：清账只清本轮这条
-                if let uid = UUID(
-                    uuidString: entry.userEntryID
-                ) {
-                    appState.runLedger.remove(
-                        userEntryID: uid
-                    )
-                }
-                markRunFailure(
-                    entry: entry, in: thread, failure: failure
-                )
-            }
-            presentSendFailure(
-                kind: SendFailureKind.classify(run: failure),
-                detail: failure.diagnosticDetail
-            )
-            finishRunPresentation(failed: true)
-            return
-        }
-        // 基础止血包（P1/P2）：成功落定清本轮用户条目
-        // 的失败标记——重发成功后旧标记不许残留（首
-        // 发成功轮条目恒无标记，本支为空转）；§237：
-        // 同点把发送状态落到 delivered（统一写口同
-        // 步清 sendFailed 与 deliveryState），队列态
-        // 至此出列、不许残留 sending/failed 旧值
-        if !appState.isDemo,
-           let userEntry = thread.entries.first(
-               where: { $0.id.uuidString == entry.userEntryID }
-           ) {
-            // 台账 187：落定同点钉桩——本轮锚点 user
-            // 行的服务端行 id 钉进本地条目（反应寻址
-            // 坐标）；已钉不覆（坐标恒定、覆写无义）
-            if let rowID = settled.userRowID,
-               userEntry.serverRowID == nil {
-                userEntry.serverRowID = rowID
-                // 0.51.2（消息乱序修复）：钉桩同点把
-                // createdAt 校正为该行服务端时刻——
-                // 本地发送时刻与服务端时刻自此同域，
-                // 排序不再双时钟混排（见 sortedEntries）
-                if let rowDate = settled.userRowDate {
-                    userEntry.createdAt = rowDate
-                }
-            }
-            userEntry.markSendState(.delivered, in: modelContext)
-            // 发送失败机制包（语义 1 清账点①）：run
-            // 真终态落定成功——本条重试记账在此单点
-            // 清（按条目 id、不扫线程）；失败支不许
-            // 清（账留着钉死准入）
-            appState.outboxRetry.clear(entryID: userEntry.id)
-        }
-        let endDate = Date()
-        for (index, card) in settled.toolCards.enumerated() {
-            let cardEntry = ChatEntry(
-                role: "tool", content: "", thread: thread,
-                toolCard: card
-            )
-            // 0.51.2（消息乱序修复）：工具卡落其来
-            // 源行的服务端时刻，不再用本地 endDate
-            // 盖戳（取不到才回落旧口径兜底）
-            cardEntry.createdAt =
-                (index < settled.toolCardDates.count
-                    ? settled.toolCardDates[index] : nil)
-                ?? endDate.addingTimeInterval(
-                    Double(index) * 0.001
-                )
-            modelContext.insert(cardEntry)
-        }
-        if !settled.attachments.isEmpty {
-            DeliveryStore.shared.ingest(settled.attachments)
-        }
-        // H2-a：本轮落定的助手条目（自动朗读的取材
-        // 口，与下方 finished 分支的触感同点消费）
-        var landedAssistantEntry: ChatEntry?
-        if let text = settled.finalText, !text.isEmpty {
-            let assistantEntry = ChatEntry(
-                role: "assistant", content: text,
-                thread: thread, reasoning: settled.reasoning,
-                reasoningSeconds: nil
-            )
-            landedAssistantEntry = assistantEntry
-            // 台账 187：正文恰出自单条服务端行时同点
-            // 钉桩（多行拼接成文恒 nil、不钉错行——
-            // 见 SettledRunTurn.assistantRowID 口径）
-            assistantEntry.serverRowID = settled.assistantRowID
-            // §441：多行拼接成文时 assistantRowID 恒
-            // nil——本条目即段内拼接体、其末行正是
-            // 选择框 attach 的落点行，改钉 options-
-            // RowID 使卡有行可挂（寻址语义＝段末行）
-            if assistantEntry.serverRowID == nil,
-               let optionsRowID = settled.optionsRowID {
-                assistantEntry.serverRowID = optionsRowID
-            }
-            if let options = settled.options,
-               let optionsRowID = settled.optionsRowID {
-                appState.optionsOverlay.seed(
-                    threadID: thread.id,
-                    card: .init(
-                        serverRowID: optionsRowID,
-                        options: options
-                    )
-                )
-            }
-            // 0.51.2（密码卡修复）：凭据请求块与选
-            // 择框同构——本条目即段内拼接体、块的落
-            // 点行是段内带块的最后一条 assistant
-            // 行；未钉桩时改钉该行 id 使卡有行可
-            // 挂，并播种覆盖层，渲染凭块同步出卡
-            if assistantEntry.serverRowID == nil,
-               let vaultRowID = settled.vaultRequestRowID {
-                assistantEntry.serverRowID = vaultRowID
-            }
-            if let vaultRequest = settled.vaultRequest,
-               let vaultRowID = settled.vaultRequestRowID {
-                appState.vaultRequestOverlay.seed(
-                    threadID: thread.id,
-                    serverRowID: vaultRowID,
-                    block: vaultRequest
-                )
-            }
-            // 0.51.2（消息乱序修复）：助手条目落其
-            // 末行服务端时刻，不再用本地 endDate
-            // 盖戳（取不到才回落旧口径兜底）——旧
-            // 盖戳使多段回复首段被压到后段之后沉底
-            assistantEntry.createdAt = settled.assistantRowDate
-                ?? endDate.addingTimeInterval(
-                    Double(settled.toolCards.count) * 0.001
-                        + 0.001
-                )
-            modelContext.insert(assistantEntry)
-            // 兜底落定或未钉桩的助手条目打上「待核验」标记，下次尾对账自动以服务端真源原位覆写
-            if unverified || assistantEntry.serverRowID == nil {
-                UnverifiedEntryStore.shared.mark(assistantEntry.id)
-            }
-            // §247（包 4）：落定映射登记——本条目在
-            // 新承载里沿用本轮流式行键建行（同键换
-            // 代＝落定不换装）；映射只记账不判事，
-            // 旧承载与未开新路时均无消费方、无副作用
-            streamSettleMap.record(
-                entryID: assistantEntry.id,
-                streamRowKey: StreamingRowIdentity
-                    .streamRowKey(userEntryID: entry.userEntryID)
-            )
-            thread.updatedAt = Date()
-        }
-        if !settled.toolCards.isEmpty
-            || settled.finalText?.isEmpty == false {
-            try? modelContext.save()
-        }
-        if !appState.isDemo,
-           let uid = UUID(uuidString: entry.userEntryID) {
-            // §451：清账只清本轮这条——同线程后轮的账
-            // 本还等着消费环逐轮驱动
-            appState.runLedger.remove(userEntryID: uid)
-        }
-        // 结果触感与收尾（旧 runStream 同口径）：完成
-        // 有正文给 .success；真取消给「已停止生成」
-        // （5 秒自消）；失败已在上分支处理。断线/切后
-        // 台恢复后落定成功全程静默（§140 提示纪律第
-        // 1 条「成功不报」——旧「已重新连接，回复已
-        // 补齐。」播报与 runWasDetached 旗已整条摘除）
-        if phase == .finished {
-            if settled.finalText?.isEmpty == false {
-                Haptics.success()
-                // §411 自动朗读：只读用户在场看完的
-                // 本轮——恢复/后台落定沿 §140 静默口
-                // 径不出声；开关判读（默认关）收在播
-                // 放器 autoReadIfEnabled 内，落定点不
-                // 再读偏好；未开通、正在听别条时播放
-                // 器内部自拒
-                if watchedTurn, let landedAssistantEntry {
-                    SpeechPlayer.shared.autoReadIfEnabled(
-                        entryID: landedAssistantEntry.id,
-                        content: landedAssistantEntry.content,
-                        appState: appState
-                    )
-                }
-            }
-            // 标题回流触发（0.21.0 沿用）：已链接旁聊
-            // 一轮完整落地后顶刷新令牌等服务端 AI 标题
-            if thread.serverSessionID != nil,
-               thread.id != appState.sessionLedger.mainThreadID {
-                appState.noteLinkedSideChatTurnFinished()
-            }
-        } else if phase == .cancelled {
-            // 停止按钮已提供即时视觉与触感反馈，不再弹多余文字提示
-        }
-        finishRunPresentation(failed: false)
-    }
-
-    /// 本轮半截候选的单点谓词（§414 抽出，整段替换
-    /// 与半截回填共用）：用户条目之后、下一轮用户
-    /// 条目之前的非锚定非待发条目。「下一轮」界＝
-    /// 其后首个非待发的用户条目（待发条目未被服
-    /// 务端受理、不构成轮次边界，其自身另有待发
-    /// 豁免）。旧口径只有「用户条目之后必属本轮」
-    /// 一条（发送互斥下成立）；§414 中段条目原位
-    /// 重发后该前提失效——本轮用户条目之后可以躺
-    /// 着已落定的后续轮次，靠本界免于陪葬。常规
-    /// 轮（用户条目居末）无下一轮、界不生效，行
-    /// 为与旧口径逐字同。既有豁免并入谓词：§123/
-    /// §165 系统锚定条目（跨面并发落盘、不属本
-    /// 轮）、待发条目（从未被服务端受理、不属任
-    /// 何一轮的半截，用户消息不许陪葬）
-    static func turnPartialCandidates(
-        in thread: ChatThread, userEntry: ChatEntry
-    ) -> [ChatEntry] {
-        let nextTurnStart = thread.sortedEntries.first(
-            where: {
-                $0.id != userEntry.id
-                    && $0.createdAt > userEntry.createdAt
-                    && $0.role == "user"
-                    && !$0.isPendingSend
-            }
-        )?.createdAt
-        return thread.entries.filter {
-            $0.id != userEntry.id
-                && $0.createdAt > userEntry.createdAt
-                && !$0.isSystemAnchored
-                && !$0.isPendingSend
-                && (nextTurnStart == nil
-                    || $0.createdAt < nextTurnStart!)
-        }
-    }
-
-    /// 整段替换的删除面：已落盘的半截名单＋本轮半
-    /// 截候选（turnPartialCandidates，含下一轮界）
-    private func deleteTurnPartialEntries(
-        thread: ChatThread, entry: RunLedgerEntry
-    ) {
-        deleteLivePartialEntries(in: thread)
-        guard let userEntry = thread.entries.first(
-            where: { $0.id.uuidString == entry.userEntryID }
-        ) else { return }
-        for candidate in Self.turnPartialCandidates(
-            in: thread, userEntry: userEntry
-        ) {
-            modelContext.delete(candidate)
-        }
-        try? modelContext.save()
-    }
-
-    /// 结果未知时的半截落盘（进程被回收也不凭空消
-    /// 失）：工具卡与已累积正文按条目落盘、记 id 供
-    /// 落定时整段替换（与旧 interrupted 落盘同制）。
-    /// 第 93 条：正文按段成条——封存段与当前段各成
-    /// 一条助理条目、按 liveOrder 的事件序与工具卡
-    /// 交错落盘（时序即恢复回填的段序凭据）；旧形态
-    /// 把整轮正文拼成一条，跨段混存正是串字在落盘
-    /// 侧的同根形态（回填只能整段吞回单一缓冲、前
-    /// 段与后段就此混为一谈）。标记外的卡/段（回填
-    /// 重挂等）按卡序/段序殿后补齐，不丢件
-    private func persistRunPartials(thread: ChatThread) {
-        // §409 步 E：装配器/累积器已是纯累积形态，
-        // fullSegments/fullText 每拍恒精确——旧
-        // flush 定稿两行随发布语义退役删除，落盘
-        // 直读两口径（条目写入逻辑逐字不变）
-        deleteLivePartialEntries(in: thread)
-        let reasoningText = reasoningPublishGate.fullText
-        let segments = streamAssembler.fullSegments
-        let sealedCount = streamAssembler
-            .sealedSegments.count
-        let endDate = Date()
-        var ids: [UUID] = []
-        var slot = 0
-        var insertedAssistant = false
-        func persistCard(_ card: ToolCard) {
-            let cardEntry = ChatEntry(
-                role: "tool", content: "", thread: thread,
-                toolCard: card
-            )
-            cardEntry.createdAt = endDate.addingTimeInterval(
-                Double(slot) * 0.001
-            )
-            slot += 1
-            modelContext.insert(cardEntry)
-            ids.append(cardEntry.id)
-        }
-        func persistSegment(_ text: String) {
-            // 思考挂第一条助理条目：思考是本轮的单一
-            // 折叠单元、不按段拆（与落定口径同）
-            let assistantEntry = ChatEntry(
-                role: "assistant", content: text,
-                thread: thread,
-                reasoning: !insertedAssistant
-                    && !reasoningText.isEmpty
-                    ? reasoningText : nil,
-                reasoningSeconds: nil
-            )
-            assistantEntry.createdAt = endDate
-                .addingTimeInterval(Double(slot) * 0.001)
-            slot += 1
-            modelContext.insert(assistantEntry)
-            insertedAssistant = true
-            ids.append(assistantEntry.id)
-        }
-        var persistedCardIDs: Set<String> = []
-        var persistedSegments: Set<Int> = []
-        for marker in liveOrder {
-            switch marker {
-            case .reasoning:
-                continue
-            case .sealedText(let index):
-                if segments.indices.contains(index) {
-                    persistSegment(segments[index])
-                    persistedSegments.insert(index)
-                }
-            case .text:
-                // 当前段在 fullSegments 中的下标恒为封
-                // 存段数（有内容才在列）
-                if streamAssembler.hasCurrentContent,
-                   segments.indices.contains(sealedCount) {
-                    persistSegment(segments[sealedCount])
-                    persistedSegments.insert(sealedCount)
-                }
-            case .tool(let id):
-                if let card = liveToolCards.first(
-                    where: { $0.id == id }
-                ) {
-                    persistCard(card)
-                    persistedCardIDs.insert(id)
-                }
-            }
-        }
-        for card in liveToolCards
-        where !persistedCardIDs.contains(card.id) {
-            persistCard(card)
-        }
-        for (index, text) in segments.enumerated()
-        where !persistedSegments.contains(index) {
-            persistSegment(text)
-        }
-        if insertedAssistant {
-            thread.updatedAt = Date()
-        }
-        if !ids.isEmpty {
-            try? modelContext.save()
-        }
-        livePartialEntryIDs = ids
-    }
-
-    private func deleteLivePartialEntries(
-        in thread: ChatThread
-    ) {
-        guard !livePartialEntryIDs.isEmpty else { return }
-        for candidate in thread.entries
-        where livePartialEntryIDs.contains(candidate.id) {
-            modelContext.delete(candidate)
-        }
-        livePartialEntryIDs = []
-    }
-
-    /// 呈现收尾：清流式状态与在途标记（触感由各落定
-    /// 分支自理，此处只在失败时补 .error——调用方
-    /// 已给触感的路径传 failed=false 防双响；0.36.2
-    /// 失败触感自 .warning 改判 .error，表 D 归位）
-    private func finishRunPresentation(failed: Bool) {
-        if failed {
-            Haptics.error()
-        }
-        // §494：全部落定/失败/取消出口共用收尾
-        // ——发布态同点整清，直播行随占位条件消
-        // 失、落定条目同键接位
-        resetStreamPresentation()
-        streamingText = nil
-        reasoningStartedAt = nil
-        sendTask = nil
-        activeRunThreadID = nil
-        // 0.36.10（诊断 D2 补根）：直播区至此必须清
-        // 空——旧实现漏清 liveToolCards，落定条目已
-        // 入列后残留直播卡仍在列表尾同屏渲染、且挂
-        // 「进行中」，正是判词 5 截图底部那截残影。
-        // 本函数是全部落定/失败/取消出口的共用收尾，
-        // 清在此处不误伤对账中途（persistRunPartials
-        // 在调用本函数之前已把半截转入条目）
-        liveToolCards = []
-        liveOrder = []
-        // 第 93 条：封存段真值在装配器本体内，下
-        // 一轮 driveRun 起点归零，视图侧无镜像可清
-    }
-
-    /// 停止（0.31.0）：runs 通道真取消——发 stop 后
-    /// 由订阅/对账链等终态落定、部分产物按 transcr-
-    /// ipt 呈现；提交窗口内则取消本地提交任务（账本
-    /// 已留停止意图，下次对账执行真停止）
-    private func requestRunStop() {
-        guard isStreaming || activeRunThreadID != nil || sendTask != nil else { return }
-        if runMachine.phase == .submitting {
-            sendTask?.cancel()
-            // §451：提交窗已迁提交泵——同点取消当前
-            // 线程的泵任务（泵内 performSubmit 的取
-            // 消支路记账本停止意图、静默收尾）
-            if let threadID = activeRunThreadID
-                ?? currentThreadID {
-                submitPumpTasks[threadID]?.cancel()
-            }
-            return
-        }
-        runMachine.apply(.stopRequested)
-        guard let threadID = activeRunThreadID,
-              var entry = appState.runLedger.entry(
-                  forThreadID: threadID
-              ) else { return }
-        entry.stopRequested = true
-        appState.runLedger.upsert(entry)
-        guard let runID = entry.runID,
-              let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        Task {
-            try? await appState.client.stopRun(
-                config: config, apiKey: apiKey, runID: runID
-            )
-        }
-    }
-
-    /// 向正在执行的 run 注入纠偏指令（POST /v1/runs/{id}/steer）
-    private func steerActiveRun(runID: String, text: String) {
-        guard let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        Haptics.impact(.light)
-        Task {
-            do {
-                let receipt = try await appState.client.steerRun(
-                    config: config, apiKey: apiKey, runID: runID, input: text
-                )
-                if receipt.accepted {
-                    showNotice(L10n.string("已向生成中的任务插入纠偏指令"), tier: .brief)
-                } else {
-                    showNotice(L10n.string("当前任务暂无法插入纠偏"), tier: .brief)
-                }
-            } catch {
-                ChatDiagTrace.record("steer_run_failed: \(error.localizedDescription)")
-                showNotice(L10n.string("纠偏指令发送失败"), tier: .brief)
-            }
-        }
-    }
-
-    /// 在服务端无损克隆当前会话为新分支（POST /api/sessions/{id}/fork）
-    private func forkCurrentSession() {
-        guard !appState.isDemo,
-              let sessionID = currentThread?.serverSessionID,
-              let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        Haptics.selection()
-        Task {
-            do {
-                let forked = try await appState.client.forkServerSession(
-                    config: config, apiKey: apiKey, id: sessionID, title: nil
-                )
-                appState.router.pendingChatSessionID = forked.id
-                showNotice(L10n.string("已创建分支会话"), tier: .brief)
-            } catch {
-                ChatDiagTrace.record("fork_session_failed: \(error.localizedDescription)")
-                showNotice(L10n.string("分支会话创建失败"), tier: .brief)
-            }
-        }
-    }
-
-    /// 进线程/回前台时恢复未落定 run（杀进程/切后台/
-    /// 预算耗尽遗留）：半截呈现回填＋对账落定。无账
-    /// 本或驱动在途即返回
-    private func resumeRunIfNeeded() async {
-        guard !appState.isDemo, !isDrivingRun,
-              scenePhase == .active,
-              let thread = currentThread,
-              let entry = appState.runLedger.entry(
-                  forThreadID: thread.id
-              ) else { return }
-        await driveAcceptedTurn(thread: thread, entry: entry)
-    }
-
 }
-
-/// 原生面行菜单承载开关（§330，0.50.70 热修题
-/// 2；§332 换代；台账 187 再换代）：原生面动作
-/// 面改由控制器长按识别器承载（ChatNative-
-/// List），托管内容内的 SwiftUI 长按须在本面关
-/// 闭——两承载同挂会双出面、且 SwiftUI 承载正
-/// 是 .69 真机长按全灭的当事层。仅原生面行构
-/// 造点置 false；gen3 面无此环境值、默认 true
-/// 消息长按菜单挂载（0.4.1 立制；台账 200 拆
-/// 换，2026-11-21 用户拍板）：回归系统上下文菜
-/// 单——0.4.1 旧制本就是系统 contextMenu，台账
-/// 187 改自绘动作面（自家长按识别器＋hitTest
-/// 分工＋自绘 sheet）后长按在真机与测试环境双
-/// 双失灵，拍板整套退役：本修饰符只挂菜单数
-/// 据，识别/呈面/消失全归系统。
-/// §265 挂载面纪律不变：只许落在非文本层——气
-/// 泡背景层（背景＋内边距带）与行内铬件（图片
-/// 卡/文件牌/交付项/引用块/状态行）；不许挂行
-/// 内容根。§471 口径变更：「文本区长按归
-/// UITextView 原生选字」作废——列表态正文关
-/// 直接选字，长按一切落点归菜单/浮排，选字只
-/// 从菜单「选择」行进入（141/142 承载本体不动）。
-/// 动作集单源不变：呈现时刻经 makeData 组装
-/// （ChatView.actionSheetData）——反应走「添加
-/// 反应」子菜单，动作项走 actionItems() 逐项搬
-/// 家。反应排沿革：台账 187 起走菜单顶部内联
-/// ControlGroup，0.50.79 真机被系统拆成逐行陈
-/// 列（首行三枚、余者各占一整行）、形态全毁，
-/// 0.50.80 热修改子菜单原生陈列；Muse 式浮排
-/// 反应条（预览上方独立药丸）另包施工
-struct MessageMenuModifier: ViewModifier {
-    let isEnabled: Bool
-    /// 反应浮排挂钩（DESIGN §343）：非 nil＝本挂载
-    /// 点长按先走浮排（开关开＋本条可反应，路由在
-    /// ChatView.messageMenu 单点裁定）；nil＝纯系
-    /// 统菜单形态（0.50.80 口径逐字不变）
-    var floatingBarHook: ((CGRect) -> Void)? = nil
-    /// 浮排在场时本条菜单摘除（长按竞速护栏：自家
-    /// 手势 0.35s 先行呈浮排并置本旗、系统识别器
-    /// 约 0.5s 拍到时无菜单可呈，杜绝双面同呈；浮
-    /// 排关后自动复位。VoiceOver 呈菜单走系统路
-    /// 径、不经触摸长按，摘除只在浮排在场期间、
-    /// 与其互斥不亏入口）
-    var menuSuppressed: Bool = false
-    /// 呈现时刻组装菜单数据（动作集单源）
-    let makeData: () -> ChatRowActionSheetData
-
-    /// 测试装配钉：浮排序由是否在本修饰符生效
-    var usesFloatingBar: Bool { floatingBarHook != nil }
-
-    /// 挂载点全局帧（背景 GeometryReader 发布、长
-    /// 按触发时刻读——快照原位对齐的定位原点）
-    @State private var mountFrame: CGRect = .zero
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            if let floatingBarHook {
-                floatingBarBody(content, hook: floatingBarHook)
-            } else {
-                content.contextMenu { menuContent() }
-            }
-        } else {
-            content
-        }
-    }
-
-    /// 浮排形态：系统菜单照旧在位（VoiceOver 与未
-    /// 触发浮排时的完整入口），另加同位长按手势
-    /// （0.35s、与既有手势同时识别不夺触摸——行
-    /// 级仲裁〔右滑 pan/滚动/选字〕一律不碰）＋挂
-    /// 载帧发布
-    @ViewBuilder
-    private func floatingBarBody(
-        _ content: Content,
-        hook: @escaping (CGRect) -> Void
-    ) -> some View {
-        Group {
-            if menuSuppressed {
-                content
-            } else {
-                content.contextMenu { menuContent() }
-            }
-        }
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { frame in
-            mountFrame = frame
-        }
-        .simultaneousGesture(
-            LongPressGesture(
-                minimumDuration: 0.35, maximumDistance: 10
-            ).onEnded { _ in
-                hook(mountFrame)
-            }
-        )
-    }
-
-    /// 系统菜单内容（单源，两形态共用）：反应走
-    /// 「添加反应」子菜单、动作走 actionItems()
-    /// 逐项搬家
-    @ViewBuilder
-    private func menuContent() -> some View {
-        let data = makeData()
-        if data.canReact {
-            Menu {
-                ForEach(
-                    MessageReactions.palette,
-                    id: \.self
-                ) { emoji in
-                    Button {
-                        data.onPickReaction(emoji)
-                    } label: {
-                        if emoji == data.ownEmoji {
-                            Label(
-                                emoji,
-                                systemImage: "checkmark"
-                            )
-                        } else {
-                            Text(emoji)
-                        }
-                    }
-                }
-            } label: {
-                Label(
-                    "添加反应",
-                    systemImage: MessageActionSymbols
-                        .react
-                )
-            }
-        }
-        ForEach(data.actionItems()) { item in
-            Button(
-                role: item.isDestructive
-                    ? .destructive : nil
-            ) {
-                item.action()
-            } label: {
-                Label(
-                    item.title,
-                    systemImage: item.systemImage
-                )
-            }
-        }
-    }
-}
-
-/// 挂载点帧发布键（DESIGN §343）：MessageMenu-
-/// Modifier 的背景 GeometryReader 发布其在
-/// .global 的帧、修饰符自身在背景子树内订阅
-/// （订阅点不罩内容子树，嵌套挂载点的帧不串扰）
-private struct MessageMenuFrameKey: PreferenceKey {
-    nonisolated static let defaultValue: CGRect = .zero
-    static func reduce(
-        value: inout CGRect, nextValue: () -> CGRect
-    ) {
-        value = nextValue()
-    }
-}
-
-/// 右滑引用（0.36.19 立；0.36.26 §95 按生产同
-/// 构整件重做）：气泡向右滑，横向拖动显出回复箭
-/// 头，拖动途中过线即触发引用——与长按菜单「回
-/// 复」同一动作（beginReply），两路并存不互斥
-/// （长按是静止按压、右滑是横向拖动，形态不重
-/// 叠）。
-///
-/// 数值口径（沿 §95 定版、Stream 参数单源）：判
-/// 定全走 Core SwipeReplyMotion——起滑 30/途中
-/// 触发 60/显示封顶 90；起始点排除区（行内自有
-/// 横向交互的子区——代码块/表格的横向滚动区）
-/// 经 PreferenceKey 发布其在命名坐标空间内的
-/// 帧，起始点落在其中则整段忽略。
-///
-/// 识别层沿革：0.36.26–§264 是 Stream 同构的
-/// SwiftUI `.simultaneousGesture(DragGesture)`
-/// （0.36.20–0.36.23 的 UIKit 探针桥四轮真机全
-/// 灭后退役，P-15）。§265（换代包 5）按用户
-/// 2026-11-14 亲令大厂机制③换代：双审计定性
-/// simultaneousGesture 的跟踪消耗文本视图触摸
-/// 序列、双击选字被截流——识别改走 UIKit 识别
-/// 器桥（SwipeReplyPanBridge：UIPanGesture-
-/// Recognizer 装宿主滚动视图，方向门＝识别器
-/// 子类 began 前位移锁（换代包 8）＋纵滚
-/// require(toFail:) 让行），本修饰符只持拖动
-/// 状态、经桥的两条回调消费位移/收尾。与桥时
-/// 代（0.36.20）的差别：装配走 ScrollViewTap-
-/// Dismiss 已验的 ascend 寻面、判据只两条明路
-/// （速度门＋失败依赖）、数值口径零自创。
-/// 箭头在内容左缘下层：随显形进度淡入/缩放，
-/// 越线转武装态，且触发与触觉在越线同一刻发
-/// 生（途中触发，不等松手）；松手只做回位
-/// §199：internal（原 private）——选字计数证死/回归
-/// 测试须装配生产原物验证结构身份，不许在测试侧复
-/// 制一份同形修饰符充数
-struct SwipeReplyModifier: ViewModifier {
-    let isEnabled: Bool
-    /// 选区抑制（141/142 根治）：pan 回调时刻直读
-    /// （账本选区在场即抑制）——不经 body 重算、
-    /// 不翻结构，托管视图零换代（与 OB selecting
-    /// 态只切手势 enabled 同构）。默认不抑制
-    var isSuppressed: () -> Bool = { false }
-    let onReply: () -> Void
-
-    @State private var dragOffset: CGFloat = 0
-    /// 整段拖动只触发一次（越线当场置位、松手复位）
-    @State private var hasTriggered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            ZStack(alignment: .leading) {
-                replyArrow
-                content
-                    // 命中域＝整条消息容器（Stream
-                    // 行同款 contentShape）：行内空
-                    // 区起手也能拖（§265 后命中圈定
-                    // 由桥的 shouldReceive 按行帧判，
-                    // 本 contentShape 只管行内 SwiftUI
-                    // 命中形态、语义不变）
-                    .contentShape(Rectangle())
-                    // §265：UIKit 识别器桥挂行内容
-                    // background（零尺寸语义外的全帧
-                    // 背景视图、isUserInteractionEna-
-                    // bled=false 不夺命中；识别器本
-                    // 体装在宿主滚动视图上，见
-                    // SwipeReplyPanBridge）
-                    .background {
-                        SwipeReplyPanInstaller(
-                            onPanChanged: { translationX in
-                                handlePanChanged(translationX)
-                            },
-                            onPanEnded: {
-                                handlePanEnded()
-                            }
-                        )
-                    }
-                    .offset(
-                        x: SwipeReplyMotion.displayOffset(
-                            for: dragOffset
-                        )
-                    )
-            }
-        } else {
-            content
-        }
-    }
-
-    /// 桥回调·拖动中：只消费横向位移写 offset
-    /// （判定走 Core 单源）；越线当场触发＋触觉
-    /// （整段只一次）。起始点排除已由桥在 sho-
-    /// uldBegin 判死（识别器根本不开始），本处
-    /// 不再复查
-    /// 选区抑制在场时整段不消费：位移归零待命
-    /// （拖选字手柄的横移不许把行拖出引用位）
-    private func handlePanChanged(_ translationX: CGFloat) {
-        if isSuppressed() {
-            if dragOffset != 0 { dragOffset = 0 }
-            return
-        }
-        let newOffset = SwipeReplyMotion.dragOffset(
-            translationWidth: translationX,
-            currentOffset: dragOffset
-        )
-        dragOffset = newOffset
-        if !hasTriggered,
-           SwipeReplyMotion.shouldTrigger(
-               offset: newOffset
-           ) {
-            hasTriggered = true
-            // 轻触觉（动效宪法表 D，impact
-            // .light 落点不变）：与引用落定同
-            // 一因果链，只震这一次
-            Haptics.impact(.light)
-            onReply()
-        }
-    }
-
-    /// 桥回调·收尾：松手/取消/失败同口——复位触
-    /// 发标记、动画回位、不再判触发。选区抑制在
-    /// 场时同样只复位（抑制中不判触发，见
-    /// handlePanChanged）
-    private func handlePanEnded() {
-        hasTriggered = false
-        withAnimation(
-            MotionTokens.resolved(
-                MotionTokens.swap,
-                reduceMotion: reduceMotion
-            )
-        ) {
-            dragOffset = 0
-        }
-    }
-
-    /// 左缘回复箭头：显形进度驱动透明度与缩放，过
-    /// 线武装态换主色盘（Palette.primaryPale＋onPri-
-    /// mary 箭头——2026-11-15 第 85 条 BC-1 同类收
-    /// 口：onPrimary 的配对面恒是 primaryPale，旧
-    /// primary 盘暗档实算 2.33）——武装与触发同刻
-    /// （途中触发口径）
-    private var replyArrow: some View {
-        let progress = SwipeReplyMotion.revealProgress(
-            offset: dragOffset
-        )
-        let armed = SwipeReplyMotion.shouldTrigger(
-            offset: dragOffset
-        )
-        return Image(systemName: MessageActionSymbols.reply)
-            .font(.system(size: FrameworkIcon.inlineGlyphSize, weight: .semibold))
-            .foregroundStyle(
-                armed ? Palette.onPrimary : Palette.inkSecondary
-            )
-            .frame(width: 30, height: 30)
-            .background(
-                armed ? Palette.primaryPale : Palette.fieldFill,
-                in: Circle()
-            )
-            .opacity(progress)
-            .scaleEffect(0.6 + 0.4 * progress)
-            .padding(.leading, OneDayMetrics.spacingXS)
-            .accessibilityHidden(true)
-    }
-}
-
-extension View {
-    /// 标记右滑引用排除区：本视图区域内的横滑归
-    /// 它自己的横向交互（代码块/表格横滚），不触
-    /// 发本行右滑引用。形态沿革：0.36.26 §95 初版
-    /// 为背景 GeometryReader 在命名坐标空间经偏
-    /// 好键发布帧、行修饰符 @State 收集——行内协
-    /// 商型构件兼作手势仲裁、布局期反哺状态，与
-    /// 列表行「尺寸确定」通则相悖（大厂差距审计
-    /// G-07）；2026-11-23 收口改贴 UIKit 标记视图
-    /// （SwipeReplyExcludedMarker），帧由识别器
-    /// 桥在判定时刻自 cell 视图层级直算，行内不
-    /// 再有布局反哺点
-    func swipeReplyExcluded() -> some View {
-        background { SwipeReplyExcludedMarker() }
-    }
-}
-
-/// D3 编辑武装目标（DESIGN §352）：值快照、不持
-/// SwiftData 对象（与 SelectionPayload 同律）
-private struct EditSentTarget {
-    let entryID: UUID
-    let rowID: Int
-}
-
-/// D3 待确认发稿快照（DESIGN §352）：send() 起手
-/// 的快照四件（正文/附件/引用两槽）整包暂存，确
-/// 认与取消都不回读发送舱现值
-private struct EditSendDraft {
-    let text: String
-    let attachments: [PendingAttachment]
-    let quote: MessageQuote?
-    let feedQuote: FeedPostQuote?
-    let sourceQuote: SourceQuote?
-}
-
-/// D3 编辑横幅槽（DESIGN §352；0.50.88 自 composerCard
-/// 抽出独立成型）：武装条件在本槽内求值，宿主卡的组
-/// 合类型不随编辑态多一层条件包装（真机启动崩溃热修，
-/// 见 DESIGN §354）。形态与引用块同位同式：横幅本体
-/// （铅笔＋一行说明＋尾 ✕ 取消——解武装清舱、原条目
-/// 无损）＋发丝分隔线同进同出
-struct EditSentBannerSlot: View {
-    let isArmed: Bool
-    let onCancel: () -> Void
-
-    var body: some View {
-        if isArmed {
-            VStack(spacing: 0) {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
-                        .foregroundStyle(Palette.inkSecondary)
-                    Text("正在编辑较早的一条消息")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        onCancel()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
-                            .foregroundStyle(Palette.inkSecondary)
-                            .frame(width: 28, height: 28)
-                            .frame(
-                                width: OneDayMetrics.minTapTarget,
-                                height: OneDayMetrics.minTapTarget
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.odPressable)
-                    .accessibilityLabel("取消编辑")
-                }
-                .padding(.horizontal, OneDayMetrics.spacingSM)
-                .padding(.vertical, OneDayMetrics.spacingS)
-                Rectangle()
-                    .fill(Palette.hairline)
-                    .frame(height: 1)
-                    .padding(.horizontal, OneDayMetrics.spacingSM)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.opacity)
-        }
-    }
-}
-
-/// 「选择」sheet 载荷（0.4.1）
-private struct SelectionPayload: Identifiable {
-    let id = UUID()
-    let text: String
-}
-
-/// 分享载荷（§330）：原生面 UIKit 行菜单的「分
-/// 享」动作落点——ShareLink 是 SwiftUI 视图、
-/// UIKit 菜单内无处安放，改经本状态口开系统分
-/// 享单（与 gen3 面 ShareLink 同为系统分享件、
-/// 同载荷）
-private struct MessageSharePayload: Identifiable {
-    let id = UUID()
-    let text: String
-}
-
-/// 系统分享单承载（§330）：UIActivityViewCon-
-/// troller 薄包装，与 FilesView 的 FileShare-
-/// Sheet 同式（彼以文件 URL、本以消息纯文本）
-private struct MessageShareSheet: UIViewControllerRepresentable {
-    let text: String
-
-    func makeUIViewController(
-        context: Context
-    ) -> UIActivityViewController {
-        UIActivityViewController(
-            activityItems: [text],
-            applicationActivities: nil
-        )
-    }
-
-    func updateUIViewController(
-        _ controller: UIActivityViewController,
-        context: Context
-    ) {}
-}
-
-/// 「选择」承载页（0.4.1 立、§152 升级）：整条消息
-/// 的纯文本在系统 sheet 里跨段划选任意部分——气
-/// 泡内选字粒度是单个文本块（§152.3），跨块任意
-/// 选段的口子保留在本页。0.4.1 时本页用 SwiftUI
-/// Text＋.textSelection（iOS 26 下只有整段菜单），
-/// §152 起换 SelectableInlineText（UITextView 真
-/// 选段：双击选词／拖柄扩选／系统编辑菜单），与气
-/// 泡内同源同口径
-private struct SelectableTextSheet: View {
-    let text: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                SelectableInlineText(
-                    paragraphs: [.plain(text)],
-                    textStyle: .body,
-                    foreground: Palette.bodyInk
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(OneDayMetrics.pageGutter)
-            }
-            .navigationTitle("选择文本")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
-        }
-        .fullscreenPopBridge()
-    }
-}
-
-/// 待发附件（0.2.1）：图片已统一转 JPEG（见 appendImage）；
-/// 文件只存名与数据——直发未开放，发送时如实提示（见 send()）
-/// §410：选文件接入的汇总产物——后台读盘段
-/// （ChatView.loadPickedFilesSync）与主线入条段之间
-/// 传递；名单与 FileIntake 汇总函数一一对应
-struct PickedFilesLoadOutcome: Sendable {
-    var accepted: [PickedFilePayload] = []
-    var oversized: [String] = []
-    var unreadable: [String] = []
-    var transcoded: [String] = []
-    var undecodable: [String] = []
-}
-
-/// §410：单个已接入文件的上传载荷（转码后字节）
-struct PickedFilePayload: Sendable {
-    let name: String
-    let data: Data
-}
-
-private struct PendingAttachment: Identifiable {
-    let id = UUID()
-
-    enum Kind {
-        case image(Data)
-        case file(name: String, data: Data)
-    }
-
-    let kind: Kind
-
-    var imageData: Data? {
-        if case .image(let data) = kind { return data }
-        return nil
-    }
-
-    var fileName: String? {
-        if case .file(let name, _) = kind { return name }
-        return nil
-    }
-
-    /// 文件真发送载荷（0.36.29）：名＋数据成对取，
-    /// 上传与拼装只认它，不再只取名字
-    var filePayload: (name: String, data: Data)? {
-        if case .file(let name, let data) = kind {
-            return (name, data)
-        }
-        return nil
-    }
-}
-
-/// 文件上传失败（0.36.29）：点名文件＋人话原因，
-/// send 整条拦下时拼报错文案用，不静默吞单个文件
-private struct FileUploadFailure: Error {
-    let fileName: String
-    let reason: String
-}
-
-/// 系统相机包装：模拟器无相机，入口在附件菜单里已按可用性禁用
-private struct CameraPicker: UIViewControllerRepresentable {
-    var onImage: (Data) -> Void
-    var onCancel: () -> Void
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(
-        _ controller: UIImagePickerController, context: Context
-    ) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate,
-        UINavigationControllerDelegate {
-        let parent: CameraPicker
-
-        init(parent: CameraPicker) {
-            self.parent = parent
-        }
-
-        func imagePickerController(
-            _ picker: UIImagePickerController,
-            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-        ) {
-            if let image = info[.originalImage] as? UIImage,
-               let data = image.jpegData(compressionQuality: 0.85) {
-                parent.onImage(data)
-            } else {
-                parent.onCancel()
-            }
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onCancel()
-        }
-    }
-}
-
-/// 三点指示：已受理未出字时的等待信号（iMessage
-/// 输入指示器形态，§426 缺陷四按参照口径落数：
-/// 点径 8、点距 4、周期 1.4s、错峰 0.22s、透明
-/// 度 0.3↔1.0 正弦脉动；Reduce Motion 时静止）。
-/// 0.2.5 起随助手消息一同入泡。相位函数为钉测
-/// 读口（测动画状态、不测像素）
-struct TypingDots: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    static let dotDiameter: CGFloat = 8
-    static let dotSpacing: CGFloat = 4
-    static let cycleDuration: Double = 1.4
-    static let stagger: Double = 0.22
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.05)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: Self.dotSpacing) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Palette.inkMuted)
-                        .frame(
-                            width: Self.dotDiameter,
-                            height: Self.dotDiameter
-                        )
-                        .opacity(
-                            Self.opacity(
-                                at: t, index: index,
-                                reduceMotion: reduceMotion
-                            )
-                        )
-                }
-            }
-        }
-        .accessibilityLabel("正在生成")
-    }
-
-    /// 逐点透明度：正弦波错峰——第 i 点相位滞后
-    /// i×stagger 秒，波形平方收峰（亮段短、暗段
-    /// 长，与参照指示器的呼吸感同族）
-    static func opacity(
-        at t: TimeInterval, index: Int, reduceMotion: Bool
-    ) -> Double {
-        if reduceMotion { return 0.6 }
-        let speed = 2 * Double.pi / cycleDuration
-        let wave = sin(
-            t * speed - Double(index) * stagger * speed
-        )
-        return 0.3 + 0.7 * max(0, wave) * max(0, wave)
-    }
-}
-
-/// 流式光标已移至 StreamingText.swift（与流式渐显组件
-/// 同文件，文末词元同流排布）。
-
