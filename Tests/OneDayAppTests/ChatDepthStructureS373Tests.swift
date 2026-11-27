@@ -48,7 +48,12 @@ final class ChatDepthStructureS373Tests: XCTestCase {
     }
 
     func testChatViewNoLongerInlinesTheStack() throws {
-        let src = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainSrc = try source("Sources/OneDayApp/ChatView.swift")
+        let sendSrc = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let overlaysSrc = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let headerSrc = try source("Sources/OneDayApp/ChatView+HeaderAndActions.swift")
+        let src = mainSrc + "\n" + sendSrc + "\n" + overlaysSrc + "\n" + headerSrc
         XCTAssertFalse(
             src.contains("private var inputBar: some View"),
             "§373：inputBar 不许再作 ChatView 内联成员"

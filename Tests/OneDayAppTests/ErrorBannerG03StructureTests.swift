@@ -45,7 +45,10 @@ final class ErrorBannerG03StructureTests: XCTestCase {
     }
 
     func testChatViewBannerRecoveryTrioWiring() throws {
-        let chatView = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let sendChat = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let chatView = mainChat + "\n" + sendChat
         XCTAssertTrue(
             chatView.contains("private func presentError(_ error: HermesError)"),
             "§389：HermesError 驱动失败须走 presentError 赋值口"

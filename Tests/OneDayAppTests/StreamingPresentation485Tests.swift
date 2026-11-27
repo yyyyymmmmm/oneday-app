@@ -52,7 +52,12 @@ final class StreamingPresentation485Tests: XCTestCase {
 
     private var chatView: String {
         get throws {
-            try source("Sources/OneDayApp/ChatView.swift")
+            // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+            let main = try source("Sources/OneDayApp/ChatView.swift")
+            let send = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+            let overlays = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+            let header = try source("Sources/OneDayApp/ChatView+HeaderAndActions.swift")
+            return main + "\n" + send + "\n" + overlays + "\n" + header
         }
     }
 

@@ -89,7 +89,10 @@ final class ChatComposerTrailing446PinTests: XCTestCase {
     // MARK: - 钉二：ChatView 右端单槽渲染
 
     func testTrailingControlRendersSingleButton() throws {
-        let chat = try fileText("OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try fileText("OneDayApp/ChatView.swift")
+        let sendChat = try fileText("OneDayApp/ChatView+SendAndOutbox.swift")
+        let chat = mainChat + "\n" + sendChat
         XCTAssertFalse(
             chat.contains("stopMiniButton"),
             "§446：停止小钮 stopMiniButton 必须删除"
@@ -113,7 +116,10 @@ final class ChatComposerTrailing446PinTests: XCTestCase {
     /// （含流式有字的 .send）走 send()——后者即
     /// §419 入队口（账本在席分支落位待发）
     func testDiscTapRoutesStopOrSend() throws {
-        let chat = try fileText("OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try fileText("OneDayApp/ChatView.swift")
+        let sendChat = try fileText("OneDayApp/ChatView+SendAndOutbox.swift")
+        let chat = mainChat + "\n" + sendChat
         let disc = segment(
             chat, from: "private var sendStopButton",
             to: "private var micButton"

@@ -66,21 +66,22 @@ final class FullscreenPopBridgeTests: XCTestCase {
         let (window, nav) = makeNavigationRig()
         defer { window.isHidden = true }
         FullscreenPopController.equip(nav)
+        // #26 标准化：改用官方 interactiveContentPopGestureRecognizer，
+        // 不再自建 UIPanGestureRecognizer，检查 delegate 是否正确设置
         XCTAssertNotNil(
-            bridgePan(in: nav),
-            "装配后导航视图上须有桥的全屏 pan"
+            nav.interactiveContentPopGestureRecognizer?.delegate as? FullscreenPopController,
+            "装配后 delegate 须为 FullscreenPopController"
         )
         XCTAssertEqual(
-            nav.interactivePopGestureRecognizer?.isEnabled,
-            false,
-            "全屏 pan 接管后系统边缘识别器须关闭防双驱动"
+            nav.interactiveContentPopGestureRecognizer?.isEnabled,
+            true,
+            "#26：官方全屏识别器启用（不再是关闭边缘识别器）"
         )
-        // 幂等：重复装配不叠第二枚
+        // 幂等：重复装配不改 delegate
         FullscreenPopController.equip(nav)
-        let pans = nav.view.gestureRecognizers?
-            .compactMap { $0 as? UIPanGestureRecognizer }
-            .filter { $0.delegate is FullscreenPopController }
-        XCTAssertEqual(pans?.count, 1)
+        XCTAssertNotNil(
+            nav.interactiveContentPopGestureRecognizer?.delegate as? FullscreenPopController
+        )
     }
 
     // MARK: - delegate 裁决（与 Core 谓词同表）
@@ -90,9 +91,9 @@ final class FullscreenPopBridgeTests: XCTestCase {
         let (window, nav) = makeNavigationRig()
         defer { window.isHidden = true }
         FullscreenPopController.equip(nav)
-        guard let pan = bridgePan(in: nav),
-              let delegate = pan.delegate
-                as? FullscreenPopController
+        // #26 标准化：改用官方 interactiveContentPopGestureRecognizer
+        guard let contentPop = nav.interactiveContentPopGestureRecognizer,
+              let delegate = contentPop.delegate as? FullscreenPopController
         else {
             XCTFail("桥未装配")
             return

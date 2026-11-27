@@ -70,9 +70,10 @@ final class PushPrepStructureTests: XCTestCase {
     }
 
     func testClientEndpointAndAppStateWiring() throws {
-        let client = try source(
-            "Sources/OneDayApp/HermesClient.swift"
-        )
+        // #37 模块化拆分后 HermesClient push 端点在 AdminAndOps 扩展
+        let mainClient = try source("Sources/OneDayApp/HermesClient.swift")
+        let adminOpsClient = try source("Sources/OneDayApp/HermesClient+AdminAndOps.swift")
+        let client = mainClient + "\n" + adminOpsClient
         XCTAssertTrue(client.contains("/v1/push/tokens"))
         XCTAssertTrue(client.contains("pushEndpointNotReady"))
         let appState = try source(

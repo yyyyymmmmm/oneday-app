@@ -67,7 +67,10 @@ final class HapticsMatrixTests: XCTestCase {
     // MARK: - 定版点一：发送动作补最轻档 impact
 
     func testSendActionHasLightImpact() throws {
-        let chat = try fileText("OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try fileText("OneDayApp/ChatView.swift")
+        let sendChat = try fileText("OneDayApp/ChatView+SendAndOutbox.swift")
+        let chat = mainChat + "\n" + sendChat
         XCTAssertTrue(
             chat.contains("发送触感（2026-11-14 定版）"),
             "ChatView.send() 落盘点必须有发送触感定版标记"

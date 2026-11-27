@@ -30,7 +30,10 @@ final class CapsuleStatus474Tests: XCTestCase {
     /// 短语（资源库 §498 起经 ContentPageHeader 共同
     /// 簇同传）；胶囊本体状态词为可选（无活动不呈现）
     func testCapsuleStatusWordSingleSource() throws {
-        let chat = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chat = mainChat + "\n" + overlaysChat
         let capsule = try source(
             "Sources/OneDayApp/HubIdentityCapsule.swift"
         )
@@ -109,7 +112,10 @@ final class CapsuleStatus474Tests: XCTestCase {
     /// §474 胶囊线同源收口」），状态行仍活动优先呈现、
     /// §474 实质不变，断言随之改钉新单源字面。
     func testSecondCapsuleRemovedFromChatSurface() throws {
-        let chat = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chat = mainChat + "\n" + overlaysChat
         let hub = try source("Sources/OneDayApp/AgentHubView.swift")
         XCTAssertFalse(
             chat.contains("ProgressCapsuleView("),

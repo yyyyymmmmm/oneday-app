@@ -140,7 +140,11 @@ final class ChatSimplifiedModelPinTests: XCTestCase {
     /// ThreadID 与 streamingText——占位消失与落定
     /// 条目入列在同一收尾拍内、无帧共存
     func testA2PlaceholderPresenceAndSettleShareInFlightFlag() throws {
-        let chatView = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let sendChat = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chatView = mainChat + "\n" + sendChat + "\n" + overlaysChat
         XCTAssertTrue(
             chatView.contains(
                 "if sendTask != nil || activeRunThreadID != nil {"
@@ -216,7 +220,10 @@ final class ChatSimplifiedModelPinTests: XCTestCase {
     /// 账/settleStreamFollow）在 ChatView 与 Core
     /// 零残留
     func testA4FollowReducedToEntryCountRule() throws {
-        let chatView = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chatView = mainChat + "\n" + overlaysChat
         let seg = try segment(
             chatView,
             from: ".onChange(of: currentThread?.sortedEntries.count)",
