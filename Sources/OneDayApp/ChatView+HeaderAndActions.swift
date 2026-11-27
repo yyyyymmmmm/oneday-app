@@ -174,6 +174,9 @@ extension ChatView {
                 ),
                 onSelect: { choice in
                     selectCurrentChoice(choice)
+                },
+                onTap: {
+                    showHub = true
                 }
             ),
             onCardClose: onCardClose

@@ -80,10 +80,9 @@ struct HubIdentitySection: View {
         }
     }
 
-    /// 段内大名（左对齐）：§434 前与右端小头像同行
-    /// （与页头大头像同源）；页头改居中 hero 后小头
-    /// 像与 hero 重复、退役，本行只留名作正文题——
-    /// 对位参照身份格以名起头的排版
+    /// 段内名＋状态＋模型入口（§名下状态行）：名左对
+    /// 齐、连接状态行名下一行、模型入口胶囊在状态下
+    /// 方——模型胶囊不冒充状态、归位到身份段显式入口
     private var headerRow: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             Text(store.displayName)
@@ -95,10 +94,54 @@ struct HubIdentitySection: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
+
+            // 连接状态行（§名下状态行）：ConnectionStatus.
+            // phaseWord 单源（已连接/连接中/重连中/联系
+            // 不上/未连接），.body 字档与枢纽状态行同档
+            Text(appState.connectionStatus.phaseWord)
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+
+            // 模型选择入口归位（§名下状态行）：宿主注入
+            // 时出入口、不冒充状态——与 AgentHubView 页
+            // 头模型入口同组件同口径（modelEntryRow 本体
+            // 抽出复用）
+            if let modelEntry {
+                modelEntryCompactRow(modelEntry)
+            }
         }
         .padding(.horizontal, OneDayMetrics.hubGutter)
         .padding(.top, OneDayMetrics.spacingSM)
         .padding(.bottom, OneDayMetrics.spacingXS)
+    }
+
+    /// 模型入口紧凑行（与 AgentHubView.modelEntryRow 同
+    /// 形态、左对齐版）：sparkles＋标签＋上下箭头，轻
+    /// 胶囊点按开选择面
+    private func modelEntryCompactRow(_ entry: HubModelEntry) -> some View {
+        Button {
+            entry.onTap()
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingXS) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Palette.primary)
+                Text(entry.currentLabel)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .frame(height: 34)
+            .background(Palette.fillTertiary, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel("选择模型，当前 \(entry.currentLabel)")
     }
 
     /// 人设为空时的安静占位（不编造内容）：只给出去处
