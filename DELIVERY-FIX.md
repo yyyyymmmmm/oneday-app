@@ -1,8 +1,19 @@
-# 丙簇3条回归修复交卷
+# 测试修复线收尾交卷
+
+## 进度总览
+
+**已完成结构钉迁移：16个测试文件**
+- 第一批（8个）：ChatComposerTrailing446Pin、ChatSimplifiedModelPin、ChatRootChainStructure、ChatPreLayoutStep1、StreamingPresentation485、NotificationTierStructure、HubActivity449、ErrorBannerG03Structure
+- 第二批（5个）：CapsuleStatus474（2处）、ChatDepthStructureS373、ChatSwapStep6Structure、HitArea44（2处）、HapticsMatrix
+- 第三批（3个）：PushPrepStructure、H6H7Structure、FullscreenPopBridge（2条）
+
+**待处理：LibraryOrdering 定性取证（Mac 测试）+ 存疑 UI 簇（14条）+ 全量对账**
+
+---
 
 ## 1. H6H7Structure.testClientImplementsNewEndpoints
 
-**定性：误报（文件迁移，测试锚点未同步）**
+**定性：已修复（文件迁移，测试锚点未同步）**
 
 ### 根因
 重构将5个端点实现从 `HermesClient.swift` 拆分到 `HermesClient+SessionsAndMemory.swift`（#37模块化拆分），但测试第51行只搜索主文件：
@@ -31,7 +42,7 @@ let combined = mainSrc + extSrc
 
 ## 2. FullscreenPopBridge 两条
 
-**定性：口径变更（#26标准化改用官方API）**
+**定性：已修复（口径变更，#26标准化改用官方API）**
 
 ### 根因
 重构 #26 将全屏返回手势从自建 `UIPanGestureRecognizer` 改为官方 `interactiveContentPopGestureRecognizer`，消除私有API审核风险。
@@ -47,15 +58,14 @@ let combined = mainSrc + extSrc
 
 ### 修法
 
-#### 测试1：testEquipInstallsFullscreenPanAndDisablesEdgePop
-- 删除 `bridgePan(in:)` 方法调用（该方法已不存在）
+#### 测试1：testEquipInstallsFullscreenPanAndDisablesEdgePop（已完成）
 - 改检查 `interactiveContentPopGestureRecognizer.delegate` 是否为 `FullscreenPopController`
 - 断言 `isEnabled = true`（不再是 false）
-- 修改位置：`Tests/OneDayAppTests/FullscreenPopBridgeTests.swift:65-84`
+- 位置：`Tests/OneDayAppTests/FullscreenPopBridgeTests.swift:69-79`
 
-#### 测试2：testDelegateAdjudicationMatchesPolicy  
+#### 测试2：testDelegateAdjudicationMatchesPolicy（已完成）
 - 将 `bridgePan(in: nav)` 改为 `nav.interactiveContentPopGestureRecognizer`
-- 修改位置：`Tests/OneDayAppTests/FullscreenPopBridgeTests.swift:94-96`
+- 位置：`Tests/OneDayAppTests/FullscreenPopBridgeTests.swift:94-96`
 
 ---
 
