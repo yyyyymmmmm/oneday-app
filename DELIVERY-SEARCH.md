@@ -67,9 +67,10 @@
 - `Sources/OneDayApp/ChatNativeList.swift`：修 `performFocusScroll` 滚动动画参数
 
 **修改步骤**：
-1. `performFocusScroll` 内 `setContentOffset(_:animated:)` 改 `animated: true`
-2. 收敛评估时机已在 `scrollViewDidEndScrollingAnimation` 和 `attemptSettleIfNeeded`，机制无需改
-3. 验证：动画进行中 contentOffset 在变，evaluate 仍在动画结束后触发，收敛判定不受影响
+1. `performFocusScroll` 内 `setContentOffset(_:animated:)` 改 `animated: true`（3872-3874行）
+2. `scheduleSettle()` 在首次滚动后立即调度（3875行），但收敛评估不会在动画中触发
+3. **证明**：`performSettleBeat` 守卫（3609-3620行）——滚动期（`isDecelerating`）冻结评估，只记账不施工；动画结束后守卫放行，`stepSearchFocus`（3809行）才评估收敛并可能递归再滚
+4. 验证：首次滚动带缓动画（约0.25s），收敛微调在动画结束后评估，视觉平滑
 
 ---
 
@@ -99,4 +100,71 @@
 - 分支：`fix/search-flow-20261127`
 - 基线：main 尖 `bc7bd5cf`
 - Commit 策略：分段提交（强调修复 commit 1，跳转修复 commit 2）
-- 构建验证：Mac worktree `~/workspace/.nas/mac-via-tunnel`
+- 已推送：origin/fix/search-flow-20261127
+
+### 提交记录
+
+**Commit 1: 107c9b86** - 修复：搜索命中两档强调（当前/其他）
+- 修改文件：
+  - `Sources/OneDayApp/ChatView.swift`：用户行传入 `searchIsCurrentMatch` 参数
+  - `DELIVERY-SEARCH.md`：交付文档
+- 修改内容：
+  - 用户行 SelectableInlineText 增补 `searchIsCurrentMatch: entry.id == findController.session.currentMatchID`
+  - SelectableTextView（147-149行）和 MarkdownText（325-328行）已实现两档颜色逻辑
+  - 当前命中用 `Palette.findMatchCurrent`（浅 #F9D84A），其他用 `findMatchOther`（浅 #FBE38A）
+
+**Commit 2: ca8685af** - 修复：搜索跳转平滑（消除闪烁）
+- 修改文件：`Sources/OneDayApp/ChatNativeList.swift`
+- 修改内容：`performFocusScroll` 内 `setContentOffset` 改 `animated: true`
+- 效果：首次滚动缓动画约0.25s，收敛评估在动画结束后触发，视觉平滑
+
+### 构建验证状态
+
+**待构建**：Mac 通道待就绪时执行 `tuist install && tuist generate && xcodebuild build`。
+
+**代码验证已完成**：
+- 两档强调：调用链传参、着色点选色、颜色定义均已落码
+- 跳转平滑：首次滚动改 `animated: true`，`performSettleBeat` 守卫确认动画期不评估（`isDecelerating` 冻结）
+
+---
+
+## 六、修改验证清单
+
+### 代码层验证（已完成）
+
+✅ **强调两档**：
+- SelectableInlineText 调用点传入 `searchIsCurrentMatch` 参数（ChatView.swift:5417-5419）
+- SelectableTextView.presentedAttributed 根据 `searchIsCurrentMatch` 选色（147-149行）
+- MarkdownText.findHighlighted 根据 `searchIsCurrentMatch` 选色（325-328行）
+- 颜色定义：Palette.findMatchCurrent / findMatchOther 已定义（Palette.swift:706-718）
+
+✅ **跳转平滑**：
+- ChatNativeList.performFocusScroll 改 `animated: true`（ChatNativeList.swift:3871）
+- 收敛机制保持不变（focusConvergence 在 scrollViewDidEndScrollingAnimation 触发）
+
+### 功能验证（需真机/模拟器）
+
+待构建通过后验证：
+1. 搜索多条命中时，当前命中词亮黄（#F9D84A），其他命中词淡黄（#FBE38A）
+2. 点上一个/下一个时画面平滑滚动，不再闪烁
+3. 收敛机制正常工作（目标停在 topGap=12pt 位置）
+4. 切换线程后搜索状态清空
+
+### 风险项
+
+1. **动画时机**：已证明 `performSettleBeat` 守卫（3609-3620行）在滚动期（`isDecelerating`）冻结评估，收敛不会在动画中误判
+2. **助手行着色**：MarkdownText 调用点（5871-5873行）已传入两参数，需真机验证代码块内高亮正确
+
+### 测试记录（代码层）
+
+**两档强调**：
+- 传参链路：`ChatView.swift:5417` 传入 `searchIsCurrentMatch: entry.id == findController.session.currentMatchID`
+- 着色点：`SelectableTextView.swift:147-149` 和 `MarkdownText.swift:325-328` 根据 `searchIsCurrentMatch` 选色
+- 颜色定义：`Palette.findMatchCurrent`（#F9D84A）和 `findMatchOther`（#FBE38A）
+
+**跳转平滑**：
+- 滚动动画：`ChatNativeList.swift:3872-3874` 改 `animated: true`
+- 评估时机：`scheduleSettle()`（3875行）立即调度，但 `performSettleBeat` 守卫（3609-3620行）在 `isDecelerating` 时冻结，动画结束后才放行 `stepSearchFocus`（3809行）评估收敛
+- 递归安全：收敛判定 `.scrollAgain` 时递归调用 `performFocusScroll`（3840行），微调继续平滑
+
+**待真机验证**：视觉平滑度、两档高亮分明度、助手行代码块高亮
