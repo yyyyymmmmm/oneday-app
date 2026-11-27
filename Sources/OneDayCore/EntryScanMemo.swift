@@ -245,3 +245,132 @@ public enum EntryScanMemo {
         return hash
     }
 }
+
+// MARK: - 标准结构化消息块协议（移植自 refactor/standard-architecture Phase 3.2）
+
+/// 结构化消息块：将正文、文件交付卡、凭据请求卡、云电脑实时卡、内联图片与独立文件引用
+/// 统一表达为类型安全的 JSON Block 数组，双轨向后兼容老文本标记，供 iOS 与 macOS 双端共用。
+public enum MessageContentBlock: Equatable, Sendable, Codable {
+    case text(String)
+    case delivery(id: String)
+    case vaultRequest(id: String)
+    case cloudComputer(CloudComputerTarget)
+    case mediaImage(path: String)
+    case fileRef(path: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, text, id, cloudComputer, path
+    }
+
+    private enum BlockType: String, Codable {
+        case text
+        case delivery
+        case vaultRequest = "vault_request"
+        case cloudComputer = "cloud_computer"
+        case mediaImage = "media_image"
+        case fileRef = "file_ref"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(BlockType.self, forKey: .type)
+        switch type {
+        case .text:
+            self = .text(try container.decode(String.self, forKey: .text))
+        case .delivery:
+            self = .delivery(id: try container.decode(String.self, forKey: .id))
+        case .vaultRequest:
+            self = .vaultRequest(id: try container.decode(String.self, forKey: .id))
+        case .cloudComputer:
+            self = .cloudComputer(try container.decode(CloudComputerTarget.self, forKey: .cloudComputer))
+        case .mediaImage:
+            self = .mediaImage(path: try container.decode(String.self, forKey: .path))
+        case .fileRef:
+            self = .fileRef(path: try container.decode(String.self, forKey: .path))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let value):
+            try container.encode(BlockType.text, forKey: .type)
+            try container.encode(value, forKey: .text)
+        case .delivery(let id):
+            try container.encode(BlockType.delivery, forKey: .type)
+            try container.encode(id, forKey: .id)
+        case .vaultRequest(let id):
+            try container.encode(BlockType.vaultRequest, forKey: .type)
+            try container.encode(id, forKey: .id)
+        case .cloudComputer(let target):
+            try container.encode(BlockType.cloudComputer, forKey: .type)
+            try container.encode(target, forKey: .cloudComputer)
+        case .mediaImage(let path):
+            try container.encode(BlockType.mediaImage, forKey: .type)
+            try container.encode(path, forKey: .path)
+        case .fileRef(let path):
+            try container.encode(BlockType.fileRef, forKey: .type)
+            try container.encode(path, forKey: .path)
+        }
+    }
+}
+
+public struct MessageContentEnvelope: Equatable, Sendable, Codable {
+    public let v: Int
+    public let blocks: [MessageContentBlock]
+
+    public init(v: Int = 1, blocks: [MessageContentBlock]) {
+        self.v = v
+        self.blocks = blocks
+    }
+}
+
+public enum MessageBlockCodec {
+    private static let envelopePrefix = "{\"v\":1,\"blocks\":"
+
+    /// 双轨解码：优先识别结构化 JSON Envelope，否则兼容降级走 EntryScanMemo 解析老文本标记。
+    public static func decode(
+        entryID: UUID,
+        content: String,
+        remoteImagePaths: [String] = []
+    ) -> [MessageContentBlock] {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix(envelopePrefix),
+           let data = trimmed.data(using: .utf8),
+           let envelope = try? JSONDecoder().decode(MessageContentEnvelope.self, from: data) {
+            return envelope.blocks
+        }
+        let scans = EntryScanMemo.scans(
+            entryID: entryID,
+            content: content,
+            remoteImagePaths: remoteImagePaths
+        )
+        var blocks: [MessageContentBlock] = []
+        if !scans.media.text.isEmpty {
+            blocks.append(.text(scans.media.text))
+        }
+        for id in scans.delivery.deliveryIDs {
+            blocks.append(.delivery(id: id))
+        }
+        for id in scans.vaultRequest.requestIDs {
+            blocks.append(.vaultRequest(id: id))
+        }
+        for target in scans.cloudComputer.targets {
+            blocks.append(.cloudComputer(target))
+        }
+        for path in scans.media.imagePaths {
+            blocks.append(.mediaImage(path: path))
+        }
+        for path in scans.standalonePaths {
+            blocks.append(.fileRef(path: path))
+        }
+        return blocks
+    }
+
+    /// 编码为标准结构化 JSON Envelope（供新消息写入与测试使用）。
+    public static func encode(_ blocks: [MessageContentBlock]) -> String? {
+        let envelope = MessageContentEnvelope(v: 1, blocks: blocks)
+        guard let data = try? JSONEncoder().encode(envelope) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}

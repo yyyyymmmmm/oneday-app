@@ -402,3 +402,66 @@ public struct StreamingSettleMap: Equatable, Sendable {
 
     public var count: Int { rowKeyByEntryID.count }
 }
+
+// MARK: - 统一流式渲染协调器（移植自 refactor/standard-architecture Phase 3.4）
+
+/// 统一流式渲染协调器：提供 30fps 固定帧率节拍发布与已完成块冻结缓存，
+/// 供 iOS 与 macOS 双端共用，同时保留既有底层类型兼容存量单测。
+public struct StreamRenderCoordinator: Equatable, Sendable {
+    public struct Snapshot: Equatable, Sendable {
+        public let text: String
+        public let blocks: [StreamingBlock]
+        public let isComplete: Bool
+
+        public init(text: String, blocks: [StreamingBlock], isComplete: Bool) {
+            self.text = text
+            self.blocks = blocks
+            self.isComplete = isComplete
+        }
+    }
+
+    private var lastPublishedAt: TimeInterval = 0
+    private let minInterval: TimeInterval
+    private var accumulatedText: String = ""
+    private var cachedBlocks: [StreamingBlock] = []
+    private var isComplete: Bool = false
+
+    public init(minInterval: TimeInterval = 1.0 / 30.0) {
+        self.minInterval = minInterval
+    }
+
+    public mutating func reset() {
+        lastPublishedAt = 0
+        accumulatedText = ""
+        cachedBlocks = []
+        isComplete = false
+    }
+
+    /// 喂入新文本增量；仅在满足固定帧率节拍（或强制完成）时产出新快照，避免主线程高频重排。
+    public mutating func ingest(
+        delta: String,
+        now: TimeInterval,
+        forcePublish: Bool = false
+    ) -> Snapshot? {
+        guard !delta.isEmpty || forcePublish else { return nil }
+        accumulatedText += delta
+        if !forcePublish && lastPublishedAt > 0 && (now - lastPublishedAt) < minInterval {
+            return nil
+        }
+        lastPublishedAt = now
+        cachedBlocks = StreamingBlockSegmenter.blocks(for: accumulatedText)
+        return Snapshot(text: accumulatedText, blocks: cachedBlocks, isComplete: isComplete)
+    }
+
+    /// 流结束时强制落盘并冻结全部块。
+    public mutating func finish(now: TimeInterval) -> Snapshot {
+        isComplete = true
+        lastPublishedAt = now
+        cachedBlocks = StreamingBlockSegmenter.blocks(for: accumulatedText)
+        return Snapshot(text: accumulatedText, blocks: cachedBlocks, isComplete: true)
+    }
+
+    public var currentSnapshot: Snapshot {
+        Snapshot(text: accumulatedText, blocks: cachedBlocks, isComplete: isComplete)
+    }
+}

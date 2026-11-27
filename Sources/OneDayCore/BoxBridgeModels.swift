@@ -446,7 +446,7 @@ public enum BoxCoordinateMapper {
 /// 聊天消息中识别出的云电脑预览/接管目标。
 /// 将 AI 回复里裸露的云电脑实时画面网址或结构化标记从气泡正文中剥离，
 /// 原地渲染为可点击接管的实时预览卡。
-public struct CloudComputerTarget: Equatable, Hashable, Identifiable, Sendable {
+public struct CloudComputerTarget: Equatable, Hashable, Identifiable, Sendable, Codable {
     public let id: String
     public let boxID: String?
     public let liveURL: String
