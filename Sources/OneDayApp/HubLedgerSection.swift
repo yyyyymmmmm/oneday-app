@@ -65,6 +65,7 @@ struct HubLedgerSection: View {
     /// 展开、收起的组名记在此集（组名＝LedgerDay-
     /// Group.title，与分组单源同键）
     @State private var collapsedDayTitles: Set<String> = []
+    @State private var hasInitializedCollapse = false
     /// 定时数据（§434 并格）：与原定时段同源——共
     /// 享 CronStore 单源（台账 198 收敛口径不变）
     private var cronStore: CronStore {
@@ -209,8 +210,11 @@ struct HubLedgerSection: View {
         let snapshot = ledgerSnapshot
         return ScrollViewReader { proxy in
             List {
-                Section {
-                    if cronStore.hasLoaded, !cronStore.hubGroups.isEmpty {
+                // §502 改版：预定任务为一级分类，与按天
+                // 分组同级——计数行即分类标题，不再叠一
+                // 层静态 header；空/加载态保留原行
+                if cronStore.hasLoaded, !cronStore.hubGroups.isEmpty {
+                    Section {
                         DisclosureGroup(isExpanded: $cronExpanded) {
                             ForEach(cronStore.hubGroups, id: \.kind) { group in
                                 ForEach(group.items) { item in
@@ -228,29 +232,31 @@ struct HubLedgerSection: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(rowInsets)
                         .listRowBackground(Color.clear)
-                    } else if cronStore.hasLoaded {
-                        Text("暂无预定任务")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(rowInsets)
-                    } else {
-                        ProgressView()
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(rowInsets)
                     }
-                } header: {
-                    sectionTitle("预定任务")
+                } else if cronStore.hasLoaded {
+                    Text("暂无预定任务")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
+                } else {
+                    ProgressView()
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
                 }
-                Section {
-                    if snapshot.daySections.isEmpty {
-                        Text("暂无近期活动")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(rowInsets)
-                    }
-                    ForEach(snapshot.daySections) { section in
+                // §502 改版：按天分段为一级分类，与预定
+                // 任务同级——每组自成 Section，不再包在
+                // 「活动记录」一节之下；今天默认展开、
+                // 其余默认折叠（初始化见 initializeCollapsedDays）
+                if snapshot.daySections.isEmpty {
+                    Text("暂无近期活动")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
+                }
+                ForEach(snapshot.daySections) { section in
+                    Section {
                         DisclosureGroup(
                             isExpanded: dayExpandedBinding(for: section.title)
                         ) {
@@ -279,8 +285,6 @@ struct HubLedgerSection: View {
                         .listRowInsets(rowInsets)
                         .listRowBackground(Color.clear)
                     }
-                } header: {
-                    sectionTitle("活动记录")
                 }
             }
             .listStyle(.plain)
@@ -303,6 +307,12 @@ struct HubLedgerSection: View {
             }
             .onChange(of: store.allItems) { _, _ in
                 scrollToFocus(proxy, id: focusItemID)
+            }
+            .onAppear {
+                initializeCollapsedDays(snapshot: snapshot)
+            }
+            .onChange(of: snapshot.daySections) { _, _ in
+                initializeCollapsedDays(snapshot: snapshot)
             }
         }
     }
@@ -355,6 +365,19 @@ struct HubLedgerSection: View {
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
             .padding(.vertical, OneDayMetrics.spacingXS)
+    }
+
+    /// 初始化按天折叠态（§502）：首次加载时，除今天
+    /// 外的所有时间段默认折叠——「今天」是本地化标题
+    /// （L10n.string("今天")），与 FeedBoard.groupTitle
+    /// 同源；只在首次初始化时执行，之后保持用户操作态
+    private func initializeCollapsedDays(snapshot: LedgerListSnapshot) {
+        guard !hasInitializedCollapse else { return }
+        let todayTitle = L10n.string("今天", locale: AppLocale.uiLocale)
+        for section in snapshot.daySections where section.title != todayTitle {
+            collapsedDayTitles.insert(section.title)
+        }
+        hasInitializedCollapse = true
     }
 
     private func dayExpandedBinding(for title: String) -> Binding<Bool> {
