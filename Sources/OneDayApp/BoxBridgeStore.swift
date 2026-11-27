@@ -162,10 +162,13 @@ final class BoxBridgeStore {
             if target == .status {
                 hubState = .bridgeUnavailable
             }
+            // screenshot 目标也需要记录 noKey 状态，让 UI 能区分「缺钥匙」vs「网络失败」
+            screenshotFailed = true
         case .failed:
             if target == .status {
                 hubState = .failed
             }
+            // screenshot 失败已在 fetchScreenshot 里置位，此处无需重复
         }
     }
 

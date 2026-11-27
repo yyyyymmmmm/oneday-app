@@ -898,8 +898,16 @@ struct CredentialFormView: View {
         )
         if case .verified = store.credentialPhase {
             if connection.provider == "simular_box" {
-                KeychainStore.save(apiKey.trimmingCharacters(in: .whitespacesAndNewlines), account: "box.mcp.key")
-                BoxMCPClientFactory.reset()
+                let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                KeychainStore.save(trimmedKey, account: "box.mcp.key")
+                // 回读验证：写入后立即读回校验
+                if let readBack = KeychainStore.read(account: "box.mcp.key"), !readBack.isEmpty {
+                    BoxMCPClientFactory.reset()
+                } else {
+                    // 写失败当场明示
+                    store.credentialPhase = .failed("钥匙保存失败：请检查设备存储权限后重试")
+                    return
+                }
             }
             onVerified()
         }
