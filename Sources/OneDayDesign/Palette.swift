@@ -697,9 +697,24 @@ public enum Palette {
     /// （WhatsApp/TG 同族）；浅档实色 #FBE38A、暗
     /// 档随 pastel 家族同构造走系统黄 α0.40（压暗
     /// 泡面仍可辨）
+    /// 2026-11-27：退役为 findMatchOther（其他命中弱强调）
     public static let findMatchFill = appleColor(
         light: 0xFBE38A,
         dark: UIColor.systemYellow.withAlphaComponent(0.40)
+    )
+
+    /// 查找命中两档（2026-11-27 搜索流程重做）：对齐
+    /// iOS Messages/Safari 标准——当前命中强背景、其他
+    /// 命中弱背景，两档分明。浅档：当前 #F9D84A（饱和
+    /// 黄）、其他 #FBE38A（淡黄）；暗档：当前系统黄
+    /// α0.55、其他 α0.20（压泡面可辨、文本可读）
+    public static let findMatchCurrent = appleColor(
+        light: 0xF9D84A,
+        dark: UIColor.systemYellow.withAlphaComponent(0.55)
+    )
+    public static let findMatchOther = appleColor(
+        light: 0xFBE38A,
+        dark: UIColor.systemYellow.withAlphaComponent(0.20)
     )
     /// 代码面（OpenMuse 行内/块代码底 #E2E4E7，
     /// assistant-response.tsx:17-18；暗档 0.36.1 改走
