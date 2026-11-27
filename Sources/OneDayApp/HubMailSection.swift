@@ -2,7 +2,7 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// Read-only inbox backed by the server mail gateway.
+/// Mail inbox with drafts and compose capability.
 struct HubMailSection: View {
     @Environment(AppState.self) private var appState
     private let client = HermesClient()
@@ -10,6 +10,8 @@ struct HubMailSection: View {
     @State private var total = 0
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var showingCompose = false
+    @State private var showingDrafts = false
 
     var body: some View {
         Group {
@@ -51,6 +53,34 @@ struct HubMailSection: View {
                 }
                 .listStyle(.plain)
                 .refreshable { await refresh() }
+            }
+        }
+        .navigationTitle("邮箱")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        showingCompose = true
+                    } label: {
+                        Label("写信", systemImage: "square.and.pencil")
+                    }
+                    Button {
+                        showingDrafts = true
+                    } label: {
+                        Label("草稿箱", systemImage: "doc.text")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showingCompose) {
+            MailComposeView()
+                .onDisappear { load() }
+        }
+        .sheet(isPresented: $showingDrafts) {
+            NavigationStack {
+                MailDraftsView()
             }
         }
         .task { await loadMessages(reset: true) }
@@ -126,6 +156,8 @@ private struct HubMailDetailView: View {
     @State private var detail: MailMessage?
     @State private var errorMessage: String?
     @State private var loading = true
+    @State private var showingReply = false
+    @State private var showingForward = false
 
     var body: some View {
         Group {
@@ -141,6 +173,23 @@ private struct HubMailDetailView: View {
                         metadata("发件人", detail.from)
                         metadata("收件人", detail.to)
                         metadata("时间", Date(timeIntervalSince1970: TimeInterval(detail.date)).formatted(date: .abbreviated, time: .shortened))
+
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Button {
+                                showingReply = true
+                            } label: {
+                                Label("回复", systemImage: "arrowshape.turn.up.left")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                showingForward = true
+                            } label: {
+                                Label("转发", systemImage: "arrowshape.turn.up.right")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
                         Divider()
                         Text(detail.bodyText ?? "邮件正文为空。")
                             .font(.body)
@@ -162,6 +211,24 @@ private struct HubMailDetailView: View {
         }
         .navigationTitle("邮件")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingReply) {
+            if let detail {
+                MailComposeView(
+                    to: detail.from,
+                    subject: detail.subject.hasPrefix("Re:") ? detail.subject : "Re: \(detail.subject)",
+                    body: "\n\n---\n\(detail.from) 写道：\n\(detail.bodyText ?? "")"
+                )
+            }
+        }
+        .sheet(isPresented: $showingForward) {
+            if let detail {
+                MailComposeView(
+                    to: "",
+                    subject: detail.subject.hasPrefix("Fwd:") ? detail.subject : "Fwd: \(detail.subject)",
+                    body: "\n\n---\n转发自：\(detail.from)\n主题：\(detail.subject)\n\n\(detail.bodyText ?? "")"
+                )
+            }
+        }
         .task { await loadDetail() }
     }
 

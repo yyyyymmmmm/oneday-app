@@ -1404,6 +1404,39 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
+    func mailDrafts(
+        config: ServerConfig, apiKey: String
+    ) async throws -> MailDraftsResponse {
+        try await bearerGetJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/mail/drafts",
+            endpoint: L10n.string("草稿列表")
+        )
+    }
+
+    func createMailDraft(
+        config: ServerConfig, apiKey: String, request: CreateDraftRequest
+    ) async throws -> MailDraft {
+        try await bearerPostJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/mail/drafts",
+            body: request,
+            endpoint: L10n.string("创建草稿")
+        )
+    }
+
+    func sendMailDraft(
+        config: ServerConfig, apiKey: String, draftID: String,
+        request: SendDraftRequest
+    ) async throws {
+        let _: EmptyResponse = try await bearerPostJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/mail/drafts/\(draftID)/send",
+            body: request,
+            endpoint: L10n.string("发送邮件")
+        )
+    }
+
     func settingsRegistry(
         config: ServerConfig, apiKey: String
     ) async throws -> SettingsRegistryResponse {
