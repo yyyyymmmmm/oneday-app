@@ -30,14 +30,22 @@ struct FeedListSnapshot {
         let query = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        // UI7-7：过滤非动态内容——点子类帖子归点子面，
+        // 不混入动态流（大厂口径：Twitter/Mastodon 分
+        // tab 不混排）。判定：refs 指向 idea 类型即为
+        // 点子关联帖，不在动态流显示
+        let feedPosts = posts.filter { post in
+            // 过滤掉所有 refs 包含 idea 的帖子
+            !post.refs.contains { $0.refType == .idea }
+        }
         let visible: [BridgeFeedPost]
         if isSearching, !query.isEmpty {
-            visible = posts.filter {
+            visible = feedPosts.filter {
                 $0.title.localizedCaseInsensitiveContains(query)
                     || $0.body.localizedCaseInsensitiveContains(query)
             }
         } else {
-            visible = posts
+            visible = feedPosts
         }
         return FeedListSnapshot(visiblePosts: visible)
     }
