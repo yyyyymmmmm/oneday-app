@@ -81,11 +81,11 @@ struct VoiceSettingsView: View {
     private var availabilityFooter: String {
         switch speechPlayer.availability {
         case .available:
-            return "在对话里长按助手回复，选「朗读」即可听；自动朗读开启后，新回复落定会自动读出来。"
+            return "长按回复可单条朗读；开启自动朗读后，新回复生成完成将自动播报。"
         case .unavailable:
-            return "这台服务器还没开通朗读（合成组件未安装或未启用），长按菜单里不会出现「朗读」。"
+            return "当前服务器尚未启用语音朗读功能。"
         case .unknown:
-            return "暂时读不到服务端的语音配置，连上服务器后会自动刷新。"
+            return "暂时无法读取语音配置，连接服务器后自动刷新。"
         }
     }
 

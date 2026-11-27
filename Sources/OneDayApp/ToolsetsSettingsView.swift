@@ -50,6 +50,8 @@ struct ToolsetsSettingsView: View {
                             ? Palette.danger : Palette.inkSecondary
                     )
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
         switch store.state {
         case .idle, .loading:
@@ -61,6 +63,8 @@ struct ToolsetsSettingsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         case .unavailable(let message), .failed(let message):
             Section {
                 Text(message)
@@ -72,6 +76,8 @@ struct ToolsetsSettingsView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         case .ready:
             readyContent
         }
@@ -82,7 +88,7 @@ struct ToolsetsSettingsView: View {
         if let list = store.list {
             Section {
                 if list.data.isEmpty {
-                    Text("服务器没报回任何工具集。下拉刷新再试；一直这样说明服务端清单为空。")
+                    Text("暂未获取到工具集，请下拉刷新重试。")
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -90,18 +96,20 @@ struct ToolsetsSettingsView: View {
                     toolsetRow(row)
                 }
             } header: {
-                Text("手机会话工具集")
+                SettingsSectionHeader("会话工具集")
             } footer: {
                 VStack(
                     alignment: .leading,
                     spacing: OneDayMetrics.spacingXS
                 ) {
-                    Text("开关对新会话生效：改完后新开的会话按新清单干活，正在进行的会话不受影响。")
+                    Text("修改后对新会话生效，当前会话不受影响。")
                     if store.configUnread {
-                        Text("服务器配置这次没读全，个别工具集（如语音转写）的开关状态可能还没确认准，下拉刷新再试。")
+                        Text("部分服务器配置未读取完整，下拉刷新可重新同步。")
                     }
                 }
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
         backendsSection
     }
@@ -182,7 +190,7 @@ struct ToolsetsSettingsView: View {
         Section {
             if let backends = store.backends {
                 if backends.backends.isEmpty {
-                    Text("服务器没报回终端后端。")
+                    Text("暂无可用终端后端。")
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -190,13 +198,15 @@ struct ToolsetsSettingsView: View {
                     backendRow(backend)
                 }
             } else if store.backendsUnread {
-                Text("终端后端这次没读出来，下拉刷新再试。")
+                Text("终端后端读取失败，请下拉刷新重试。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
         } header: {
-            Text("终端后端")
+            SettingsSectionHeader("终端后端")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func backendRow(_ backend: TerminalBackend) -> some View {
@@ -299,6 +309,8 @@ struct ToolsetDetailView: View {
                                 : Palette.inkSecondary
                         )
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
             detailSections
         }
@@ -353,21 +365,23 @@ struct ToolsetDetailView: View {
                 }
             }
         } header: {
-            Text("基本")
+            SettingsSectionHeader("基本")
         } footer: {
             VStack(
                 alignment: .leading,
                 spacing: OneDayMetrics.spacingXS
             ) {
-                Text("开关对新会话生效，正在进行的会话不受影响。")
+                Text("修改后对新会话生效，当前会话不受影响。")
                 if configBacked {
-                    Text("这个工具集的开关状态以服务器配置为准（服务端按配置节计），页面显示的是配置里的真值。")
+                    Text("此开关状态由服务器配置决定。")
                 }
                 if !row.configured {
-                    Text("这个工具集还没配置齐：开关打开也可能用不了，先在下面看服务商与密钥状态。")
+                    Text("当前尚未完成配置，请在下方检查服务商与密钥状态。")
                 }
             }
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     @ViewBuilder
@@ -376,11 +390,13 @@ struct ToolsetDetailView: View {
             Section {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
-                    Text("正在读取细调项…")
+                    Text("正在读取配置…")
                         .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         } else {
             providerSection
             modelSection
@@ -397,16 +413,20 @@ struct ToolsetDetailView: View {
                     providerRow(provider, panel: panel)
                 }
             } header: {
-                Text("服务商")
+                SettingsSectionHeader("服务商")
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         } else if store.detail.panelFailed {
             Section {
-                Text("服务商清单这次没读出来，退出重进再试。")
+                Text("服务商清单读取失败，请返回重试。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             } header: {
-                Text("服务商")
+                SettingsSectionHeader("服务商")
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
     }
 
@@ -486,16 +506,20 @@ struct ToolsetDetailView: View {
                     modelRow(model, catalog: catalog)
                 }
             } header: {
-                Text("后端模型")
+                SettingsSectionHeader("后端模型")
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         } else if store.detail.catalogFailed {
             Section {
-                Text("模型目录这次没读出来，退出重进再试。")
+                Text("模型目录读取失败，请返回重试。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             } header: {
-                Text("后端模型")
+                SettingsSectionHeader("后端模型")
             }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
     }
 
@@ -622,10 +646,12 @@ struct ToolsetDetailView: View {
                         )
                     }
                 } header: {
-                    Text("密钥状态")
+                    SettingsSectionHeader("密钥状态")
                 } footer: {
-                    Text("这里只看密钥配没配，不在这里录入。需要配置时，在服务器上把密钥写进 Hermes 的环境配置（.env）后，回到这里刷新即可。")
+                    Text("仅展示配置状态；如需修改请在服务端环境变量配置后刷新。")
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
         }
     }

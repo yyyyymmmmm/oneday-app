@@ -40,7 +40,7 @@
 - [x] `#11` 密码列表页搜索、图标徽章与锁定态解锁（`VaultListView.swift`）— `54bfcb71`
 - [x] `#12` 聊天密码卡现代分层升级（`VaultRequestCard.swift`）— `54bfcb71`
 - [x] `#13` 云主机详情页实时桌面预览卡 + 独立凭据 Sheet（`CloudComputerViews.swift`）— 本批
-- [ ] `#14` 全仓 List 边距与设置文案收口
+- [x] `#14` 全仓 List 边距与设置文案收口（`ToolsetsSettingsView` / `CrashReportsView` / `UsageDetailView` / `VoiceSettingsView` 统一 `settingsRowInsets` 与去工程味文案）
 - [x] `#15` Haptics 全仓通道级防抖收敛（`Haptics.swift`）— 本批
 - [~] `#16` ~~摘除 HubUnderlayTreatment~~（审计红线否决）
 
@@ -61,7 +61,7 @@
 - [ ] `#29` Markdown 与表格渲染对齐 `swift-markdown 0.6.0`
 - [x] `#30` `StreamingText` 升级 `PhaseAnimator` + `StreamingFadeTextRenderer` — `59a8bfc3`
 - [x] `#31` `TimelineView` 计时器切原生 `Text(style: .timer)` + 删 `ScrollViewTapDismiss` + `FloatingToastView` 收口 — `54bfcb71` / `59a8bfc3` / `4029264e`
-- [ ] `#32` `DictationController` 切 iOS 26 原生 `SpeechAnalyzer`
+- [ ] `#32` `DictationController` 切 iOS 26 原生 `SpeechAnalyzer`（已拍板：直接升级，归第 3 批执行）
 
 ### Batch 3：iOS 核心引擎、网络与大文件拆分（7 项）
 
@@ -80,7 +80,7 @@
 - [~] `#42` ~~`auth_tokens.py` 换 JWT 铸造格式~~（审计缓办）
 - [~] `#43` ~~`requirements-standard.txt` 零引用依赖与空壳 `sqlite-vec`~~（审计清退）
 - [ ] `#44` 基于 `2.18.12+` 拆解 `api_server.py` / `device_gateway.py` / `oneday_seg_feed.py` 并全量登记 4 件套
-- [ ] `#45` `oneday_db.py` 决策（真接全四类存储或彻底不合）
+- [ ] `#45` `oneday_db.py` 统一 SQLite WAL（已拍板：真接全四类 JSON/JSONL 存储并附迁移脚本，归第 4 批执行）
 - [ ] `#46` `push_sender.py` 接 `aioapns` / 定时调度重构
 - [ ] `#47` 服务端真加密测试全绿留档（Python 3.10+ + `cryptography`）
 - [ ] `#48` 工程卫生（`Tuist/Package.resolved` 入库、Swift 6 并发告警清零）
