@@ -14,14 +14,24 @@ final class ChatRootChainStructureS371Tests: XCTestCase {
 
     private func chatViewSource() throws -> String {
         let testFile = URL(fileURLWithPath: #filePath)
-        let srcURL = testFile
+        let srcRoot = testFile
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent(
-                "Sources/OneDayApp/ChatView.swift"
-            )
-        return try String(contentsOf: srcURL, encoding: .utf8)
+            .appendingPathComponent("Sources/OneDayApp")
+
+        // #37 模块化拆分后 ChatView 分布在主文件和扩展中，合并读取
+        let mainURL = srcRoot.appendingPathComponent("ChatView.swift")
+        let overlaysURL = srcRoot.appendingPathComponent("ChatView+OverlaysAndModifiers.swift")
+        let headerURL = srcRoot.appendingPathComponent("ChatView+HeaderAndActions.swift")
+        let sendURL = srcRoot.appendingPathComponent("ChatView+SendAndOutbox.swift")
+
+        var combined = try String(contentsOf: mainURL, encoding: .utf8)
+        combined += "\n" + (try String(contentsOf: overlaysURL, encoding: .utf8))
+        combined += "\n" + (try String(contentsOf: headerURL, encoding: .utf8))
+        combined += "\n" + (try String(contentsOf: sendURL, encoding: .utf8))
+
+        return combined
     }
 
     private func segment(

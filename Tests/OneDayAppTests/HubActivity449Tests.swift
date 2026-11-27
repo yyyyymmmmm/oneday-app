@@ -19,7 +19,10 @@ final class HubActivity449Tests: XCTestCase {
     }
 
     func testChatStreamNoLongerInstantiatesToolCards() throws {
-        let chat = try source("Sources/OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chat = mainChat + "\n" + overlaysChat
         XCTAssertFalse(
             chat.contains("ToolCardGroupView("),
             "§449.9：工具组卡不得再进聊天流"

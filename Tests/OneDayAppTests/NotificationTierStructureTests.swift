@@ -133,9 +133,10 @@ final class NotificationTierStructureTests: XCTestCase {
 
     /// ChatView 三沿挂钩与桥店消费点在场
     func testRunAndAlertHooksPresent() throws {
-        let chat = try source(
-            "Sources/OneDayApp/ChatView.swift"
-        )
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let sendChat = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let chat = mainChat + "\n" + sendChat
         XCTAssertTrue(
             chat.contains("RunLiveActivityCenter.shared.begin("),
             "起跑沿须启动实时活动"

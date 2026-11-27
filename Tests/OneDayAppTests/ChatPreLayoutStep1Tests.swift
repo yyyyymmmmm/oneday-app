@@ -283,9 +283,11 @@ final class ChatPreLayoutStep1Tests: XCTestCase {
     }
 
     func testStructure_preLayoutStep1Shapes() throws {
-        let chatView = try source(
-            "Sources/OneDayApp/ChatView.swift"
-        )
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let sendChat = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chatView = mainChat + "\n" + sendChat + "\n" + overlaysChat
         let composerSrc = try source(
             "Sources/OneDayApp/ChatNativeRowHeight.swift"
         )
