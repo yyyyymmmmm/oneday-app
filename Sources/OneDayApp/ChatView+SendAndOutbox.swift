@@ -526,10 +526,11 @@ extension ChatView {
             userEntry.markSendState(
                 .uploading, in: modelContext
             )
-            if showsUploadUI { uploadProgressFraction = 0 }
+            // 修法 C：进度初始化改按条目 ID 索引
+            if showsUploadUI { uploadProgressFraction[userEntry.id] = 0 }
             do {
                 fileServerPaths = try await uploadPendingFiles(
-                    job.filePayloads
+                    userEntry.id, job.filePayloads
                 )
             } catch let failure as FileUploadFailure {
                 if showsUploadUI { isUploadingFiles = false }
@@ -588,7 +589,8 @@ extension ChatView {
             }
             if showsUploadUI {
                 isUploadingFiles = false
-                uploadProgressFraction = nil
+                // 修法 C：清除进度改按条目 ID 索引
+                uploadProgressFraction.removeValue(forKey: userEntry.id)
             }
             if Task.isCancelled { return .stopped }
             failedFilePayloads[userEntry.id] = nil
@@ -1249,7 +1251,9 @@ extension ChatView {
     /// 整条拦下在 send 侧，不在此处吞单个文件。
     /// 服务端 attachments/ 副本无自动过期，本轮只
     /// 记账不做清理策略（契约报告边界口径）
+    /// 修法 C：增加 entryID 参数，进度按条目索引
     func uploadPendingFiles(
+        _ entryID: UUID,
         _ payloads: [(name: String, data: Data)]
     ) async throws -> [String] {
         // §237 P7：进度聚合按原始字节计（data_url 在
@@ -1285,7 +1289,8 @@ extension ChatView {
                                     fraction: fileFraction
                                 )
                             Task { @MainActor in
-                                uploadProgressFraction = aggregate
+                                // 修法 C：进度写入改按条目 ID 索引
+                                uploadProgressFraction[entryID] = aggregate
                             }
                         }
                     )
@@ -1297,7 +1302,8 @@ extension ChatView {
                 )
             }
             tracker.finishCurrentFile()
-            uploadProgressFraction = tracker.fractionCompleted
+            // 修法 C：进度写入改按条目 ID 索引
+            uploadProgressFraction[entryID] = tracker.fractionCompleted
             guard let serverPath = receipt.serverPath else {
                 throw FileUploadFailure(
                     fileName: payload.name,
@@ -2744,6 +2750,9 @@ extension ChatView {
                 }
             }
             userEntry.markSendState(.delivered, in: modelContext)
+            // 修法 A：发送完成（状态变为 .delivered）后
+            // 清除乐观快照，恢复使用持久化数据
+            optimisticAttachments.removeValue(forKey: userEntry.id)
             // 发送失败机制包（语义 1 清账点①）：run
             // 真终态落定成功——本条重试记账在此单点
             // 清（按条目 id、不扫线程）；失败支不许
