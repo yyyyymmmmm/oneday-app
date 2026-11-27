@@ -385,11 +385,11 @@ post = {id, kind ("research" | "morning"; "digest" | "event"
                                 "agent"), goals_update. Every call,
                                 success or failure, writes one P0
                                 trace before answering. The facade is
-                                built and self-verified here; it is
-                                NOT registered into Hermes yet --
-                                registration waits for the closing
-                                window (see AI-POWERS-FOUNDATION
-                                report).
+                                built and self-verified here, and is
+                                registered into Hermes as
+                                oneday-goals (`hermes mcp list` +
+                                `hermes mcp test` verified,
+                                2026-11-27).
 - POST   /automation-mcp     -> MCP streamable-http facade for the
                                 automation surface (P4+P5,
                                 2026-11-13): cron_create / cron_list
@@ -406,8 +406,9 @@ post = {id, kind ("research" | "morning"; "digest" | "event"
                                 one P0 trace before answering; a
                                 watcher folds runs / completions /
                                 flushes into traces. Built and
-                                verified here; NOT registered into
-                                Hermes yet (closing window).
+                                verified here, and registered into
+                                Hermes as oneday-automation
+                                (verified 2026-11-27).
 - POST   /library-mcp       -> MCP streamable-http facade for the
                                 file library surface (1.0.73):
                                 initialize / ping / tools/list /
@@ -418,11 +419,11 @@ post = {id, kind ("research" | "morning"; "digest" | "event"
                                 set, one source of truth; optional
                                 since filters on mtime and reports
                                 sinceCount). Every call writes one
-                                P0 trace before answering. To be
-                                registered into Hermes as
+                                P0 trace before answering.
+                                Registered into Hermes as
                                 oneday-library, Authorization via
                                 the global API_SERVER_KEY like the
-                                other facades (closing window).
+                                other facades (verified 2026-11-27).
 
 Storage: single JSON file (DATA_PATH), atomic tmp+replace writes,
 file mode 0600. All mutations serialized under one lock.
@@ -433,9 +434,15 @@ with an empty in-memory db in READ-ONLY DEGRADED mode (every
 write is refused with 503, the empty db is NEVER written back over
 the data file), and /health exposes degraded=true + the reason.
 
-Auth: single Bearer token, scoped to this bridge
-(ONEDAY_BRIDGE_KEY env, own key since the 2026-11-10
-F03 rotation). Fail-closed when unset. /health is the only
+Auth: this companion-era copy used a single Bearer token
+scoped to the bridge (ONEDAY_BRIDGE_KEY env, own key since
+the 2026-11-10 F03 rotation), fail-closed when unset. That
+key is retired: since the face moved into the gateway
+(package 1.19.0) the live face authenticates with the
+gateway API_SERVER_KEY, and since 2.19.0 the bridge surfaces
+accept the Hermes session token directly -- the bridge key
+survives only as a server-internal key, never a client
+credential. /health is the only
 unauthenticated route and returns no data. Exception since
 1.0.59 (B-01): the /internal/cron/* callback routes take a
 dedicated X-Cron-Callback-Key header (ONEDAY_CRON_CALLBACK_KEY)

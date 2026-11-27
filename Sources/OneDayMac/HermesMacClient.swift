@@ -83,7 +83,7 @@ struct HermesMacClient: Sendable {
     /// 探活二：POST /api/companion/web-login 验面板密码
     /// （桥在服务器内部换 dashboard 会话 cookie 原样透
     /// 传，部署密码永不出服务器）
-    func login(config: ServerConfig, password: String) async throws {
+    func login(config: ServerConfig, username: String, password: String) async throws {
         var request = URLRequest(
             url: config.endpoint("/api/companion/web-login")
         )
@@ -92,7 +92,7 @@ struct HermesMacClient: Sendable {
             "application/json", forHTTPHeaderField: "Content-Type"
         )
         request.httpBody = try JSONSerialization.data(
-            withJSONObject: ["password": password]
+            withJSONObject: ["username": username, "password": password]
         )
         let (_, http) = try await dataRequest(request)
         switch http.statusCode {
@@ -1146,7 +1146,7 @@ struct HermesMacClient: Sendable {
 
     /// oneday-bridge 通用口：与 iOS OneDayBridgeClient
     /// 同前缀（/api/oneday-bridge）、同 Bearer（登录密
-    /// 钥一把，服务器内部换桥钥）、同 DTO（Core 单源，
+    /// 钥一把，桥面直接验令牌）、同 DTO（Core 单源，
     /// 不另立第二形）。零新后端。
     private func bridgeRequest<T: Decodable>(
         config: ServerConfig, apiKey: String, path: String,

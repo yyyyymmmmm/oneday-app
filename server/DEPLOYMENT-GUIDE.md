@@ -181,10 +181,10 @@ companion.env **不在部署档案里留填好值的副本**：模板只有 `com
 | Simular Box | Hermes 侧 `mcp_servers` 注册厂商端点 `https://mcp.box.simular.ai/mcp`，个人密钥以 `MCP_BOX_API_KEY` 存 `/opt/data/.env`（Hermes 环境变量） | **已注册、在服役**（网关日志有 reconciled added=['box']）。另有伴生的 box 模块以同一密钥直连厂商供 App 电脑面用（§3） |
 | GitHub | 配置已写：`url: https://api.githubcopilot.com/mcp/`＋`headers.Authorization: "Bearer ${GITHUB_MCP_TOKEN}"`。**OAuth 路已判死**（GitHub 无动态注册、仅预注册客户端可用），官方正道就是 PAT。PAT 用细粒度令牌、只授权需要的仓库、权限从仓库读写起步 | 配置在位、**只差令牌交付**：用户生成 PAT 存保险库→部署方写入 .env→`hermes mcp test github` 验活（现测报错正是「变量未设置」，形态已被正确识别）——令牌到位与实测结论：**窗口回填** |
 | Notion | 配置已写：`url: https://mcp.notion.com/mcp`＋`auth: oauth`。Hermes 本体承载完整 OAuth（发现→动态注册→PKCE→刷新），回调走本机 127.0.0.1 临时端口＋**粘贴回退**（授权后浏览器跳到打不开的 localhost 地址，把地址栏完整 URL 粘回终端即完成），不需要公网回调面。授权范围＝该账号可见的全部页面与数据库（官方无细粒度/只读模式），访问令牌约 8 小时、自动刷新 | 配置在位、`hermes mcp test notion` 已验到「只差授权」（端点可达、OAuth 发现正常）——实际授权与工具清单：**窗口回填** |
-| oneday 模块 9B 门面 | 给伴生的 oneday 模块加 `/mcp` 门面（goals_create 等，独立 scope 钥），注册进 `mcp_servers` 后智能体可在对话里直接建目标（goal.source=chat 的模块侧契约已备） | **未注册**——注册步骤与实测：**窗口回填** |
+| oneday 模块 9B 门面 | 给伴生的 oneday 模块加 `/mcp` 门面（goals_create 等，独立 scope 钥），注册进 `mcp_servers` 后智能体可在对话里直接建目标（goal.source=chat 的模块侧契约已备） | **已注册、在服役**：五套门面（oneday-goals／identity／oneday-automation／oneday-sessions／oneday-library）均已注册进 `mcp_servers`，`hermes mcp list` 全 enabled、`hermes mcp test` 全通（2026-11-27 实查） |
 | device（设备模块门面） | `mcp_servers.device`：url 型指向**网关回环** `http://127.0.0.1:8642/api/device-mcp`，Authorization 为单钥 `API_SERVER_KEY`（包 2.0.0 起，改法＝包内 device-mcp-config-patch.py，只动这一条）；门面本体是网关 device_gateway 模块 | **已注册、在服役**：tools/list **53 个工具**（2026-11-25 与退役前在役桥注册表逐名对账一致）；`device_status` 离线如实回离线（在线读真数以 App 设备会话在连为前提，见 §11）；网关启动瞬间 MCP 客户端可能因 8642 未就绪把本条 park、按需重连——与既有各 MCP 同一口径 |
 
-窗口收官的固定顺序（device 已提前办完，余项照旧）：GitHub 令牌到位并 test 验活 → Notion 授权并 test 验活 → 注册 9B 一条 → **重启 Hermes 一次** → `GET /api/mcp/servers` 复验 box/notion/github/device（及新增 9B）同列 → 逐项实调验收。回滚：整份还原 `config.yaml.bak-20261110-mcp1` 并重启，或 `hermes mcp remove <名>` 单条摘除。
+窗口收官的固定顺序（device 与 oneday 五套门面已提前办完，余项照旧）：GitHub 令牌到位并 test 验活 → Notion 授权并 test 验活 → **重启 Hermes 一次** → `GET /api/mcp/servers` 复验 box/notion/github/device 同列 → 逐项实调验收。回滚：整份还原 `config.yaml.bak-20261110-mcp1` 并重启，或 `hermes mcp remove <名>` 单条摘除。
 
 ## 8. 网关与渠道（New API，可选件）
 

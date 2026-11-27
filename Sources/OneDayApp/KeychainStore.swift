@@ -8,9 +8,8 @@ import KeychainAccess
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
 enum CredentialKey {
     static let baseURL = "server.baseURL"
-    /// §244 退役：面板密码无账号概念，登录链不再读写本
-    /// 键；键名留档＋留在 all 里（断开连接时随三件套一
-    /// 并清掉存量值），成功登录时也顺手删
+    /// 登录账号：密码登录成功时写入，重连/重登时回显；
+    /// 密钥登录不涉账号、不写本键；断开连接随三件套一并清除
     static let username = "auth.username"
     static let password = "auth.password"
     static let apiKey = "api.key"
@@ -44,16 +43,24 @@ enum IdentityKey {
     static let mainServerSeeded = "identity.mainServerSeeded"
 }
 
-/// 桥客户端统一取钥（0.33.1，用户 16:08 定版）：用户
-/// 只持一把 Hermes 登录密钥——桥请求直接以聊天同一
-/// 份 api.key 作 Bearer，nginx 入口校验通过后在服务
-/// 器内部换成各桥自己的服务钥（分权是服务器内部的
-/// 事、用户无感、不再懂五把钥）。0.32.1 的 BridgeKey-
+/// 桥客户端统一取钥（0.33.1→鉴权收敛一期）：用户
+/// 只持一把 Hermes 登录密钥——桥请求优先以聊天同一
+/// 份 api.key 作 Bearer（鉴权收敛：服务端桥面同时接
+/// 受 Hermes 会话令牌与独立桥钥），nginx 入口校验通
+/// 过后在服务器内部换成各桥自己的服务钥（分权是服
+/// 务器内部的事、用户无感）。0.32.1 的 BridgeKey-
 /// Store 五分项读取与旧共用钥回退自此整件退役。
 enum BridgeCredential {
     static func read() -> String? {
-        WriteGateKeyStatus.sanitizedForStorage(
+        // 优先：Hermes 会话令牌（api.key，登录后即持有）
+        if let hermesKey = WriteGateKeyStatus.sanitizedForStorage(
             KeychainStore.read(account: CredentialKey.apiKey)
+        ), !hermesKey.isEmpty {
+            return hermesKey
+        }
+        // 兜底：独立桥钥（writegate.key，过渡期存量/服务间内部使用）
+        return WriteGateKeyStatus.sanitizedForStorage(
+            KeychainStore.read(account: CredentialKey.writeGateKey)
         )
     }
 }
@@ -85,7 +92,11 @@ enum KeychainStore {
 
     static func save(_ value: String, account: String) {
         #if canImport(KeychainAccess)
-        try? keychain.set(value, key: account)
+        do {
+            try keychain.set(value, key: account)
+        } catch {
+            print("[KeychainStore] save failed for account (error: \(error))")
+        }
         #else
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
@@ -98,14 +109,24 @@ enum KeychainStore {
         if status == errSecItemNotFound {
             var item = query
             item[kSecValueData as String] = data
-            SecItemAdd(item as CFDictionary, nil)
+            let addStatus = SecItemAdd(item as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                print("[KeychainStore] save failed: SecItemAdd returned \(addStatus)")
+            }
+        } else if status != errSecSuccess {
+            print("[KeychainStore] save failed: SecItemUpdate returned \(status)")
         }
         #endif
     }
 
     static func read(account: String) -> String? {
         #if canImport(KeychainAccess)
-        return try? keychain.getString(account)
+        do {
+            return try keychain.getString(account)
+        } catch {
+            print("[KeychainStore] read failed for account (error: \(error))")
+            return nil
+        }
         #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -115,8 +136,11 @@ enum KeychainStore {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else {
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else {
+            if status != errSecItemNotFound {
+                print("[KeychainStore] read failed: SecItemCopyMatching returned \(status)")
+            }
             return nil
         }
         return String(data: data, encoding: .utf8)
@@ -125,14 +149,21 @@ enum KeychainStore {
 
     static func delete(account: String) {
         #if canImport(KeychainAccess)
-        try? keychain.remove(account)
+        do {
+            try keychain.remove(account)
+        } catch {
+            print("[KeychainStore] delete failed for account (error: \(error))")
+        }
         #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            print("[KeychainStore] delete failed: SecItemDelete returned \(status)")
+        }
         #endif
     }
 

@@ -28,10 +28,11 @@ Scope (ai-internal-powers-audit-20261113, package P1):
   (AI-generated art), kept as a current pointer + full history.
 
 - /mcp facade: streamable-http JSON-RPC, same shape as the device
-  bridge and the oneday goals facade. NOT registered into Hermes:
-  registration waits for the closing window (user-approved single
-  restart); until then this is "facade ready, awaiting
-  registration", verified by direct calls.
+  bridge and the oneday goals facade. Registered into Hermes as
+  the identity server -- one of the five live facades
+  (oneday-goals / identity / oneday-automation / oneday-sessions
+  / oneday-library); `hermes mcp list` shows it enabled and
+  `hermes mcp test` passes (verified 2026-11-27).
 
 Every mutation (REST or MCP) writes one P0 trace through the
 oneday bridge's /traces (five-element contract: action / actor /

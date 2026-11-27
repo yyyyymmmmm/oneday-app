@@ -1065,11 +1065,12 @@ final class AppState {
 
     private func restore() {
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
-              let config = ServerConfig(rawInput: base),
+              var config = ServerConfig(rawInput: base),
               KeychainStore.read(account: CredentialKey.apiKey) != nil else {
             phase = .needsConnection
             return
         }
+        config.username = KeychainStore.read(account: CredentialKey.username)
         self.config = config
         self.shortLivedTokenPair = KeychainStore.readShortLivedTokenPair()
         phase = .connected
@@ -1177,6 +1178,11 @@ final class AppState {
         return KeychainStore.read(account: CredentialKey.password)
     }
 
+    private var username: String? {
+        if isDemo { return "" }
+        return KeychainStore.read(account: CredentialKey.username)
+    }
+
     // MARK: - 三步探活并连接
 
     /// 依次执行三步探活，onStep 在每步开始时回调（连接页画进度）。
@@ -1194,7 +1200,7 @@ final class AppState {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.login)
-        try await client.login(config: config, password: password)
+        try await client.login(config: config, username: config.username ?? "", password: password)
         onStep(.apiKey)
         let ids = try await client.models(config: config, apiKey: apiKey)
         if let first = ids.first {
@@ -1260,6 +1266,7 @@ final class AppState {
     /// 功面时 restore 照样凭 Keychain 成立）。
     func connectWithPassword(
         config: ServerConfig,
+        username: String,
         password: String,
         onStep: @escaping (OnboardingStep) -> Void = { _ in }
     ) async throws -> ConnectionServiceInfo {
@@ -1277,7 +1284,7 @@ final class AppState {
             step = .credentialValid
             onStep(step)
             try await client.login(
-                config: config, password: password
+                config: config, username: username, password: password
             )
             step = .serviceInfo
             onStep(step)
@@ -1309,10 +1316,9 @@ final class AppState {
                 KeychainStore.save(
                     config.baseString, account: CredentialKey.baseURL
                 )
+                KeychainStore.save(username, account: CredentialKey.username)
                 KeychainStore.save(password, account: CredentialKey.password)
                 KeychainStore.save(fetchedKey, account: CredentialKey.apiKey)
-                // §244：账号键退役（面板密码无账号概念）
-                KeychainStore.delete(account: CredentialKey.username)
             }
             self.config = config
             return ConnectionServiceInfo(
@@ -1423,7 +1429,7 @@ final class AppState {
             guard let password else {
                 throw HermesError.sessionExpired
             }
-            try await client.login(config: config, password: password)
+            try await client.login(config: config, username: config.username ?? "", password: password)
             do {
                 return try await operation(client, config)
             } catch let retryError as HermesError where retryError.isHTTPUnauthorized {

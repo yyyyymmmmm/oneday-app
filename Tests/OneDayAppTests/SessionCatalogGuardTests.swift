@@ -478,7 +478,7 @@ struct ScriptedSessionsClient: HermesClientProtocol {
         throw HermesError.unreachable("离线桩")
     }
 
-    func login(config: ServerConfig, password: String) async throws {
+    func login(config: ServerConfig, username: String, password: String) async throws {
         throw HermesError.unreachable("离线桩")
     }
 

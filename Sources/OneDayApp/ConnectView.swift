@@ -54,6 +54,7 @@ struct ConnectView: View {
     @State private var helpReturn: Page = .login
     @State private var mode: LoginMode = .password
     @State private var serverText = "https://your-hermes.example.com"
+    @State private var username = ""
     @State private var password = ""
     @State private var apiKey = ""
     @State private var formError: String?
@@ -78,7 +79,7 @@ struct ConnectView: View {
               !serverText.trimmingCharacters(in: .whitespaces).isEmpty
         else { return false }
         switch mode {
-        case .password: return !password.isEmpty
+        case .password: return !username.isEmpty && !password.isEmpty
         case .key: return !apiKey.isEmpty
         case .scan: return false  // 扫码走认领流、不经底部提交钮
         }
@@ -108,6 +109,13 @@ struct ConnectView: View {
                 // 演示态预填全是占位假串、不含真实凭据
                 password = "demo-password"
                 apiKey = "demo-api-key"
+            }
+            // 回显已存账号：优先从 config 读（restore 已恢复）；
+            // 未连接时直接读 Keychain 存量（用户断开后重登）
+            if let stored = appState.config?.username
+                ?? KeychainStore.read(account: CredentialKey.username),
+               !stored.isEmpty {
+                username = stored
             }
             withAnimation(
                 MotionTokens.resolved(
@@ -352,8 +360,13 @@ struct ConnectView: View {
             ServerAddressFieldRow(text: $serverText)
             GroupDivider()
             ServerSecretFieldRow(
+                label: "账号", text: $username,
+                placeholder: "输入账号"
+            )
+            GroupDivider()
+            ServerSecretFieldRow(
                 label: "密码", text: $password,
-                placeholder: "输入面板密码"
+                placeholder: "输入密码"
             )
         }
         .odGroup()
@@ -951,6 +964,7 @@ struct ConnectView: View {
                 case .password:
                     info = try await appState.connectWithPassword(
                         config: config,
+                        username: username,
                         password: password, onStep: onStep
                     )
                 case .key, .scan:

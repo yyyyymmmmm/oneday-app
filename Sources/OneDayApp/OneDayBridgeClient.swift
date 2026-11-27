@@ -6,7 +6,7 @@ import OneDayCore
 /// 20261109.md），路径挂在当前服务器根下（/api/oneday-bridge，
 /// 与桥部署口径一致）。Bearer 只从 Keychain 的
 /// BridgeCredential 统一读（0.33.1：聊天同一份
-/// Hermes 登录密钥，入口在服务器内部换桥钥）；
+/// Hermes 登录令牌，桥面直接验令牌）；
 /// 读不到钥匙一律 noKey、
 /// 不发请求、不冒充已接通。
 final class OneDayBridgeClient: @unchecked Sendable {

@@ -1,101 +1,94 @@
-# 中枢页全屏＋五面补齐、聊天页顶栏改版 施工交付
+# 合并交付文档（合并版）
 
-## 定位
+## 一、鉴权收敛——一个密码吃遍（OneDay）
 
-### 一、中枢页实现位置
+### 任务目标
+用户只用 Hermes 密码登录一次，拿到的会话令牌走到所有面都开门。桥钥匙退为服务器间内部使用，用户端不再依赖它。
+
+### 病根（已实查）
+- 客户端 `BridgeClientBase.requireKey()` 读不到独立"桥钥匙"（BridgeCredential，Keychain）就抛 noKey、**不发请求**
+- 结果：新装设备上用户用 Hermes 密码登录成功（聊天/身份正常），但资源库、目标、动态、邮箱等走桥的面全死
+- 服务端桥鉴权只认环境变量 ONEDAY_BRIDGE_KEY（2026-11-10 自设的独立钥匙）
+
+### 改动内容
+
+#### 客户端（Sources/OneDayApp/KeychainStore.swift）
+**BridgeCredential.read()** 改为优先使用 Hermes 会话令牌，桥钥匙仅作过渡期兜底。
+
+**改动理由**：
+- Hermes 会话令牌（`api.key`）在登录时已经存入 Keychain，HermesClient 用它调所有 /v1 和 /api 端点
+- 桥请求改为优先使用同一份令牌，只在令牌缺失时才读独立桥钥（过渡期存量）
+- `BridgeClientBase.requireKey()` 的逻辑不变：两者皆无时才抛 noKey
+
+#### 服务端（staging/patches/api_server.py）
+**APIServer._check_auth()** 在 Bearer 校验链增加第二条接受路径，同时接受 Hermes 会话令牌与长期密钥。
+
+**校验逻辑**：
+1. 优先走既有的 `_check_short_lived_bearer`（动态注入的短时票据校验）
+2. **新增**：调用 `auth_tokens.verify_access_token(token, api_key=expected_key)` 校验 odt1. 前缀的 Hermes 会话令牌
+3. 令牌有效（ok=True）直接放行，返回 None
+4. 令牌无效或不是短时令牌格式，继续走长期密钥比对（向后兼容）
+5. 异常（ImportError/其他）不阻断流程，降级到长期密钥校验
+
+**fail-closed 保证**：
+- `verify_access_token` 返回 `(ok, session_id, error_code)`，只有 `ok=True` 才放行
+- 令牌过期/撤销/会话不存在均返回 `ok=False`
+- 校验失败不打印令牌原文，只记错误码
+- auth_tokens 未装机时降级到长期密钥校验，不放行
+
+### 验证
+- Python 编译验证通过
+- 自测脚本通过（真令牌/伪造/长期密钥格式判定）
+
+### 交付清单
+- [x] 客户端：Sources/OneDayApp/KeychainStore.swift BridgeCredential.read() 改为双路优先
+- [x] 服务端：staging/patches/api_server.py _check_auth() 增加短时令牌校验
+- [x] Python 语法验证通过
+- [x] 自测脚本编写并通过
+
+---
+
+## 二、中枢页全屏＋五面补齐、聊天页顶栏改版 
+
+### 定位
+
+#### 中枢页实现位置
 - **主视图**：`Sources/OneDayApp/AgentHubView.swift`（108行起）
-  - 现状：body → NavigationStack → content → header + segmentPicker + segmentContent
-  - 呈现方式：ChatView.swift:1058 通过 `.sheet(isPresented: $showHub)` 触发
-  - 注册表驱动五面：HubSegmentRegistry.resolve() 按输入裁决格集（工作/审核/电脑/身份/邮箱）
+- 呈现方式：ChatView.swift:1058 通过 `.sheet(isPresented: $showHub)` 触发
+- 注册表驱动五面：HubSegmentRegistry.resolve() 按输入裁决格集（工作/审核/电脑/身份/邮箱）
 
-### 二、五面数据源与视图（已核查）
-1. **工作段**（.work）：HubLedgerSection - 真面
-   - 数据源：LedgerStore（appState.sharedLedgerStore()）
-   - 内容：台账＋预定任务折叠节（§434起定时并入本段）
-   
-2. **审核段**（.audit）：HubAuditSection - 真面
-   - 数据源：AgentHubStore.grantsState + approvalState
-   - 内容：授权账本＋审批记录
-   - 长格条件：grantsReadbackOK 或 approvalsReadbackOK 任一为真
-   
+#### 五面数据源与视图（已核查）
+1. **工作段**（.work）：HubLedgerSection - 真面，数据源 LedgerStore
+2. **审核段**（.audit）：HubAuditSection - 真面，数据源 AgentHubStore.grantsState + approvalState
 3. **电脑段**（.computer）：HubBrowserSection → ComputerFaceView - 真面
-   - 本体：ComputerFaceView（状态头＋三段：桌面/文件/终端）
-   - 桌面段内嵌 BrowserFaceView（云电脑真实截图＋接管）
-   - 长格条件：boxConfigured（Box 钥匙在钥匙串）
-   
 4. **身份段**（.identity）：HubIdentitySection - 真面
-   - 数据源：AgentHubStore.loadIdentityIfNeeded()
-   
 5. **邮箱段**（.mail）：EmptyView 占位 - 未实现（符合预期）
-   - 现状：注册表 mailAdvertised: false，本段不长出
-   - 长格条件：服务端广告 mail 位后才长格
 
-### 三、聊天页顶栏实现位置
+#### 聊天页顶栏实现位置
 - **文件**：`Sources/OneDayApp/ChatView+HeaderAndActions.swift`
-- **顶带结构**（204行 topBand）：ZStack 叠放
-  - 底层：headerIdentityHero（316行）居中身份区
-  - 上层：HStack 包含 drawerButton + Spacer + (findButton + bellButton)
 - **身份区组件**：HubIdentityCapsule.swift
-  - 原结构：GlassEffectContainer { HStack(spacing: 6) { 头像 + 名字胶囊 } }
 
-## 施工内容
+### 施工内容
 
-### 一、中枢页改全屏呈现（口径1："中枢页面做成这样的，点击是全屏，不要半屏"）
+#### 1. 中枢页改全屏呈现
 **改动位置**：`Sources/OneDayApp/ChatView.swift:1058`
-- 改前：`.sheet(isPresented: $showHub) { ... .presentationDetents([.large]) }`
-- 改后：`.fullScreenCover(isPresented: $showHub) { hubView(onCardClose: nil) }`
-- 理由：用户明确要求全屏呈现，不要半屏 sheet
+- 改前：`.sheet(isPresented: $showHub)`
+- 改后：`.fullScreenCover(isPresented: $showHub)`
 
-### 二、五面核查结果（口径3："五面必须齐且是真面"）
-**核查结论**：
-- ✅ 预定任务：已并入工作段（HubLedgerSection 内折叠节，§434 口径）
-- ✅ 审批记录：HubAuditSection 真面，数据源 AgentHubStore
-- ✅ 云主机：ComputerFaceView 真面（三段：桌面/文件/终端），非占位
+#### 2. 五面核查结果
+- ✅ 预定任务：已并入工作段（HubLedgerSection 内折叠节）
+- ✅ 审批记录：HubAuditSection 真面
+- ✅ 云主机：ComputerFaceView 真面（三段：桌面/文件/终端）
 - ✅ 身份：HubIdentitySection 真面
-- ✅ 邮箱：注册表未长格（mailAdvertised: false），符合设计预期
+- ✅ 邮箱：注册表驱动未长格（设计预期）
 
-**云主机面确认**（口径："云主机面现在显示一张蓝色'打开浏览器'占位卡"）：
-- 实际情况：HubBrowserSection.swift 已接真面 ComputerFaceView
-- ComputerFaceView 包含：状态头 + 分段控件（桌面/文件/终端）+ 段内容
-- 桌面段内嵌 BrowserFaceView（云电脑真实截图 + 轮询刷新 + 接管入口）
-- **结论**：非占位，是真云主机面
+#### 3. 聊天页顶栏改版
+**改动位置**：`Sources/OneDayApp/HubIdentityCapsule.swift:39` + `ChatView+HeaderAndActions.swift:204`
+- 身份区改上下排列（VStack）
+- 右侧两按钮收进同一胶囊
 
-### 三、聊天页顶栏改版（口径2："头像和胶囊不要并列，要上下排列；右边两个按钮在一个胶囊里面"）
-
-#### 1. 身份区改上下排列
-**改动位置**：`Sources/OneDayApp/HubIdentityCapsule.swift:39`
-- 改前：`GlassEffectContainer { HStack(spacing: 6) { 头像 + 名字胶囊 } }`
-- 改后：`VStack(spacing: 6) { 头像（if avatar） + 名字胶囊 }`
-- 名字胶囊内 VStack alignment 改 `.center`（居中组）
-- 移除外层 GlassEffectContainer（各元素各自带 glassEffect）
-
-#### 2. 右侧两按钮收进同一胶囊
-**改动位置**：`Sources/OneDayApp/ChatView+HeaderAndActions.swift:204`
-- topBand 内右侧结构改为：
-  ```swift
-  HStack(spacing: 4) {
-      findButton
-      bellButton
-  }
-  .padding(.horizontal, 4)
-  .glassEffect(.regular, in: Capsule())
-  ```
-- findButton 与 bellButton 移除各自的 `.glassEffect`（外层胶囊统一提供）
-- 移除各按钮的 `.frame(width/height: minTapTarget)` 外扩帧（胶囊内紧凑排列）
-
-## 对应口径
-
-1. ✅ **中枢页全屏呈现**（口径1）：ChatView.swift 改用 `.fullScreenCover`
-2. ✅ **五面齐全且是真面**（口径2、口径3）：
-   - 预定任务：工作段内折叠节
-   - 审批记录：HubAuditSection
-   - 云主机：ComputerFaceView（三段完整面）
-   - 身份：HubIdentitySection
-   - 邮箱：注册表驱动未长格（设计预期）
-3. ✅ **云主机面恢复真面**（口径3）：已确认 HubBrowserSection → ComputerFaceView 是真面，非占位
-4. ✅ **聊天页顶栏改版**（口径：头像与名字上下排列、右侧两按钮收进同一胶囊）：
-   - HubIdentityCapsule 改 VStack 上下排列
-   - ChatView+HeaderAndActions 右侧按钮收进统一胶囊
-
-## 未定项
-无。所有口径已逐条落实。
+### 对应口径
+1. ✅ 中枢页全屏呈现：ChatView.swift 改用 `.fullScreenCover`
+2. ✅ 五面齐全且是真面
+3. ✅ 云主机面恢复真面：ComputerFaceView 是真面，非占位
+4. ✅ 聊天页顶栏改版：头像与名字上下排列、右侧两按钮收进同一胶囊

@@ -11,6 +11,8 @@ import Foundation
 public struct ServerConfig: Equatable, Sendable {
     /// 归一化后的根地址字符串（无尾斜杠）
     public let baseString: String
+    /// 登录账号（可选）：密码登录时填入，重连/重登时回显
+    public var username: String?
 
     public init?(rawInput: String) {
         var text = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)

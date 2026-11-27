@@ -73,8 +73,8 @@
 # (action namespaces cron.* / kanban.* / reach.*); the watcher
 # adds cron.fired / cron.orphaned / kanban.completed /
 # reach.delivered traces. Like the goals facade, this surface
-# is built and verified here but NOT registered into Hermes --
-# registration waits for the closing window.
+# is built and verified here and registered into Hermes as
+# oneday-automation (`hermes mcp test` verified, 2026-11-27).
 
 AUTO_BOARD = "oneday"
 AUTO_TICK_SECONDS = 60
