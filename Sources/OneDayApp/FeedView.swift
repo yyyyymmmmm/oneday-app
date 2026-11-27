@@ -559,7 +559,7 @@ struct FeedView: View {
                 .symbolRenderingMode(.hierarchical)
                 .font(.system(size: FrameworkIcon.fileGlyphSize, weight: .semibold))
                 .foregroundStyle(post.kind.kickerTint)
-                .frame(width: 36, height: 36)
+                .frame(width: 24, height: 24)
                 .background(
                     post.kind.kickerColor,
                     in: RoundedRectangle(
@@ -570,7 +570,7 @@ struct FeedView: View {
                 // kicker 字形块是帖的类别信号、动作行另
                 // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
                 Button {
                     openPost(post)
                 } label: {
@@ -581,7 +581,10 @@ struct FeedView: View {
                             // （Title3 semibold）——§117.5 例
                             // 外经用户 2026-11-22 裁定扩展至
                             // 目标面，三面同例
-                            .font(.contentListTitle)
+                            // 大厂对标（2026-11-27）：改用
+                            // .title3 regular，去 semibold
+                            // 保持轻盈（HIG Typography 标准）
+                            .font(.title3)
                             .foregroundStyle(Palette.ink)
                             // 0.43.0（A11Y-D3）：AX 档放宽
                             .a11yLineLimit(2, ax: 4)
@@ -666,7 +669,7 @@ struct FeedView: View {
                 actionRow(post)
             }
         }
-        .padding(.vertical, OneDayMetrics.spacingS)
+        .padding(.vertical, OneDayMetrics.spacingM)
         .listRowBackground(Color.clear)
         .onAppear {
             markRead(post)
@@ -689,7 +692,7 @@ struct FeedView: View {
                 Button {
                     discuss(post)
                 } label: {
-                    HStack(spacing: OneDayMetrics.stackGap) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(systemName: "text.bubble")
                         Text("讨论")
                     }
@@ -700,7 +703,7 @@ struct FeedView: View {
                 Button {
                     store.deleteSeed(post)
                 } label: {
-                    HStack(spacing: OneDayMetrics.stackGap) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(systemName: "trash")
                         Text("删除")
                     }
@@ -740,7 +743,7 @@ struct FeedView: View {
             Button {
                 discuss(post)
             } label: {
-                HStack(spacing: OneDayMetrics.stackGap) {
+                HStack(spacing: OneDayMetrics.spacingXS) {
                     Image(systemName: "text.bubble")
                     Text("讨论")
                         .lineLimit(1)
