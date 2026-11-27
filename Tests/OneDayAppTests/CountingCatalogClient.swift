@@ -40,7 +40,7 @@ struct CountingCatalogClient: HermesClientProtocol {
         )
     }
 
-    func login(config: ServerConfig, password: String) async throws {
+    func login(config: ServerConfig, username: String, password: String) async throws {
         // 计数桩：登录恒成功、无副作用
     }
 

@@ -24,7 +24,7 @@ protocol HermesClientProtocol: Sendable {
     /// 拿会话 cookie（§244 一把密码统一：走伴生登录桥，
     /// 与网页端/伴生面板同一把用户密码；cookie 由
     /// URLSession 共享存储持有，本方法只判成败）
-    func login(config: ServerConfig, password: String) async throws
+    func login(config: ServerConfig, username: String, password: String) async throws
     /// GET /api/status（免登录）
     func status(config: ServerConfig) async throws -> ServerStatus
     /// GET /api/hermes/update/check（需会话）：自更新
@@ -1283,7 +1283,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
-    func login(config: ServerConfig, password: String) async throws {
+    func login(config: ServerConfig, username: String, password: String) async throws {
         // §244 一把密码统一（用户 2026-11-12 拍板）：不再直连
         // Hermes 9119 的部署密码登录——改走伴生登录桥
         // /api/companion/web-login，与网页端同一条链：桥以
@@ -1295,7 +1295,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         var request = URLRequest(url: config.endpoint("/api/companion/web-login"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: String] = ["password": password]
+        let body: [String: String] = ["username": username, "password": password]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, http) = try await dataRequest(request)
         switch http.statusCode {

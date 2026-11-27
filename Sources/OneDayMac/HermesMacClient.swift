@@ -83,7 +83,7 @@ struct HermesMacClient: Sendable {
     /// 探活二：POST /api/companion/web-login 验面板密码
     /// （桥在服务器内部换 dashboard 会话 cookie 原样透
     /// 传，部署密码永不出服务器）
-    func login(config: ServerConfig, password: String) async throws {
+    func login(config: ServerConfig, username: String, password: String) async throws {
         var request = URLRequest(
             url: config.endpoint("/api/companion/web-login")
         )
@@ -92,7 +92,7 @@ struct HermesMacClient: Sendable {
             "application/json", forHTTPHeaderField: "Content-Type"
         )
         request.httpBody = try JSONSerialization.data(
-            withJSONObject: ["password": password]
+            withJSONObject: ["username": username, "password": password]
         )
         let (_, http) = try await dataRequest(request)
         switch http.statusCode {
