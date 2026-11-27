@@ -2,10 +2,12 @@
 
 ## 进度总览
 
-**已完成结构钉迁移：16个测试文件**
+**已完成结构钉迁移：16个测试文件（覆盖 9 个结构钉中的 8 个已迁移 + 1 个无需迁移）**
 - 第一批（8个）：ChatComposerTrailing446Pin、ChatSimplifiedModelPin、ChatRootChainStructure、ChatPreLayoutStep1、StreamingPresentation485、NotificationTierStructure、HubActivity449、ErrorBannerG03Structure
 - 第二批（5个）：CapsuleStatus474（2处）、ChatDepthStructureS373、ChatSwapStep6Structure、HitArea44（2处）、HapticsMatrix
 - 第三批（3个）：PushPrepStructure、H6H7Structure、FullscreenPopBridge（2条）
+
+**说明**：16 个文件为改动文件数，覆盖 9 个结构钉锚点。
 
 **待处理：LibraryOrdering 定性取证（Mac 测试）+ 存疑 UI 簇（14条）+ 全量对账**
 
@@ -107,6 +109,7 @@ let combined = mainSrc + extSrc
 2. **结构钉覆盖：9/9 = 100%**
    - 8个已迁移：适配 #37 HermesClient 模块化、#26 FullscreenPop 标准化
    - 1个无需迁移：SwipeReplyPanBridge.testExclusionStructurePin（新增结构钉，代码已符合 G-07 要求）
+   - **说明**：100% 指本交卷定义的 9 个结构钉覆盖率，非全量测试通过率
 
 3. **代码已推送**
    - commit a1016c2e: 结构钉分析
@@ -176,4 +179,6 @@ G-07 重构（右滑回复排除区标记机制换代）的结构验证钉，非
 - 新增结构钉，验证 G-07 重构结构完整性，当前代码已符合要求
 
 **覆盖率：9/9 = 100%**（8个已迁移 + 1个无需迁移）
+
+**说明**：此覆盖率指本交卷列出的 9 个结构钉锚点迁移完成度，分母为这 9 个结构钉，非全量测试。Mac 定点复跑、14 条 UI 簇及 App/Core 全量对账未执行（通道受阻）。
 
