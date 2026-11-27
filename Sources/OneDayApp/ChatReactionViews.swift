@@ -31,11 +31,15 @@ enum ChatReactionMetrics {
 /// 染标示）。自己的段可点撤回（走 ChatView.apply-
 /// Reaction 单写口）。§432 起本 pill 只承自己的
 /// 段：助手段改走 AgentReactionBadgeView 角标
-/// （分工见彼处），不再合并进本 pill
+/// （分工见彼处），不再合并进本 pill。大厂对位版：
+/// 添加入场动画（iOS 典型 spring 参数）——pill 从无
+/// 到有时 scale＋opacity 组合入场
 struct ReactionPillView: View {
     let reactions: [MessageReaction]
     /// 点自己的段（撤回自己的反应）
     let onClearOwn: () -> Void
+
+    @State private var appeared = false
 
     var body: some View {
         HStack(spacing: 3) {
@@ -59,6 +63,13 @@ struct ReactionPillView: View {
         .shadow(
             color: .black.opacity(0.10), radius: 4, y: 1
         )
+        .scaleEffect(appeared ? 1.0 : ChatReactionMotion.appearanceStartScale)
+        .opacity(appeared ? 1.0 : ChatReactionMotion.appearanceStartOpacity)
+        .onAppear {
+            withAnimation(ChatReactionMotion.appearanceSpring) {
+                appeared = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -103,9 +114,14 @@ struct ReactionPillView: View {
 /// 异位同角并排、永不合并计数。在场判定走 Core
 /// AISelfReactionDecision.badgeEmoji（开关关＝不
 /// 在场）；几何与 pill 同源（surface 面色、页面
-/// 底色描边、同影），只高度矮一档
+/// 底色描边、同影），只高度矮一档。大厂对位版：
+/// 添加入场动画（iOS 典型 spring 参数）——角标从无
+/// 到有时 scale＋opacity 组合入场，对标 iMessage
+/// Tapback 弹性出现效果
 struct AgentReactionBadgeView: View {
     let emoji: String
+
+    @State private var appeared = false
 
     var body: some View {
         Text(emoji)
@@ -127,5 +143,12 @@ struct AgentReactionBadgeView: View {
             .accessibilityLabel(
                 L10n.format("助手反应：%@", emoji)
             )
+            .scaleEffect(appeared ? 1.0 : ChatReactionMotion.appearanceStartScale)
+            .opacity(appeared ? 1.0 : ChatReactionMotion.appearanceStartOpacity)
+            .onAppear {
+                withAnimation(ChatReactionMotion.appearanceSpring) {
+                    appeared = true
+                }
+            }
     }
 }
