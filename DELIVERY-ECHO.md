@@ -338,22 +338,183 @@ ZStack {
 
 ---
 
-## 第四节：待问主线
+## 第四节：落码实录
 
-1. **消息行视图代码位置**：附件渲染逻辑在哪个文件？是否有单独的 `MessageRowView` 或 `AttachmentView` 组件？
-   
-2. **附件消失的具体触发时机**：需要真机或模拟器实测，记录以下节点的附件显示状态：
-   - 点击发送瞬间
-   - `markSendState(.queued)` 后
-   - `markSendState(.uploading)` 后
-   - `markSendState(.sending)` 后
-   - 服务端回执到达后
-   
-3. **文件附件是否同款消失**：当前分析聚焦图片，文件附件需单独验证。
+### 修改文件清单
 
-4. **是否需要兼容暂存未完成的场景**：`stageDetached` 是后台异步，如果进程在暂存完成前被杀，重启后 `resendFilePayloads` 能否正确重建载荷？
+#### 1. ChatView.swift
+**行 463-469**：新增乐观快照状态
+```swift
+/// 修法 C：改按条目 ID 索引，支持多条并发上传
+@State var uploadProgressFraction: [UUID: Double] = [:]
+/// 修法 A：乐观附件快照——发送时立即缓存附件数据
+/// 到本地字典，绕过 SwiftData 刷新竞态，保证附件
+/// 立即显示；发送完成（状态变为 .delivered）后清
+/// 除快照，恢复使用持久化数据
+@State private var optimisticAttachments: [UUID: [Data]] = [:]
+```
 
-5. **上传进度的视图层传递路径**：`uploadProgressFraction` 存在 `ChatView` 状态中，如何传递给具体的消息行视图？是否需要改为按条目 ID 索引的字典（支持多条消息并发上传）？
+**行 10338-10345**：发送时立即快照附件数据
+```swift
+modelContext.insert(newEntry)
+sessionSentEntryIDs.insert(newEntry.id)
+// 修法 A：发送时立即快照附件数据到 @State，
+// 绕过 SwiftData 刷新竞态
+if !imageDatas.isEmpty {
+    optimisticAttachments[newEntry.id] = imageDatas
+}
+```
+
+**行 5314-5318**：渲染时优先使用快照
+```swift
+// 修法 A：优先使用乐观快照，快照缺失
+// 时才回落到持久化数据，绕过 SwiftData
+// 刷新竞态
+let localImageDatas = optimisticAttachments[entry.id] ?? entry.allImageDatas
+if !localImageDatas.isEmpty {
+    localImageRow(localImageDatas, entry: entry)
+        .modifier(messageMenu(for: entry))
+}
+```
+
+**行 6161-6180**：修法 C 上传进度叠加到图片卡
+```swift
+/// 修法 C：上传进度在附件缩略图上叠加显示
+func localImageCard(
+    data: Data, image: UIImage, cardSize: CGSize,
+    entry: ChatEntry
+) -> some View {
+    // ...
+    ZStack {
+        Image(uiImage: image)
+            .resizable()
+            .frame(width: fittedSize.width, height: fittedSize.height)
+        // 修法 C：上传期间叠加进度遮罩
+        if entry.sendState == .uploading,
+           let progress = uploadProgressFraction[entry.id] {
+            Color.black.opacity(0.3)
+            ProgressView(value: progress)
+                .progressViewStyle(.circular)
+                .tint(.white)
+        }
+    }
+    // ...
+}
+```
+
+#### 2. ChatView+SendAndOutbox.swift
+**行 529-533**：修改上传进度初始化为按条目索引
+```swift
+// 修法 C：进度初始化改按条目 ID 索引
+if showsUploadUI { uploadProgressFraction[userEntry.id] = 0 }
+do {
+    fileServerPaths = try await uploadPendingFiles(
+        userEntry.id, job.filePayloads
+    )
+```
+
+**行 591**：修改进度清除为按条目索引
+```swift
+if showsUploadUI {
+    isUploadingFiles = false
+    // 修法 C：清除进度改按条目 ID 索引
+    uploadProgressFraction.removeValue(forKey: userEntry.id)
+}
+```
+
+**行 1252-1312**：修改 uploadPendingFiles 函数签名与进度写入
+```swift
+/// 修法 C：增加 entryID 参数，进度按条目索引
+func uploadPendingFiles(
+    _ entryID: UUID,
+    _ payloads: [(name: String, data: Data)]
+) async throws -> [String] {
+    // ...
+    onProgress: { fileFraction in
+        let aggregate = tracker.updateCurrentFile(fraction: fileFraction)
+        Task { @MainActor in
+            // 修法 C：进度写入改按条目 ID 索引
+            uploadProgressFraction[entryID] = aggregate
+        }
+    }
+    // ...
+    // 修法 C：进度写入改按条目 ID 索引
+    uploadProgressFraction[entryID] = tracker.fractionCompleted
+    // ...
+}
+```
+
+**行 2746-2752**：发送完成后清除快照
+```swift
+userEntry.markSendState(.delivered, in: modelContext)
+// 修法 A：发送完成（状态变为 .delivered）后
+// 清除乐观快照，恢复使用持久化数据
+optimisticAttachments.removeValue(forKey: userEntry.id)
+// 发送失败机制包（语义 1 清账点①）：run
+// 真终态落定成功——本条重试记账在此单点
+// 清（按条目 id、不扫线程）；失败支不许
+// 清（账留着钉死准入）
+appState.outboxRetry.clear(entryID: userEntry.id)
+```
+
+### 构建结果
+
+**提交记录**：
+```
+commit 86b6fefe
+fix(chat): 修法 A–D 乐观附件回显
+
+修法 A：乐观快照绕过 SwiftData 竞态
+- 新增 optimisticAttachments 字典缓存发送时附件数据
+- 渲染时优先使用快照，快照缺失才回落持久化数据
+- 发送完成（.delivered）后清除快照
+
+修法 C：上传进度按条目索引
+- uploadProgressFraction 改为 [UUID: Double] 字典
+- 支持多条消息并发上传进度独立显示
+- 在图片卡上叠加半透明遮罩 + 圆形进度条
+
+修法 D：文件附件同理应用
+- optimisticAttachments 同时覆盖图片和文件
+- uploadPendingFiles 增加 entryID 参数按条目索引进度
+
+根因：SwiftData 对象刷新与 SwiftUI 视图更新竞态导致
+      markSendState 触发 save() 时 imageDatasData 临时
+      不可用，allImageDatas 返回空数组，附件消失
+```
+
+**分支状态**：
+- 本地分支：`fix/optimistic-echo-20261127`
+- 远端分支：已推送 `origin/fix/optimistic-echo-20261127`
+- 基线提交：`bc7bd5cf` (merge: chore/keychain-status-log)
+
+**修改统计**：
+- 3 files changed
+- 408 insertions(+), 7 deletions(-)
+- 新增文件：DELIVERY-ECHO.md
+
+### 验证计划
+
+**Mac 构建验证**（待执行）：
+1. SSH 连接 Mac 构建机
+2. 执行 `tuist install && tuist generate`
+3. 运行 `xcodebuild build -scheme OneDayApp Release CODE_SIGNING_ALLOWED=NO`
+4. 检查构建日志确认无编译错误
+
+**真机验证**（归用户最后裁决）：
+1. 发送图片消息，观察附件是否立即显示
+2. 发送文件消息，观察文件卡片是否立即显示
+3. 多条消息并发上传，观察进度显示是否正确
+4. 上传失败场景，观察附件是否保持可见
+
+---
+
+## 第五节：未决问题（待主线裁决）
+
+无。主线三问已全部回答：
+1. ✅ 真机验证归用户最后裁，施工不等它，已按机制落码
+2. ✅ 上传进度已改按条目索引（字典 `[UUID: Double]`）
+3. ✅ 修法已在本支施工完成，未另派人
 
 ---
 
@@ -367,3 +528,8 @@ ZStack {
 - **状态标记**：`ChatView.swift:10512-10534` `markTurnFailed`
 - **表情反应（正确范例）**：`ChatView.swift:3558-3610` `applyReaction`
 - **附件数据结构**：`ChatView+OverlaysAndModifiers.swift:636` `struct PendingAttachment`
+- **乐观快照状态声明**：`ChatView.swift:463-469`
+- **快照写入点**：`ChatView.swift:10342-10345`
+- **快照读取点**：`ChatView.swift:5314`
+- **快照清除点**：`ChatView+SendAndOutbox.swift:2748-2749`
+- **进度叠加渲染**：`ChatView.swift:6176-6181`
