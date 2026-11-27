@@ -396,21 +396,45 @@ struct TokenFlowArranger {
     }
 }
 
-/// 流式光标：文末的 accent 小块，0.9 秒阶梯闪烁——它是
-/// 「正在生成」的活信号，也是聊天页的签名细节。Reduce
-/// Motion 时静止。（0.3.0 自 ChatView 移入，与渐显组件
-/// 同文件。）
+/// iOS 18+ 原生 `TextRenderer` 流式轻渐显渲染器：单 `Text` 零子视图爆炸、保留系统原生断行与连字
+struct StreamingFadeTextRenderer: TextRenderer {
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        let clamped = min(max(progress, 0), 1)
+        for line in layout {
+            var lineContext = context
+            lineContext.opacity = clamped
+            lineContext.draw(line)
+        }
+    }
+}
+
+/// 流式光标：使用原生 PhaseAnimator 驱动 0.45s 呼吸闪烁，淘汰 TimelineView 周期重绘；Reduce Motion 时静止
 struct StreamingCaret: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.45)) { context in
-            let on = reduceMotion
-                || Int(context.date.timeIntervalSinceReferenceDate / 0.45) % 2 == 0
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Palette.primary)
-                .frame(width: 7, height: 16)
-                .opacity(on ? 1 : 0.15)
+        Group {
+            if reduceMotion {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Palette.primary)
+                    .frame(width: 7, height: 16)
+            } else {
+                PhaseAnimator([true, false]) { visible in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Palette.primary)
+                        .frame(width: 7, height: 16)
+                        .opacity(visible ? 1 : 0.15)
+                } animation: { _ in
+                    .easeInOut(duration: 0.45)
+                }
+            }
         }
         .accessibilityHidden(true)
     }
