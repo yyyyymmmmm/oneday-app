@@ -44,16 +44,24 @@ enum IdentityKey {
     static let mainServerSeeded = "identity.mainServerSeeded"
 }
 
-/// 桥客户端统一取钥（0.33.1，用户 16:08 定版）：用户
-/// 只持一把 Hermes 登录密钥——桥请求直接以聊天同一
-/// 份 api.key 作 Bearer，nginx 入口校验通过后在服务
-/// 器内部换成各桥自己的服务钥（分权是服务器内部的
-/// 事、用户无感、不再懂五把钥）。0.32.1 的 BridgeKey-
+/// 桥客户端统一取钥（0.33.1→鉴权收敛一期）：用户
+/// 只持一把 Hermes 登录密钥——桥请求优先以聊天同一
+/// 份 api.key 作 Bearer（鉴权收敛：服务端桥面同时接
+/// 受 Hermes 会话令牌与独立桥钥），nginx 入口校验通
+/// 过后在服务器内部换成各桥自己的服务钥（分权是服
+/// 务器内部的事、用户无感）。0.32.1 的 BridgeKey-
 /// Store 五分项读取与旧共用钥回退自此整件退役。
 enum BridgeCredential {
     static func read() -> String? {
-        WriteGateKeyStatus.sanitizedForStorage(
+        // 优先：Hermes 会话令牌（api.key，登录后即持有）
+        if let hermesKey = WriteGateKeyStatus.sanitizedForStorage(
             KeychainStore.read(account: CredentialKey.apiKey)
+        ), !hermesKey.isEmpty {
+            return hermesKey
+        }
+        // 兜底：独立桥钥（writegate.key，过渡期存量/服务间内部使用）
+        return WriteGateKeyStatus.sanitizedForStorage(
+            KeychainStore.read(account: CredentialKey.writeGateKey)
         )
     }
 }
