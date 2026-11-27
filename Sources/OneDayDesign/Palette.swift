@@ -425,7 +425,7 @@ public enum Palette {
         // 当前主题气泡行（台账 197 定版，处理经 Core 解
         // 析出口，本层不硬编码色值）
         if let override = AppearancePreferences.accentOverride() {
-            return themedColor(light: override, dark: override)
+            return omColor(light: omHex(override), dark: softenedDarkAccent(override))
         }
         let theme = currentChatTheme
         return themedColor(
@@ -597,7 +597,7 @@ public enum Palette {
         // TG 单值口径，特例见 ChatAccentPresets 注）；
         // 未设/复位＝当前主题强调行
         if let override = AppearancePreferences.accentOverride() {
-            return themedColor(light: override, dark: override)
+            return omColor(light: omHex(override), dark: softenedDarkAccent(override))
         }
         let theme = currentChatTheme
         return themedColor(
@@ -619,11 +619,22 @@ public enum Palette {
     /// 强调弱面：有自定义强调色覆盖时取其 14% 浅底，否则读主题弱面行
     public static var primaryTint: Color {
         if let override = AppearancePreferences.accentOverride() {
-            return themedColor(light: override, dark: override).opacity(0.14)
+            return omColor(light: omHex(override), dark: softenedDarkAccent(override)).opacity(0.14)
         }
         let theme = currentChatTheme
         return themedColor(
             light: theme.tintLight, dark: theme.tintDark
+        )
+    }
+
+    /// 深色模式下对高饱和自定义强调色温和提亮并略降饱和度，避免纯黑底刺眼
+    private static func softenedDarkAccent(_ hex: UInt32) -> (CGFloat, CGFloat, CGFloat) {
+        let (r, g, b) = omHex(hex)
+        let blend: CGFloat = 0.16
+        return (
+            min(1, r + (1 - r) * blend),
+            min(1, g + (1 - g) * blend),
+            min(1, b + (1 - b) * blend)
         )
     }
     /// 填充钮上的字色（OpenMuse 主钮文字恒 text

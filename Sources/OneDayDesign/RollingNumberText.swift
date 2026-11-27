@@ -1,8 +1,8 @@
 import OneDayCore
 import SwiftUI
 
-/// 总览数字：同值静态直出，真变才用 Timeline 插值；
-/// 字体只消费 NumberText，不叠加 numericText 二次过渡。
+/// 总览数字：使用 iOS 17+ / macOS 14+ 原生 `.contentTransition(.numericText())`
+/// 驱动数字平滑滚动，同值静态直出，尊重 Reduce Motion。
 public struct RollingNumberText: View {
     private let key: String
     private let value: Double
@@ -10,12 +10,8 @@ public struct RollingNumberText: View {
     private let weight: Font.Weight?
     private let format: (Double) -> String
     private let gate: RollingNumberGate
-    private let duration: TimeInterval = 0.9
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var activeKey: String?
-    @State private var from: Double = 0
-    @State private var target: Double = 0
-    @State private var startedAt: Date?
+    @State private var displayed: Double
 
     public init(
         key: String, value: Double, font: Font = .body,
@@ -29,86 +25,39 @@ public struct RollingNumberText: View {
         self.weight = weight
         self.gate = gate
         self.format = format
-        // 仅种首帧，后续输入由 onChange 驱动；同值重进不闪 0。
         switch gate.decision(key: key, value: value) {
         case .static(let settled):
-            _target = State(initialValue: settled)
+            _displayed = State(initialValue: settled)
         case .roll(let previous, _):
-            _target = State(initialValue: previous)
+            _displayed = State(initialValue: previous)
         }
     }
 
     public var body: some View {
-        TimelineView(.animation(paused: startedAt == nil || reduceMotion)) { context in
-            NumberText(
-                format(reduceMotion ? value : displayedValue(at: context.date)),
-                font: font, weight: weight
-            )
-                .onChange(of: context.date) { _, date in
-                    if let startedAt, date.timeIntervalSince(startedAt) >= duration {
-                        settle()
-                    }
-                }
-        }
-        .accessibilityLabel(format(value))
-        .transaction { $0.animation = nil }
-        .onAppear { update() }
-        .onChange(of: key) { _, _ in update() }
-        .onChange(of: value) { _, _ in update() }
-        .onChange(of: reduceMotion) { _, _ in update() }
-        .onDisappear {
-            // 离面只在实际已到终点时落账；中断不预写目标值。
-            if let startedAt, Date().timeIntervalSince(startedAt) >= duration {
-                settle()
-            } else {
-                startedAt = nil
-            }
-        }
+        NumberText(format(reduceMotion ? value : displayed), font: font, weight: weight)
+            .contentTransition(.numericText(value: reduceMotion ? value : displayed))
+            .accessibilityLabel(format(value))
+            .onAppear { sync() }
+            .onChange(of: key) { _, _ in sync() }
+            .onChange(of: value) { _, _ in sync() }
+            .onChange(of: reduceMotion) { _, _ in sync() }
     }
 
-    private func displayedValue(at date: Date) -> Double {
-        guard let startedAt else { return target }
-        let progress = min(max(date.timeIntervalSince(startedAt) / duration, 0), 1)
-        let remainder = 1 - progress
-        let eased = 1 - remainder * remainder * remainder
-        return from + (target - from) * eased
-    }
-
-    private func update() {
-        let now = Date()
-        let continuing = activeKey == key && startedAt != nil
-        let current = displayedValue(at: now)
-        if continuing, target == value, !reduceMotion { return }
-        activeKey = key
+    private func sync() {
         if reduceMotion {
-            target = value
-            settle()
+            displayed = value
+            gate.settle(key: key, value: value)
             return
         }
         let decision = gate.decision(key: key, value: value)
         switch decision {
-        case .static(let settled) where !continuing:
-            target = settled
-            startedAt = nil
-        default:
-            let origin: Double
-            if continuing {
-                origin = current
-            } else if case .roll(let previous, _) = decision {
-                origin = previous
-            } else {
-                origin = value
+        case .static(let settled):
+            displayed = settled
+        case .roll:
+            withAnimation(.snappy(duration: 0.45)) {
+                displayed = value
             }
-            from = origin
-            target = value
-            startedAt = origin == value ? nil : now
-            if startedAt == nil { settle() }
+            gate.settle(key: key, value: value)
         }
-    }
-
-    private func settle() {
-        guard let activeKey else { return }
-        startedAt = nil
-        gate.settle(key: activeKey, value: target)
     }
 }

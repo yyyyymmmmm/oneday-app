@@ -401,35 +401,31 @@ struct AgentHubView: View {
         }
     }
 
-    /// 选择模型入口行（§434，用户口径：身份头下
-    /// 方、分段胶囊上方）：整行填充胶囊——左标签
-    /// ＋右当前模型名与 chevron，点开模型选择面。
-    /// 形态与身份段编辑钮同族（填充胶囊 44）
+    /// 选择模型紧凑胶囊（居中轻胶囊，避免与下方分段条形成两条大胶囊叠罗汉）
     private func modelEntryRow(_ entry: HubModelEntry) -> some View {
         Button {
             showModelPicker = true
         } label: {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Text("选择模型")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Palette.ink)
-                Spacer()
+            HStack(spacing: OneDayMetrics.spacingXS) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Palette.primary)
                 Text(entry.currentLabel)
-                    .font(.body)
-                    .foregroundStyle(Palette.inkSecondary)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(maxWidth: .infinity)
-            .frame(height: OneDayMetrics.minTapTarget)
-            .background(Palette.fillSecondary, in: Capsule())
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .frame(height: 34)
+            .background(Palette.fillTertiary, in: Capsule())
+            .frame(minHeight: OneDayMetrics.minTapTarget)
+            .contentShape(Capsule())
         }
         .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.hubGutter)
-        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.top, OneDayMetrics.spacingXS)
         .accessibilityLabel("选择模型，当前 \(entry.currentLabel)")
     }
 
@@ -693,51 +689,42 @@ struct AgentHubView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingXS) {
             ForEach(effectiveSegments(considering: store)) { item in
+                let selected = segment == item
                 Button {
                     segment = item
                 } label: {
-                    Image(systemName: item.systemImage)
-                        .font(.system(
-                            size: OneDayMetrics.hubSegGlyphSize,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(Palette.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: OneDayMetrics.hubSegCapsuleHeight)
-                        .background(
-                            segment == item
-                                ? Palette.selectionFill : Color.clear,
-                            in: Capsule()
-                        )
-                        // 第 83 条（命中域收口）：选中胶囊视
-                        // 觉高 36 不变、段钮命中高外扩 44
-                        // （条高 48 内居中、上下各剩 2pt）；
-                        // 负内边距抵消外扩、条布局不动。命
-                        // 中形由旧 36 胶囊改外层矩形（与全
-                        // 仓外扩口径同款）
-                        .frame(height: OneDayMetrics.minTapTarget)
-                        .contentShape(Rectangle())
-                        .padding(
-                            .vertical,
-                            -(OneDayMetrics.minTapTarget
-                                - OneDayMetrics.hubSegCapsuleHeight) / 2
-                        )
+                    HStack(spacing: 4) {
+                        Image(systemName: item.systemImage)
+                            .font(.system(size: 15, weight: selected ? .semibold : .regular))
+                        Text(item.title)
+                            .font(.caption.weight(selected ? .semibold : .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(selected ? Palette.ink : Palette.inkSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: OneDayMetrics.hubSegCapsuleHeight)
+                    .background(
+                        selected ? Palette.selectionFill : Color.clear,
+                        in: Capsule()
+                    )
+                    .frame(height: OneDayMetrics.minTapTarget)
+                    .contentShape(Rectangle())
+                    .padding(
+                        .vertical,
+                        -(OneDayMetrics.minTapTarget
+                            - OneDayMetrics.hubSegCapsuleHeight) / 2
+                    )
                 }
                 .buttonStyle(.odPressable)
                 .accessibilityLabel(item.title)
-                .accessibilityAddTraits(
-                    segment == item ? .isSelected : []
-                )
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingXS)
         .frame(height: OneDayMetrics.hubSegBarHeight)
-        .background(Palette.surface, in: Capsule())
-        .overlay {
-            Capsule().stroke(Palette.hairline, lineWidth: 0.5)
-        }
+        .glassEffect(.regular, in: Capsule())
         .padding(.horizontal, OneDayMetrics.hubGutter)
-        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.top, OneDayMetrics.spacingSM)
         .padding(.bottom, OneDayMetrics.spacingSM)
         .animation(
             MotionTokens.resolved(

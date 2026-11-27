@@ -93,8 +93,36 @@ struct NotificationsView: View {
                 header
                 content
             }
-            .background(Palette.pageBG)
-            .toolbar(.hidden, for: .navigationBar)
+            .background(Palette.settingsBG)
+            .navigationTitle("通知")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if store.notificationsLoaded,
+                   !store.notificationsFailed,
+                   unreadCount > 0 {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("全部已读") {
+                            Haptics.success()
+                            Task {
+                                let ok = await store.markAllRead(
+                                    appState: appState
+                                )
+                                if !ok { markAllFailed = true }
+                            }
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .accessibilityLabel("关闭")
+                }
+            }
             .task {
                 await store.loadNotifications(
                     appState: appState,
@@ -118,62 +146,24 @@ struct NotificationsView: View {
         .presentationDragIndicator(.visible)
     }
 
-    // MARK: - 头部（标题＋全部已读＋关闭＋副标题＋筛选条）
+    // MARK: - 顶部筛选与状态条（原生导航栏承接标题与关闭）
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-                Text("通知")
-                    .font(.screenName)
-                    .foregroundStyle(Palette.ink)
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack {
+                Text(subtitleText)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.inkSecondary)
                 Spacer()
-                if store.notificationsLoaded,
-                   !store.notificationsFailed,
-                   unreadCount > 0 {
-                    Button("全部已读") {
-                        Task {
-                            let ok = await store.markAllRead(
-                                appState: appState
-                            )
-                            if !ok { markAllFailed = true }
-                        }
-                    }
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.primary)
-                    .frame(minHeight: OneDayMetrics.minTapTarget)
-                }
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
-                        .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Palette.selectionFill, in: Circle()
-                        )
-                        .frame(
-                            width: OneDayMetrics.minTapTarget,
-                            height: OneDayMetrics.minTapTarget
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel("关闭")
             }
-            Text(subtitleText)
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.top, OneDayMetrics.spacingXS)
             if store.notificationsLoaded, !store.notificationsFailed,
                !store.historyNotifications.isEmpty {
                 filterBar
-                    .padding(.top, OneDayMetrics.spacingSM)
             }
         }
         .padding(.horizontal, ListRowSpec.horizontalPadding)
-        .padding(.top, OneDayMetrics.spacingSM)
-        .padding(.bottom, OneDayMetrics.spacingSM)
+        .padding(.top, OneDayMetrics.spacingXS)
+        .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     /// 副标题按面态分形（与原型同口径）：加载中/失败/
@@ -309,18 +299,16 @@ struct NotificationsView: View {
                         )
                     ) { row in
                         notificationRow(row)
+                            .listRowBackground(Palette.surface)
                     }
                 } header: {
-                    groupHeader(group, isFirst: index == 0)
+                    SettingsSectionHeader(group.title)
                 }
             }
             if store.historyNotifications.count
                 >= ReportCardHistory.retentionLimit {
-                // §241 留存上限：存档只保留最近 200 条，
-                // 达上限如实标注（旧「桥 50 条」注记随历
-                // 史面落地退役——历史已不止桥窗口）
                 Section {
-                    Text("只保留最近 200 条回告记录")
+                    Text("仅保留近期通知记录")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -329,7 +317,8 @@ struct NotificationsView: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.spacingM)
         .scrollContentBackground(.hidden)
         .refreshable {
             await store.loadNotifications(

@@ -59,39 +59,49 @@ struct VaultRequestCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 20))
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 18, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Palette.primary)
+                    .frame(width: 36, height: 36)
+                    .background(Palette.primaryTint, in: Circle())
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("凭据请求")
-                        .font(.rowTitleL)
+                    Text("凭据授权请求")
+                        .font(.rowTitleL.weight(.semibold))
                         .foregroundStyle(Palette.ink)
-
-                    Text(service)
-                        .font(.meta)
+                    Text(domain.isEmpty ? service : "\(service) · \(domain)")
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                detailRow(label: "域名", value: domain)
-                detailRow(label: "原因", value: reason)
-
-                if isAlwaysAsk {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.meta)
-                            .foregroundStyle(Palette.warning)
-                        Text("每次必问")
-                            .font(.meta)
-                            .foregroundStyle(Palette.inkSecondary)
+            if !reason.isEmpty || isAlwaysAsk {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                    if !reason.isEmpty {
+                        Text(reason)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.vertical, OneDayMetrics.spacingMicro)
+                    if isAlwaysAsk {
+                        HStack(spacing: OneDayMetrics.spacingXS) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(Palette.warningText)
+                            Text("已开启每次必问保护")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Palette.warningText)
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(OneDayMetrics.spacingSM)
+                .background(Palette.fillQuaternary, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile, style: .continuous))
             }
 
             switch status {
@@ -108,8 +118,11 @@ struct VaultRequestCard: View {
             }
         }
         .padding(OneDayMetrics.spacingM)
-        .background(Palette.surface)
-        .cornerRadius(OneDayMetrics.radiusCard)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview, style: .continuous)
+                .stroke(Palette.hairline, lineWidth: 1)
+        }
         .alert("操作失败", isPresented: Binding(
             get: { submitError != nil },
             set: { if !$0 { submitError = nil } }
@@ -127,45 +140,57 @@ struct VaultRequestCard: View {
 
     @ViewBuilder
     private var pendingContent: some View {
-        VStack(spacing: OneDayMetrics.spacingM) {
+        VStack(spacing: OneDayMetrics.spacingSM) {
             ForEach(fields, id: \.self) { field in
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                     Text(fieldDisplayName(field))
-                        .font(.meta)
-                        .foregroundStyle(Palette.inkMuted)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Palette.inkSecondary)
 
-                    SecureField("", text: Binding(
-                        get: { fieldValues[field] ?? "" },
-                        set: { fieldValues[field] = $0 }
-                    ))
-                    .font(.body)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .privacySensitive()
+                    if field == "username" || field == "account" || field == "email" {
+                        TextField("输入\(fieldDisplayName(field))", text: Binding(
+                            get: { fieldValues[field] ?? "" },
+                            set: { fieldValues[field] = $0 }
+                        ))
+                        .font(.body)
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.vertical, 10)
+                        .background(Palette.fillQuaternary, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile, style: .continuous))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    } else {
+                        SecureField("输入\(fieldDisplayName(field))", text: Binding(
+                            get: { fieldValues[field] ?? "" },
+                            set: { fieldValues[field] = $0 }
+                        ))
+                        .font(.body.monospaced())
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.vertical, 10)
+                        .background(Palette.fillQuaternary, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile, style: .continuous))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .privacySensitive()
+                    }
                 }
             }
 
-            HStack(spacing: OneDayMetrics.spacingM) {
-                Button {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Button(role: .destructive) {
+                    Haptics.warning()
                     Task {
                         await rejectRequest()
                     }
                 } label: {
                     Text("拒绝")
-                        .font(.body)
-                        .foregroundStyle(Palette.danger)
+                        .font(.subheadline.weight(.medium))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                        .background(Palette.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
-                                .stroke(Palette.danger, lineWidth: 1)
-                        )
+                        .padding(.vertical, 6)
                 }
+                .buttonStyle(.bordered)
                 .disabled(submitting)
 
                 Button {
+                    Haptics.success()
                     Task {
                         await fulfillRequest()
                     }
@@ -175,19 +200,19 @@ struct VaultRequestCard: View {
                             .progressViewStyle(.circular)
                             .tint(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, OneDayMetrics.spacingS)
+                            .padding(.vertical, 6)
                     } else {
-                        Text("提供")
-                            .font(.body)
-                            .foregroundStyle(.white)
+                        Text("安全提供")
+                            .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, OneDayMetrics.spacingS)
+                            .padding(.vertical, 6)
                     }
                 }
-                .background(Palette.primary)
-                .cornerRadius(OneDayMetrics.radiusTile)
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.primary)
                 .disabled(submitting || !canFulfill)
             }
+            .padding(.top, OneDayMetrics.spacingXS)
         }
     }
 
