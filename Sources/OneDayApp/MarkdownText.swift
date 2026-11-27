@@ -434,6 +434,8 @@ struct MarkdownText: View {
                     // alignmentGuide 钉到基字体
                     // ascender（inset 归零后的首行
                     // 基线），与标记列保持首行对齐
+                    let category = dynamicTypeSize.contentSizeCategory
+                    let isBold = legibilityWeight == .bold
                     SelectableInlineText(
                         paragraphs: [.markdown(item.text)],
                         textStyle: .body,
@@ -445,9 +447,8 @@ struct MarkdownText: View {
                     .alignmentGuide(.firstTextBaseline) { _ in
                         InlineTextFonts.firstBaseline(
                             textStyle: .body,
-                            category: dynamicTypeSize
-                                .contentSizeCategory,
-                            boldText: legibilityWeight == .bold
+                            category: category,
+                            boldText: isBold
                         )
                     }
                 }

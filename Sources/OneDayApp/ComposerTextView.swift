@@ -278,10 +278,9 @@ struct ComposerTextView: UIViewRepresentable {
     }
 }
 
-/// 发送舱焦点句柄（0.2.8）：ChatView 与文本视图本体之间
-/// 的程序化焦点通道——收起键盘（点消息区空白）与演示模
-/// 式程序化聚焦自检都经它直达 UITextView，不经任何
-/// SwiftUI 焦点状态。视图未就绪时先记 pending，登记时补上。
+/// 发送舱焦点句柄（0.2.8，#25 收口为 @MainActor 消除 Swift 6 并发告警）：
+/// ChatView 与文本视图本体之间的程序化焦点通道，保留 UITextView 规避真机中文拼音组合态撕裂。
+@MainActor
 final class ComposerFocusHandle {
     private weak var textView: UITextView?
     private var pendingFocus = false
@@ -305,9 +304,10 @@ final class ComposerFocusHandle {
     func focusAtEnd() {
         if let textView {
             textView.becomeFirstResponder()
+            let tv = textView
             DispatchQueue.main.async {
-                let len = (textView.text as NSString).length
-                textView.selectedRange = NSRange(location: len, length: 0)
+                let len = (tv.text as NSString).length
+                tv.selectedRange = NSRange(location: len, length: 0)
             }
         } else {
             pendingFocus = true

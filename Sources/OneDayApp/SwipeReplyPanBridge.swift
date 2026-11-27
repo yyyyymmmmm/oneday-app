@@ -527,6 +527,13 @@ extension SwipeReplyPanInstallerView {
                 frames.append(
                     marker.convert(marker.bounds, to: self)
                 )
+            } else if let scroll = view as? UIScrollView,
+                      scroll !== installedScrollView,
+                      scroll.isScrollEnabled,
+                      scroll.contentSize.width > scroll.bounds.width + 1 {
+                frames.append(
+                    scroll.convert(scroll.bounds, to: self)
+                )
             }
             for sub in view.subviews { walk(sub) }
         }

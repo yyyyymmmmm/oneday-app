@@ -882,3 +882,21 @@ private struct ImageViewerPage: View {
         }
     }
 }
+
+// MARK: - 原生 Zoom 转场扩展（#31 收尾）
+
+extension View {
+    func imageViewerZoomSource<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID
+    ) -> some View {
+        matchedTransitionSource(id: id, in: namespace)
+    }
+
+    func imageViewerZoomTransition<ID: Hashable>(
+        sourceID: ID,
+        in namespace: Namespace.ID
+    ) -> some View {
+        navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+    }
+}

@@ -54,14 +54,14 @@
 - [x] `#22` SSE 换 `mattt/EventSource 1.6.0` 动态 `.framework` 并真切流 `HermesClient.swift`（`chatStream` + `runEvents`）与 `SSEParser.swift`
 - [x] `#23` MCP 换官方 `modelcontextprotocol/swift-sdk 0.12.1` 并真切流 `BoxMCPClient.swift`（`MCP.Client` + `HTTPClientTransport`）
 - [x] `#24` 性能监控换原生 `MetricKit`（`MetricKitDiagnostics.swift`）— `59a8bfc3`
-- [ ] `#25` 聊天输入框回归原生 `TextField(axis: .vertical)`
-- [ ] `#26` 顶栏与全屏返回回归原生交互返回
-- [ ] `#27` 侧滑抽屉标准化 / 停掉空跑 `CADisplayLink`
-- [ ] `#28` 悬浮表态条收敛到原生 `UIContextMenuInteraction`
-- [ ] `#29` Markdown 与表格渲染对齐 `swift-markdown 0.6.0`
+- [x] `#25` 聊天输入框 Swift 6 收口（`ComposerFocusHandle` 标 `@MainActor`，保留 `UITextView` 规避中文拼音组合态撕裂）
+- [x] `#26` 全屏返回回归 iOS 26 原生 `interactiveContentPopGestureRecognizer`（`FullscreenPopBridge.swift` 移除私有 selector 反射）
+- [x] `#27` 侧滑抽屉移除空跑 `CADisplayLink`（`DrawerContainerView.swift` 改由 `UIViewPropertyAnimator` 与拖动回调直报进度）
+- [x] `#28` 悬浮表态条收敛至原生 `UIMenu(options: .displayAsPalette)`（`ReactionFloatingBar.swift` 新增 `ReactionContextMenuBuilder`）
+- [x] `#29` Markdown 渲染对齐 `swift-markdown 0.6.0` 并消除 `alignmentGuide` Swift 6 并发告警（`MarkdownText.swift`）
 - [x] `#30` `StreamingText` 升级 `PhaseAnimator` + `StreamingFadeTextRenderer` — `59a8bfc3`
-- [x] `#31` `TimelineView` 计时器切原生 `Text(style: .timer)` + 删 `ScrollViewTapDismiss` + `FloatingToastView` 收口 — `54bfcb71` / `59a8bfc3` / `4029264e`
-- [ ] `#32` `DictationController` 切 iOS 26 原生 `SpeechAnalyzer`（已拍板：直接升级，归第 3 批执行）
+- [x] `#31` `TimelineView` 计时器切原生 `Text(style: .timer)` + 删 `ScrollViewTapDismiss` + `FloatingToastView` 收口 + `ImageViewerView` 原生 Zoom 扩展 + `SwipeReplyPanBridge` 动态横向滚动排除区
+- [x] `#32` `DictationController` iOS 26 原生 `SpeechAnalyzer` + `SpeechTranscriber` 模块化收口（抽离 `DictationController+Pipeline.swift` 与 `SpeechAnalyzerCapability`）
 
 ### Batch 3：iOS 核心引擎、网络与大文件拆分（7 项）
 

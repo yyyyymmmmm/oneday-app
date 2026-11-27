@@ -339,12 +339,7 @@ final class DrawerContainerController: UIViewController,
     /// animator 时据此分「关被打断」（147 待办即刻
     /// 执行）与「开被顶替」（待办继续等关）
     private var animatorHeadingOpen = false
-    /// 动画在途的呈现进度采样链（台账 147）：anim-
-    /// ator 只写 model 值、呈现位移在 presenta-
-    /// tion 层——延迟导航的触发事实必须读呈现层
-    /// 逐帧采样（与 OB 以共享进度值反应式触发同
-    /// 构）；动画落定/被停即拆链
-    private var progressDisplayLink: CADisplayLink?
+    // #27 已移除逐帧 CADisplayLink 轮询：改由 UIViewPropertyAnimator 起止回调与拖动期 applyOffset 直接上报进度
     /// 手势会话：接管起点位移＋锁定段（nil＝未锁定）
     private var dragStartOffset: CGFloat = 0
     private var dragLockTranslation: CGFloat?
@@ -686,36 +681,11 @@ final class DrawerContainerController: UIViewController,
         }
     }
 
-    /// 呈现进度采样（台账 147）：读 foreground
-    /// presentation 层的当前 tx 换算进度回写——关
-    /// 动画途中 model 恒为目标值，唯呈现层是逐帧
-    /// 真值（stopAnimatorCapturingPresentation 读
-    /// 呈现层接管同源）
-    @objc private func samplePresentationProgress() {
-        guard travel > 0 else { return }
-        let presented = foreground.layer.presentation()?
-            .transform.m41 ?? offset
-        onDrawerProgress?(
-            DrawerMotion.progress(
-                offset: presented, travel: travel
-            )
-        )
-    }
-
     private func startProgressSampling() {
-        guard progressDisplayLink == nil else { return }
-        let link = CADisplayLink(
-            target: self,
-            selector: #selector(samplePresentationProgress)
-        )
-        link.add(to: .main, forMode: .common)
-        progressDisplayLink = link
+        // #27：不再启动 CADisplayLink，拖动期与起止由 applyOffset / finishSettle / interruption 直接回写
     }
 
-    private func stopProgressSampling() {
-        progressDisplayLink?.invalidate()
-        progressDisplayLink = nil
-    }
+    private func stopProgressSampling() {}
 
     // MARK: - 开合
 

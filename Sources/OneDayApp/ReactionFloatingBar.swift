@@ -499,3 +499,48 @@ enum ReactionBarPlacement {
         )
     }
 }
+
+// MARK: - 原生 UIContextMenuInteraction 菜单构建器（#28）
+
+/// iOS 17+ 原生上下文菜单构建器：将快捷表态药丸排收敛至 `UIMenu(options: .displayAsPalette)`
+/// 并与标准动作条目合并为一个原生 `UIMenu`，供 `ChatNativeList` 长按复用。
+@MainActor
+enum ReactionContextMenuBuilder {
+    static func makeMenu(
+        data: ChatRowActionSheetData,
+        canReact: Bool
+    ) -> UIMenu {
+        var children: [UIMenuElement] = []
+        if canReact {
+            let emojiActions = MessageReactions.palette.map { emoji in
+                UIAction(
+                    title: emoji,
+                    state: emoji == data.ownReaction ? .on : .off
+                ) { _ in
+                    data.onPickReaction(emoji)
+                }
+            }
+            let paletteMenu = UIMenu(
+                title: "",
+                options: [.displayInline, .displayAsPalette],
+                children: emojiActions
+            )
+            children.append(paletteMenu)
+        }
+        let standardActions = data.actionItems().map { item in
+            UIAction(
+                title: item.title,
+                image: UIImage(systemName: item.systemImage),
+                attributes: item.isDestructive ? .destructive : []
+            ) { _ in
+                item.action()
+            }
+        }
+        if !standardActions.isEmpty {
+            children.append(
+                UIMenu(title: "", options: .displayInline, children: standardActions)
+            )
+        }
+        return UIMenu(title: "", children: children)
+    }
+}
