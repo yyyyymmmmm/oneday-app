@@ -413,19 +413,18 @@ struct HealthCheckView: View {
     private var identityStatusRow: some View {
         switch store.identityPhase {
         case .running(let since):
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    ProgressView()
-                    Text(
-                        "正在对账… 已用 "
-                            + "\(Int(context.date.timeIntervalSince(since))) 秒"
-                    )
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                    Spacer(minLength: OneDayMetrics.spacingS)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ProgressView()
+                HStack(spacing: 4) {
+                    Text("正在对账…")
+                    Text(since, style: .timer)
+                        .monospacedDigit()
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+                Spacer(minLength: OneDayMetrics.spacingS)
             }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         case .finished:
             if let run = store.identityRun {
                 HStack(spacing: OneDayMetrics.spacingS) {
@@ -544,19 +543,18 @@ struct HealthCheckView: View {
     private var backupStatusRow: some View {
         switch archiveStore.backupPhase {
         case .running(let since):
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    ProgressView()
-                    Text(
-                        "正在备份… 已用 "
-                            + "\(Int(context.date.timeIntervalSince(since))) 秒"
-                    )
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                    Spacer(minLength: OneDayMetrics.spacingS)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ProgressView()
+                HStack(spacing: 4) {
+                    Text("正在备份…")
+                    Text(since, style: .timer)
+                        .monospacedDigit()
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+                Spacer(minLength: OneDayMetrics.spacingS)
             }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         case .finished:
             if let run = archiveStore.backupRun {
                 backupResultRows(
@@ -786,19 +784,18 @@ struct HealthCheckView: View {
     ) -> some View {
         switch store.phase(for: action) {
         case .running(let since):
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    ProgressView()
-                    Text(
-                        "正在检查… 已用 "
-                            + "\(Int(context.date.timeIntervalSince(since))) 秒"
-                    )
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                    Spacer(minLength: OneDayMetrics.spacingS)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ProgressView()
+                HStack(spacing: 4) {
+                    Text("正在检查…")
+                    Text(since, style: .timer)
+                        .monospacedDigit()
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+                Spacer(minLength: OneDayMetrics.spacingS)
             }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         case .finished:
             if let headline = sessionHeadline(for: action),
                let verdict = sessionVerdict(for: action) {
