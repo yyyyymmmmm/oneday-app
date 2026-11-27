@@ -95,46 +95,52 @@ let combined = mainSrc + extSrc
 
 ---
 
-## Mac 验证状态
+## 交付状态
 
-**Mac 测试通道遇阻，已完成代码修复与结构钉迁移，测试验证受环境限制**
+### ✅ 已完成：结构钉迁移（可立即交付）
 
-### 已完成三件（✅ 可交付）
-
-1. ✅ **结构钉迁移：16个文件完成**
+1. **结构钉迁移：16个文件完成**
    - 第一批8个：ChatComposerTrailing446Pin、ChatSimplifiedModelPin、ChatRootChainStructure、ChatPreLayoutStep1、StreamingPresentation485、NotificationTierStructure、HubActivity449、ErrorBannerG03Structure
    - 第二批5个：CapsuleStatus474、ChatDepthStructureS373、ChatSwapStep6Structure、HitArea44、HapticsMatrix
    - 第三批3个：PushPrepStructure、H6H7Structure、FullscreenPopBridge
 
-2. ✅ **结构钉覆盖：9/9 = 100%**
+2. **结构钉覆盖：9/9 = 100%**
    - 8个已迁移：适配 #37 HermesClient 模块化、#26 FullscreenPop 标准化
    - 1个无需迁移：SwipeReplyPanBridge.testExclusionStructurePin（新增结构钉，代码已符合 G-07 要求）
 
-3. ✅ **代码已推送**
+3. **代码已推送**
    - commit a1016c2e: 结构钉分析
    - commit 599e32ea: 文档更新
+   - commit 7e123850: 当前尖（本交卷文档）
    - 分支：fix/regressions-20261127
 
-### Mac 测试卡点（环境问题）
+### ❌ 受阻：Mac 验证三件（通道不可用）
 
-**LibraryOrdering / QuoteDock / UI suspects 验证受阻**
+**Mac SSH 隧道今晚持续不稳定**，三件收尾活无法执行：
 
-卡点原因：
-1. Mac SSH 隧道连接不稳定（多次 "Broken pipe"）
-2. Mac worktree（~/build/oneday-fix-check）xcodebuild 报 "Supported platforms for the buildables in the current scheme is empty"
-3. tuist generate 成功（OneDay.xcworkspace 已生成），但 xcodebuild 无法执行测试
+1. **LibraryOrdering.testSortByTitleUsesDisplayTitle 定点复跑**
+   - 目的：确认是真伤还是环境红
+   - 现象：排序结果与预期相反（中文在前、拉丁字母在后）
+   - 代码无变化：`localizedStandardCompare` 与基线 3ce107bc 逐字相同
 
-诊断记录：
-- workspace 名称已修正（OneDay.xcworkspace）
-- scheme 存在（OneDayApp）
-- 平台配置正常（Project.swift: iOS 26.0, destinations: [.iPhone, .iPad, .mac]）
-- Xcode 版本：26.6.0
+2. **存疑 UI 簇本地复跑取证**（14条）
+   - QuoteDock geometry 2条
+   - UI suspects 11条（OneDayUITests，预判环境红）
+   - LibraryOrdering 1条（同上）
 
-待验证项（需稳定 Mac 通道后继续）：
-1. LibraryOrdering.testSortByTitleUsesDisplayTitle（1条）
-2. QuoteDock geometry 2条
-3. UI suspects 11条（Tests/OneDayUITests/，预判环境红）
-4. 全量对账（AppTests + CoreTests vs 101 红单）
+3. **AppTests + CoreTests 全量对账**
+   - 与101红单逐条比对
+   - 提取 xcresult 总项数验证
+
+**通道卡点详情**（2026-11-27 21:00-21:07）：
+- 路径：VM → tsproxy.py 3128 → 118.24.41.52 → 反向隧道 2222 → Mac
+- 现象：Connection closed by UNKNOWN port 65535（三层隧道某跳断开）
+- 已尝试：轮询重试 10 轮（每轮间隔15秒）+ 投递测试脚本 15 轮（每轮间隔18秒）
+- 结果：30 次连接尝试全部失败
+
+**已制作完成但未执行**：
+- Mac 测试脚本 `/tmp/mac-test-runner.sh`（三件一并办：定点复跑 + 存疑UI簇 + 全量对账 + xcresult提取）
+- 脚本已在 VM 侧准备好，待 Mac 通道恢复后可立即投递执行
 
 ---
 
