@@ -559,7 +559,7 @@ struct FeedView: View {
                 .symbolRenderingMode(.hierarchical)
                 .font(.system(size: FrameworkIcon.fileGlyphSize, weight: .semibold))
                 .foregroundStyle(post.kind.kickerTint)
-                .frame(width: 36, height: 36)
+                .frame(width: 24, height: 24)
                 .background(
                     post.kind.kickerColor,
                     in: RoundedRectangle(
@@ -570,7 +570,7 @@ struct FeedView: View {
                 // kicker 字形块是帖的类别信号、动作行另
                 // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
                 Button {
                     openPost(post)
                 } label: {
@@ -581,7 +581,10 @@ struct FeedView: View {
                             // （Title3 semibold）——§117.5 例
                             // 外经用户 2026-11-22 裁定扩展至
                             // 目标面，三面同例
-                            .font(.contentListTitle)
+                            // 大厂对标（2026-11-27）：改用
+                            // .title3 regular，去 semibold
+                            // 保持轻盈（HIG Typography 标准）
+                            .font(.title3)
                             .foregroundStyle(Palette.ink)
                             // 0.43.0（A11Y-D3）：AX 档放宽
                             .a11yLineLimit(2, ax: 4)
@@ -599,18 +602,19 @@ struct FeedView: View {
                 }
                 .buttonStyle(.odPressable)
                 .accessibilityElement(children: .combine)
+                .padding(.bottom, OneDayMetrics.spacingS)
                 // §459：category chip——简报方向原文
                 // （如「GitHub 热门」）；事件/小结帖为
-                // nil 不渲染，不拿 kind 名冒充。§486.3
-                // 升参照话题灰片档：subheadline（≈15）
-                // ＋高 ≈29、浅灰填充、圆角矩形（照审
-                // 计量测：标题下、正文上、单片）
+                // nil 不渲染，不拿 kind 名冒充。视觉收编
+                // （fix/feed-design-20261127）：字号由
+                // subheadline（15pt）降至 footnote（13pt），
+                // 对位标杆元信息档
                 if let category = post.category,
                    !category.trimmingCharacters(
                        in: .whitespacesAndNewlines
                    ).isEmpty {
                     Text(category)
-                        .font(.subheadline)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(
                             .horizontal, OneDayMetrics.spacingSM
@@ -625,6 +629,7 @@ struct FeedView: View {
                             )
                         )
                         .lineLimit(1)
+                        .padding(.bottom, OneDayMetrics.spacingS)
                 }
                 if !post.body.isEmpty {
                     let rowBody = FeedBoard.rowBodyPresentation(
@@ -634,6 +639,7 @@ struct FeedView: View {
                         markRead(post)
                         imageViewerSession = session
                     })
+                    .padding(.bottom, OneDayMetrics.spacingM)
                     if rowBody.isTruncated {
                         Button {
                             openPost(post)
@@ -643,6 +649,7 @@ struct FeedView: View {
                                 .foregroundStyle(Palette.primary)
                         }
                         .buttonStyle(.plain)
+                        .padding(.bottom, OneDayMetrics.spacingM)
                     }
                 }
                 // 列表首张独立配图可打开同帖相册；链接封面归来源卡。
@@ -656,9 +663,11 @@ struct FeedView: View {
                         markRead(post)
                         openPostImage(post, url: url, previewLongEdge: 1200)
                     }
+                    .padding(.bottom, OneDayMetrics.spacingM)
                 }
                 if !post.refs.isEmpty {
                     refsRow(post)
+                    .padding(.bottom, OneDayMetrics.spacingS)
                 }
                 if expandedAboutID == post.id {
                     aboutSection(post)
@@ -666,7 +675,7 @@ struct FeedView: View {
                 actionRow(post)
             }
         }
-        .padding(.vertical, OneDayMetrics.spacingS)
+        .padding(.vertical, OneDayMetrics.spacingM)
         .listRowBackground(Color.clear)
         .onAppear {
             markRead(post)
@@ -689,22 +698,22 @@ struct FeedView: View {
                 Button {
                     discuss(post)
                 } label: {
-                    HStack(spacing: OneDayMetrics.stackGap) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(systemName: "text.bubble")
                         Text("讨论")
                     }
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                 }
                 .buttonStyle(.plain)
                 Button {
                     store.deleteSeed(post)
                 } label: {
-                    HStack(spacing: OneDayMetrics.stackGap) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(systemName: "trash")
                         Text("删除")
                     }
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                 }
                 .buttonStyle(.plain)
@@ -730,7 +739,7 @@ struct FeedView: View {
                 Task { await store.toggleLiked(appState: appState, post: post) }
             } label: {
                 Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(
                         post.isLiked ? Palette.primary : Palette.inkSecondary
                     )
@@ -740,12 +749,12 @@ struct FeedView: View {
             Button {
                 discuss(post)
             } label: {
-                HStack(spacing: OneDayMetrics.stackGap) {
+                HStack(spacing: OneDayMetrics.spacingXS) {
                     Image(systemName: "text.bubble")
                     Text("讨论")
                         .lineLimit(1)
                 }
-                .font(.subheadline)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -777,7 +786,7 @@ struct FeedView: View {
             } label: {
                 Image(systemName: expandedAboutID == post.id
                       ? "info.circle.fill" : "info.circle")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(
                         expandedAboutID == post.id
                             ? Palette.ink : Palette.inkSecondary
