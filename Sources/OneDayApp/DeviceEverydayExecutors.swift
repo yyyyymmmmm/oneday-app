@@ -1270,13 +1270,14 @@ enum DeviceComposeBridge {
             self.continuation = continuation
         }
 
-        @MainActor
-        func mailComposeController(
+        nonisolated func mailComposeController(
             _ controller: MFMailComposeViewController,
             didFinishWith result: MFMailComposeResult,
             error: Error?
         ) {
-            controller.dismiss(animated: true)
+            Task { @MainActor in
+                controller.dismiss(animated: true)
+            }
             if let error {
                 finish {
                     throw DeviceToolError.failed(
