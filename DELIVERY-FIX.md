@@ -95,30 +95,34 @@ let combined = mainSrc + extSrc
 
 ---
 
-## 验证计划
+## Mac 验证进行中
 
-需在 Mac 上新建 worktree 验证修复：
-```bash
-# Mac 上执行
-export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+**状态：测试运行中（20:42 重启）**
 
-cd ~/build
-rm -rf oneday-fix-check
-git worktree add oneday-fix-check fix/regressions-20261127
-cd oneday-fix-check
+### 已完成
+1. ✅ 结构钉迁移：16个文件完成
+2. ✅ 结构钉覆盖：9/9 = 100%（8个已迁移 + 1个无需迁移）
+3. ✅ 代码推送：commit a1016c2e
 
-tuist generate
+### 验证队列（按优先级）
+1. **LibraryOrdering.testSortByTitleUsesDisplayTitle**（进行中）
+   - 日志：/tmp/library-restart.log
+   - 预判：真伤可能性高（localizedStandardCompare 语言环境依赖）
 
-xcodebuild test \
-  -scheme OneDayApp \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  -only-testing OneDayAppTests/H6H7StructureTests/testClientImplementsNewEndpoints \
-  -only-testing OneDayAppTests/FullscreenPopBridgeTests/testEquipInstallsFullscreenPanAndDisablesEdgePop \
-  -only-testing OneDayAppTests/FullscreenPopBridgeTests/testDelegateAdjudicationMatchesPolicy \
-  -only-testing OneDayCoreTests/LibraryOrderingTests/testSortByTitleUsesDisplayTitle \
-  -derivedDataPath ~/build/fix-derived
-```
+2. **QuoteDock geometry 2条**（待启动）
+   - testKeyboardStateQuoteGrowthEqualsStripHeight
+   - testRestingStateQuoteGrowthEqualsStripHeight
+   - 预判：几何计算类，可能需要适配新布局
+
+3. **UI suspects 11条**（待启动）
+   - 位置：Tests/OneDayUITests/
+   - 预判：环境红可能性高（XCUITest 时序敏感）
+   - 分类：Drawer 7条 + Settings 2条 + Smoke 1条 + Gesture 1条
+
+4. **全量对账**（最后）
+   - AppTests + CoreTests 全量运行
+   - 与 101 红单逐条对账
+   - 验证旧账65条已清理（gone列表）
 
 ---
 
