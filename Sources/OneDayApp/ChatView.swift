@@ -1055,10 +1055,9 @@ struct ChatView: View {
         // 择模型」入口注入本会话模型账（§153 同组
         // 件同数据源），枢纽本体仍不自拉模型账、
         // 只消费注入包
-        .sheet(isPresented: $showHub) {
+        // 2026-11-27：用户亲令改全屏呈现（fullScreenCover）
+        .fullScreenCover(isPresented: $showHub) {
             hubView(onCardClose: nil)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showPendingApprovalSheet) {
             PendingApprovalSheetView(store: appState.sharedHubStore())

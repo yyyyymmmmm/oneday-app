@@ -200,17 +200,22 @@ extension ChatView {
         }
     }
 
-    /// 顶带（§449）：汉堡/查找/铃铛与居中身份区同带
+    /// 顶带（§449；2026-11-27 用户亲令改版）：
+    /// 汉堡/查找/铃铛与居中身份区同带。
+    /// 2026-11-27 改版：右侧查找/铃铛两按钮收进同一胶囊容器
     var topBand: some View {
         ZStack(alignment: .center) {
             headerIdentityHero
             HStack(alignment: .center, spacing: 0) {
                 drawerButton
                 Spacer(minLength: OneDayMetrics.spacingS)
-                HStack(spacing: OneDayMetrics.spacingS) {
+                // 右侧两按钮收进同一胶囊（2026-11-27）
+                HStack(spacing: 4) {
                     findButton
                     bellButton
                 }
+                .padding(.horizontal, 4)
+                .glassEffect(.regular, in: Capsule())
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
         }
@@ -244,7 +249,7 @@ extension ChatView {
         .accessibilityIdentifier("drawer.open")
     }
 
-    /// 查找钮（总表 150／§500）：会话内查找的直达入口
+    /// 查找钮（总表 150／§500；2026-11-27 改版）：会话内查找的直达入口
     var findButton: some View {
         Button {
             findController.open()
@@ -259,19 +264,14 @@ extension ChatView {
                     width: HeaderButtonSpec.diameter,
                     height: HeaderButtonSpec.diameter
                 )
-                .glassEffect(.regular, in: Circle())
-                .frame(
-                    width: OneDayMetrics.minTapTarget,
-                    height: OneDayMetrics.minTapTarget
-                )
-                .contentShape(Rectangle())
+                .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("在对话中查找")
         .accessibilityIdentifier("topbar.find")
     }
 
-    /// 右钮：铃铛＋角标（角标＝未读通知＋待审批，总览桥聚合）
+    /// 右钮：铃铛＋角标（角标＝未读通知＋待审批，总览桥聚合；2026-11-27 改版）
     var bellButton: some View {
         Button {
             showNotifications = true
@@ -287,7 +287,6 @@ extension ChatView {
                         width: HeaderButtonSpec.diameter,
                         height: HeaderButtonSpec.diameter
                     )
-                    .glassEffect(.regular, in: Circle())
                 if overviewBadgeCount > 0 {
                     Text("\(overviewBadgeCount)")
                         .font(.caption2.weight(.bold))
@@ -299,11 +298,7 @@ extension ChatView {
                         .accessibilityHidden(true)
                 }
             }
-            .frame(
-                width: OneDayMetrics.minTapTarget,
-                height: OneDayMetrics.minTapTarget
-            )
-            .contentShape(Rectangle())
+            .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(

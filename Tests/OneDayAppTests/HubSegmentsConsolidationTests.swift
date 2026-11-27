@@ -56,7 +56,7 @@ final class HubSegmentsConsolidationTests: XCTestCase {
         XCTAssertTrue(inputs.connected)
         XCTAssertFalse(inputs.grantsReadbackOK)
         XCTAssertFalse(inputs.approvalsReadbackOK)
-        XCTAssertFalse(inputs.mailAdvertised)
+        XCTAssertFalse(inputs.mailDataSourceAvailable)
         XCTAssertEqual(
             inputs.boxConfigured,
             KeychainStore.read(account: "box.mcp.key") != nil

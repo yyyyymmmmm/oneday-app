@@ -7477,31 +7477,31 @@
         }
       }
     },
-    "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（github.com/yyyyymmmmm/oneday-app/issues）或邮箱 contact@example.com 联系我们。": {
+    "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（项目 GitHub 仓库的 Issues 页面）或邮箱 contact@example.com 联系我们。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay is developed and maintained by Zhihe Shuzhi (“we”). This policy explains how OneDay handles information while you use it. If you have questions, or wish to exercise the rights described below, contact us via GitHub Issues (github.com/yyyyymmmmm/oneday-app/issues) or by email at contact@example.com."
+            "value": "OneDay is developed and maintained by Zhihe Shuzhi (“we”). This policy explains how OneDay handles information while you use it. If you have questions, or wish to exercise the rights described below, contact us via GitHub Issues (项目 GitHub 仓库的 Issues 页面) or by email at contact@example.com."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（github.com/yyyyymmmmm/oneday-app/issues）或邮箱 contact@example.com 联系我们。"
+            "value": "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（项目 GitHub 仓库的 Issues 页面）或邮箱 contact@example.com 联系我们。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay 由知和數智（下稱「我們」）開發並維護。本政策說明 OneDay 在你使用過程中如何處理資訊。如有疑問，或要行使下文所述的權利，可透過 GitHub 倉庫 Issues（github.com/yyyyymmmmm/oneday-app/issues）或信箱 contact@example.com 聯絡我們。"
+            "value": "OneDay 由知和數智（下稱「我們」）開發並維護。本政策說明 OneDay 在你使用過程中如何處理資訊。如有疑問，或要行使下文所述的權利，可透過 GitHub 倉庫 Issues（项目 GitHub 仓库的 Issues 页面）或信箱 contact@example.com 聯絡我們。"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay est développé et maintenu par Zhihe Shuzhi (« nous »). Cette politique explique comment OneDay traite les informations pendant votre utilisation. Pour toute question, ou pour exercer les droits décrits ci-dessous, contactez-nous via les Issues du dépôt GitHub (github.com/yyyyymmmmm/oneday-app/issues) ou par e-mail à contact@example.com."
+            "value": "OneDay est développé et maintenu par Zhihe Shuzhi (« nous »). Cette politique explique comment OneDay traite les informations pendant votre utilisation. Pour toute question, ou pour exercer les droits décrits ci-dessous, contactez-nous via les Issues du dépôt GitHub (项目 GitHub 仓库的 Issues 页面) ou par e-mail à contact@example.com."
           }
         }
       }
@@ -75078,31 +75078,31 @@
         }
       }
     },
-    "OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。": {
+    "OneDay 客户端以开源形式发布于 GitHub 仓库（项目 GitHub 仓库），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The OneDay client is published as open source in its GitHub repository (github.com/yyyyymmmmm/oneday-app), and its use and distribution are governed by the license included in that repository. Hermes is an open-source project of Nous Research, and rights in it belong to its rights holders. Other names and marks mentioned in this agreement belong to their respective owners and imply no affiliation or endorsement."
+            "value": "The OneDay client is published as open source in its GitHub repository (项目 GitHub 仓库), and its use and distribution are governed by the license included in that repository. Hermes is an open-source project of Nous Research, and rights in it belong to its rights holders. Other names and marks mentioned in this agreement belong to their respective owners and imply no affiliation or endorsement."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。"
+            "value": "OneDay 客户端以开源形式发布于 GitHub 仓库（项目 GitHub 仓库），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "OneDay 用戶端以開源形式發佈於 GitHub 倉庫（github.com/yyyyymmmmm/oneday-app），其使用與散佈遵循倉庫內所附的授權條款。Hermes 為 Nous Research 的開源專案，權利歸其權利人所有。本協議提及的其他名稱與標識歸各自權利人所有，不表示隸屬或背書關係。"
+            "value": "OneDay 用戶端以開源形式發佈於 GitHub 倉庫（项目 GitHub 仓库），其使用與散佈遵循倉庫內所附的授權條款。Hermes 為 Nous Research 的開源專案，權利歸其權利人所有。本協議提及的其他名稱與標識歸各自權利人所有，不表示隸屬或背書關係。"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le client OneDay est publié en open source dans le dépôt GitHub (github.com/yyyyymmmmm/oneday-app) ; son utilisation et sa distribution sont régies par la licence incluse dans ce dépôt. Hermes est un projet open source de Nous Research, dont les droits appartiennent à ses ayants droit. Les autres noms et marques mentionnés dans cet accord appartiennent à leurs propriétaires respectifs et n'impliquent aucune affiliation ni approbation."
+            "value": "Le client OneDay est publié en open source dans le dépôt GitHub (项目 GitHub 仓库) ; son utilisation et sa distribution sont régies par la licence incluse dans ce dépôt. Hermes est un projet open source de Nous Research, dont les droits appartiennent à ses ayants droit. Les autres noms et marques mentionnés dans cet accord appartiennent à leurs propriétaires respectifs et n'impliquent aucune affiliation ni approbation."
           }
         }
       }

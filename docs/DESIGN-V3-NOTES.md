@@ -63,7 +63,7 @@ primaryTint（浅染档）＝同色阶最浅档。锚点逐个注明出处，不
   发送键可用＝primaryFill 填充＋白色上箭头、禁用＝fieldFill＋三级色箭头；
   流式停止键同 36pt。输入框圆角 20、内距与按钮基线对齐。
 
-## 4. 礼记仓设计沉淀摘录（github.com/yyyyymmmmm/liqian-app · docs/DESIGN.md）
+## 4. 礼记仓设计沉淀摘录（上游项目仓库 · docs/DESIGN.md）
 
 可复用条目（已在 OneDay 部分生效，本轮起全量执行）：
 

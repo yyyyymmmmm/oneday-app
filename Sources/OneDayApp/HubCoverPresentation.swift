@@ -30,21 +30,19 @@ enum HubCoverPresenter {
     }
 }
 
-/// 标准中枢 Sheet 修饰位：与聊天页同走 iOS 原生大档 Sheet
+/// 标准中枢 fullScreenCover 修饰位（2026-11-27 改全屏呈现，皇上亲令）
 struct HubCoverModifier: ViewModifier {
     @Binding var isPresented: Bool
 
     func body(content: Content) -> some View {
-        content.sheet(isPresented: $isPresented) {
+        content.fullScreenCover(isPresented: $isPresented) {
             AgentHubView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
         }
     }
 }
 
 extension View {
-    /// 中枢原生 Sheet 呈现
+    /// 中枢全屏呈现（2026-11-27 改 fullScreenCover，皇上亲令）
     func hubCover(isPresented: Binding<Bool>) -> some View {
         modifier(HubCoverModifier(isPresented: isPresented))
     }

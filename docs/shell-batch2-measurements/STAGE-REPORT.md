@@ -94,7 +94,7 @@ f7fb6f8 docs(shell-batch2): 证据轮交付·症一二三全套实验与量测�
 
 **CI终判方式**：
 ```bash
-gh api repos/yyyyymmmmm/oneday-app/actions/runs/43160539371/jobs \
+gh api repos/OWNER/oneday-app/actions/runs/43160539371/jobs \
   --jq '.jobs[] | {name, conclusion, steps: [.steps[] | select(.conclusion != null) | {name, conclusion}]}'
 ```
 

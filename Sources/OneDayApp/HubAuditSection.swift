@@ -145,9 +145,21 @@ struct HubAuditSection: View {
 
     @ViewBuilder
     private var pendingSection: some View {
-        if case .ready(let records) = hubStore.approvalState,
-           !records.isEmpty {
-            Section {
+        Section {
+            switch hubStore.approvalState {
+            case .loading:
+                ProgressView()
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(rowInsets)
+            case .bridgeUnavailable:
+                quietRow("审批通道未接通，暂时无法读取待审批")
+            case .gateDisabled:
+                quietRow("写入审批尚未启用")
+            case .failed(let message):
+                quietRow(message)
+            case .ready(let records) where records.isEmpty:
+                quietRow("当前没有待审批")
+            case .ready(let records):
                 ForEach(records) { record in
                     ChatApprovalCard(
                         store: hubStore,
@@ -158,15 +170,15 @@ struct HubAuditSection: View {
                     .listRowBackground(Color.clear)
                     .padding(.vertical, OneDayMetrics.spacingXS)
                 }
-            } header: {
-                Text("需要审核")
-                    .font(.system(
-                        size: OneDayMetrics.hubTitleSize,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .textCase(nil)
             }
+        } header: {
+            Text("当前待审批")
+                .font(.system(
+                    size: OneDayMetrics.hubTitleSize,
+                    weight: .semibold
+                ))
+                .foregroundStyle(Palette.ink)
+                .textCase(nil)
         }
     }
 
@@ -237,10 +249,10 @@ struct HubAuditSection: View {
                     entryRow(entry)
                 }
             } else if case .ready = hubStore.grantsState {
-                quietRow("暂无审核记录")
+                quietRow("暂无审批记录")
             }
         } header: {
-            Text("审核记录")
+            Text("审批记录")
                 .font(.system(
                     size: OneDayMetrics.hubTitleSize,
                     weight: .semibold

@@ -17,7 +17,7 @@ final class HubSegmentRegistryTests: XCTestCase {
             grantsReadbackOK: grants,
             approvalsReadbackOK: approvals,
             boxConfigured: box,
-            mailAdvertised: mail
+            mailDataSourceAvailable: mail
         )
     }
 
@@ -58,7 +58,7 @@ final class HubSegmentRegistryTests: XCTestCase {
         )
     }
 
-    func testMailGrowsOnlyWhenAdvertised() {
+    func testMailGrowsOnlyWhenDataSourceIsAvailable() {
         XCTAssertEqual(
             HubSegmentRegistry.resolve(inputs(mail: true)),
             [.work, .identity, .mail]

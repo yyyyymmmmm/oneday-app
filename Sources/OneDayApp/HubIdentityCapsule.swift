@@ -37,76 +37,75 @@ struct HubIdentityCapsule: View {
     }
 
     private var capsuleButton: some View {
-        GlassEffectContainer(spacing: 6) {
-            HStack(spacing: 6) {
-                if let avatar {
-                    Button {
-                        onOpenHub()
-                    } label: {
-                        ZStack(alignment: .bottomTrailing) {
-                            avatar
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 34, height: 34)
-                                .clipShape(Circle())
-                            if let statusColor {
-                                Circle()
-                                    .fill(statusColor)
-                                    .frame(width: 9, height: 9)
-                                    .overlay {
-                                        Circle()
-                                            .stroke(Palette.surface, lineWidth: 1.5)
-                                    }
-                                    .offset(x: 1, y: 1)
-                            }
-                        }
-                        .frame(
-                            width: HeaderButtonSpec.diameter,
-                            height: HeaderButtonSpec.diameter
-                        )
-                        .glassEffect(.regular, in: Circle())
-                        .frame(
-                            width: OneDayMetrics.minTapTarget,
-                            height: OneDayMetrics.minTapTarget
-                        )
-                        .contentShape(Circle())
-                    }
-                    .buttonStyle(.odPressable)
-                    .accessibilityHidden(true)
-                }
-
+        // 2026-11-27：用户亲令改上下排列（头像在上、名字胶囊在下）
+        VStack(spacing: 6) {
+            if let avatar {
                 Button {
                     onOpenHub()
                 } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(displayName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                        if let text = effectiveStatusWord {
-                            Text(text)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(
-                                    needsApproval
-                                        ? Palette.primary
-                                        : Palette.inkSecondary
-                                )
-                                .lineLimit(1)
+                    ZStack(alignment: .bottomTrailing) {
+                        avatar
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 34, height: 34)
+                            .clipShape(Circle())
+                        if let statusColor {
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 9, height: 9)
+                                .overlay {
+                                    Circle()
+                                        .stroke(Palette.surface, lineWidth: 1.5)
+                                }
+                                .offset(x: 1, y: 1)
                         }
                     }
-                    .padding(.horizontal, OneDayMetrics.spacingSM)
-                    .frame(height: HeaderButtonSpec.diameter)
-                    .glassEffect(.regular, in: Capsule())
-                    .frame(minHeight: OneDayMetrics.minTapTarget)
-                    .contentShape(Capsule())
+                    .frame(
+                        width: HeaderButtonSpec.diameter,
+                        height: HeaderButtonSpec.diameter
+                    )
+                    .glassEffect(.regular, in: Circle())
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Circle())
                 }
                 .buttonStyle(.odPressable)
-                .accessibilityLabel(
-                    effectiveStatusWord.map { "\(displayName)，\($0)，打开枢纽" }
-                        ?? "\(displayName)，打开枢纽"
-                )
-                .accessibilityIdentifier("topbar.identityCapsule")
+                .accessibilityHidden(true)
             }
+
+            Button {
+                onOpenHub()
+            } label: {
+                VStack(alignment: .center, spacing: 1) {
+                    Text(displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    if let text = effectiveStatusWord {
+                        Text(text)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(
+                                needsApproval
+                                    ? Palette.primary
+                                    : Palette.inkSecondary
+                            )
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.spacingSM)
+                .frame(height: HeaderButtonSpec.diameter)
+                .glassEffect(.regular, in: Capsule())
+                .frame(minHeight: OneDayMetrics.minTapTarget)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel(
+                effectiveStatusWord.map { "\(displayName)，\($0)，打开枢纽" }
+                    ?? "\(displayName)，打开枢纽"
+            )
+            .accessibilityIdentifier("topbar.identityCapsule")
         }
         .contextMenu {
             Button {

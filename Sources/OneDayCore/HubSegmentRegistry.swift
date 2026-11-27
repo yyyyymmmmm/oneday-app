@@ -59,24 +59,21 @@ public struct HubSegmentInputs: Equatable, Sendable {
     /// Box 是第三方直连通道、不经 Hermes 能力位，
     /// 其注册输入为本地通道状态，如实区别）
     public var boxConfigured: Bool
-    /// 服务端已广告邮件能力位（/v1/capabilities
-    /// features 的 mail 位）：当前服务端无邮件面、
-    /// 无此位，恒 false；邮件面建成并广告后接上
-    /// 即长格
-    public var mailAdvertised: Bool
+    /// 邮件列表数据源可用；只有端点真实可读后才长格。
+    public var mailDataSourceAvailable: Bool
 
     public init(
         connected: Bool,
         grantsReadbackOK: Bool,
         approvalsReadbackOK: Bool,
         boxConfigured: Bool,
-        mailAdvertised: Bool
+        mailDataSourceAvailable: Bool
     ) {
         self.connected = connected
         self.grantsReadbackOK = grantsReadbackOK
         self.approvalsReadbackOK = approvalsReadbackOK
         self.boxConfigured = boxConfigured
-        self.mailAdvertised = mailAdvertised
+        self.mailDataSourceAvailable = mailDataSourceAvailable
     }
 
     /// 未连通缺省（呈现层任务回读前的初值）
@@ -85,7 +82,7 @@ public struct HubSegmentInputs: Equatable, Sendable {
         grantsReadbackOK: false,
         approvalsReadbackOK: false,
         boxConfigured: false,
-        mailAdvertised: false
+        mailDataSourceAvailable: false
     )
 }
 
@@ -94,8 +91,8 @@ public enum HubSegmentRegistry {
     /// 身份（随连通在位——台账与人设是枢纽的底
     /// 盘，两面各自有断源降级态、格本身不假）；
     /// 审核格须授权账本或审批账任一回读成功；
-    /// 电脑格须 Box 通道在位；邮箱格须服务端广
-    /// 告 mail 位。输出恒按 HubSegmentID 声明序
+    /// 电脑格须 Box 通道在位；邮箱格须邮件列表数
+    /// 据源已由能力回读取证。输出恒按 HubSegmentID 声明序
     /// （＝参照胶囊序）。
     public static func resolve(
         _ inputs: HubSegmentInputs
@@ -111,7 +108,7 @@ public enum HubSegmentRegistry {
             case .computer:
                 return inputs.boxConfigured
             case .mail:
-                return inputs.mailAdvertised
+                return inputs.mailDataSourceAvailable
             }
         }
     }
