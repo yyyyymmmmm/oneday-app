@@ -639,7 +639,6 @@ struct FeedView: View {
                         markRead(post)
                         imageViewerSession = session
                     })
-                    .padding(.bottom, OneDayMetrics.spacingM)
                     if rowBody.isTruncated {
                         Button {
                             openPost(post)
@@ -649,7 +648,6 @@ struct FeedView: View {
                                 .foregroundStyle(Palette.primary)
                         }
                         .buttonStyle(.plain)
-                        .padding(.bottom, OneDayMetrics.spacingM)
                     }
                 }
                 // 列表首张独立配图可打开同帖相册；链接封面归来源卡。
@@ -663,11 +661,9 @@ struct FeedView: View {
                         markRead(post)
                         openPostImage(post, url: url, previewLongEdge: 1200)
                     }
-                    .padding(.bottom, OneDayMetrics.spacingM)
                 }
                 if !post.refs.isEmpty {
                     refsRow(post)
-                    .padding(.bottom, OneDayMetrics.spacingS)
                 }
                 if expandedAboutID == post.id {
                     aboutSection(post)
@@ -675,7 +671,7 @@ struct FeedView: View {
                 actionRow(post)
             }
         }
-        .padding(.vertical, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingS)
         .listRowBackground(Color.clear)
         .onAppear {
             markRead(post)
