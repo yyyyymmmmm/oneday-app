@@ -404,6 +404,8 @@ struct SettingsView: View {
             }
             navRow(icon: "bell", title: L10n.string("通知"), route: .notifications)
             navRow(icon: "face.smiling", title: L10n.string("互动"), route: .interaction)
+            navRow(icon: "cable.connector", title: L10n.string("连接器"), route: .agent(.mcp))
+            navRow(icon: "iphone.gen3.badge.checkmark", title: L10n.string("设备与权限"), route: .agent(.devicePermissions))
             if appState.phase == .connected {
                 navRow(icon: "lock.shield", title: L10n.string("密码与安全凭证"), route: .vault)
             }
