@@ -219,7 +219,7 @@ extension ChatView {
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
         }
-        .padding(.vertical, OneDayMetrics.spacingXS)
+        .padding(.vertical, OneDayMetrics.spacingS)
     }
 
     /// 左钮：汉堡（开抽屉）
