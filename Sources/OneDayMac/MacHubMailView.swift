@@ -12,7 +12,7 @@ struct MacHubMailView: View {
     var body: some View {
         ContentUnavailableView(
             "邮件面尚未启用",
-            systemImage: "envelope.badge.slash",
+            systemImage: "envelope.open",
             description: Text(
                 "服务端还没有邮件数据源，iOS 端此面同样不可达。本面不摆假数据，数据源长出后同步接入。"
             )

@@ -80,7 +80,6 @@ struct HubIdentityCapsule: View {
                         }
                     }
                     .glassEffect(.regular, in: Circle())
-                    )
                     .contentShape(Circle())
                 }
                 .buttonStyle(.odPressable)
