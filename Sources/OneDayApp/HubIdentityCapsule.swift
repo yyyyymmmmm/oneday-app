@@ -114,9 +114,9 @@ struct HubIdentityCapsule: View {
                     }
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM)
-                .frame(height: HeaderButtonSpec.diameter)
+                .padding(.vertical, OneDayMetrics.spacingS)
+                .frame(minHeight: 32)
                 .glassEffect(.regular, in: Capsule())
-                .frame(minHeight: OneDayMetrics.minTapTarget)
                 .contentShape(Capsule())
             }
             .buttonStyle(.odPressable)
