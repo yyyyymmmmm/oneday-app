@@ -1,0 +1,494 @@
+"""Standing-grant projection (local patch, hermes-deploy batch 5).
+
+Presents the two standing-authorization stores as ONE read-only unified
+list (``GET /v1/grants``) and implements revocation for the exec half
+(``POST /v1/grants/revoke``):
+
+- exec grants: permanent command-pattern approvals ("always" choices),
+  whose truth is ``command_allowlist`` in the active profile's config.yaml,
+  owned by the gateway's ``tools.approval`` machinery.
+- write-gate grants: standing auto-approve rules for memory/skills writes,
+  whose truth is ``/opt/data/write-gate/rules.json``, owned solely by the
+  companion write-gate bridge (8643). This module only READS that file;
+  write-gate revocation keeps going through the bridge's own
+  ``DELETE /rules/{id}`` (single writer -- the gateway never writes the
+  bridge's store, and no bridge key is copied into this process).
+
+Design dead-lines (batch-5 plan 2026-11-22, user-approved semantics):
+
+- The projection NEVER sits in any decision chain. Approval checks read
+  config / rules.json directly; a projection fault degrades only the list
+  surface, which then answers an explicit error -- never a fake empty
+  list (an empty list must mean "no grants", not "could not read").
+- Exec revocation goes through the upstream config load/save machine
+  (``hermes_cli.config.load_config`` / ``save_config``) and removes the
+  pattern key TOGETHER WITH its alias keys
+  (``tools.approval_detection._approval_key_aliases``); removing only the
+  canonical spelling would leave the grant alive under its legacy key.
+  No hand-rolled YAML rewriter is used anywhere.
+- Revocation is verified, not assumed: after the save, the endpoint
+  re-reads config and asks the approval machinery itself
+  (``tools.approval._approval_scope``) whether the key still governs as
+  permanent. Upstream syncs the governing set from disk on every check
+  (``_sync_permanent_from_disk``), so a verified removal takes effect on
+  the next decision -- no restart, no cache window. Already-approved
+  work in flight is not rolled back (consumer-OS convention).
+- ``granted_at`` / ``source_decision`` for exec grants are RECOVERED from
+  the batch-2 decision ledger (latest ``choice=always`` decision whose
+  pattern_keys cover the key or one of its aliases). Config stores bare
+  strings with no metadata; when no decision is found the fields stay
+  null -- the list must show "not recorded", never a fabricated time.
+- Session-scoped approvals live only in gateway memory, have no on-disk
+  truth and cannot be revoked from a list; they are deliberately NOT
+  projected (batch-5 plan section 3.5).
+- The audit file ``/opt/data/grants/grant_events.jsonl`` is append-only
+  metadata (key / time / source / action -- never command text). It is
+  an index, not a truth store: deleting it changes no grant. Retention
+  is 1 year (user-approved 2026-11-22), enforced by ``sweep()`` in the
+  batch-2 shape (explicit now/retention parameters as the test-injection
+  surface; tmp + fsync + os.replace rewrite): it runs at the end of
+  ``list_grants()`` -- this module's projection-refresh path, the
+  analogue of the batch-2 sweep call at the end of its sync path -- and
+  drops events older than EVENT_RETENTION_SECONDS, rebuilding the
+  observed-set from the survivors (a still-standing grant whose only
+  audit trace aged out is simply observed afresh on the next list).
+  Lines whose timestamp cannot be parsed are kept, never deleted.
+"""
+
+import json
+import logging
+import os
+import threading
+import time
+from datetime import datetime
+
+logger = logging.getLogger("gateway.platforms.grant_projection")
+
+_lock = threading.RLock()
+_started = False
+_degraded = False
+_observed = set()  # grant_keys already present in the audit file
+
+EVENT_RETENTION_SECONDS = 365 * 86400  # audit events -> purged (user-approved)
+
+
+def _events_path():
+    return os.environ.get(
+        "HERMES_GRANT_EVENTS_PATH", "/opt/data/grants/grant_events.jsonl")
+
+
+def _approval_ledger_path():
+    return os.environ.get(
+        "HERMES_APPROVAL_LEDGER_PATH", "/opt/data/approvals/approval_ledger.jsonl")
+
+
+def _rules_path():
+    return os.environ.get(
+        "HERMES_WRITEGATE_RULES_PATH", "/opt/data/write-gate/rules.json")
+
+
+def _now():
+    return time.time()
+
+
+def degraded():
+    return _degraded
+
+
+# ---------------------------------------------------------------- audit IO
+
+def _append_event(event, grant_key, source, extra=None):
+    """Append one audit line (fsync). Best-effort: failure marks degraded."""
+    global _degraded
+    obj = {"v": 1, "event": event, "ts": _now(),
+           "grant_key": grant_key, "source": source}
+    if extra:
+        obj.update(extra)
+    try:
+        path = _events_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(obj, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        _degraded = True
+        logger.warning("grant events append failed (%s)", event, exc_info=True)
+        return
+    if event in ("observed", "revoked"):
+        with _lock:
+            _observed.add(grant_key)
+
+
+def _load_observed():
+    path = _events_path()
+    seen = set()
+    if not os.path.exists(path):
+        return seen
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if obj.get("grant_key"):
+                    seen.add(obj["grant_key"])
+            except Exception:
+                logger.warning("grant events: skipping corrupt line", exc_info=True)
+    return seen
+
+
+def sweep(now=None, retention_seconds=EVENT_RETENTION_SECONDS):
+    """Purge audit events older than the retention window.
+
+    Same shape as the batch-2 approval module's sweep: explicit
+    ``now``/retention parameters are the test-injection surface --
+    production constants stay untouched. The file is rewritten with the
+    surviving lines (tmp + fsync + os.replace, mirroring the approval
+    ledger's compaction) and the observed-set is rebuilt from the
+    survivors. Lines whose timestamp cannot be parsed are KEPT: never
+    delete what cannot be dated. Returns {"purged": n}. Best-effort:
+    any failure logs, marks the projection degraded (the module's
+    audit-trouble signal) and purges nothing -- the audit file is an
+    index, never a truth store, so a failed sweep changes no grant and
+    never blocks the list surface that calls it.
+    """
+    global _degraded
+    now = _now() if now is None else now
+    path = _events_path()
+    if not os.path.exists(path):
+        return {"purged": 0}
+    with _lock:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                raw_lines = fh.readlines()
+        except Exception:
+            _degraded = True
+            logger.warning("grant events sweep: read failed", exc_info=True)
+            return {"purged": 0}
+        kept = []
+        purged = 0
+        for line in raw_lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                ts = float(json.loads(stripped).get("ts"))
+            except Exception:
+                kept.append(stripped + "\n")
+                continue
+            if now - ts > retention_seconds:
+                purged += 1
+            else:
+                kept.append(stripped + "\n")
+        if not purged:
+            return {"purged": 0}
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.writelines(kept)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, path)
+        except Exception:
+            _degraded = True
+            logger.warning("grant events sweep: rewrite failed", exc_info=True)
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
+            return {"purged": 0}
+        _observed.clear()
+        for line in kept:
+            try:
+                obj = json.loads(line)
+                if obj.get("grant_key"):
+                    _observed.add(obj["grant_key"])
+            except Exception:
+                continue
+    return {"purged": purged}
+
+
+# ---------------------------------------------------------------- sources
+
+def _exec_allowlist():
+    """command_allowlist of the active profile, read the upstream way.
+
+    Raises on read failure or malformed content: the caller must surface
+    an error rather than present a fake empty list.
+    """
+    from hermes_cli.config import load_config_readonly
+    config = load_config_readonly()
+    raw = config.get("command_allowlist")
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        # Legacy serialization (old config-set wrote lists as scalars) --
+        # same recovery upstream _read_permanent_allowlist performs.
+        import hermes_yaml as yaml
+        raw = yaml.safe_load(raw)
+    if not isinstance(raw, list) or any(not isinstance(i, str) for i in raw):
+        raise ValueError("command_allowlist is malformed (not a list of strings)")
+    return sorted(set(raw))
+
+
+def _writegate_rules():
+    """Standing write-gate rules from rules.json (read-only; bridge owns it).
+
+    Missing file = no rules (legitimate). Malformed file raises.
+    """
+    path = _rules_path()
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    rules = data.get("rules") if isinstance(data, dict) else data
+    if not isinstance(rules, list):
+        raise ValueError("rules.json is malformed (rules is not a list)")
+    out = []
+    for rule in rules:
+        if not isinstance(rule, dict) or not rule.get("id"):
+            raise ValueError("rules.json is malformed (rule without id)")
+        out.append(rule)
+    return out
+
+
+def _aliases(pattern_key):
+    try:
+        from tools.approval_detection import _approval_key_aliases
+        return set(_approval_key_aliases(pattern_key))
+    except Exception:
+        return {pattern_key}
+
+
+def _always_decisions():
+    """{pattern_key: (decided_at_epoch, request_id)} -- latest always-decision
+    per pattern key, folded from the batch-2 approval ledger. Best-effort:
+    any read problem yields an empty map (provenance stays null, honestly).
+    """
+    best = {}
+    path = _approval_ledger_path()
+    if not os.path.exists(path):
+        return best
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    rec = obj.get("record") or {}
+                    if obj.get("event") != "decided" or rec.get("choice") != "always":
+                        continue
+                    ts = rec.get("decided_at") or obj.get("ts")
+                    if not ts:
+                        continue
+                    for key in rec.get("pattern_keys") or []:
+                        if key not in best or float(ts) > best[key][0]:
+                            best[key] = (float(ts), rec.get("request_id"))
+                except Exception:
+                    continue
+    except Exception:
+        logger.warning("grant projection: approval ledger read failed", exc_info=True)
+        return {}
+    return best
+
+
+def _iso_to_epoch(value):
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return None
+    return None
+
+
+# ---------------------------------------------------------------- public API
+
+def start():
+    """Idempotent: seed the observed-set from the audit file."""
+    global _started
+    with _lock:
+        if _started:
+            return True
+        _started = True
+    try:
+        with _lock:
+            _observed.update(_load_observed())
+    except Exception:
+        global _degraded
+        _degraded = True
+        logger.warning("grant projection start failed", exc_info=True)
+    return True
+
+
+def list_grants():
+    """Unified standing-grant list from both truth stores.
+
+    Raises RuntimeError when BOTH sources are unreadable (the handler
+    turns that into an explicit 503 -- never a fake empty list). When
+    exactly one source fails, returns the other source's grants with
+    ``partial: true`` and ``source_errors`` naming the failed half.
+    """
+    start()
+    errors = []
+    exec_keys = None
+    wg_rules = None
+    try:
+        exec_keys = _exec_allowlist()
+    except Exception:
+        errors.append("exec")
+        logger.warning("grant projection: exec allowlist read failed", exc_info=True)
+    try:
+        wg_rules = _writegate_rules()
+    except Exception:
+        errors.append("writegate")
+        logger.warning("grant projection: write-gate rules read failed", exc_info=True)
+    if exec_keys is None and wg_rules is None:
+        raise RuntimeError("grant sources unavailable")
+
+    decisions = _always_decisions()
+    grants = []
+    if exec_keys is not None:
+        for key in exec_keys:
+            grant_key = "exec:" + key
+            granted_at = None
+            source_decision = None
+            for candidate in _aliases(key):
+                hit = decisions.get(candidate)
+                if hit and (granted_at is None or hit[0] > granted_at):
+                    granted_at, source_decision = hit
+            grants.append({
+                "grant_key": grant_key,
+                "source": "exec",
+                "pattern_key": key,
+                "scope_label": key,
+                "granted_at": granted_at,
+                "source_decision": source_decision,
+                "status": "active",
+                "expires_at": None,
+                "revoke_via": "gateway",
+            })
+            with _lock:
+                unseen = grant_key not in _observed
+            if unseen:
+                _append_event("observed", grant_key, "exec", {
+                    "pattern_key": key,
+                    "granted_at_recovered": granted_at,
+                    "source_decision": source_decision,
+                })
+    if wg_rules is not None:
+        for rule in wg_rules:
+            subsystem = rule.get("subsystem", "")
+            origin = rule.get("origin", "")
+            grants.append({
+                "grant_key": "writegate:" + str(rule["id"]),
+                "source": "writegate",
+                "rule_id": rule["id"],
+                "scope_label": "%s · %s" % (subsystem, origin),
+                "granted_at": _iso_to_epoch(rule.get("created_at")),
+                "source_decision": None,
+                "status": "active",
+                "expires_at": None,
+                "revoke_via": "writegate-bridge",
+            })
+    sweep()
+    return {
+        "object": "hermes.grants",
+        "grants": grants,
+        "exec_count": len(exec_keys) if exec_keys is not None else None,
+        "writegate_count": len(wg_rules) if wg_rules is not None else None,
+        "partial": bool(errors),
+        "source_errors": errors,
+        "projection_degraded": degraded(),
+    }
+
+
+def revoke_grant(source, pattern_key):
+    """Revoke one standing grant. Returns (http_status, payload).
+
+    Only the exec half is served here; write-gate revocation stays with
+    the bridge (single writer of rules.json) and is refused with an
+    explicit pointer instead of being proxied.
+    """
+    start()
+    source = str(source or "").strip().lower()
+    if source == "writegate":
+        return 400, {
+            "error": "write-gate grants are revoked via the write-gate "
+                     "bridge (DELETE /rules/{id}); the gateway does not "
+                     "write the bridge's store",
+            "code": "grant_revoke_wrong_channel"}
+    if source != "exec":
+        return 400, {"error": "source must be 'exec' or 'writegate'",
+                     "code": "invalid_grant_source"}
+    if not isinstance(pattern_key, str) or not pattern_key.strip():
+        return 400, {"error": "pattern_key is required",
+                     "code": "invalid_pattern_key"}
+    pattern_key = pattern_key.strip()
+    aliases = _aliases(pattern_key)
+
+    try:
+        from hermes_cli.config import load_config, save_config
+        config = load_config()
+    except Exception:
+        logger.warning("grant revoke: config load failed", exc_info=True)
+        return 503, {"error": "config unavailable", "code": "grant_revoke_failed"}
+    raw = config.get("command_allowlist")
+    if raw is None:
+        current = []
+    elif isinstance(raw, list) and all(isinstance(i, str) for i in raw):
+        current = list(raw)
+    else:
+        return 503, {"error": "command_allowlist is malformed; revoke "
+                              "refused rather than rewriting it",
+                     "code": "grant_revoke_failed"}
+    removed = sorted({k for k in current if k in aliases})
+    if not removed:
+        return 404, {"error": "grant not found", "code": "grant_not_found",
+                     "pattern_key": pattern_key}
+    config["command_allowlist"] = [k for k in current if k not in aliases]
+    try:
+        save_config(config)
+    except Exception:
+        logger.warning("grant revoke: config save failed", exc_info=True)
+        return 503, {"error": "config save failed; grant unchanged",
+                     "code": "grant_revoke_failed"}
+
+    # Self-check against BOTH truths: the disk list (upstream read path)
+    # and the governing set as the approval machinery itself reports it
+    # (_approval_scope syncs the governing set from disk on this call).
+    try:
+        still_on_disk = sorted({k for k in _exec_allowlist() if k in aliases})
+    except Exception:
+        still_on_disk = ["<read failed>"]
+    scope = None
+    try:
+        from tools.approval import _approval_scope
+        scope = _approval_scope("", pattern_key)
+    except Exception:
+        logger.warning("grant revoke: scope self-check failed", exc_info=True)
+    if still_on_disk or scope == "permanent":
+        return 409, {
+            "error": "revoke self-check failed: grant still in effect",
+            "code": "grant_revoke_unverified",
+            "removed": removed,
+            "still_on_disk": still_on_disk,
+            "governing_scope": scope}
+
+    _append_event("revoked", "exec:" + pattern_key, "exec", {
+        "pattern_key": pattern_key,
+        "removed_keys": removed,
+    })
+    return 200, {
+        "object": "hermes.grant_revocation",
+        "source": "exec",
+        "pattern_key": pattern_key,
+        "removed": removed,
+        "governing_scope": scope,
+        "verified_absent": True,
+    }

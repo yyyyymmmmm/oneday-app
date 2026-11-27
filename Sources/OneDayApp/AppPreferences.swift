@@ -6,7 +6,7 @@ import OneDayCore
 /// 集中收口 AppState 与核心设置页的 UserDefaults 读写，
 /// 100% 沿用既有持久化键名，确保老版本升级零数据丢失。
 enum AppPreferences {
-    private static let defaults = UserDefaults.standard
+    private nonisolated(unsafe) static let defaults = UserDefaults.standard
 
     private enum Key {
         static let selfReactionsAvailability = "selfReactionsAvailability.v1"

@@ -515,7 +515,7 @@ enum ReactionContextMenuBuilder {
             let emojiActions = MessageReactions.palette.map { emoji in
                 UIAction(
                     title: emoji,
-                    state: emoji == data.ownReaction ? .on : .off
+                    state: emoji == data.ownEmoji ? .on : .off
                 ) { _ in
                     data.onPickReaction(emoji)
                 }

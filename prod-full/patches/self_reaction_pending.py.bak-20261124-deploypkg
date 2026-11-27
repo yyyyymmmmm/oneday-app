@@ -1,0 +1,76 @@
+"""In-process pending store for agent self-reactions (hermes-deploy 1.8.0).
+
+The api_server-surface ``react_to_message`` handler does not write the
+reaction itself: it registers the model's pick here, and the gateway runs
+patch (``api_server_runs.py``) attaches it to the turn's triggering user
+message when the run reaches its terminal state. Decoupling registration
+from attachment is what guarantees the feature's failure discipline:
+
+* a run that ends failed / cancelled / interrupted never attaches
+  (the terminal hook only fires the attach on ``completed``);
+* a run that used any other tool never attaches (the terminal hook
+  checks the run's tool-use mark before popping);
+* a gateway restart drops every pending entry -- which is correct,
+  because a restart also interrupts every in-flight run, so there is
+  nothing left to attach to.
+
+Storage is deliberately process-local (a dict + lock): no disk, no
+residue, nothing to clean up on rollback. The emoji palette is the
+single source of truth shared by the tool handler (write-side check)
+and the terminal attach (attach-side re-check).
+"""
+
+import threading
+import time
+from typing import Any, Optional
+
+# Fixed palette (demand-ledger 202, user-approved 2026-11-24). One entry
+# per role the reference products cover: 👍 ack/done, ❤️ warmth,
+# 🤔 thinking, 😂 humour, 🎉 success, 👀 watching/seen.
+EMOJI_PALETTE: tuple[str, ...] = (
+    "\U0001F44D",      # 👍
+    "❤️",  # ❤️
+    "\U0001F914",      # 🤔
+    "\U0001F602",      # 😂
+    "\U0001F389",      # 🎉
+    "\U0001F440",      # 👀
+)
+
+_lock = threading.Lock()
+_pending: dict[str, dict[str, Any]] = {}
+
+
+def put(session_id: str, run_key: str, emoji: str,
+        target_row_id: Optional[int]) -> bool:
+    """Register (or replace) the pending self-reaction for *session_id*.
+
+    Returns False without storing when *emoji* is outside the palette --
+    the write-side palette gate. Repeated calls in one turn overwrite:
+    at most one reaction per turn survives by construction.
+    """
+    if not session_id or emoji not in EMOJI_PALETTE:
+        return False
+    with _lock:
+        _pending[session_id] = {
+            "emoji": emoji,
+            "run_key": run_key or "",
+            "target_row_id": target_row_id,
+            "at": time.time(),
+        }
+    return True
+
+
+def pop(session_id: str) -> Optional[dict[str, Any]]:
+    """Remove and return the pending entry for *session_id*, if any."""
+    if not session_id:
+        return None
+    with _lock:
+        return _pending.pop(session_id, None)
+
+
+def discard(session_id: str) -> None:
+    """Drop any pending entry for *session_id* without attaching it."""
+    if not session_id:
+        return
+    with _lock:
+        _pending.pop(session_id, None)

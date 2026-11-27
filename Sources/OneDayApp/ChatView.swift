@@ -344,7 +344,7 @@ struct ChatView: View {
     /// 渲染计划缓存（§135 B 案）：按键（Core Chat-
     /// RenderPlanKey）命中即复用上轮的排序＋分隔＋
     /// 成组结果，无关状态写入不再全线程重算
-    @State var renderPlanCache = RenderPlanCache()
+    @State private var renderPlanCache = RenderPlanCache()
     /// 发送帧打点（§135 D 案）：本轮发送的起手时刻
     /// ——落盘→链接、首帧复核、发送→落定三段读数经
     /// ChatDiagTrace 留痕供真机复验对读数；无在飞

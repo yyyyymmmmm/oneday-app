@@ -1,0 +1,854 @@
+"""Settings registry -- read-only distribution (local patch,
+hermes-deploy 1.11.0; seed v2 in hermes-deploy 1.17.0,
+DESIGN section 435; AI self-settings, phase 1).
+
+Server half of the settings registry: the single source of truth for
+every app setting entry, as designed in
+agent-self-settings-spec-20261124.md (DESIGN section 435). Phase 1
+stands the registry up and serves it read-only; NO behavior changes:
+
+- ``GET /v1/settings/registry`` (handler in api_server.py, gateway key)
+  returns ``{"object": "settings.registry", "version": N,
+  "records": [...]}`` -- the seed below, overlaid with the runtime
+  snapshot when one exists.
+- Seed v2 mirrors the CURRENT settings surface item for item: the 35
+  destinations of the shipped SettingsCatalog (rel-05104 tree,
+  Sources/OneDayCore/SettingsCatalog.swift, inventoried 2026-11-24),
+  the known server-side config keys (display.agent_self_reactions,
+  platform_toolsets.api_server, memory.write_approval,
+  skills.write_approval), and the five hub segments as ``surface``
+  records (section 2.5 of the spec: a hub segment IS a registry
+  record; the computer and mail segments are registered with
+  activation "pending" because their capability channels are not live
+  yet -- registered, but not advertised as renderable).
+
+Design dead-lines:
+
+- READ-ONLY. This module has no write path at all: no function here
+  mutates the snapshot, the seed, or config.yaml. The AI write surface
+  (settings_admin toolset) is phase 2 and lands elsewhere; this file
+  stays the read side.
+- SINGLE SOURCE. Records with ``source: "config"`` only register
+  metadata (type / default / owner / validation / config path). Their
+  values keep living in the instance's data/config.yaml and are read
+  and written through the same upstream hermes_cli.config machinery
+  as everything else -- the registry never becomes a second config
+  store. Records with ``source: "app_local"`` mirror the shipped app
+  catalog for inventory and parity checks; the app falls back to its
+  built-in catalog whenever this endpoint is unreachable, so a missing
+  registry changes nothing on screen.
+- SNAPSHOT OVERLAY. /opt/data/settings/registry.json, when present,
+  is an overlay written by later phases: it may carry current
+  ``value``s and additional records. For keys the seed knows, seed
+  metadata stays authoritative -- an overlay can report a value, it
+  cannot rewrite a record's type, default, surface, owner or
+  writability. A malformed snapshot falls back to the seed, never to
+  an error.
+- SEED V2 (1.17.0, five-lens review S5-01/S5-02). v1 shipped every
+  settings-group surface in a prefixed form ("settings.agent", ...)
+  that the app merge engine never matches -- its criterion is
+  ``record.surface == SettingsGroupID.rawValue`` ("agent", ...,
+  SettingsCatalog.swift) -- so in production every group resolved
+  to zero valid records and the settings root silently fell back
+  to the built-in catalog 100%. v2 re-issues the seed surfaces in
+  the unprefixed rawValue form and folds in the section-450 IA
+  increments that had been prepared but never applied (five entry
+  renames, four entries leave browse, the serverSessions entry is
+  removed). No key and no value semantics change. The "chat" and
+  "hub" surfaces were never prefixed and are untouched.
+- SEED V4 (1.22.0, settings IA restructure, user-approved tree in
+  settings-ia-restructure-20261124.md section 4.3). The three
+  config-backed records (platform_toolsets.api_server,
+  memory.write_approval, skills.write_approval) carried
+  ``surface: "agent"``, so the app merge engine mixed them into the
+  settings root browse group as raw value rows -- an internal
+  toolset dump and two disabled fake toggles next to real entries.
+  v4 moves exactly those three records to ``surface: "machine"``:
+  they stay in the registry as the machine-readable surface for
+  phase 2, but no browse group matches that surface, so they never
+  render in the settings root again. The approval-rules page reads
+  the two write-approval records by key (surface-independent), and
+  the write gate itself executes on upstream config, not on this
+  registry -- neither is affected. Record count stays 43; no key,
+  default, or value semantics change.
+- This module sits in NO decision chain. A fault degrades only the
+  registry endpoint (api_server answers 503 when the module cannot be
+  imported); nothing else in the gateway reads this file.
+"""
+
+import json
+import logging
+import os
+from pathlib import Path
+
+logger = logging.getLogger("gateway.platforms.settings_registry")
+
+SETTINGS_DIR = Path(os.environ.get(
+    "SETTINGS_REGISTRY_DIR", "/opt/data/settings"))
+SNAPSHOT_PATH = SETTINGS_DIR / "registry.json"
+SEED_VERSION = 4
+
+RECORD_FIELDS = ("key", "type", "default", "surface", "owner",
+                 "writable_by", "validation", "capability", "reversible")
+RECORD_TYPES = frozenset({
+    "bool", "enum", "string", "number", "text", "secret-ref",
+    "entry", "surface"})
+OWNERS = frozenset({"user", "agent", "shared"})
+WRITABLE_BY = frozenset({"user", "agent", "both", "none"})
+
+_SEED_JSON = r'''
+{
+ "version": 2,
+ "records": [
+  {
+   "key": "settings.entry.identity",
+   "type": "entry",
+   "default": null,
+   "surface": "top",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "形象与名称",
+   "destination": "identity",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.models",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "模型与服务商",
+   "destination": "models",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.profiles",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "档案",
+   "destination": "profiles",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.memory",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "记忆",
+   "destination": "memory",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.skills",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "技能",
+   "destination": "skills",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.toolsets",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "工具",
+   "destination": "toolsets",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.delegation",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "任务委派",
+   "destination": "delegation",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.cron",
+   "type": "entry",
+   "default": null,
+   "surface": "agent",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "定时任务",
+   "destination": "cron",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.server",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "当前服务器",
+   "destination": "server",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.addDevice",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "添加设备",
+   "destination": "addDevice",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.pairing",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "设备配对",
+   "destination": "pairing",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.gateway",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "网关状态",
+   "destination": "gateway",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.logs",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "日志",
+   "destination": "logs",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.usage",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "用量",
+   "destination": "usage",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.connectionSelfCheck",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "连接自检",
+   "destination": "connectionSelfCheck",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.mainSession",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "主线对话",
+   "destination": "mainSession",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.status",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "状态",
+   "destination": "status",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.computer",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "电脑",
+   "destination": "computer",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.serverFiles",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "服务器文件",
+   "destination": "serverFiles",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.envVars",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "密钥",
+   "destination": "envVars",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.healthCheck",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "体检与存档",
+   "destination": "healthCheck",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.disconnect",
+   "type": "entry",
+   "default": null,
+   "surface": "serverAndWorkspace",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "断开连接",
+   "destination": "disconnect",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.appearance",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "外观",
+   "destination": "appearance",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.voice",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "语音",
+   "destination": "voice",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.notifications",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "通知",
+   "destination": "notifications",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.connectors",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "连接器",
+   "destination": "connectors",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.devicePermissions",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "设备与权限",
+   "destination": "devicePermissions",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.approvalRules",
+   "type": "entry",
+   "default": null,
+   "surface": "preferences",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "审批规则",
+   "destination": "approvalRules",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.help",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "帮助与反馈",
+   "destination": "help",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.about",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "关于 OneDay",
+   "destination": "about",
+   "shows_in_browse": true,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.privacy",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "隐私政策",
+   "destination": "privacy",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.terms",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "用户协议",
+   "destination": "terms",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.chatDiagnostics",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "聊天诊断",
+   "destination": "chatDiagnostics",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "settings.entry.crashReports",
+   "type": "entry",
+   "default": null,
+   "surface": "support",
+   "owner": "shared",
+   "writable_by": "none",
+   "validation": null,
+   "capability": null,
+   "reversible": false,
+   "title": "崩溃报告",
+   "destination": "crashReports",
+   "shows_in_browse": false,
+   "source": "app_local"
+  },
+  {
+   "key": "display.agent_self_reactions",
+   "type": "bool",
+   "default": false,
+   "surface": "chat",
+   "owner": "shared",
+   "writable_by": "both",
+   "validation": {
+    "kind": "bool"
+   },
+   "capability": "features.self_reactions",
+   "reversible": true,
+   "title": "AI 自反应",
+   "source": "config",
+   "config_path": "display.agent_self_reactions"
+  },
+  {
+   "key": "platform_toolsets.api_server",
+   "type": "text",
+   "default": null,
+   "surface": "machine",
+   "owner": "shared",
+   "writable_by": "user",
+   "validation": {
+    "kind": "json-string-array"
+   },
+   "capability": null,
+   "reversible": true,
+   "title": "api_server 平台工具集",
+   "source": "config",
+   "config_path": "platform_toolsets.api_server"
+  },
+  {
+   "key": "memory.write_approval",
+   "type": "bool",
+   "default": true,
+   "surface": "machine",
+   "owner": "user",
+   "writable_by": "user",
+   "validation": {
+    "kind": "bool"
+   },
+   "capability": "capabilities.6",
+   "reversible": true,
+   "title": "记忆写入审批",
+   "source": "config",
+   "config_path": "memory.write_approval"
+  },
+  {
+   "key": "skills.write_approval",
+   "type": "bool",
+   "default": true,
+   "surface": "machine",
+   "owner": "user",
+   "writable_by": "user",
+   "validation": {
+    "kind": "bool"
+   },
+   "capability": "capabilities.6",
+   "reversible": true,
+   "title": "技能写入审批",
+   "source": "config",
+   "config_path": "skills.write_approval"
+  },
+  {
+   "key": "hub.surface.work",
+   "type": "surface",
+   "default": null,
+   "surface": "hub",
+   "owner": "agent",
+   "writable_by": "agent",
+   "validation": null,
+   "capability": "capabilities.16",
+   "reversible": true,
+   "title": "工作",
+   "icon": "list.bullet",
+   "activation": "live",
+   "source": "server"
+  },
+  {
+   "key": "hub.surface.audit",
+   "type": "surface",
+   "default": null,
+   "surface": "hub",
+   "owner": "agent",
+   "writable_by": "agent",
+   "validation": null,
+   "capability": "capabilities.12",
+   "reversible": true,
+   "title": "审核",
+   "icon": "checkmark.shield",
+   "activation": "live",
+   "source": "server"
+  },
+  {
+   "key": "hub.surface.identity",
+   "type": "surface",
+   "default": null,
+   "surface": "hub",
+   "owner": "agent",
+   "writable_by": "agent",
+   "validation": null,
+   "capability": "capabilities.8",
+   "reversible": true,
+   "title": "身份",
+   "icon": "fingerprint",
+   "activation": "live",
+   "source": "server"
+  },
+  {
+   "key": "hub.surface.computer",
+   "type": "surface",
+   "default": null,
+   "surface": "hub",
+   "owner": "agent",
+   "writable_by": "agent",
+   "validation": null,
+   "capability": "hub.computer_channel",
+   "reversible": true,
+   "title": "电脑",
+   "icon": "display",
+   "activation": "pending",
+   "source": "server"
+  },
+  {
+   "key": "hub.surface.mail",
+   "type": "surface",
+   "default": null,
+   "surface": "hub",
+   "owner": "agent",
+   "writable_by": "agent",
+   "validation": null,
+   "capability": "hub.mail_channel",
+   "reversible": true,
+   "title": "邮箱",
+   "icon": "envelope",
+   "activation": "pending",
+   "source": "server"
+  }
+ ]
+}
+'''
+
+
+def seed_records() -> list:
+    """The package-shipped seed (v1), as a list of record dicts."""
+    return json.loads(_SEED_JSON)["records"]
+
+
+def validate_records(records) -> list:
+    """Structural check of a record list against the section-435
+    schema (nine core fields). Returns a list of problem strings;
+    empty means valid. Pure function -- used by the package selftest
+    and by phase 2's write path before it accepts a record."""
+    problems = []
+    if not isinstance(records, list):
+        return ["records is not a list"]
+    seen = set()
+    for i, rec in enumerate(records):
+        if not isinstance(rec, dict):
+            problems.append(f"record #{i} is not an object")
+            continue
+        key = rec.get("key")
+        label = key if isinstance(key, str) else f"#{i}"
+        for field in RECORD_FIELDS:
+            if field not in rec:
+                problems.append(f"{label}: missing field {field}")
+        if isinstance(key, str):
+            if key in seen:
+                problems.append(f"{label}: duplicate key")
+            seen.add(key)
+        else:
+            problems.append(f"record #{i}: key is not a string")
+        if "type" in rec and rec["type"] not in RECORD_TYPES:
+            problems.append(f"{label}: unknown type {rec['type']!r}")
+        if "owner" in rec and rec["owner"] not in OWNERS:
+            problems.append(f"{label}: unknown owner {rec['owner']!r}")
+        if "writable_by" in rec and rec["writable_by"] not in WRITABLE_BY:
+            problems.append(
+                f"{label}: unknown writable_by {rec['writable_by']!r}")
+        if "reversible" in rec and not isinstance(rec["reversible"], bool):
+            problems.append(f"{label}: reversible is not a bool")
+    return problems
+
+
+def _load_snapshot_records():
+    """Overlay records from the runtime snapshot, or None.
+
+    Any problem (missing file, bad JSON, wrong shape) yields None:
+    the seed is always servable on its own."""
+    try:
+        data = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except Exception:
+        logger.warning(
+            "settings registry snapshot unreadable; serving seed only",
+            exc_info=True)
+        return None
+    if isinstance(data, dict) and isinstance(data.get("records"), list):
+        return data["records"]
+    if isinstance(data, list):
+        return data
+    logger.warning(
+        "settings registry snapshot has unexpected shape; serving seed only")
+    return None
+
+
+def get_registry() -> dict:
+    """The registry as served by GET /v1/settings/registry.
+
+    Seed records in seed order, each carrying a resolved ``value``
+    (the snapshot's value when an overlay provides one, else the
+    record's default). Overlay-only records (registered by later
+    phases) are appended in overlay order."""
+    by_key = {}
+    order = []
+    for rec in seed_records():
+        by_key[rec["key"]] = dict(rec)
+        order.append(rec["key"])
+    overlay = _load_snapshot_records()
+    if overlay:
+        for rec in overlay:
+            if not isinstance(rec, dict) or not isinstance(
+                    rec.get("key"), str):
+                continue
+            key = rec["key"]
+            if key in by_key:
+                if "value" in rec:
+                    by_key[key]["value"] = rec["value"]
+            else:
+                by_key[key] = dict(rec)
+                order.append(key)
+    records = []
+    for key in order:
+        rec = by_key[key]
+        if "value" not in rec:
+            rec["value"] = rec.get("default")
+        records.append(rec)
+    return {"object": "settings.registry",
+            "version": SEED_VERSION,
+            "records": records}
