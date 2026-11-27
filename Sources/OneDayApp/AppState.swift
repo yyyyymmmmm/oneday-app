@@ -1260,6 +1260,7 @@ final class AppState {
     /// 功面时 restore 照样凭 Keychain 成立）。
     func connectWithPassword(
         config: ServerConfig,
+        username: String,
         password: String,
         onStep: @escaping (OnboardingStep) -> Void = { _ in }
     ) async throws -> ConnectionServiceInfo {
@@ -1277,7 +1278,7 @@ final class AppState {
             step = .credentialValid
             onStep(step)
             try await client.login(
-                config: config, password: password
+                config: config, username: username, password: password
             )
             step = .serviceInfo
             onStep(step)

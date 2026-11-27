@@ -90,8 +90,8 @@ final class SessionStore {
     }
 
     /// 面板密码一步登录（用户 2026-11-11 定版，与 iOS
-    /// 同口径）：地址＋密码一步连上，全过才落 Keychain
-    func connectWithPassword(address: String, password: String) async {
+    /// 同口径）：地址＋账号＋密码一步连上，全过才落 Keychain
+    func connectWithPassword(address: String, username: String, password: String) async {
         guard let config = ServerConfig(rawInput: address) else {
             lastError = HermesError.invalidServerAddress.userMessage
             return
@@ -104,7 +104,7 @@ final class SessionStore {
                 throw HermesError.healthCheckFailed(status: 200)
             }
             phase = .connecting(step: "正在验证面板密码…")
-            try await client.login(config: config, password: password)
+            try await client.login(config: config, username: username, password: password)
             phase = .connecting(step: "正在换取登录密钥…")
             let key = try await client.revealEnvVar(
                 config: config, key: "API_SERVER_KEY"
