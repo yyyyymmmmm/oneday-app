@@ -108,8 +108,12 @@ struct ComputerFaceView: View {
             switch store.hubState {
             case .ready(let status):
                 readyDetails(status)
+            case .notConfigured:
+                Text("还没在 Hermes 里配置云电脑：到「设置 → 云电脑与远程主机」里配置密钥。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
             case .bridgeUnavailable:
-                Text("云电脑还没连上：先到「设置 → 云电脑与远程主机」里配置密钥，再回来刷新状态。")
+                Text("云电脑钥匙被拒：到「设置 → 云电脑与远程主机」里重新配置凭据。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             case .failed:

@@ -21,8 +21,30 @@ final class ConnectionsStore {
 
     private let client = CompanionFrontClient()
 
+    /// 云电脑凭据镜像（从 Hermes 拉取的明文，供界面显示与编辑）
+    private(set) var boxCredentialMirror: BoxCredentialPayload?
+    private(set) var loadingCredential = false
+    private(set) var credentialError: String?
+
     var cloudComputers: [CompanionConnection] {
         connections.filter(\.isCloudComputer)
+    }
+
+    /// 拉取云电脑凭据镜像（Hermes 单一真源）
+    func fetchBoxCredential(id: String, appState: AppState) async {
+        guard !loadingCredential, let config = appState.config else { return }
+        loadingCredential = true
+        defer { loadingCredential = false }
+        do {
+            boxCredentialMirror = try await client.fetchCredential(config: config, id: id)
+            credentialError = nil
+        } catch let error as OneDayBridgeError {
+            credentialError = error.userFacingText
+            boxCredentialMirror = nil
+        } catch {
+            credentialError = L10n.string("凭据没读出来，请稍后再试。")
+            boxCredentialMirror = nil
+        }
     }
 
 /// §416 新鲜度普查豁免：探测复合面一环（进页/下拉同序，含本地/设备探测），门不介入（判定表见 DESIGN §416）

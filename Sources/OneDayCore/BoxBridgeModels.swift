@@ -239,7 +239,8 @@ public struct BoxBridgeStatus: Decodable, Equatable, Sendable {
 public enum BoxBridgeHubState: Equatable, Sendable {
     case loading
     case ready(BoxBridgeStatus)
-    case bridgeUnavailable
+    case notConfigured  // Hermes 里根本没配 box 连接（Keychain 无钥匙）
+    case bridgeUnavailable  // 有配置但钥匙无效（401）
     case failed
 
     public var statusLine: String {
@@ -248,8 +249,10 @@ public enum BoxBridgeHubState: Equatable, Sendable {
             return "正在读取云电脑状态…"
         case .ready(let status):
             return status.statusLine
+        case .notConfigured:
+            return "还没在 Hermes 里配置云电脑"
         case .bridgeUnavailable:
-            return "还没连上"
+            return "钥匙被拒，请重新配置凭据"
         case .failed:
             return "云电脑状态没读出来，可能是网络或服务暂时没响应"
         }

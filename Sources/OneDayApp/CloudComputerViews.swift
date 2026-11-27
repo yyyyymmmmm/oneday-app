@@ -200,6 +200,7 @@ struct CloudComputerDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var showCredentialForm = false
+    @State private var showBoxApiKey = false
     @State private var pendingDisconnect = false
     @State private var pendingDelete = false
     @State private var copiedCommand = false
@@ -358,12 +359,61 @@ struct CloudComputerDetailView: View {
                 }
 
                 Section {
-                    HStack {
-                        Text("凭据")
-                            .foregroundStyle(Palette.ink)
-                        Spacer()
-                        Text(connection.configured == true ? "已配置" : "未配置")
-                            .foregroundStyle(Palette.inkSecondary)
+                    if connection.provider == "simular_box" {
+                        if store.loadingCredential {
+                            HStack(spacing: OneDayMetrics.spacingS) {
+                                ProgressView()
+                                Text("正在读取凭据…")
+                                    .font(.callout)
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
+                        } else if let error = store.credentialError {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                                Text(error)
+                                    .font(.callout)
+                                    .foregroundStyle(Palette.danger)
+                                Button("重试") {
+                                    Task { await store.fetchBoxCredential(id: connectionID, appState: appState) }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        } else if let mirror = store.boxCredentialMirror {
+                            LabeledContent("API 密钥") {
+                                HStack(spacing: 8) {
+                                    Text(showBoxApiKey ? mirror.apiKey : String(repeating: "•", count: 32))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(Palette.ink)
+                                        .textSelection(.enabled)
+                                    Button {
+                                        showBoxApiKey.toggle()
+                                    } label: {
+                                        Image(systemName: showBoxApiKey ? "eye.slash.fill" : "eye.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(Palette.inkSecondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            if let mcpUrl = mirror.mcpUrl, !mcpUrl.isEmpty {
+                                LabeledContent("MCP 地址", value: mcpUrl)
+                            }
+                        } else {
+                            HStack {
+                                Text("凭据")
+                                    .foregroundStyle(Palette.ink)
+                                Spacer()
+                                Text(connection.configured == true ? "已配置" : "未配置")
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text("凭据")
+                                .foregroundStyle(Palette.ink)
+                            Spacer()
+                            Text(connection.configured == true ? "已配置" : "未配置")
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
                     }
                     Button {
                         store.resetCredentialPhase()
@@ -427,11 +477,13 @@ struct CloudComputerDetailView: View {
         .navigationTitle("主机详情")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: connection?.id) {
-            guard connection?.provider == "simular_box",
-                  connection?.configured == true else { return }
-            await boxStore.refreshStatus(appState: appState)
-            if boxStore.status?.isRunning == true {
-                await boxStore.refreshScreenshot(appState: appState)
+            guard let connection else { return }
+            if connection.provider == "simular_box", connection.configured == true {
+                await store.fetchBoxCredential(id: connectionID, appState: appState)
+                await boxStore.refreshStatus(appState: appState)
+                if boxStore.status?.isRunning == true {
+                    await boxStore.refreshScreenshot(appState: appState)
+                }
             }
         }
         .sheet(isPresented: $showCredentialForm) {
@@ -588,9 +640,13 @@ struct CloudComputerDetailView: View {
                 boxID: status.boxId,
                 liveURL: status.viewUrl ?? ""
             ))
+        case .notConfigured:
+            store.notice = L10n.string(
+                "还没在 Hermes 里配置云电脑，请先在本页填写凭据。"
+            )
         case .bridgeUnavailable:
             store.notice = L10n.string(
-                "这台手机上还没存云电脑密钥，请在本页重新填写一次凭据再接管。"
+                "云电脑钥匙被拒，请在本页重新填写凭据。"
             )
         case .failed, .loading:
             store.notice = L10n.string("云电脑状态没读出来，请稍后再试。")
@@ -617,6 +673,7 @@ struct CredentialFormView: View {
     // Simular Box
     @State private var apiKey = ""
     @State private var mcpUrl = ""
+    @State private var showApiKey = false
     // VPS / NAT
     @State private var osType = "linux"
     @State private var host = ""
@@ -783,23 +840,60 @@ struct CredentialFormView: View {
                 .buttonStyle(.odPrimary)
                 .disabled(store.credentialPhase.isBusy || !inputReady)
             } else {
-                SecureField("API 密钥（Simular Box Key）", text: $apiKey)
-                TextField("自定义 MCP 地址（可选，默认官方）", text: $mcpUrl)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                Button {
-                    Task { await submit() }
-                } label: {
-                    HStack {
-                        Text("保存并测试连接")
-                        Spacer()
-                        if store.credentialPhase.isBusy { ProgressView() }
+                if store.loadingCredential {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        ProgressView()
+                        Text("正在读取凭据…")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
-                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, OneDayMetrics.spacingXS)
+                } else if let error = store.credentialError {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                        Text(error)
+                            .font(.callout)
+                            .foregroundStyle(Palette.danger)
+                        Button("重试") {
+                            Task { await store.fetchBoxCredential(id: connection.id, appState: appState) }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.vertical, OneDayMetrics.spacingXS)
+                } else {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        if showApiKey {
+                            TextField("API 密钥（Simular Box Key）", text: $apiKey)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        } else {
+                            SecureField("API 密钥（Simular Box Key）", text: $apiKey)
+                        }
+                        Button {
+                            showApiKey.toggle()
+                        } label: {
+                            Image(systemName: showApiKey ? "eye.slash.fill" : "eye.fill")
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    TextField("自定义 MCP 地址（可选，默认官方）", text: $mcpUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack {
+                            Text("保存并测试连接")
+                            Spacer()
+                            if store.credentialPhase.isBusy { ProgressView() }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.odPrimary)
+                    .disabled(store.credentialPhase.isBusy || !inputReady)
                 }
-                .buttonStyle(.odPrimary)
-                .disabled(store.credentialPhase.isBusy || !inputReady)
             }
 
             switch store.credentialPhase {
@@ -816,7 +910,14 @@ struct CredentialFormView: View {
             }
         }
         .padding(.vertical, OneDayMetrics.spacingS)
-        .onAppear {
+        .task {
+            if connection.provider == "simular_box" {
+                await store.fetchBoxCredential(id: connection.id, appState: appState)
+                if let mirror = store.boxCredentialMirror {
+                    apiKey = mirror.apiKey
+                    mcpUrl = mirror.mcpUrl ?? ""
+                }
+            }
             prefillFromMeta()
         }
     }

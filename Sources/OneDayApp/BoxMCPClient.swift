@@ -224,26 +224,31 @@ actor BoxMCPClient {
 @MainActor
 final class BoxMCPClientFactory {
     private static var client: BoxMCPClient?
+    private static var lastApiKey: String?
     private static let mcpURL = URL(string: "https://mcp.box.simular.ai/mcp")!
 
     /// 获取或创建客户端（凭据变更时会创建新实例）
+    /// 钥匙从 Keychain 镜像取（Hermes 为准，Keychain 只作缓存）
     static func getClient() throws -> BoxMCPClient {
         guard let apiKey = KeychainStore.read(account: "box.mcp.key"),
               !apiKey.isEmpty else {
             throw BoxMCPError.noKey
         }
 
-        if let existing = client {
+        // 钥匙变更时重建客户端
+        if let existing = client, lastApiKey == apiKey {
             return existing
         }
 
         let newClient = BoxMCPClient(mcpURL: mcpURL, apiKey: apiKey)
         client = newClient
+        lastApiKey = apiKey
         return newClient
     }
 
     /// 重置客户端（用于凭据变更）
     static func reset() {
         client = nil
+        lastApiKey = nil
     }
 }

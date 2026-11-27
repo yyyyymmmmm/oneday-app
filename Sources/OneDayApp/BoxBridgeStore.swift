@@ -158,7 +158,11 @@ final class BoxBridgeStore {
         error: BoxBridgeError, appState: AppState, target: ErrorTarget
     ) {
         switch error {
-        case .noKey, .unauthorized:
+        case .noKey:
+            if target == .status {
+                hubState = .notConfigured
+            }
+        case .unauthorized:
             if target == .status {
                 hubState = .bridgeUnavailable
             }

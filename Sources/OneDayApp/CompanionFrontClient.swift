@@ -103,6 +103,23 @@ final class CompanionFrontClient: @unchecked Sendable {
         return (response.connection, response.pairing)
     }
 
+    /// 获取连接凭据（2.21.0 新端点）：GET /v1/front/connections/{id}/credential
+    /// 返回明文凭据供 App 镜像显示与编辑；无连接 404，未鉴权 401
+    func fetchCredential(
+        config: ServerConfig, id: String
+    ) async throws -> BoxCredentialPayload {
+        struct Response: Decodable {
+            let ok: Bool
+            let provider: String
+            let credential: BoxCredentialPayload
+        }
+        let response: Response = try await get(
+            config: config, path: "/v1/front/connections/\(id)/credential",
+            endpoint: L10n.string("读取凭据")
+        )
+        return response.credential
+    }
+
     /// 提交/更换凭据：front 内部验活＋失败回滚
     func submitCredential(
         config: ServerConfig, id: String, body: [String: JSONValue]

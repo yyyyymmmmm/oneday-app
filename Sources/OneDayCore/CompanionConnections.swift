@@ -160,6 +160,19 @@ public enum ConnectionStatusWording {
     }
 }
 
+// MARK: - 凭据载荷（字段名与 front 契约逐字对齐）
+
+/// 云电脑凭据下发载荷（2.21.0 新端点）
+public struct BoxCredentialPayload: Codable, Equatable, Sendable {
+    public var apiKey: String
+    public var mcpUrl: String?
+
+    public init(apiKey: String, mcpUrl: String? = nil) {
+        self.apiKey = apiKey
+        self.mcpUrl = mcpUrl
+    }
+}
+
 // MARK: - 凭据与创建载荷（字段名与 front 契约逐字对齐）
 
 public enum ConnectionPayloads {
@@ -360,4 +373,5 @@ public enum CredentialFlowPhase: Equatable, Sendable {
         }
         return phase
     }
+}
 }
