@@ -234,7 +234,7 @@ struct UsageDetailView: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks { value in
+                    AxisMarks(preset: .extended) { value in
                         AxisValueLabel {
                             if let label = value.as(String.self) {
                                 Text(label)
