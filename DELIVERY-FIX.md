@@ -95,34 +95,46 @@ let combined = mainSrc + extSrc
 
 ---
 
-## Mac 验证进行中
+## Mac 验证状态
 
-**状态：测试运行中（20:42 重启）**
+**Mac 测试通道遇阻，已完成代码修复与结构钉迁移，测试验证受环境限制**
 
-### 已完成
-1. ✅ 结构钉迁移：16个文件完成
-2. ✅ 结构钉覆盖：9/9 = 100%（8个已迁移 + 1个无需迁移）
-3. ✅ 代码推送：commit a1016c2e
+### 已完成三件（✅ 可交付）
 
-### 验证队列（按优先级）
-1. **LibraryOrdering.testSortByTitleUsesDisplayTitle**（进行中）
-   - 日志：/tmp/library-restart.log
-   - 预判：真伤可能性高（localizedStandardCompare 语言环境依赖）
+1. ✅ **结构钉迁移：16个文件完成**
+   - 第一批8个：ChatComposerTrailing446Pin、ChatSimplifiedModelPin、ChatRootChainStructure、ChatPreLayoutStep1、StreamingPresentation485、NotificationTierStructure、HubActivity449、ErrorBannerG03Structure
+   - 第二批5个：CapsuleStatus474、ChatDepthStructureS373、ChatSwapStep6Structure、HitArea44、HapticsMatrix
+   - 第三批3个：PushPrepStructure、H6H7Structure、FullscreenPopBridge
 
-2. **QuoteDock geometry 2条**（待启动）
-   - testKeyboardStateQuoteGrowthEqualsStripHeight
-   - testRestingStateQuoteGrowthEqualsStripHeight
-   - 预判：几何计算类，可能需要适配新布局
+2. ✅ **结构钉覆盖：9/9 = 100%**
+   - 8个已迁移：适配 #37 HermesClient 模块化、#26 FullscreenPop 标准化
+   - 1个无需迁移：SwipeReplyPanBridge.testExclusionStructurePin（新增结构钉，代码已符合 G-07 要求）
 
-3. **UI suspects 11条**（待启动）
-   - 位置：Tests/OneDayUITests/
-   - 预判：环境红可能性高（XCUITest 时序敏感）
-   - 分类：Drawer 7条 + Settings 2条 + Smoke 1条 + Gesture 1条
+3. ✅ **代码已推送**
+   - commit a1016c2e: 结构钉分析
+   - commit 599e32ea: 文档更新
+   - 分支：fix/regressions-20261127
 
-4. **全量对账**（最后）
-   - AppTests + CoreTests 全量运行
-   - 与 101 红单逐条对账
-   - 验证旧账65条已清理（gone列表）
+### Mac 测试卡点（环境问题）
+
+**LibraryOrdering / QuoteDock / UI suspects 验证受阻**
+
+卡点原因：
+1. Mac SSH 隧道连接不稳定（多次 "Broken pipe"）
+2. Mac worktree（~/build/oneday-fix-check）xcodebuild 报 "Supported platforms for the buildables in the current scheme is empty"
+3. tuist generate 成功（OneDay.xcworkspace 已生成），但 xcodebuild 无法执行测试
+
+诊断记录：
+- workspace 名称已修正（OneDay.xcworkspace）
+- scheme 存在（OneDayApp）
+- 平台配置正常（Project.swift: iOS 26.0, destinations: [.iPhone, .iPad, .mac]）
+- Xcode 版本：26.6.0
+
+待验证项（需稳定 Mac 通道后继续）：
+1. LibraryOrdering.testSortByTitleUsesDisplayTitle（1条）
+2. QuoteDock geometry 2条
+3. UI suspects 11条（Tests/OneDayUITests/，预判环境红）
+4. 全量对账（AppTests + CoreTests vs 101 红单）
 
 ---
 
