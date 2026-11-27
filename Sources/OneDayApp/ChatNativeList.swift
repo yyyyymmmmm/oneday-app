@@ -3844,8 +3844,10 @@ final class ChatRootViewController: UIViewController,
     }
 
     /// 搜索落点的一次滚动：目标行顶停到顶留位下
-    /// 方 topGap 处（Core 常量），无动画直达（收敛
-    /// 靠多拍校正、不靠动画掩盖漂移，OB 同式）
+    /// 方 topGap 处（Core 常量）。2026-11-27 改带缓动
+    /// 画（animated: true）——消除上下跳转闪烁，视觉
+    /// 平滑到达；收敛拍在动画结束后评估（scrollView-
+    /// DidEndScrollingAnimation），微调继续平滑
     private func performFocusScroll() {
         guard let targetID = focusTargetID,
               let index = rows.firstIndex(
@@ -3868,7 +3870,7 @@ final class ChatRootViewController: UIViewController,
             maxOffsetY()
         )
         collectionView.setContentOffset(
-            CGPoint(x: 0, y: target), animated: false
+            CGPoint(x: 0, y: target), animated: true
         )
         scheduleSettle()
     }
