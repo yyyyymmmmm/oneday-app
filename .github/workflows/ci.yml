@@ -1,0 +1,36 @@
+name: CI Guard (Symbol Motion & Server Selftests)
+
+on:
+  push:
+    branches: [main, "rel-*", "feat/*", "refactor/*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  symbol-motion-and-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cryptography for real AES-256-GCM vault tests
+        run: python3 -m pip install --upgrade pip cryptography
+
+      - name: Symbol motion registry check
+        run: |
+          python3 Scripts/ci/check_symbol_motion.py --selftest
+          python3 Scripts/ci/check_symbol_motion.py
+
+      - name: Credential vault v2/v1 envelope selftest
+        run: python3 server/patches/credential_vault_selftest.py
+
+      - name: Bitwarden link selftest
+        run: |
+          if [ -f server/patches/bitwarden_link_selftest.py ]; then
+            python3 server/patches/bitwarden_link_selftest.py
+          fi

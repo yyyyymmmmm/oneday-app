@@ -249,6 +249,18 @@ struct CloudComputerDetailView: View {
                         }
                     }
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                if connection.provider == "simular_box", connection.configured == true {
+                    Section {
+                        desktopPreviewCard(connection: connection)
+                    } header: {
+                        SettingsSectionHeader("实时桌面预览")
+                    }
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
+                }
 
                 Section {
                     let status = ConnectionStatusWording.evaluate(connection)
@@ -311,8 +323,10 @@ struct CloudComputerDetailView: View {
                     }
                     .buttonStyle(.bordered)
                 } header: {
-                    Text("连接与控制")
+                    SettingsSectionHeader("连接与控制")
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
 
                 if connection.provider == "reverse_node",
                    let pairing = store.latestPairings[connectionID] {
@@ -335,10 +349,12 @@ struct CloudComputerDetailView: View {
                         }
                         .buttonStyle(.odPrimary)
                     } header: {
-                        Text("内网穿透配对命令")
+                        SettingsSectionHeader("内网穿透配对命令")
                     } footer: {
                         Text("在 NAT 机或内网电脑终端运行此命令，无需公网 IP 或开放端口即可反向回连。")
                     }
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
                 }
 
                 Section {
@@ -349,22 +365,26 @@ struct CloudComputerDetailView: View {
                         Text(connection.configured == true ? "已配置" : "未配置")
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    Button(showCredentialForm ? "收起凭据配置" : "配置 / 更换凭据") {
+                    Button {
                         store.resetCredentialPhase()
-                        showCredentialForm.toggle()
-                    }
-                    if showCredentialForm {
-                        CredentialFormView(
-                            store: store, connection: connection
-                        ) {
-                            showCredentialForm = false
+                        showCredentialForm = true
+                    } label: {
+                        HStack {
+                            Text(connection.configured == true ? "更换凭据" : "配置凭据")
+                                .foregroundStyle(Palette.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Palette.inkMuted)
                         }
                     }
                 } header: {
-                    Text("凭据与密钥")
+                    SettingsSectionHeader("凭据与密钥")
                 } footer: {
                     Text("密钥与密码仅加密保存于你的服务端，App 端永不回传明文。")
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
 
                 Section {
                     Button("断开这台主机", role: .destructive) {
@@ -380,11 +400,15 @@ struct CloudComputerDetailView: View {
                         ? "断开会清除本服务端保存的密钥；厂商侧密钥请到厂商控制台吊销。"
                         : "断开或删除会立即清除服务端保存的登录凭据与私钥。")
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             } else {
                 Section {
                     Text("这台主机的记录已经不在了。")
                         .foregroundStyle(Palette.inkSecondary)
                 }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
 
             if let notice = store.notice {
@@ -397,10 +421,44 @@ struct CloudComputerDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("主机详情")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: connection?.id) {
+            guard connection?.provider == "simular_box",
+                  connection?.configured == true else { return }
+            await boxStore.refreshStatus(appState: appState)
+            if boxStore.status?.isRunning == true {
+                await boxStore.refreshScreenshot(appState: appState)
+            }
+        }
+        .sheet(isPresented: $showCredentialForm) {
+            if let connection {
+                NavigationStack {
+                    Form {
+                        Section {
+                            CredentialFormView(
+                                store: store, connection: connection
+                            ) {
+                                showCredentialForm = false
+                            }
+                        } footer: {
+                            Text("密钥与密码仅加密保存于你的服务端，App 端永不回传明文。")
+                        }
+                    }
+                    .navigationTitle("凭据与密钥")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("取消") { showCredentialForm = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+            }
+        }
         .confirmationDialog(
             "断开这台主机？",
             isPresented: $pendingDisconnect,
@@ -444,6 +502,78 @@ struct CloudComputerDetailView: View {
     /// view_url 可能为空，此时 boxID 已是真值、
     /// 地址如实为空，接管页会按既有通路切直控面
     /// 唤醒出画面（与电脑面状态头的接管口径一致）。
+    @ViewBuilder
+    private func desktopPreviewCard(connection: CompanionConnection) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            if let shot = boxStore.screenshot,
+               let data = shot.imageData,
+               let uiImage = UIImage(data: data) {
+                Button {
+                    if let onOpenTakeover {
+                        Task {
+                            await openTakeover(
+                                connection: connection,
+                                onOpenTakeover: onOpenTakeover
+                            )
+                        }
+                    }
+                } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(shot.aspect, contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous)
+                                    .stroke(Palette.separator.opacity(0.4), lineWidth: 0.5)
+                            )
+                        if let onOpenTakeover {
+                            let _ = onOpenTakeover
+                            Label("全屏接管", systemImage: "arrow.up.left.and.arrow.down.right")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .padding(8)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(Palette.primary)
+                        .frame(width: 40, height: 40)
+                        .background(Palette.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(boxStore.hubState.statusLine)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Palette.ink)
+                        if let status = boxStore.status {
+                            Text(status.pageTitleText)
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    if boxStore.screenshotLoading {
+                        ProgressView()
+                    } else {
+                        Button("刷新画面") {
+                            Task { await boxStore.refreshScreenshot(appState: appState) }
+                        }
+                        .font(.caption.weight(.medium))
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(.vertical, OneDayMetrics.spacingXS)
+            }
+        }
+    }
+
     private func openTakeover(
         connection: CompanionConnection,
         onOpenTakeover: (CloudComputerTarget) -> Void
