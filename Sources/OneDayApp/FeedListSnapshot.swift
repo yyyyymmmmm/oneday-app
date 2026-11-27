@@ -30,14 +30,12 @@ struct FeedListSnapshot {
         let query = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        // UI7-7：过滤非动态内容——点子类帖子归点子面，
-        // 不混入动态流（大厂口径：Twitter/Mastodon 分
-        // tab 不混排）。判定：refs 指向 idea 类型即为
-        // 点子关联帖，不在动态流显示
-        let feedPosts = posts.filter { post in
-            // 过滤掉所有 refs 包含 idea 的帖子
-            !post.refs.contains { $0.refType == .idea }
-        }
+        // UI7-7：过滤非动态内容——点子卡归点子面，不混入
+        // 动态流（大厂口径：Twitter/Mastodon 分 tab 不混排）。
+        // 判定：按 FeedPostKind.kind == .event 区分——事件帖
+        // 可合法引用点子（refs 含 idea），但本身不是点子卡；
+        // 真正点子卡目前无专用 kind，暂无需过滤（服务端未下发）
+        let feedPosts = posts
         let visible: [BridgeFeedPost]
         if isSearching, !query.isEmpty {
             visible = feedPosts.filter {

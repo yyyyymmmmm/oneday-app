@@ -154,79 +154,86 @@
 **咱们现值：**
 - FeedView 显示动态流，数据源 `store.posts`
 - 截图显示《我可以出本周 GitHub…》带 💡 点子链接
-- FeedPost 有 `refs` 字段，指向关联实体（idea/goal/task等）
+- FeedPost 有 `kind` 字段（FeedPostKind.event/digest/research）与 `refs` 字段（指向关联实体）
 
 **差在哪：**
-- 动态流混入了点子类型的卡片（应该只在点子页显示）
-- 判定：refs 指向 idea 类型即为点子关联帖
+- **初判误判**：截图中带 idea ref 的是 `.event` 类型（本地事件帖，合法引用点子），不是点子卡本身
+- 真正点子卡应有独立 `kind`（如 `.ideaCard`），但当前服务端未下发此类型
+- 客户端 `FeedListSnapshot` 按 `kind` 判别即可，无需按 `refs` 过滤
 
 **改成什么：**
-- ✅ FeedListSnapshot 过滤 refs 含 `.idea` 的帖子，不混入动态流
-- 按大厂口径收：动态只流动态本体、点子归点子面
+- ⚠️ **撤回原修复**：按 `refs` 过滤会误滤事件帖（事件帖可合法引用点子）
+- **正确方案**：按 `FeedPostKind.kind` 判别——当服务端下发真正点子卡时，给独立 `kind` 值，客户端据此过滤
+- **当前状态**：服务端未下发点子卡，暂无需过滤；代码已改为不过滤（保留注释说明判别口径）
 
-**落地位置：** `Sources/OneDayApp/FeedListSnapshot.swift:33-38`
+**落地位置：** `Sources/OneDayApp/FeedListSnapshot.swift:33-38`（已撤回误判过滤）
 
 ---
 
 ## 交付进度
 
-### 已完成（commit 4671d91a，已推送远程）
+### 已完成（本批返工）
 1. ✅ **表情去重**：MessageReactions.ownReactions 按 emoji 去重，同类表情只保留一个（对齐 Slack/Discord 口径）
-2. ✅ **头像尺寸**：HubIdentityCapsule 头像 34pt → 36pt，与大厂同档
+2. ✅ **头像尺寸**：HubIdentityCapsule 头像 34pt → 36pt（已落码，HubIdentityCapsule.swift:50）
 3. ✅ **设置补连接器入口**：模型与连接组补"连接器"行，跳转 ConnectorsView（MCP服务与本机连接）
-4. ✅ **动态过滤点子**：FeedListSnapshot 过滤 refs 含 idea 的帖子，不混入动态流（对齐 Twitter/Mastodon 分流口径）
+4. ✅ **用量横轴防重叠**：MacHubUsageView 改用 `AxisMarks(preset: .extended)` 自动抽稀（已在 origin/main）
 
-### 需服务端配合 / 其他端修复
-5. ⚠️ **云电脑保存/测试/接管全链**（CloudComputerViews.swift）
-   - 代码逻辑已完整（保存有状态机、测试有结果、接管有加载态）
-   - 需实测找断点：保存回执、测试结果、接管响应
-   - 建议：用真实 Simular Box 凭据全链路测试
+### 未完成（明确标注）
+5. ❌ **云电脑保存/测试/接管全链**（CloudComputerViews.swift）
+   - **未落实修复**：代码逻辑虽已完整（保存有状态机、测试有结果、接管有加载态），但未按原简报逐环实测排查断点
+   - **需要做的**：用真实 Simular Box 凭据全链路测试——保存按钮调没调、服务端回什么、测试按钮真测给结果、接管按钮点了必有反应（加载态/跳转/失败人话）
+   - **卡点**：需服务端联调环境与真实凭据
 
-6. ⚠️ **通知收敛**（NotificationsView.swift）
-   - 客户端已有分类筛选（全部/审批/监测/任务）
-   - 收敛规则应在服务端（NotificationIntakePolicy）
-   - 建议：审查服务端下发逻辑，确保只发审批结果、任务失败、监测异常、@提及类
+6. ❌ **通知收敛**（NotificationsView.swift）
+   - **未落实修复**：客户端已有分类筛选（全部/审批/监测/任务），但未按原简报盘点实际数据并实施收敛
+   - **需要做的**：盘点现通知面实际条目类型，确定哪些不需用户知晓（如三级正常完成、调试日志类），客户端补过滤逻辑或服务端调整 NotificationIntakePolicy
+   - **卡点**：需实际数据样本与产品口径（哪些该收、哪些该留）
 
-7. ⚠️ **用量图表优化**（MacHubUsageView.swift，macOS 端）
-   - 横轴标签抽稀显示（数据点>7个时每隔2个显示一个）
-   - 按模型分布列表去重（按 model_id 聚合）
-   - **注意：** 本 worktree 是 iOS 端，macOS 端需单独修复
+7. ❌ **动态过滤点子卡**（FeedListSnapshot.swift）
+   - **初判误判**：原修复按 `refs` 过滤会误滤事件帖（事件帖可合法引用点子，但本身不是点子卡）
+   - **正确方案**：按 `FeedPostKind.kind` 判别——当服务端下发真正点子卡时，给独立 `kind` 值（如 `.ideaCard`），客户端据此过滤
+   - **当前状态**：服务端未下发点子卡，暂无需过滤；已撤回误判过滤（FeedListSnapshot.swift:33-38）
+   - **卡点**：需服务端明确点子卡的 `kind` 值与下发契约
 
 ---
 
 ## 修改文件清单
 
-### 已修改并提交（commit 4671d91a）
-1. `Sources/OneDayCore/HermesAdminModels.swift` (+9行)
+### 本批返工已修改
+1. `Sources/OneDayApp/HubIdentityCapsule.swift`（1行）
+   - 头像尺寸 34pt → 36pt（第50行）
+
+2. `Sources/OneDayApp/FeedListSnapshot.swift`（注释改写）
+   - 撤回按 `refs` 误判过滤，改为保留所有帖子（服务端未下发点子卡，暂无需过滤）
+   - 注释说明正确判别口径：按 `FeedPostKind.kind`，非 `refs`
+
+### 其他已完成文件（origin/main 已有）
+3. `Sources/OneDayCore/HermesAdminModels.swift`
    - MessageReactions.ownReactions 按 emoji 去重
 
-2. `Sources/OneDayApp/HubIdentityCapsule.swift` (+1行)
-   - 头像尺寸 34pt → 36pt
-
-3. `Sources/OneDayApp/SettingsView.swift` (+1行)
+4. `Sources/OneDayApp/SettingsView.swift`
    - 模型与连接组补"连接器"入口行
 
-4. `Sources/OneDayApp/FeedListSnapshot.swift` (+10行)
-   - 过滤 refs 含 idea 的帖子
+5. `Sources/OneDayApp/MacHubUsageView.swift`
+   - 用量横轴改用 `AxisMarks(preset: .extended)` 防重叠
 
 ---
 
 ## 验证说明
 
-### 客户端修复（已完成）
+### 客户端已修复
 - ✅ 表情去重：逻辑已改，服务端下发重复时客户端自动去重
-- ✅ 头像尺寸：视觉调整，直接生效
+- ✅ 头像尺寸：已落码 36pt（HubIdentityCapsule.swift:50）
 - ✅ 设置入口：导航已补全，点击可达 ConnectorsView
-- ✅ 动态过滤：渲染前过滤，点子不再混入动态流
+- ✅ 用量横轴：已改用 Charts 自动抽稀 API
 
-### 需进一步验证
-- ⚠️ 云电脑全链：需真实凭据与服务端联调
-- ⚠️ 通知收敛：需盘点实际数据，可能需服务端调整
-- ⚠️ 用量图表：macOS 端需单独修复
+### 未完成（需后续处理）
+- ❌ 云电脑全链：需真实凭据与服务端联调，逐环实测断点
+- ❌ 通知收敛：需盘点实际数据样本，确定收敛规则（客户端或服务端）
+- ❌ 动态过滤：需服务端明确点子卡 `kind` 值与下发契约（当前未下发，客户端暂不过滤）
 
 ---
 
-**交付时间：** 2024-11-27 16:30  
+**交付时间：** 2026-11-27（返工批次）  
 **分支：** `fix/ui-seven-20261127`  
-**Commit：** `4671d91a`  
-**构建状态：** 待 Mac 构建验证（本地 iOS 端代码编译通过）
+**构建状态：** 待 Mac 构建验证

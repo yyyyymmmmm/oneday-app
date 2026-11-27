@@ -47,7 +47,7 @@ struct HubIdentityCapsule: View {
                         avatar
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 34, height: 34)
+                            .frame(width: 36, height: 36)
                             .clipShape(Circle())
                         if let statusColor {
                             Circle()
