@@ -997,7 +997,7 @@ class Handler:
                     # briefings are system-scheduled, never on
                     # demand). The route stays for server-side
                     # diagnostics but requires the cron callback
-                    # key on top of the bridge key; the App has no
+                    # key on top of the gateway key; the App has no
                     # caller and gets a plain 404.
                     cb_key = _cron_callback_key()
                     cb_hdr = self.headers.get(

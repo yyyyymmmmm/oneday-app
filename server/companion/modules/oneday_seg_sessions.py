@@ -34,9 +34,9 @@
 # exactly one P0 trace BEFORE the answer goes out, the same
 # discipline as the goals facade, enforced inside
 # _create_ai_session_traced so neither door can skip it.
-# NOT registered into Hermes: registration (mcp_servers entry +
-# gateway route) waits for the closing window; until then this is
-# "facade ready, awaiting registration", verified by direct calls.
+# Registered into Hermes as oneday-sessions: the mcp_servers
+# entry and gateway route are in place, `hermes mcp list` shows
+# it enabled and `hermes mcp test` passes (verified 2026-11-27).
 
 AI_SESSION_PREFIX = "oneday-ai-"
 AI_SESSION_KEEP = 500
