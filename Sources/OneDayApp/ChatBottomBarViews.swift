@@ -1,3 +1,4 @@
+import LinkPresentation
 import OneDayDesign
 import OneDayCore
 import SwiftUI
@@ -49,6 +50,8 @@ struct ChatBottomBarView: View {
     var sourceQuoteBarView: AnyView?
     var attachmentsCount: Int
     var attachmentsStripView: AnyView?
+    var linkPreviewMetadata: LPLinkMetadata?
+    var onRemoveLinkPreview: () -> Void
     var quoteSlotOccupied: Bool
     var composerRowView: AnyView
     var composerShape: AnyShape
@@ -145,6 +148,8 @@ struct ChatBottomBarView: View {
                 sourceQuoteBarView: sourceQuoteBarView,
                 attachmentsCount: attachmentsCount,
                 attachmentsStripView: attachmentsStripView,
+                linkPreviewMetadata: linkPreviewMetadata,
+                onRemoveLinkPreview: onRemoveLinkPreview,
                 quoteSlotOccupied: quoteSlotOccupied,
                 composerRowView: composerRowView,
                 composerShape: composerShape,
@@ -242,6 +247,8 @@ struct ChatInputBarView: View {
     var sourceQuoteBarView: AnyView?
     var attachmentsCount: Int
     var attachmentsStripView: AnyView?
+    var linkPreviewMetadata: LPLinkMetadata?
+    var onRemoveLinkPreview: () -> Void
     var quoteSlotOccupied: Bool
     var composerRowView: AnyView
     var composerShape: AnyShape
@@ -298,6 +305,8 @@ struct ChatInputBarView: View {
                 sourceQuoteBarView: sourceQuoteBarView,
                 attachmentsCount: attachmentsCount,
                 attachmentsStripView: attachmentsStripView,
+                linkPreviewMetadata: linkPreviewMetadata,
+                onRemoveLinkPreview: onRemoveLinkPreview,
                 quoteSlotOccupied: quoteSlotOccupied,
                 composerRowView: composerRowView,
                 composerShape: composerShape,
@@ -358,6 +367,8 @@ struct ChatComposerCardView: View {
     var sourceQuoteBarView: AnyView?
     var attachmentsCount: Int
     var attachmentsStripView: AnyView?
+    var linkPreviewMetadata: LPLinkMetadata?
+    var onRemoveLinkPreview: () -> Void
     var quoteSlotOccupied: Bool
     var composerRowView: AnyView
     var composerShape: AnyShape
@@ -418,6 +429,28 @@ struct ChatComposerCardView: View {
                 // 个在场），按族分发条形态
                 VStack(spacing: 0) {
                     sourceQuoteBarView
+                    Rectangle()
+                        .fill(Palette.hairline)
+                        .frame(height: 1)
+                        .padding(
+                            .horizontal, OneDayMetrics.spacingSM
+                        )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+            }
+            // 链接预览卡（按 Muse/iMessage 通行做法）：
+            // 输入框检出 URL 后在上方显示链接卡（站点
+            // 图标＋页面标题＋域名＋ ✕ 移除预览）；位置
+            // 在引用块与附件条之间（引用是对已有消息的
+            // 回应优先级最高，链接是即将发送的内容预览
+            // 次之，附件最接近输入行）
+            if let linkPreviewMetadata {
+                VStack(spacing: 0) {
+                    LinkPreviewCardView(
+                        metadata: linkPreviewMetadata,
+                        onRemove: onRemoveLinkPreview
+                    )
                     Rectangle()
                         .fill(Palette.hairline)
                         .frame(height: 1)
@@ -512,6 +545,15 @@ struct ChatComposerCardView: View {
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: quoteSlotOccupied
+        )
+        // 链接预览卡显隐的高度动画：与附件条/引用块同
+        // 口径——键＝预览在场态（linkPreviewMetadata != nil），
+        // 卡高变化进动画事务插值
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: linkPreviewMetadata != nil
         )
         // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡背景
         // 命中域内点按（文本区外的卡面空隙，含引用块

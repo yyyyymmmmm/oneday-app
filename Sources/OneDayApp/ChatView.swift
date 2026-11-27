@@ -88,6 +88,11 @@ struct ChatView: View {
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
     /// 条占住发送舱；文本经 onTextChange 回写 input
     @State var dictation = DictationController()
+    /// 链接预览提供者（按 iMessage 通行做法）：检出输入文本
+    /// 中第一个 URL、异步获取元数据、会话级缓存
+    @State var linkPreviewProvider = LinkPreviewProvider()
+    /// 链接预览防抖任务（300ms debounce，防每个字符都触发检测）
+    @State var linkPreviewDebounceTask: Task<Void, Never>?
     /// 在飞旗（§409 步 A 语义收口）：非 nil＝本轮
     /// 生成在飞、nil＝不在飞——只承载生命周期，
     /// 不再承载正文快照（生成期呈现只有 §407 占位
@@ -1320,6 +1325,16 @@ struct ChatView: View {
             // （频道出处优先于线程派生，见该函数注）
             syncDrawerObjectFromCurrentThread()
         }
+        // 链接预览检测（按 iMessage 通行做法）：input 变化时
+        // debounce 300ms 后检出第一个 URL、异步获取元数据
+        .onChange(of: input) { _, newValue in
+            linkPreviewDebounceTask?.cancel()
+            linkPreviewDebounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                linkPreviewProvider.detectAndFetch(from: newValue)
+            }
+        }
         // 0.4.5：消费抽屉的线程选择（DrawerView 点行/
         // 新建时置位；与 pendingChatSessionID 同模式：
         // 消费即清零，防重入）
@@ -2063,6 +2078,8 @@ struct ChatView: View {
             attachmentsCount: attachments.count,
             attachmentsStripView: attachments.isEmpty
                 ? nil : AnyView(attachmentsStrip),
+            linkPreviewMetadata: linkPreviewProvider.metadata,
+            onRemoveLinkPreview: { linkPreviewProvider.clear() },
             quoteSlotOccupied: pendingQuote != nil
                 || pendingFeedQuote != nil
                 || pendingSourceQuote != nil
