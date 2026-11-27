@@ -92,7 +92,11 @@ enum KeychainStore {
 
     static func save(_ value: String, account: String) {
         #if canImport(KeychainAccess)
-        try? keychain.set(value, key: account)
+        do {
+            try keychain.set(value, key: account)
+        } catch {
+            print("[KeychainStore] save failed for account (error: \(error))")
+        }
         #else
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
@@ -105,14 +109,24 @@ enum KeychainStore {
         if status == errSecItemNotFound {
             var item = query
             item[kSecValueData as String] = data
-            SecItemAdd(item as CFDictionary, nil)
+            let addStatus = SecItemAdd(item as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                print("[KeychainStore] save failed: SecItemAdd returned \(addStatus)")
+            }
+        } else if status != errSecSuccess {
+            print("[KeychainStore] save failed: SecItemUpdate returned \(status)")
         }
         #endif
     }
 
     static func read(account: String) -> String? {
         #if canImport(KeychainAccess)
-        return try? keychain.getString(account)
+        do {
+            return try keychain.getString(account)
+        } catch {
+            print("[KeychainStore] read failed for account (error: \(error))")
+            return nil
+        }
         #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -122,8 +136,11 @@ enum KeychainStore {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else {
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else {
+            if status != errSecItemNotFound {
+                print("[KeychainStore] read failed: SecItemCopyMatching returned \(status)")
+            }
             return nil
         }
         return String(data: data, encoding: .utf8)
@@ -132,14 +149,21 @@ enum KeychainStore {
 
     static func delete(account: String) {
         #if canImport(KeychainAccess)
-        try? keychain.remove(account)
+        do {
+            try keychain.remove(account)
+        } catch {
+            print("[KeychainStore] delete failed for account (error: \(error))")
+        }
         #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            print("[KeychainStore] delete failed: SecItemDelete returned \(status)")
+        }
         #endif
     }
 
