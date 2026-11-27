@@ -14,7 +14,7 @@ Commercial personal AI assistants run your agent — and keep your data — on s
 
 "One day…" is how every wish begins — *one day I'll start, one day I'll change, one day I'll get there.* OneDay pulls that day back to today: start today, and live every day well, one day at a time.
 
-> **Status:** OneDay is in active development, with new releases shipping regularly (current line: 0.51.x). It's open source under MIT and maintained by its original author; issues, PRs and co-maintainers are all welcome — see the [help-wanted issues](https://github.com/yyyyymmmmm/oneday-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) if you'd like to pick something up, or open an issue to say hello.
+> **Status:** OneDay is in active development, with new releases shipping regularly (current line: 0.51.x). It's open source under MIT and maintained by its original author; issues, PRs and co-maintainers are all welcome — see the repository's help-wanted issues if you'd like to pick something up, or open an issue to say hello.
 
 ## Screenshots
 
@@ -74,7 +74,7 @@ On first launch the app asks only for your Hermes server address and your login 
 
 「One day」是每个人许愿时的话——总有一天我会怎样。OneDay 想把那一天拉回今天：从今天开始，陪你过好每一天。
 
-项目由原作者持续开发中，版本持续更新（当前 0.51.x 线），MIT 开源。欢迎从 [help wanted issue](https://github.com/yyyyymmmmm/oneday-app/issues) 里挑一个上手，或直接开 issue 报名共同维护。
+项目由原作者持续开发中，版本持续更新（当前 0.51.x 线），MIT 开源。欢迎从仓库的 help wanted issue 里挑一个上手，或直接开 issue 报名共同维护。
 
 ## Contributing
 

@@ -194,17 +194,7 @@ struct HubLedgerSection: View {
                     detail: "负责对账的程序可能停了，新进度暂时不会出现。"
                 )
             }
-            if store.allItems.isEmpty {
-                ContentUnavailableView(
-                    "暂无记录",
-                    systemImage: "list.bullet",
-                    description: Text(
-                        "台账从服务上线后开始记账，之前的工作不会补录。有新工作时会出现在这里。"
-                    )
-                )
-            } else {
-                ledgerList
-            }
+            ledgerList
         }
     }
 
@@ -219,10 +209,8 @@ struct HubLedgerSection: View {
         let snapshot = ledgerSnapshot
         return ScrollViewReader { proxy in
             List {
-                // §434／第 3 项：预定任务折叠节——原生
-                // Section ＋ DisclosureGroup 带平滑动画
-                if cronStore.hasLoaded, !cronStore.hubGroups.isEmpty {
-                    Section {
+                Section {
+                    if cronStore.hasLoaded, !cronStore.hubGroups.isEmpty {
                         DisclosureGroup(isExpanded: $cronExpanded) {
                             ForEach(cronStore.hubGroups, id: \.kind) { group in
                                 ForEach(group.items) { item in
@@ -235,18 +223,34 @@ struct HubLedgerSection: View {
                                 }
                             }
                         } label: {
-                            sectionTitle("预定任务 · \(cronTotalCount) 项")
+                            sectionTitle("\(cronTotalCount) 项")
                         }
                         .listRowSeparator(.hidden)
                         .listRowInsets(rowInsets)
                         .listRowBackground(Color.clear)
+                    } else if cronStore.hasLoaded {
+                        Text("暂无预定任务")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    } else {
+                        ProgressView()
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
                     }
+                } header: {
+                    sectionTitle("预定任务")
                 }
-                // §244／§477／第 3 项：按天分段——原生
-                // Section ＋ DisclosureGroup，消费快照
-                // 中已聚合好的会话行，不再每帧重算
-                ForEach(snapshot.daySections) { section in
-                    Section {
+                Section {
+                    if snapshot.daySections.isEmpty {
+                        Text("暂无近期活动")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    }
+                    ForEach(snapshot.daySections) { section in
                         DisclosureGroup(
                             isExpanded: dayExpandedBinding(for: section.title)
                         ) {
@@ -275,6 +279,8 @@ struct HubLedgerSection: View {
                         .listRowInsets(rowInsets)
                         .listRowBackground(Color.clear)
                     }
+                } header: {
+                    sectionTitle("当前活动")
                 }
             }
             .listStyle(.plain)

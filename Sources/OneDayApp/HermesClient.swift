@@ -1373,6 +1373,37 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
+    func mailMessages(
+        config: ServerConfig, apiKey: String, limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> MailMessagesResponse {
+        try await bearerGetJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/mail/messages?limit=\(limit)&offset=\(offset)",
+            endpoint: L10n.string("邮件列表")
+        )
+    }
+
+    func mailMessage(
+        config: ServerConfig, apiKey: String, accountID: String,
+        folder: String, uid: Int
+    ) async throws -> MailMessage {
+        let pathComponentCharacters = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~")
+        )
+        let account = accountID.addingPercentEncoding(
+            withAllowedCharacters: pathComponentCharacters
+        ) ?? accountID
+        let mailbox = folder.addingPercentEncoding(
+            withAllowedCharacters: pathComponentCharacters
+        ) ?? folder
+        return try await bearerGetJSON(
+            config: config, apiKey: apiKey,
+            path: "/v1/mail/messages/\(account)/\(mailbox)/\(uid)",
+            endpoint: L10n.string("邮件详情")
+        )
+    }
+
     func settingsRegistry(
         config: ServerConfig, apiKey: String
     ) async throws -> SettingsRegistryResponse {

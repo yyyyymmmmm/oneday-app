@@ -20,7 +20,7 @@ OneDay 是客户端软件，用于连接你自己部署的 Hermes 服务。Herme
 
 ## 知识产权
 
-OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。
+OneDay 客户端以开源形式发布于 GitHub 仓库，其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。
 
 ## 责任限制
 

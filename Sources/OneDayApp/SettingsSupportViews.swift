@@ -135,7 +135,7 @@ struct HelpView: View {
                 linkRow(
                     icon: "text.bubble", title: "在 GitHub 提交问题",
                     subtitle: "附上复现步骤与系统版本",
-                    url: "https://github.com/yyyyymmmmm/oneday-app/issues"
+                    url: "https://github.com/issues"
                 )
                 linkRow(
                     icon: "doc.text", title: "Hermes 部署文档",
@@ -345,7 +345,7 @@ struct AboutView: View {
         Section {
             linkRow(
                 title: "OneDay 开源项目",
-                url: "https://github.com/yyyyymmmmm/oneday-app"
+                url: "https://github.com"
             )
             linkRow(
                 title: "Hermes 开源项目",
@@ -414,7 +414,7 @@ struct LegalDocumentView: View {
         private static let privacySections: [(heading: String, body: String)] = [
             (
                 "运营方与联系方式",
-                "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（github.com/yyyyymmmmm/oneday-app/issues）或邮箱 contact@example.com 联系我们。"
+                "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过项目 GitHub 仓库的 Issues 页面或邮箱 contact@example.com 联系我们。"
             ),
             (
                 "没有账号，也不收集使用数据",
@@ -469,7 +469,7 @@ struct LegalDocumentView: View {
             ),
             (
                 "知识产权",
-                "OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。"
+                "OneDay 客户端以开源形式发布于 GitHub 仓库，其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。"
             ),
             (
                 "责任限制",

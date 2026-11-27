@@ -148,9 +148,8 @@ struct AgentHubView: View {
     /// 注册表初值输入：连通先行（枢纽开页即连通
     /// 语境，store 未就绪时内容区本就只显加载态）；
     /// Box 在位走钥匙串同步判（box.mcp.key，与
-    /// BoxMCPClient 同键同源）；邮件位服务端未广
-    /// 告、恒 false，广告后在此接 /v1/capabilities
-    /// features 解码即长格
+    /// BoxMCPClient 同键同源）；邮件能力等待本页
+    /// /v1/capabilities 回读后才可用
     static func initialSegmentInputs() -> HubSegmentInputs {
         HubSegmentInputs(
             connected: true,
@@ -158,7 +157,7 @@ struct AgentHubView: View {
             approvalsReadbackOK: false,
             boxConfigured:
                 KeychainStore.read(account: "box.mcp.key") != nil,
-            mailAdvertised: false
+            mailDataSourceAvailable: false
         )
     }
     /// 分享名片懒生成载荷：点分享按钮时才离屏渲染名片图
@@ -265,7 +264,8 @@ struct AgentHubView: View {
             async let ledger: Void = appState.sharedLedgerStore()
                 .load(appState: appState)
             async let approval: Void = hubStore.loadApproval(force: true)
-            _ = await (initial, ledger, approval)
+            async let mailCapability: Void = loadMailCapability()
+            _ = await (initial, ledger, approval, mailCapability)
             refreshSegmentInputs()
             // §123（H2）：通知落点消费
             if let destination = appState.router.hubDestinationRequest {
@@ -324,6 +324,23 @@ struct AgentHubView: View {
         if case .ready = hubStore.approvalState {
             inputs.approvalsReadbackOK = true
         }
+        segmentInputs = inputs
+        if !availableSegments.contains(segment) {
+            segment = availableSegments.first ?? .work
+        }
+    }
+
+    /// Email segment is enabled only by the live gateway feature flag.
+    private func loadMailCapability() async {
+        guard !appState.isDemo,
+              let config = appState.config,
+              let apiKey = await appState.effectiveBearerToken(),
+              let capabilities = try? await appState.client.capabilities(
+                config: config, apiKey: apiKey
+              ) else { return }
+        var inputs = segmentInputs
+        inputs.mailDataSourceAvailable =
+            capabilities.featureFlag("mail_gateway") == true
         segmentInputs = inputs
         if !availableSegments.contains(segment) {
             segment = availableSegments.first ?? .work
@@ -397,7 +414,7 @@ struct AgentHubView: View {
         case .identity:
             await store.loadIdentityIfNeeded()
         case .mail:
-            break // 注册表不长此格时不可达；长格后接邮件面自持加载
+            break // 邮件段由自身 .task 读取服务端列表
         }
     }
 
@@ -775,9 +792,7 @@ struct AgentHubView: View {
         case .identity:
             HubIdentitySection(store: store)
         case .mail:
-            // 注册表未广告 mail 位时本段不长出、本
-            // 分支不可达；长格后在此接邮件面
-            EmptyView()
+            HubMailSection()
         }
     }
 }

@@ -860,7 +860,7 @@ struct ConnectView: View {
 
             helpGroupTitle("反馈")
             VStack(spacing: 0) {
-                Link(destination: URL(string: "https://github.com/yyyyymmmmm/oneday-app/issues")!) {
+                Link(destination: URL(string: "https://github.com/issues")!) {
                     HStack(spacing: OneDayMetrics.spacingM) {
                         Image(systemName: "text.bubble")
                             .font(.system(size: FrameworkIcon.fileGlyphSize))
