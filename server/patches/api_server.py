@@ -170,18 +170,6 @@ from gateway.platforms.base import (
     validate_media_delivery_path)
 from gateway.platforms.api_server_run_idempotency import RunIdempotencyStore
 from gateway.platforms.api_server_response_store import ResponseStore
-try:
-    from gateway.platforms.api_server_support import (
-        _IdempotencyCache,
-        _ProviderAuthResolutionError,
-        _SessionEventQueue,
-    )
-except ImportError:
-    from api_server_support import (
-        _IdempotencyCache,
-        _ProviderAuthResolutionError,
-        _SessionEventQueue,
-    )
 from agent.i18n import t
 from agent.redact import redact_sensitive_text
 from agent.interrupt_compat import request_hard_interrupt
@@ -243,18 +231,154 @@ MAX_REQUEST_BYTES = 10_000_000  # 10 MB — accommodates long agent conversation
 # credential is still the shared API_SERVER_KEY; per-device tickets are
 # phase 2 (ledger 155). Remove when upstream grows a device-claim API.
 # ---------------------------------------------------------------------------
-try:
-    from gateway.platforms.api_server_enrollment import (
-        _ENROLLMENT_TTL_SECONDS,
-        ThreadSafeAsyncQueue,
-        _enrollment_store,
-    )
-except ImportError:
-    from api_server_enrollment import (
-        _ENROLLMENT_TTL_SECONDS,
-        ThreadSafeAsyncQueue,
-        _enrollment_store,
-    )
+_ENROLLMENT_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # pairing.py ALPHABET
+_ENROLLMENT_CODE_LENGTH = 20        # QR-carried, ~100 bits, never typed
+_ENROLLMENT_TTL_SECONDS = 300       # ledger 153 cites OpenBot's 2 min; 5 min
+                                    # leaves room for the first-run camera
+                                    # permission prompt on the new device
+_ENROLLMENT_MAX_PENDING = 3         # pairing.py MAX_PENDING_PER_PLATFORM
+_ENROLLMENT_MAX_FAILED = 5          # pairing.py MAX_FAILED_ATTEMPTS
+_ENROLLMENT_LOCKOUT_SECONDS = 600
+
+
+def _enrollment_store_path() -> Path:
+    try:
+        from hermes_constants import get_hermes_home
+        root = Path(get_hermes_home())
+    except Exception:
+        root = Path(os.environ.get("HERMES_HOME") or (Path.home() / ".hermes"))
+    return root / "enrollment" / "device-enrollment.json"
+
+
+class _EnrollmentStore:
+    """JSON-file store for one-time device-enrollment codes.
+
+    Only salted SHA-256 hashes of codes are persisted (chmod 0600), the
+    same discipline as gateway/pairing.py. A process-level lock serializes
+    the gateway's own handlers; this process is the file's only writer.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._path = _enrollment_store_path()
+
+    def _load(self) -> dict:
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        return {}
+
+    def _save(self, data: dict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        tmp.replace(self._path)
+
+    def _instance_id(self, data: dict) -> str:
+        instance_id = data.get("instance_id")
+        if not isinstance(instance_id, str) or not instance_id:
+            instance_id = uuid.uuid4().hex + uuid.uuid4().hex
+            data["instance_id"] = instance_id
+            self._save(data)
+        return instance_id
+
+    @staticmethod
+    def _fingerprint_of(instance_id: str) -> str:
+        return hashlib.sha256(instance_id.encode("utf-8")).hexdigest()[:16]
+
+    def fingerprint(self) -> str:
+        with self._lock:
+            data = self._load()
+            return self._fingerprint_of(self._instance_id(data))
+
+    @staticmethod
+    def _hash_code(code: str, salt: bytes) -> str:
+        # gateway/pairing.py PairingStore._hash_code, same morphology.
+        return hashlib.sha256(salt + code.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _cleanup(data: dict, now: float) -> None:
+        codes = data.get("codes")
+        if isinstance(codes, dict):
+            stale = [k for k, v in codes.items()
+                     if not isinstance(v, dict)
+                     or float(v.get("expires_at") or 0) <= now]
+            for key in stale:
+                del codes[key]
+
+    def issue(self) -> Optional[dict]:
+        """Mint a one-time code; {code, expires_at} or None when the
+        pending cap is reached."""
+        now = time.time()
+        with self._lock:
+            data = self._load()
+            self._instance_id(data)
+            self._cleanup(data, now)
+            codes = data.setdefault("codes", {})
+            if len(codes) >= _ENROLLMENT_MAX_PENDING:
+                self._save(data)
+                return None
+            code = "".join(secrets.choice(_ENROLLMENT_ALPHABET)
+                           for _ in range(_ENROLLMENT_CODE_LENGTH))
+            salt = os.urandom(16)
+            codes[uuid.uuid4().hex[:16]] = {
+                "hash": self._hash_code(code, salt), "salt": salt.hex(),
+                "created_at": now, "expires_at": now + _ENROLLMENT_TTL_SECONDS,
+            }
+            self._save(data)
+            return {"code": code, "expires_at": now + _ENROLLMENT_TTL_SECONDS}
+
+    def claim(self, code: str) -> tuple[str, Optional[dict]]:
+        """Redeem a code exactly once. Returns (outcome, payload) with
+        outcome "ok" (payload carries the instance fingerprint),
+        "invalid", "expired", or "locked"."""
+        now = time.time()
+        code = "".join(str(code or "").upper().split())
+        with self._lock:
+            data = self._load()
+            fingerprint = self._fingerprint_of(self._instance_id(data))
+            if float(data.get("locked_until") or 0) > now:
+                return "locked", None
+            codes = data.get("codes")
+            if not isinstance(codes, dict):
+                codes = {}
+            matched_key = None
+            matched_expired = False
+            for entry_id, entry in codes.items():
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    salt = bytes.fromhex(entry["salt"])
+                except (KeyError, ValueError):
+                    continue
+                if hmac.compare_digest(self._hash_code(code, salt),
+                                       str(entry.get("hash") or "")):
+                    matched_key = entry_id
+                    matched_expired = float(entry.get("expires_at") or 0) <= now
+                    break
+            if matched_key is not None:
+                del codes[matched_key]
+                if matched_expired:
+                    self._save(data)
+                    return "expired", None
+                data["failed_attempts"] = 0
+                self._save(data)
+                return "ok", {"fingerprint": fingerprint}
+            self._cleanup(data, now)
+            failed = int(data.get("failed_attempts") or 0) + 1
+            if failed >= _ENROLLMENT_MAX_FAILED:
+                data["locked_until"] = now + _ENROLLMENT_LOCKOUT_SECONDS
+                failed = 0
+            data["failed_attempts"] = failed
+            self._save(data)
+            return "invalid", None
+
+
+_enrollment_store = _EnrollmentStore()
 # Send a comment before remote API clients' common 20-second idle deadline.
 # This constant is shared by OpenAI chat/Responses and native session SSE.
 CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS = 10.0
@@ -265,6 +389,18 @@ MAX_CONTENT_LIST_SIZE = 1_000  # Max items when content is an array
 RESPONSES_AUTO_TRUNCATION_HISTORY_LIMIT = 100
 
 
+class ThreadSafeAsyncQueue(asyncio.Queue):
+    """``asyncio.Queue`` a non-loop thread (run_conversation's executor) can push into via
+    ``put_threadsafe``; the SSE consumer's ``await get()`` is woken by ``call_soon_threadsafe``."""
+
+    def put_threadsafe(self, item, *, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        (loop or self._loop_ref).call_soon_threadsafe(self.put_nowait, item)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Always constructed inside a running async handler (the SSE
+        # request handlers below), so get_running_loop() is safe here.
+        self._loop_ref = asyncio.get_running_loop()
 
 
 def _sse_frame(
@@ -1029,6 +1165,46 @@ def _reserve_pending_api_work(adapter):
             _release_pending_api_work(adapter, reservation)
 
 
+class _IdempotencyCache:
+    """In-memory idempotency cache with TTL and basic LRU semantics."""
+    def __init__(self, max_items: int = 1000, ttl_seconds: int = 300):
+        from collections import OrderedDict
+        self._store = OrderedDict()
+        self._inflight: dict[tuple[str, str], asyncio.Task[Any]] = {}
+        self._ttl = ttl_seconds
+        self._max = max_items
+
+    def _purge(self):
+        now = time.time()
+        expired = [k for k, v in self._store.items() if now - v["ts"] > self._ttl]
+        for k in expired:
+            self._store.pop(k, None)
+        while len(self._store) > self._max:
+            self._store.popitem(last=False)
+
+    async def get_or_set(self, key: str, fingerprint: str, compute_coro):
+        self._purge()
+        item = self._store.get(key)
+        if item and item["fp"] == fingerprint:
+            return item["resp"]
+        inflight_key = (key, fingerprint)
+        task = self._inflight.get(inflight_key)
+        if task is None:
+            async def _compute_and_store():
+                resp = await compute_coro()
+                self._store[key] = {"resp": resp, "fp": fingerprint, "ts": time.time()}
+                self._purge()
+                return resp
+            task = asyncio.create_task(_compute_and_store())
+            self._inflight[inflight_key] = task
+
+            def _clear_inflight(done_task: asyncio.Task[Any]) -> None:
+                if self._inflight.get(inflight_key) is done_task:
+                    self._inflight.pop(inflight_key, None)
+            task.add_done_callback(_clear_inflight)
+        return await asyncio.shield(task)
+
+
 _idem_cache = _IdempotencyCache()
 
 
@@ -1102,6 +1278,86 @@ except Exception:  # pragma: no cover - scanner is optional hardening
 # display language. ``user_text()`` renders the human-facing line through ``t()``.
 PROVIDER_AUTH_FAILED_LABEL = "Provider authentication failed"
 PROVIDER_RATE_LIMITED_LABEL = "Provider rate-limited"
+
+
+class _ProviderAuthResolutionError(RuntimeError):
+    """Provider credential resolution failed. Typed so callers never mislabel other
+    RuntimeErrors from run_conversation() (e.g. a closed OpenAI client) as auth failures."""
+
+    def is_rate_limited(self) -> bool:
+        """A quota/429 cap with valid credentials must not be labelled an authentication
+        failure — the cause chain (RuntimeError -> AuthError) tells them apart (#89401)."""
+        from hermes_cli.auth import is_rate_limited_auth_error
+
+        cause = self.__cause__
+        cause = getattr(cause, "__cause__", None) if isinstance(cause, RuntimeError) else cause
+        return bool(is_rate_limited_auth_error(cause))
+
+    def user_text(self) -> str:
+        """Raw-surface failure line shown as the assistant reply in API-backed chat UIs."""
+        label = t("platform.api_server.provider_rate_limited" if self.is_rate_limited()
+                  else "platform.api_server.provider_auth_failed")
+        return t("platform.api_server.provider_error_line", label=label, error=self)
+
+
+class _SessionEventQueue:
+    """Ordered SSE event queue for one /api/sessions/{id}/chat/stream run. ``payload`` stamps
+    session_id/run_id/seq/ts; ``enqueue`` is executor-thread safe (hops onto the owning loop)."""
+
+    def __init__(self, session_id: str, run_id: str):
+        self.loop = asyncio.get_running_loop()
+        self.queue: asyncio.Queue[Optional[tuple[str, dict[str, Any]]]] = asyncio.Queue()
+        self.session_id = session_id
+        self.run_id = run_id
+        self.seq = 0
+        # Cross-thread puts handed to the loop and not yet applied. The loop does not order them
+        # against the worker future's completion, so the turn's terminal frames wait on flush().
+        self._inflight = 0
+        self._inflight_lock = threading.Lock()
+
+    def payload(self, name: str, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        self.seq += 1
+        payload.setdefault("session_id", self.session_id)
+        payload.setdefault("run_id", self.run_id)
+        payload.setdefault("seq", self.seq)
+        payload.setdefault("ts", time.time())
+        return name, payload
+
+    def enqueue(self, name: str, payload: dict[str, Any]) -> None:
+        event = self.payload(name, payload)
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        if running_loop is self.loop:
+            self.queue.put_nowait(event)
+            return
+        with self._inflight_lock:
+            self._inflight += 1
+
+        def _apply() -> None:
+            try:
+                self.queue.put_nowait(event)
+            finally:
+                self._settle_one()
+        try:
+            self.loop.call_soon_threadsafe(_apply)
+        except RuntimeError:  # loop closed: the stream is gone, nothing left to deliver to
+            self._settle_one()
+
+    def _settle_one(self) -> None:
+        with self._inflight_lock:
+            self._inflight -= 1
+
+    async def flush(self) -> None:
+        """Wait until every event a worker thread enqueued has reached the queue. Call it before
+        the terminal frames: a commentary/delta/approval handed over before the worker returned
+        otherwise lands after ``done``/``None`` and the reader never sees it."""
+        while True:
+            with self._inflight_lock:
+                if not self._inflight:
+                    return
+            await asyncio.sleep(0)
 
 
 def _room_grant_delegate(name: str):
@@ -5030,7 +5286,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         if not self._JOB_ID_RE.fullmatch(job_id):
             logger.warning(
                 "Cron jobs API rejected invalid job_id %r: %s", job_id, self._request_audit_log_suffix(request))
-            return job_id, web.json_response({"error": "任务 ID 格式无效", "code": "invalid_job_id"}, status=400)
+            return job_id, web.json_response({"error": "Invalid job ID format"}, status=400)
         return job_id, None
 
     @staticmethod
@@ -5040,11 +5296,11 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
     def _validate_cron_prompt(self, prompt: str) -> Optional[web.Response]:
         """Length cap + injection scan shared by create/update/run."""
         if len(prompt) > self._MAX_PROMPT_LENGTH:
-            return web.json_response({"error": f"提示词不能超过 {self._MAX_PROMPT_LENGTH} 个字符", "code": "prompt_too_long", "param": "prompt"}, status=400)
+            return web.json_response({"error": f"Prompt must be ≤ {self._MAX_PROMPT_LENGTH} characters"}, status=400)
         if prompt and _scan_cron_prompt is not None:
             scan_error = _scan_cron_prompt(prompt)
             if scan_error:
-                return web.json_response({"error": scan_error, "code": "prompt_invalid", "param": "prompt"}, status=400)
+                return web.json_response({"error": scan_error}, status=400)
         return None
 
     def _job_response(self, fn, job_id: str, *, notify: bool) -> web.Response:
@@ -5052,7 +5308,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
         try:
             job = fn(job_id)
             if not job:
-                return web.json_response({"error": "未找到该任务", "code": "job_not_found"}, status=404)
+                return web.json_response({"error": "Job not found"}, status=404)
             if notify:
                 _notify_cron_provider_jobs_changed()
             return web.json_response({"job": job})
@@ -5089,16 +5345,16 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             skills = body.get("skills")
             repeat = body.get("repeat")
             if not name:
-                return web.json_response({"error": "任务名称不能为空", "code": "name_required", "param": "name"}, status=400)
+                return web.json_response({"error": "Name is required"}, status=400)
             if len(name) > self._MAX_NAME_LENGTH:
-                return web.json_response({"error": f"任务名称不能超过 {self._MAX_NAME_LENGTH} 个字符", "code": "name_too_long", "param": "name"}, status=400)
+                return web.json_response({"error": f"Name must be ≤ {self._MAX_NAME_LENGTH} characters"}, status=400)
             if not schedule:
-                return web.json_response({"error": "执行计划不能为空", "code": "schedule_required", "param": "schedule"}, status=400)
+                return web.json_response({"error": "Schedule is required"}, status=400)
             prompt_err = self._validate_cron_prompt(prompt)
             if prompt_err:
                 return prompt_err
             if repeat is not None and (not isinstance(repeat, int) or repeat < 1):
-                return web.json_response({"error": "重复次数必须是正整数", "code": "repeat_invalid", "param": "repeat"}, status=400)
+                return web.json_response({"error": "Repeat must be a positive integer"}, status=400)
             kwargs = {
                 "prompt": prompt, "schedule": schedule, "name": name,
                 "deliver": body.get("deliver", "local"),
@@ -5132,9 +5388,9 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             # Whitelist allowed fields to prevent arbitrary key injection
             sanitized = {k: v for k, v in body.items() if k in self._UPDATE_ALLOWED_FIELDS}
             if not sanitized:
-                return web.json_response({"error": "没有可更新的有效字段", "code": "no_valid_fields"}, status=400)
+                return web.json_response({"error": "No valid fields to update"}, status=400)
             if "name" in sanitized and len(sanitized["name"]) > self._MAX_NAME_LENGTH:
-                return web.json_response({"error": f"任务名称不能超过 {self._MAX_NAME_LENGTH} 个字符", "code": "name_too_long", "param": "name"}, status=400)
+                return web.json_response({"error": f"Name must be ≤ {self._MAX_NAME_LENGTH} characters"}, status=400)
             if "prompt" in sanitized:
                 prompt_err = self._validate_cron_prompt(sanitized["prompt"])
                 if prompt_err:
@@ -5150,7 +5406,7 @@ class APIServerAdapter(OneDayAuthPushRoutesMixin, OpenAICompatRoutesMixin, BaseP
             return err
         try:
             if not _cron_remove(job_id):
-                return web.json_response({"error": "未找到该任务", "code": "job_not_found"}, status=404)
+                return web.json_response({"error": "Job not found"}, status=404)
             _notify_cron_provider_jobs_changed()
             return web.json_response({"ok": True})
         except Exception as e:

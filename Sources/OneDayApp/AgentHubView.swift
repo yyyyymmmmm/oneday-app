@@ -119,7 +119,6 @@ struct AgentHubView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 共享 store 同步直取（§449 第 4 条）：本体是
     /// AppState 的同步单例（0.36.21 起）——body 求
@@ -336,10 +335,8 @@ struct AgentHubView: View {
             header(store)
             if let modelEntry {
                 modelEntryRow(modelEntry)
-                    .padding(.top, OneDayMetrics.spacingSM)
             }
             segmentPicker(store)
-                .padding(.top, OneDayMetrics.spacingSM)
             segmentContent(store)
         }
         .onChange(of: segment) { _, newSegment in
@@ -414,11 +411,11 @@ struct AgentHubView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("选择模型")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(entry.currentLabel)
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
@@ -428,7 +425,7 @@ struct AgentHubView: View {
             .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(maxWidth: .infinity)
             .frame(height: OneDayMetrics.minTapTarget)
-            .glassEffect(.regular, in: Capsule())
+            .background(Palette.fillSecondary, in: Capsule())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.hubGutter)
@@ -650,6 +647,8 @@ struct AgentHubView: View {
                     }
 
                 ZStack {
+                    Circle().fill(Palette.surface)
+                    Circle().stroke(Palette.hairline, lineWidth: 0.5)
                     Image(systemName: "pencil")
                         .font(.system(
                             size: FrameworkIcon.badgeGlyphSize + 4,
@@ -658,7 +657,6 @@ struct AgentHubView: View {
                         .foregroundStyle(Palette.ink)
                 }
                 .frame(width: 26, height: 26)
-                .glassEffect(.regular, in: Circle())
                 // §247.3 档 F 浮件档（阴影两档之一）
                 .shadow(
                     color: Palette.shadowBase.opacity(
@@ -698,13 +696,25 @@ struct AgentHubView: View {
                 Button {
                     segment = item
                 } label: {
-                    segmentButton(item: item)
+                    Image(systemName: item.systemImage)
+                        .font(.system(
+                            size: OneDayMetrics.hubSegGlyphSize,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: OneDayMetrics.hubSegCapsuleHeight)
+                        .background(
+                            segment == item
+                                ? Palette.selectionFill : Color.clear,
+                            in: Capsule()
+                        )
                         // 第 83 条（命中域收口）：选中胶囊视
-                        // 觉高 32 不变（dp-213 瘦身）、段钮命
-                        // 中高外扩 44（条高 44 内居中）；负内
-                        // 边距抵消外扩、条布局不动。命中形由
-                        // 旧 36 胶囊改外层矩形（与全仓外扩口
-                        // 径同款）
+                        // 觉高 36 不变、段钮命中高外扩 44
+                        // （条高 48 内居中、上下各剩 2pt）；
+                        // 负内边距抵消外扩、条布局不动。命
+                        // 中形由旧 36 胶囊改外层矩形（与全
+                        // 仓外扩口径同款）
                         .frame(height: OneDayMetrics.minTapTarget)
                         .contentShape(Rectangle())
                         .padding(
@@ -722,7 +732,10 @@ struct AgentHubView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingXS)
         .frame(height: OneDayMetrics.hubSegBarHeight)
-        .glassEffect(.regular, in: Capsule())
+        .background(Palette.surface, in: Capsule())
+        .overlay {
+            Capsule().stroke(Palette.hairline, lineWidth: 0.5)
+        }
         .padding(.horizontal, OneDayMetrics.hubGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingSM)
@@ -732,51 +745,6 @@ struct AgentHubView: View {
             ),
             value: segment
         )
-    }
-
-    /// dp-213 分段钮形态（口径③，图标＋文字并行）：
-    /// HStack（图标 20＋段名 15 medium、选中 semi-
-    /// bold、图字距 4）；AX 大字号回落（dynamicType-
-    /// Size ≥ .accessibility1 降纯图标）
-    @ViewBuilder
-    private func segmentButton(item: HubSegmentID) -> some View {
-        if dynamicTypeSize >= .accessibility1 {
-            // AX 回落：纯图标（段名让位、朗读标签不变）
-            Image(systemName: item.systemImage)
-                .font(.system(
-                    size: OneDayMetrics.hubSegGlyphSize,
-                    weight: .regular
-                ))
-                .foregroundStyle(Palette.ink)
-                .frame(maxWidth: .infinity)
-                .frame(height: OneDayMetrics.hubSegCapsuleHeight)
-                .background(
-                    segment == item
-                        ? Palette.selectionFill : Color.clear,
-                    in: Capsule()
-                )
-        } else {
-            // 常态：图标＋文字并行
-            HStack(spacing: OneDayMetrics.spacingXS) {
-                Image(systemName: item.systemImage)
-                    .font(.system(
-                        size: OneDayMetrics.hubSegGlyphSize,
-                        weight: .regular
-                    ))
-                Text(item.title)
-                    .font(.subheadline.weight(
-                        segment == item ? .semibold : .medium
-                    ))
-            }
-            .foregroundStyle(Palette.ink)
-            .frame(maxWidth: .infinity)
-            .frame(height: OneDayMetrics.hubSegCapsuleHeight)
-            .background(
-                segment == item
-                    ? Palette.selectionFill : Color.clear,
-                in: Capsule()
-            )
-        }
     }
 
     /// 关页单点（§502）：卡片宿主在场走飞出动画关

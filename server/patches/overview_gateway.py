@@ -485,46 +485,19 @@ _PATH_RE = re.compile(r"(?:/[\w.\-]+)+/?")
 
 
 def _one_line_reason(text, limit: int = 120) -> str:
-    """Project an error blob to ONE sanitized summary line with
-    redaction and classification: paths/URLs/tokens replaced,
-    exception type names and status codes recognized and mapped
-    to human categories, whitespace collapsed, length capped."""
-    from gateway.platforms.error_boundary import redact
-
-    raw = str(text or "").strip()
-    if not raw:
-        return ""
-
-    # Take first non-empty line
+    """Project an error blob to ONE sanitized summary line:
+    first non-empty line, whitespace collapsed, filesystem paths
+    replaced, length capped. Lifecycle facts only -- stderr bodies
+    and stack traces never reach the notification surface."""
     out = ""
-    for line in raw.splitlines():
-        line = line.strip()
+    for line in str(text or "").splitlines():
+        line = " ".join(line.split())
         if line:
             out = line
             break
-
-    # Apply full redaction (paths, URLs, whitespace, length cap)
-    out = redact(out)
-
-    # Classify common patterns to human categories
-    lower = out.lower()
-    if "timeout" in lower or "timed out" in lower:
-        return "上游服务超时"
-    if "connection" in lower or "connect" in lower:
-        return "连接失败"
-    if "permission" in lower or "forbidden" in lower or "unauthorized" in lower:
-        return "权限不足"
-    if "not found" in lower or "404" in out:
-        return "资源未找到"
-    if "rate limit" in lower or "429" in out:
-        return "请求过于频繁"
-    if "internal" in lower or "500" in out:
-        return "服务器内部错误"
-
-    # Already redacted, apply final length cap
+    out = _PATH_RE.sub("…", out)
     if len(out) > limit:
         out = out[:limit - 1].rstrip() + "…"
-
     return out
 
 

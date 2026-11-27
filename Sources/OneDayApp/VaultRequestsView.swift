@@ -30,7 +30,7 @@ struct VaultRequestsView: View {
                 .background(Palette.settingsBG)
             }
         }
-        .navigationTitle("待处理凭据授权请求")
+        .navigationTitle("待处理凭据请求")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await authenticateAndUnlock()

@@ -68,11 +68,6 @@ try:
 except ImportError:  # direct / selftest loading
     import title_engine as _title_mod
 
-try:
-    from error_boundary import redact
-except ImportError:
-    def redact(e): return str(e)[:80]
-
 import logging as _logging
 
 logger = _logging.getLogger(__name__)
@@ -204,7 +199,7 @@ def _load() -> None:
                 where = (f"隔离改名失败（{qe}），原件仍在原地 "
                          f"{DATA_PATH}")
             _degraded_reason = (
-                f"数据文件解析失败（{redact(e)}）；原件已隔离；"
+                f"数据文件解析失败（{e}）；原件已隔离至 {where}；"
                 "桥以空库只读降级运行，禁止回写正式数据文件")
             _print(f"DATA DEGRADED: {_degraded_reason}",
                   file=sys.stderr, flush=True)
@@ -1548,15 +1543,27 @@ class Handler:
         parts = [p for p in path.split("/") if p]
         try:
             if parts == ["health"]:
-                health = {
-                    "ok": True,
-                    "service": "oneday-bridge",
-                    "status": "degraded" if _degraded_reason else "ok",
-                    "degraded": bool(_degraded_reason)
-                }
+                health = {"ok": True, "service": "oneday-bridge",
+                          "degraded": bool(_degraded_reason)}
                 if _degraded_reason:
                     health["degradedReason"] = _degraded_reason
                     health["writesEnabled"] = False
+                try:
+                    store = _ledger()
+                    hb = store.collector_heartbeat_at
+                    health["ledger"] = {
+                        "degraded": bool(store.degraded_reason),
+                        "items": len(store.items)}
+                    if store.degraded_reason:
+                        health["ledger"]["degradedReason"] = \
+                            store.degraded_reason
+                    health["collector"] = {
+                        "lastRunAt": hb,
+                        "lagSeconds": (round(_now() - hb, 1)
+                                       if hb else None)}
+                except Exception as e:
+                    health["ledger"] = {"error": repr(e)[:120]}
+                health["deliverySentinel"] = dict(_sentinel_status)
                 return self._send(200, health)
             if parts and parts[0] == "internal":
                 return self._dispatch_cron_callback(parts)

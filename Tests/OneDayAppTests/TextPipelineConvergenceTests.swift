@@ -202,7 +202,7 @@ final class TextPipelineConvergenceTests: XCTestCase {
             }
         }
         XCTAssertEqual(
-            hits, ["SessionLedger+SyncAndMigration.swift"],
+            hits, ["SessionLedger.swift"],
             "§392/B 类防回潮：分页装配调用点全仓恰一处且归账本，实测 \(hits)"
         )
     }

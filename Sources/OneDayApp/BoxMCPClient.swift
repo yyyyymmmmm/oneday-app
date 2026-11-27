@@ -1,8 +1,5 @@
 import Foundation
 import OneDayCore
-#if canImport(MCP)
-import MCP
-#endif
 
 /// Box MCP 客户端错误
 enum BoxMCPError: Error, Sendable, Equatable {
@@ -325,40 +322,3 @@ final class BoxMCPClientFactory {
         client = nil
     }
 }
-
-#if canImport(MCP)
-/// Phase 1.6：基于官方 `modelcontextprotocol/swift-sdk` 的标准 Streamable HTTP 适配器，
-/// 在执行 `tuist install && tuist generate` 后自动启用。
-actor OfficialBoxMCPSDKAdapter {
-    private let mcpURL: URL
-    private let apiKey: String
-    private var client: MCP.Client?
-
-    init(mcpURL: URL, apiKey: String) {
-        self.mcpURL = mcpURL
-        self.apiKey = apiKey
-    }
-
-    func connectIfNeeded() async throws -> MCP.Client {
-        if let client { return client }
-        let newClient = MCP.Client(name: "OneDay", version: "1.0")
-        let transport = MCP.HTTPClientTransport(
-            endpoint: mcpURL,
-            streaming: true,
-            requestModifier: { [apiKey] req in
-                var mutable = req
-                mutable.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                return mutable
-            }
-        )
-        _ = try await newClient.connect(transport: transport)
-        client = newClient
-        return newClient
-    }
-
-    func callTool(name: String, arguments: [String: MCP.Value]) async throws -> ([MCP.Tool.Content], Bool?) {
-        let active = try await connectIfNeeded()
-        return try await active.callTool(name: name, arguments: arguments)
-    }
-}
-#endif

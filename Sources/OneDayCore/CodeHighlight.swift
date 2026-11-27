@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(Highlightr)
-import Highlightr
-#endif
 
 /// 代码块轻量高亮（0.36.25）：手写单遍词法扫描，只分
 /// 五类——普通／关键词／字符串／注释／数字，克制着色
@@ -431,19 +428,3 @@ public enum CodeHighlight {
         ]
     }
 }
-
-#if canImport(Highlightr)
-public extension CodeHighlight {
-    /// Phase 1.4：基于成熟 Highlightr（highlight.js 185+ 语言）的富文本高亮入口。
-    static func attributedString(
-        code: String,
-        language: String?,
-        theme: String = "atom-one-dark"
-    ) -> NSAttributedString? {
-        guard let highlightr = Highlightr() else { return nil }
-        _ = highlightr.setTheme(to: theme)
-        let normalized = normalizeLanguage(language)
-        return highlightr.highlight(code, as: normalized)
-    }
-}
-#endif

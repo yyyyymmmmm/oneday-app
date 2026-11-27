@@ -27,7 +27,6 @@ except ImportError:
     RequestKey = None  # type: ignore[assignment,misc]
 
 from gateway.platforms.api_server_room_grants import _json_error, _room_grant_error_response
-from gateway.platforms.error_boundary import error_response
 from gateway.turn_executor import _UnboundedThreadExecutor
 from gateway.platforms.api_server_run_idempotency import TERMINAL_STATUSES
 
@@ -2027,15 +2026,14 @@ async def _execute_run_via_live_owner(self, run: _RunLaunch, home, record: dict[
             _finish("cancelled", completed=False, partial=False, interrupted=True)
         else:
             _finish("failed", completed=False, partial=False, interrupted=False,
-                    error=error_response(RuntimeError(record.get("error") or
-                                                     f"Bot Chat delivery {record['status']}"))[1]["error"])
+                    error=record.get("error") or f"Bot Chat delivery {record['status']}",
+                    **({"reason": record["reason"]} if record.get("reason") else {}))
     except asyncio.CancelledError:
         _finish("cancelled", completed=False, partial=False, interrupted=True)
         raise
     except Exception as exc:
         logger.exception("[api_server] run %s (live Bot Chat) failed", run_id)
-        _finish("failed", completed=False, partial=False, interrupted=False,
-                error=error_response(exc)[1]["error"])
+        _finish("failed", completed=False, partial=False, interrupted=False, error=str(exc))
     finally:
         with suppress(Exception):
             run.put_event(None)  # sentinel: close the SSE stream
@@ -2406,8 +2404,7 @@ async def _handle_run_approval(self, request: web.Request, *, _api_server) -> we
             approval_session_key, choice, resolve_all=resolve_all, request_id=request_id or None)
     except Exception as exc:
         logger.exception("[api_server] approval resolution failed for run %s", run_id)
-        status, body = error_response(exc)
-        return web.json_response(body, status=status)
+        return _json_error(_openai_error, str(exc), status=500)
     if resolved <= 0:
         return _json_error(
             _openai_error, f"Run has no pending approval: {run_id}", code="approval_not_pending", status=409)

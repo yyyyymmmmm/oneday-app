@@ -75,7 +75,7 @@ def _fetch_target(url: str):
     except urllib.error.HTTPError as e:
         return None, f"目标返回 HTTP {e.code}"
     except Exception as e:
-        return None, f"抓取失败（{redact(e)}）"
+        return None, f"抓取失败（{type(e).__name__}: {e}）"[:160]
     if len(raw) > MON_MAX_BYTES:
         raw = raw[:MON_MAX_BYTES]
     return raw.decode("utf-8", errors="replace"), None
@@ -219,7 +219,7 @@ def _record_check_locked(m: dict, text, err, *, is_baseline: bool) -> str:
                 "at": now, "kind": "monitor", "grade": "A",
                 "alert": "down",
                 "text": f"监测《{m['name'][:40]}》抓取失败："
-                        f"{err[:60]}",
+                        f"{str(err)[:60]}",
                 "refs": [{"type": "monitor", "id": m["id"]}],
             })
             feed["events"] = feed["events"][-FEED_EVENT_KEEP:]

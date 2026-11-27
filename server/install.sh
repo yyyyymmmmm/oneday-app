@@ -25,7 +25,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 # 与 manifest.yaml 同步的补丁清单: 文件名|包内相对路径|容器内路径|期望 sha256
 PATCHES=(
-  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|98f1381dc87842175b5cad88a856278c7289ac7e527f47bb4eb192fdc4975d0d"
+  "api_server.py|patches/api_server.py|/opt/hermes/gateway/platforms/api_server.py|abfdfac97d29510377c7ca8d5411ffeb6b0eaadb5173c55b7a175eaf6ed510fd"
   "bitwarden_link.py|patches/bitwarden_link.py|/opt/hermes/gateway/platforms/bitwarden_link.py|d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27"
   "hermes_state_portability.py|patches/hermes_state_portability.py|/opt/hermes/hermes_state_portability.py|6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c"
   "web_routers_sessions.py|patches/web_routers_sessions.py|/opt/hermes/hermes_cli/web_routers/sessions.py|215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0"
@@ -87,25 +87,20 @@ PATCHES=(
 # 即时拒绝与守卫放行命中以 guard_event 入同一本账；shim 只观察、
 # 不在判定链，HERMES_APPROVAL_GUARD_EVENTS=off 即不装）。
 MODULES=(
-  "api_server_support.py|patches/api_server_support.py|/opt/hermes/gateway/platforms/api_server_support.py|8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02"
-  "error_boundary.py|patches/error_boundary.py|/opt/hermes/gateway/platforms/error_boundary.py|aa503b2a0ffaec4d6806d22ef8a9e7b5cf156d6396cdfc45d64c790eedd6e884"
-  "import_smoke_selftest.py|patches/import_smoke_selftest.py|/opt/hermes/gateway/platforms/import_smoke_selftest.py|94a8b835e5fd6d763ab7c20b3b9a9dd0ceadade945fde158979dd9b5f4ca1404"
-  "api_server_enrollment.py|patches/api_server_enrollment.py|/opt/hermes/gateway/platforms/api_server_enrollment.py|4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1"
   "approval_projection.py|patches/approval_projection.py|/opt/hermes/gateway/platforms/approval_projection.py|e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90"
   "grant_projection.py|patches/grant_projection.py|/opt/hermes/gateway/platforms/grant_projection.py|e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2"
   "approval_history.py|patches/approval_history.py|/opt/hermes/gateway/platforms/approval_history.py|00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d"
-  "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|72eac15ea86bea095e94a237c56bcb0cd519c1751167136556eb05e8d24865cc"
+  "api_server_runs.py|patches/api_server_runs.py|/opt/hermes/gateway/platforms/api_server_runs.py|3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf"
   "crash_reports.py|patches/crash_reports.py|/opt/hermes/gateway/platforms/crash_reports.py|f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510"
   "mail_gateway.py|patches/mail_gateway.py|/opt/hermes/gateway/platforms/mail_gateway.py|c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e"
   "fileproc_gateway.py|patches/fileproc_gateway.py|/opt/hermes/gateway/platforms/fileproc_gateway.py|96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c"
   "device_sync.py|patches/device_sync.py|/opt/hermes/gateway/platforms/device_sync.py|f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838"
-  "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|5f1ddcc288942c33d6c0c62036e30dc3b29455e99fa8217300d923c135f204a4"
-  "device_gateway_catalog.py|patches/device_gateway_catalog.py|/opt/hermes/gateway/platforms/device_gateway_catalog.py|122d38d485e2fe9bcb81542d226dc89d0aa45070e6290ab2579420ab3dad278c"
+  "device_gateway.py|patches/device_gateway.py|/opt/hermes/gateway/platforms/device_gateway.py|41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a"
   "identity_gateway.py|patches/identity_gateway.py|/opt/hermes/gateway/platforms/identity_gateway.py|91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c"
-  "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|5f348b5583ed47bae0d272556c6d9c75382be4cf2cfebf68069baaf216f51105"
+  "front_gateway.py|patches/front_gateway.py|/opt/hermes/gateway/platforms/front_gateway.py|0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082"
   "react_to_message_tool.py|patches/react_to_message_tool.py|/opt/hermes/tools/react_to_message_tool.py|703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e"
   "self_reaction_pending.py|patches/self_reaction_pending.py|/opt/hermes/gateway/platforms/self_reaction_pending.py|972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626"
-  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|7a3c5fcc664e175b1a214fda343dee0a38fcb142079c2ecf8a5aeccc1ec5fdc2"
+  "write_gate_gateway.py|patches/write_gate_gateway.py|/opt/hermes/gateway/platforms/write_gate_gateway.py|a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b"
   "oneday_memory.py|patches/oneday_memory.py|/opt/hermes/gateway/platforms/oneday_memory.py|43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44"
   "system_prompt.py|patches/system_prompt.py|/opt/hermes/agent/system_prompt.py|7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f"
   "oneday_prompt.py|patches/oneday_prompt.py|/opt/hermes/agent/oneday_prompt.py|bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227"
@@ -115,29 +110,28 @@ MODULES=(
   "oneday_semantic.py|patches/oneday_semantic.py|/opt/hermes/gateway/platforms/oneday_semantic.py|930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1"
   "skill_admission_gate.py|patches/skill_admission_gate.py|/opt/hermes/tools/skill_admission_gate.py|e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7"
   "skill_manager_tool.py|patches/skill_manager_tool.py|/opt/hermes/tools/skill_manager_tool.py|693b9a716fafad83b14c33ed971256b5f918e2eaccd70cc9c6d23297c9f29693"
-  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f"
-  "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8"
+  "oneday_gateway.py|patches/oneday_gateway.py|/opt/hermes/gateway/platforms/oneday_gateway.py|66d49851aa1cc8e8b57908ca6549b3f7a97150be34d8a8ce964c24ac40189dcd"
+  "overview_gateway.py|patches/overview_gateway.py|/opt/hermes/gateway/platforms/overview_gateway.py|0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b"
   "oneday_ledger_lib.py|patches/oneday_ledger_lib.py|/opt/hermes/gateway/platforms/oneday_ledger_lib.py|04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09"
   "oneday_seg_automation.py|patches/oneday_seg_automation.py|/opt/hermes/gateway/platforms/oneday_seg_automation.py|b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d"
-  "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|ff900121e7de8e158863a75fcf7d7109ca93989ce5b6baaeb43b56dde056c723"
+  "oneday_seg_briefings.py|patches/oneday_seg_briefings.py|/opt/hermes/gateway/platforms/oneday_seg_briefings.py|f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440"
   "oneday_seg_cron.py|patches/oneday_seg_cron.py|/opt/hermes/gateway/platforms/oneday_seg_cron.py|1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7"
-  "oneday_seg_delivery.py|patches/oneday_seg_delivery.py|/opt/hermes/gateway/platforms/oneday_seg_delivery.py|594f80b99e50c35d84073ef1a6190ff530214290c118e7d511db921291522ee7"
-  "oneday_seg_feed.py|patches/oneday_seg_feed.py|/opt/hermes/gateway/platforms/oneday_seg_feed.py|5afa61cdac8e13661680ce9be3bba4e54c886bc613b09def0f3c5b2517e23bcb"
-  "oneday_feed_helpers.py|patches/oneday_feed_helpers.py|/opt/hermes/gateway/platforms/oneday_feed_helpers.py|1e6ed1b8e7d8f1fb782f2aa4f081e6736eb13547e6f0128cf936fdfeb7b9d300"
+  "oneday_seg_delivery.py|patches/oneday_seg_delivery.py|/opt/hermes/gateway/platforms/oneday_seg_delivery.py|08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954"
+  "oneday_seg_feed.py|patches/oneday_seg_feed.py|/opt/hermes/gateway/platforms/oneday_seg_feed.py|8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f"
   "oneday_seg_filelibrary.py|patches/oneday_seg_filelibrary.py|/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py|f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28"
   "oneday_seg_goals.py|patches/oneday_seg_goals.py|/opt/hermes/gateway/platforms/oneday_seg_goals.py|59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a"
   "oneday_seg_goals_activity.py|patches/oneday_seg_goals_activity.py|/opt/hermes/gateway/platforms/oneday_seg_goals_activity.py|f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb"
   "oneday_seg_goals_facade.py|patches/oneday_seg_goals_facade.py|/opt/hermes/gateway/platforms/oneday_seg_goals_facade.py|f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352"
-  "oneday_seg_ideas_gen.py|patches/oneday_seg_ideas_gen.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py|49d3628d76ec06b37791e22cc38ed5b59d89449f75984fbac8191f750ecda97d"
+  "oneday_seg_ideas_gen.py|patches/oneday_seg_ideas_gen.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_gen.py|93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3"
   "oneday_seg_ideas_pool.py|patches/oneday_seg_ideas_pool.py|/opt/hermes/gateway/platforms/oneday_seg_ideas_pool.py|762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4"
   "oneday_seg_ledger.py|patches/oneday_seg_ledger.py|/opt/hermes/gateway/platforms/oneday_seg_ledger.py|c935d4907db546f6517f23d2e9b12510747bd2e7dc5156a65a5bb816ff4ca3e5"
   "oneday_seg_library_mcp.py|patches/oneday_seg_library_mcp.py|/opt/hermes/gateway/platforms/oneday_seg_library_mcp.py|29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd"
-  "oneday_seg_monitors.py|patches/oneday_seg_monitors.py|/opt/hermes/gateway/platforms/oneday_seg_monitors.py|278f2b93a6203deffe930d5f25c3b59af9e0f4cb2d61f8aeef9e298ead9003b2"
+  "oneday_seg_monitors.py|patches/oneday_seg_monitors.py|/opt/hermes/gateway/platforms/oneday_seg_monitors.py|fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07"
   "oneday_seg_sessions.py|patches/oneday_seg_sessions.py|/opt/hermes/gateway/platforms/oneday_seg_sessions.py|5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d"
   "oneday_seg_traces.py|patches/oneday_seg_traces.py|/opt/hermes/gateway/platforms/oneday_seg_traces.py|ebc6b07fde26e30a9827c32ca7755bd5b423938ba270f53ba9fa70d2acff0d9c"
   "NotoSansSC-subset.ttf|patches/NotoSansSC-subset.ttf|/opt/hermes/gateway/platforms/assets/NotoSansSC-subset.ttf|695c95a196eae0764aa5d4325aebaff38e5f22dfa9050e0e3930181b3a5ded6e"
-  "web_routers_profiles.py|patches/web_routers_profiles.py|/opt/hermes/hermes_cli/web_routers/profiles.py|116fbd0371dc2e01855c0660a27c7b0775b1c63e3cd24aae3ce4cb368215cd34"
-  "web_routers_ops.py|patches/web_routers_ops.py|/opt/hermes/hermes_cli/web_routers/ops.py|c5a229ec16b2ad7fd935b3ee1dbe008a5c559cec7e9ba5c70b97f30724c76553"
+  "web_routers_profiles.py|patches/web_routers_profiles.py|/opt/hermes/hermes_cli/web_routers/profiles.py|fda69d721249115ac7e8e41d699e15b8757838adb5ff18b2aa367de3e302c775"
+  "web_routers_ops.py|patches/web_routers_ops.py|/opt/hermes/hermes_cli/web_routers/ops.py|ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481"
   "options_pending.py|patches/options_pending.py|/opt/hermes/gateway/platforms/options_pending.py|546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38"
   "present_options_tool.py|patches/present_options_tool.py|/opt/hermes/tools/present_options_tool.py|f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e"
   "cron_projection.py|patches/cron_projection.py|/opt/hermes/gateway/platforms/cron_projection.py|92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c"
@@ -146,7 +140,7 @@ MODULES=(
   "push_tokens.py|patches/push_tokens.py|/opt/hermes/gateway/platforms/push_tokens.py|e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe"
   "push_sender.py|patches/push_sender.py|/opt/hermes/gateway/platforms/push_sender.py|ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865"
   "db_schema_guard.py|patches/db_schema_guard.py|/opt/hermes/gateway/platforms/db_schema_guard.py|040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b"
-  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|7b170e142693aaa73a50d06a2678e42768b3332ecdca29701fad70059f5a89d3"
+  "credential_vault.py|patches/credential_vault.py|/opt/hermes/gateway/platforms/credential_vault.py|881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2"
   "credential_vault_tool.py|patches/credential_vault_tool.py|/opt/hermes/tools/credential_vault_tool.py|a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9"
   "vault_request_pending.py|patches/vault_request_pending.py|/opt/hermes/gateway/platforms/vault_request_pending.py|edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583"
   "activity_feed.py|patches/activity_feed.py|/opt/hermes/gateway/platforms/activity_feed.py|0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85"
@@ -264,12 +258,6 @@ grep -q "mail_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUN
 grep -q "fileproc_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_sync.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "device_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "device_gateway_catalog.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "api_server_enrollment.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "api_server_support.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "error_boundary.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "import_smoke_selftest.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
-grep -q "oneday_feed_helpers.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "identity_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "front_gateway.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
 grep -q "react_to_message_tool.py" "$DEPLOY_DIR/docker-compose.yml" || COMPOSE_NEEDS_MOUNT=1
@@ -456,21 +444,6 @@ specs = [
     ("device_gateway.py",
      "      - ./patches/device_gateway.py:/opt/hermes/gateway/platforms/device_gateway.py:ro",
      "./patches/device_sync.py:/opt/hermes/gateway/platforms/device_sync.py:ro"),
-    ("device_gateway_catalog.py",
-     "      - ./patches/device_gateway_catalog.py:/opt/hermes/gateway/platforms/device_gateway_catalog.py:ro",
-     "./patches/device_gateway.py:/opt/hermes/gateway/platforms/device_gateway.py:ro"),
-    ("api_server_enrollment.py",
-     "      - ./patches/api_server_enrollment.py:/opt/hermes/gateway/platforms/api_server_enrollment.py:ro",
-     "./patches/api_server_runs.py:/opt/hermes/gateway/platforms/api_server_runs.py:ro"),
-    ("api_server_support.py",
-     "      - ./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro",
-     "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
-    ("error_boundary.py",
-     "      - ./patches/error_boundary.py:/opt/hermes/gateway/platforms/error_boundary.py:ro",
-     "./patches/api_server_support.py:/opt/hermes/gateway/platforms/api_server_support.py:ro"),
-    ("import_smoke_selftest.py",
-     "      - ./patches/import_smoke_selftest.py:/opt/hermes/gateway/platforms/import_smoke_selftest.py:ro",
-     "./patches/error_boundary.py:/opt/hermes/gateway/platforms/error_boundary.py:ro"),
     ("react_to_message_tool.py",
      "      - ./patches/react_to_message_tool.py:/opt/hermes/tools/react_to_message_tool.py:ro",
      "./patches/api_server.py:/opt/hermes/gateway/platforms/api_server.py:ro"),
@@ -534,9 +507,6 @@ specs = [
     ("oneday_seg_feed.py",
      "      - ./patches/oneday_seg_feed.py:/opt/hermes/gateway/platforms/oneday_seg_feed.py:ro",
      "./patches/oneday_seg_delivery.py:/opt/hermes/gateway/platforms/oneday_seg_delivery.py:ro"),
-    ("oneday_feed_helpers.py",
-     "      - ./patches/oneday_feed_helpers.py:/opt/hermes/gateway/platforms/oneday_feed_helpers.py:ro",
-     "./patches/oneday_seg_feed.py:/opt/hermes/gateway/platforms/oneday_seg_feed.py:ro"),
     ("oneday_seg_filelibrary.py",
      "      - ./patches/oneday_seg_filelibrary.py:/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py:ro",
      "./patches/oneday_seg_feed.py:/opt/hermes/gateway/platforms/oneday_seg_feed.py:ro"),
@@ -727,12 +697,6 @@ PYEOF
   grep -q "fileproc_gateway.py" "$compose_file" || die "compose fileproc_gateway mount line write failed"
   grep -q "device_sync.py" "$compose_file" || die "compose device_sync mount line write failed"
   grep -q "device_gateway.py" "$compose_file" || die "compose device_gateway mount line write failed"
-  grep -q "device_gateway_catalog.py" "$compose_file" || die "compose device_gateway_catalog mount line write failed"
-  grep -q "api_server_enrollment.py" "$compose_file" || die "compose api_server_enrollment mount line write failed"
-  grep -q "api_server_support.py" "$compose_file" || die "compose api_server_support mount line write failed"
-  grep -q "error_boundary.py" "$compose_file" || die "compose error_boundary mount line write failed"
-  grep -q "import_smoke_selftest.py" "$compose_file" || die "compose import_smoke_selftest mount line write failed"
-  grep -q "oneday_feed_helpers.py" "$compose_file" || die "compose oneday_feed_helpers mount line write failed"
   grep -q "identity_gateway.py" "$compose_file" || die "compose identity_gateway mount line write failed"
   grep -q "front_gateway.py" "$compose_file" || die "compose front_gateway mount line write failed"
   grep -q "DEVICE_DATA_DIR" "$compose_file" || die "compose DEVICE_DATA_DIR env write failed"

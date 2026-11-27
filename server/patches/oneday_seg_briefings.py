@@ -468,33 +468,11 @@ def _start_briefing(trigger: str) -> bool:
 def _briefing_ledger_view() -> dict:
     with _lock:
         gen = _brief_meta_locked()
-        # dp-240: collect user-facing summary from internal history
-        history_summary = []
-        for rec in gen["history"]:
-            at = rec.get("at", 0)
-            generated = sum(1 for o in rec.get("outcomes", [])
-                            if o.get("result") == "ok")
-            total = len(rec.get("outcomes", []))
-            errors = sum(1 for o in rec.get("outcomes", [])
-                         if o.get("result") == "failed")
-            if errors > 0:
-                first_error = next((o.get("error", "")
-                                    for o in rec.get("outcomes", [])
-                                    if o.get("result") == "failed"), "")
-                reason = first_error[:100] if first_error else "部分目标失败"
-            else:
-                reason = ""
-            history_summary.append({
-                "at": at,
-                "generated": generated,
-                "total": total,
-                "reason": reason,
-            })
         return {
             "lastRunAt": gen["lastRunAt"],
             "nextRunAt": gen["nextRunAt"],
             "running": _briefing,
-            "history": history_summary,
+            "history": list(gen["history"]),
         }
 
 # --- brief: two layers (0.38.0, spec v2 addendum) ---------------------------
@@ -661,7 +639,7 @@ def _run_brief_expand(interest: str) -> None:
     except Exception as e:  # expansion must never kill anything
         with _lock:
             expand = _db["meta"].setdefault("briefExpand", {})
-            expand["lastError"] = redact(e)
+            expand["lastError"] = f"{type(e).__name__}: {e}"[:200]
             expand["lastRunAt"] = _now()
             _save_locked()
     finally:

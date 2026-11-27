@@ -20,29 +20,26 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=98f1381dc87842175b5cad88a856278c7289ac7e527f47bb4eb192fdc4975d0d
+  [api_server.py]=abfdfac97d29510377c7ca8d5411ffeb6b0eaadb5173c55b7a175eaf6ed510fd
   [bitwarden_link.py]=d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
 )
 declare -A WANT_SHA_EXTRA=(
-  [api_server_support.py]=8a163093fd924ef660560081e328c80a95c55b28a34b8bcda6c9fc1402e4fd02
   [approval_projection.py]=e19329af11f3064481440a87d0d833099cb09e2ac69a39290a740089ef453e90
   [grant_projection.py]=e1e29b3601f481a7792c2b71291053dd8dcd2d7da0df2773673e38273d0d41f2
   [approval_history.py]=00c39baf25287c6e3215dac99ea5be07aad717e533639f85d2a1f6f3e75e177d
-  [api_server_runs.py]=72eac15ea86bea095e94a237c56bcb0cd519c1751167136556eb05e8d24865cc
+  [api_server_runs.py]=3fd8490f5a925df654934c44adbf42f246463bb9bcee343d49b754c90fecddcf
   [crash_reports.py]=f74a7424e46bf02100a9e054882b7d1b8219e3a56859ec94482441ef5678f510
   [mail_gateway.py]=c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
-  [device_gateway.py]=5f1ddcc288942c33d6c0c62036e30dc3b29455e99fa8217300d923c135f204a4
-  [device_gateway_catalog.py]=122d38d485e2fe9bcb81542d226dc89d0aa45070e6290ab2579420ab3dad278c
-  [api_server_enrollment.py]=4bc10ab4461e3c3413f1e24593c50fe4391ec0fd6bc9d47109d9cdbccc8d13e1
+  [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
-  [front_gateway.py]=5f348b5583ed47bae0d272556c6d9c75382be4cf2cfebf68069baaf216f51105
+  [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=7a3c5fcc664e175b1a214fda343dee0a38fcb142079c2ecf8a5aeccc1ec5fdc2
+  [write_gate_gateway.py]=a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
   [oneday_prompt.py]=bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227
@@ -51,8 +48,8 @@ declare -A WANT_SHA_EXTRA=(
   [settings_admin_tool.py]=7d53eeae0816b8d3e751e2e6e96c2f79cb960536d112e2dba644a5a1c16f3815
   [oneday_semantic.py]=930265087b9a4ced35aacf83ca2c8f4bd1d29b6551fd692290c2b33e83c17bf1
   [skill_admission_gate.py]=e9c1ba18f93ecc1fac8056f68e75b7c98a51cdd447b3859b53f9b820037831c7
-  [oneday_gateway.py]=d44bcaf8e71b52bdf02d8902255a938732ad351c56831156842893dfa351be9f
-  [overview_gateway.py]=44ac687cb7064e34957bcc45ac266e76fffd5d12602fe7ba80ab28cb790cf2f8
+  [oneday_gateway.py]=66d49851aa1cc8e8b57908ca6549b3f7a97150be34d8a8ce964c24ac40189dcd
+  [overview_gateway.py]=0fabe764c8fe626462e7c76738518791c2e3c238cd919e21a5e39068d932bc5b
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
   [api_server_oneday_routes.py]=a59ae01ee95f1ea76ffd2f03551dd5e7c9bfedd43e0f702e985c6a68cc89b608
@@ -60,28 +57,27 @@ declare -A WANT_SHA_EXTRA=(
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
   [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=7b170e142693aaa73a50d06a2678e42768b3332ecdca29701fad70059f5a89d3
+  [credential_vault.py]=881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2
   [credential_vault_tool.py]=a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
-  [oneday_seg_briefings.py]=ff900121e7de8e158863a75fcf7d7109ca93989ce5b6baaeb43b56dde056c723
+  [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
-  [oneday_seg_delivery.py]=594f80b99e50c35d84073ef1a6190ff530214290c118e7d511db921291522ee7
-  [oneday_seg_feed.py]=5afa61cdac8e13661680ce9be3bba4e54c886bc613b09def0f3c5b2517e23bcb
-  [oneday_feed_helpers.py]=1e6ed1b8e7d8f1fb782f2aa4f081e6736eb13547e6f0128cf936fdfeb7b9d300
+  [oneday_seg_delivery.py]=08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
+  [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
   [oneday_seg_filelibrary.py]=f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
   [oneday_seg_goals_activity.py]=f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb
   [oneday_seg_goals_facade.py]=f4237fe1b69c4febdab61db31ad6473fabdc449bde7b97181c23dd9f9a06f352
-  [oneday_seg_ideas_gen.py]=49d3628d76ec06b37791e22cc38ed5b59d89449f75984fbac8191f750ecda97d
+  [oneday_seg_ideas_gen.py]=93f256482a391434ec2417879a4784a4139e2e1123531b6152cf5b8d3334eec3
   [oneday_seg_ideas_pool.py]=762480db46114f18d8d468ee10d30233d3c585fa8e82f9049983eaa5633d3ad4
   [oneday_seg_ledger.py]=c935d4907db546f6517f23d2e9b12510747bd2e7dc5156a65a5bb816ff4ca3e5
   [oneday_seg_library_mcp.py]=29aaf48abbc66a13cc1aed43a8ba609ac88022b2ea82a576246cfdbbeadd3edd
-  [oneday_seg_monitors.py]=278f2b93a6203deffe930d5f25c3b59af9e0f4cb2d61f8aeef9e298ead9003b2
+  [oneday_seg_monitors.py]=fb33eb391c5382196398a02a2300a885ea9d957b0c41560f6092a528b3bc1a07
   [oneday_seg_sessions.py]=5fef89da32d675d079259f0345ed328484d3649349cca99b71eb6b5a4e57838d
   [oneday_seg_traces.py]=ebc6b07fde26e30a9827c32ca7755bd5b423938ba270f53ba9fa70d2acff0d9c
   [NotoSansSC-subset.ttf]=695c95a196eae0764aa5d4325aebaff38e5f22dfa9050e0e3930181b3a5ded6e
-  [web_routers_profiles.py]=116fbd0371dc2e01855c0660a27c7b0775b1c63e3cd24aae3ce4cb368215cd34
-  [web_routers_ops.py]=c5a229ec16b2ad7fd935b3ee1dbe008a5c559cec7e9ba5c70b97f30724c76553
+  [web_routers_profiles.py]=fda69d721249115ac7e8e41d699e15b8757838adb5ff18b2aa367de3e302c775
+  [web_routers_ops.py]=ceac7c0dbfe627248c1aa5f9857c5a6fa21dd6ecde0f7a53390dbf6b84a45481
   [options_pending.py]=546f5f432ca4f6900b6b5577b4255ba02de3ab663fd2f78036fa07d11e45bc38
   [present_options_tool.py]=f8400d1cc3897a13eed2a7b16de72a7c46bbf392d506fc6c891e4247a9de785e
   [vault_request_pending.py]=edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583
@@ -103,9 +99,6 @@ declare -A CPATH=(
   [fileproc_gateway.py]=/opt/hermes/gateway/platforms/fileproc_gateway.py
   [device_sync.py]=/opt/hermes/gateway/platforms/device_sync.py
   [device_gateway.py]=/opt/hermes/gateway/platforms/device_gateway.py
-  [device_gateway_catalog.py]=/opt/hermes/gateway/platforms/device_gateway_catalog.py
-  [api_server_enrollment.py]=/opt/hermes/gateway/platforms/api_server_enrollment.py
-  [api_server_support.py]=/opt/hermes/gateway/platforms/api_server_support.py
   [identity_gateway.py]=/opt/hermes/gateway/platforms/identity_gateway.py
   [front_gateway.py]=/opt/hermes/gateway/platforms/front_gateway.py
   [react_to_message_tool.py]=/opt/hermes/tools/react_to_message_tool.py
@@ -135,7 +128,6 @@ declare -A CPATH=(
   [oneday_seg_cron.py]=/opt/hermes/gateway/platforms/oneday_seg_cron.py
   [oneday_seg_delivery.py]=/opt/hermes/gateway/platforms/oneday_seg_delivery.py
   [oneday_seg_feed.py]=/opt/hermes/gateway/platforms/oneday_seg_feed.py
-  [oneday_feed_helpers.py]=/opt/hermes/gateway/platforms/oneday_feed_helpers.py
   [oneday_seg_filelibrary.py]=/opt/hermes/gateway/platforms/oneday_seg_filelibrary.py
   [oneday_seg_goals.py]=/opt/hermes/gateway/platforms/oneday_seg_goals.py
   [oneday_seg_goals_activity.py]=/opt/hermes/gateway/platforms/oneday_seg_goals_activity.py
@@ -817,7 +809,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 9ef927c4f1046cb429fc293347182414f971d2ffc50f16531ad0cbdd8dbfd6aa" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
+for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -1119,60 +1111,3 @@ else
   unk "bw-status" "容器内读不到 API_SERVER_KEY，跳过（部署验收时人工核）"
 fi
 unk "bw-behavior-chain" "Bitwarden 真链（测试账号 apikey 登录→主密码解锁→同域对照 Bitwarden 赢→多条同域跳过→lock/断网降级内置库→样本零命中）属棒 3 部署验收真链：棒 1 已以同版 Vaultwarden 1.37.2 副本＋bitwarden_link_selftest.py 全链实证 75 项全绿（2026-11-26），verify 只读探针不代跑；bw 二进制钉版 2026.6.0 随包分发亦在棒 3 落地，本节只验模块与端点在位"
-
-# ---- 52. 服务端三拆分（2.18.13，队列 212）：模块在位、接缝不变量与容器 import 冒烟 ----
-SPLIT_CAT="$DEPLOY_DIR/patches/device_gateway_catalog.py"
-SPLIT_ENR="$DEPLOY_DIR/patches/api_server_enrollment.py"
-SPLIT_FEED="$DEPLOY_DIR/patches/oneday_feed_helpers.py"
-for SPLIT_PATH in "$SPLIT_CAT" "$SPLIT_ENR" "$SPLIT_FEED"; do
-  [ -f "$SPLIT_PATH" ] && ok "split-module-present" "$(basename "$SPLIT_PATH") 在位" || bad "split-module-present" "$(basename "$SPLIT_PATH") 缺失"
-done
-if [ -f "$SPLIT_CAT" ] && grep -q '^TOOLS = ' "$SPLIT_CAT" && grep -q '^TOOL_BY_NAME' "$SPLIT_CAT"; then ok "split-catalog-invariants" "catalog 工具表与注册表在位"; else bad "split-catalog-invariants" "catalog 内容不全"; fi
-if [ -f "$SPLIT_ENR" ] && grep -q '^class _EnrollmentStore' "$SPLIT_ENR" && grep -q '^class ThreadSafeAsyncQueue' "$SPLIT_ENR"; then ok "split-enrollment-invariants" "enrollment 存储与队列在位"; else bad "split-enrollment-invariants" "enrollment 内容不全"; fi
-if [ -f "$SPLIT_FEED" ] && grep -q '^def _feed_category_for' "$SPLIT_FEED" && grep -q '^def _feed_usefulness' "$SPLIT_FEED"; then ok "split-feed-invariants" "feed 两纯函数在位"; else bad "split-feed-invariants" "feed helpers 内容不全"; fi
-if grep -q 'device_gateway_catalog' "$DEPLOY_DIR/patches/device_gateway.py" && ! grep -q '^TOOLS = ' "$DEPLOY_DIR/patches/device_gateway.py"; then ok "split-device-seam" "device_gateway 接 catalog 且无内嵌 TOOLS"; else bad "split-device-seam" "device_gateway 接缝异常"; fi
-if grep -q 'api_server_enrollment' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _EnrollmentStore' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class ThreadSafeAsyncQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-enrollment-seam" "api_server 接 enrollment 且无残留类"; else bad "split-enrollment-seam" "api_server 接缝异常"; fi
-if grep -q 'oneday_feed_helpers' "$DEPLOY_DIR/patches/oneday_seg_feed.py" && ! grep -q '^def _feed_usefulness' "$DEPLOY_DIR/patches/oneday_seg_feed.py"; then ok "split-feed-seam" "seg_feed 接 helpers 且无内嵌函数"; else bad "split-feed-seam" "seg_feed 接缝异常"; fi
-if docker exec hermes python3 -c 'from gateway.platforms import device_gateway_catalog as c, api_server_enrollment as e, oneday_feed_helpers as f; assert len(c.TOOLS) >= 50; assert e._enrollment_store is not None and e.ThreadSafeAsyncQueue; assert f._feed_category_for("x") is not None' >/dev/null 2>&1; then ok "split-import-smoke" "容器内三模块 import 与最小行为探针通过"; else bad "split-import-smoke" "容器内三模块 import/行为探针失败"; fi
-
-# ---- 53. api_server 并发/幂等 support 拆分（2.18.14 占位，队列 222） ----
-SUPPORT="$DEPLOY_DIR/patches/api_server_support.py"
-if [ -f "$SUPPORT" ] && grep -q '^class _IdempotencyCache' "$SUPPORT" && grep -q '^class _ProviderAuthResolutionError' "$SUPPORT" && grep -q '^class _SessionEventQueue' "$SUPPORT"; then ok "split-support-module" "support 三原语在位"; else bad "split-support-module" "support 模块或原语缺失"; fi
-if grep -q 'api_server_support' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _IdempotencyCache' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _ProviderAuthResolutionError' "$DEPLOY_DIR/patches/api_server.py" && ! grep -q '^class _SessionEventQueue' "$DEPLOY_DIR/patches/api_server.py"; then ok "split-support-seam" "api_server 接 support 且无原语残留"; else bad "split-support-seam" "api_server support 接缝异常"; fi
-if docker exec hermes python3 -c 'from gateway.platforms import api_server as a, api_server_support as s; assert isinstance(a._idem_cache, s._IdempotencyCache); assert a._ProviderAuthResolutionError is s._ProviderAuthResolutionError; assert a._SessionEventQueue is s._SessionEventQueue; from gateway.platforms import api_server_enrollment as e; assert e.CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS == a.CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS and e.API_SERVER_HEARTBEAT_SECONDS == a.API_SERVER_HEARTBEAT_SECONDS' >/dev/null 2>&1; then ok "split-support-import-smoke" "support 导入、api_server 接线及 enrollment 常量单源冒烟通过"; else bad "split-support-import-smoke" "support/enrollment 接缝冒烟失败"; fi
-# ---- 54. 统一错误边界（2.18.16，队列 230 / dp-271） ----
-EB="$DEPLOY_DIR/patches/error_boundary.py"
-[ -f "$EB" ] && ok "error-boundary-present" "统一错误边界模块在位" || bad "error-boundary-present" "统一错误边界模块缺失"
-# 2.18.16 follow-up probes (dp-232 / dp-233); hashes remain for mainline reconciliation.
-if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'error=error_response(exc)\[1\]\["error"\]' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "live-run-error-boundary" "Bot Chat 直播失败经统一错误边界"; else bad "live-run-error-boundary" "直播失败边界探针缺失"; fi
-if [ -f "$DEPLOY_DIR/patches/api_server_runs.py" ] && grep -q 'status, body = error_response(exc)' "$DEPLOY_DIR/patches/api_server_runs.py"; then ok "approval-error-boundary" "裁决异常经统一错误边界（代码形态探针）"; else bad "approval-error-boundary" "裁决异常边界探针缺失"; fi
-if [ -f "$DEPLOY_DIR/patches/oneday_gateway.py" ] && grep -q '"status": "degraded" if _degraded_reason else "ok"' "$DEPLOY_DIR/patches/oneday_gateway.py" && ! grep -q 'health\["deliverySentinel"\]' "$DEPLOY_DIR/patches/oneday_gateway.py"; then ok "oneday-health-minimal" "OneDay health 只报服务存活/降级三态"; else bad "oneday-health-minimal" "OneDay health 仍含内部诊断字段"; fi
-
-# ---- 55. 导入冒烟自测（包 2.18.17，修复 2.18.16 部署翻车）: 全模块导入可达性与静态对账与三表对账 ----
-# 静态级证据在第 2 节哈希回读（import_smoke_selftest.py）。
-# 冒烟自测按 install.sh MODULES 挂载表逐模块 import，任一失败即包内缺陷不可部署。
-# 2.18.18 增静态对账：MODULES 表 vs 挂载插入表逐件核对，防漏登记（error_boundary 翻车二号教训）。
-# 2.18.19 增三表对账：install.sh（PATCHES/MODULES）、manifest.yaml、verify.sh 期望表登记哈希全部 vs 实物文件对比，任一不符即红（2.18.18 前置校验拦下 1+2+11 件过期）。
-# 2.18.20 增裸导入横扫（write_gate_gateway 翻车根因）：patches 全树扫描 `from <顶层名> import`（非 gateway. 绝对、非相对、非标准库），任一不在真实 sys.path（仅 /opt/hermes 末位）下可达即红。
-# 2.18.21 审计上下文分离（缺陷五号修复）：静态对账＋三表对账为包级前置门（暂存树跑），容器内只验导入冒烟＋裸导入横扫。
-IMPORT_SMOKE=$(docker exec hermes python3 /opt/hermes/gateway/platforms/import_smoke_selftest.py 2>&1 || echo "EXIT_$?")
-case "$IMPORT_SMOKE" in
-  *"全部"*"模块导入成功"*"静态对账通过"*"三表对账通过"*) ok "import-smoke" "全模块导入冒烟＋静态对账＋三表对账通过（MODULES 表与挂载插入表对齐且三表登记哈希与实物一致）" ;;
-  *"全部"*"模块导入成功"*"静态对账跳过"*"三表对账跳过"*) ok "import-smoke" "全模块导入冒烟通过＋两审计跳过（容器内只验导入冒烟＋裸导入横扫，两审计为包级门）" ;;
-  *"全部"*"模块导入成功"*"静态对账通过"*) ok "import-smoke" "全模块导入冒烟＋静态对账通过（MODULES 表与挂载插入表对齐）" ;;
-  *"全部"*"模块导入成功"*) ok "import-smoke" "全模块导入冒烟通过（部署布局下所有 MODULES 与 web_routers 可达）" ;;
-  EXIT_1) bad "import-smoke" "导入冒烟或静态对账或三表对账失败（至少一个模块导入失败或 MODULES/挂载表不对齐或登记哈希不符，stderr 有详情）" ;;
-  *) bad "import-smoke" "导入冒烟探针异常：$IMPORT_SMOKE" ;;
-esac
-# 裸导入横扫：静态扫描 patches 全树，检测裸导入（from <顶层名> import，非 gateway./agent./tools./hermes_* 上游包、非标准库、非相对导入）。
-# 冒烟自测已按真实 sys.path（/opt/hermes 末位）实际 import 验证，此探针为静态扫描兜底。
-BARE_IMPORTS=$(docker exec hermes bash -c 'cd /opt/hermes/gateway/platforms && grep -rn "^from [a-z_][a-z0-9_]* import" . 2>/dev/null | grep -v "from gateway\." | grep -v "from agent\." | grep -v "from tools\." | grep -v "from hermes" | grep -v "from aiohttp\." | grep -v "from fastapi\." | grep -v "from typing\." | grep -v "^[^:]*:[0-9]\+:from typing import" | grep -v "from pathlib\." | grep -v "^[^:]*:[0-9]\+:from pathlib import" | grep -v "^[^:]*:[0-9]\+:from types import" | grep -v "from datetime\." | grep -v "from collections\." | grep -v "from contextlib\." | grep -v "from contextvars\." | grep -v "from functools\." | grep -v "from dataclasses\." | grep -v "from urllib\." | grep -v "from asyncio\." | grep -v "from json\." | grep -v "from logging\." | grep -v "from hashlib\." | grep -v "from abc\." | grep -v "from base64\." | grep -v "from html\." | grep -v "from http\." | grep -v "from io\." | grep -v "from itertools\." | grep -v "from operator\." | grep -v "from os\." | grep -v "from re\." | grep -v "from string\." | grep -v "from subprocess\." | grep -v "from sys\." | grep -v "from tempfile\." | grep -v "from threading\." | grep -v "from time\." | grep -v "from uuid\." | grep -v "from warnings\." | grep -v "from weakref\." | grep -v "from zipfile\." | grep -v "from enum\." | grep -v "from copy\." | grep -v "from decimal\." | grep -v "from email\." | grep -v "from secrets\." | grep -v "from yaml\." | grep -v "_selftest\.py:" | grep -v "# " || true')
-if [ -z "$BARE_IMPORTS" ]; then ok "bare-import-scan" "裸导入横扫通过（patches 全树无不可达裸导入）"; else bad "bare-import-scan" "裸导入横扫检测到疑似不可达导入（需逐件核对是否为上游顶层模块）：$(echo "$BARE_IMPORTS" | head -3 | tr '\n' ';')"; fi
-
-# ---- 56. 2.18.22 前向修复验收（2.18.21 窗口 verify 7 缺修复） ----
-# 缺陷六号：health 处理器 degraded 键回归——已由 B3 探针（verify.sh:690 oneday-gateway-health）覆盖，该探针查真桥 health 8642 端点并断言 degraded=false，§56 重复探针已删除（2.18.23）
-# §55 三处修复：(a) seg 单体伪影白名单、(b) 裸导入横扫补标准库无点形态、(c) 自测文件探针已删——由上方 §55 通过即证修复生效
-# webplug 期望表纳入三表对账：由 import-smoke 探针的三表对账段覆盖（verify_checked_count 增 3 条 webplug 资产）
-
-printf '\n通过 %d  缺失 %d  规划中 %d  未验 %d\n' "$PASS" "$FAIL" "$PLANNED" "$UNKNOWN"
-[ "$FAIL" = 0 ]

@@ -58,9 +58,6 @@ def check(name, cond, extra=""):
 
 def load_seg():
     src = open(SEG, encoding="utf-8").read()
-    patches_dir = os.path.dirname(SEG)
-    if patches_dir not in sys.path:
-        sys.path.insert(0, patches_dir)
     ns = {"__name__": "feed_seg_selftest", "os": os, "re": re,
           "json": json, "time": time, "threading": threading,
           "hashlib": hashlib, "hmac": hmac, "io": io,

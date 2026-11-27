@@ -402,7 +402,7 @@ struct HubLedgerSection: View {
             Text(rowTime(item))
                 .font(.subheadline)
                 .monospacedDigit()
-                .foregroundStyle(Palette.inkSecondary)
+                .foregroundStyle(Palette.inkMuted)
                 .lineLimit(1)
         }
         // 行距对位：参照工作行 pitch ≈70pt——行内上

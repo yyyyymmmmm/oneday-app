@@ -230,12 +230,12 @@ struct WebhooksView: View {
                     }
                     Text(route.url)
                         .font(.caption.monospaced())
-                        .foregroundStyle(Palette.inkSecondary)
+                        .foregroundStyle(Palette.inkMuted)
                         .textSelection(.enabled)
                     HStack(spacing: OneDayMetrics.spacingM) {
                         Text(route.secretSet ? "密钥已设" : "未设密钥")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
+                            .foregroundStyle(Palette.inkMuted)
                         Spacer()
                         Button("删除", role: .destructive) {
                             pendingDelete = route

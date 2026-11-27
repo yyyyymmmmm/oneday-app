@@ -1477,7 +1477,7 @@ struct FeedLinkPreviewCard: View {
                 if let domainLine {
                     Text(domainLine)
                         .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
+                        .foregroundStyle(Palette.inkMuted)
                         .lineLimit(1)
                 }
             }

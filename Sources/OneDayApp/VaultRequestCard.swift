@@ -60,17 +60,12 @@ struct VaultRequestCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
             HStack(spacing: OneDayMetrics.spacingS) {
-                ZStack {
-                    Circle()
-                        .fill(Palette.primary.opacity(0.12))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Palette.primary)
-                }
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Palette.primary)
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("凭据授权请求")
+                    Text("凭据请求")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
 
@@ -80,32 +75,22 @@ struct VaultRequestCard: View {
                 }
 
                 Spacer()
-
-                if isAlwaysAsk {
-                    Label("每次确认", systemImage: "checkmark.shield")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(Palette.warning)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Palette.warning.opacity(0.12), in: Capsule())
-                }
             }
 
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
-                    Text("域名:")
-                        .font(.meta)
-                        .foregroundStyle(Palette.inkMuted)
-                    Text(domain)
-                        .font(.meta)
-                        .foregroundStyle(Palette.ink)
-                }
+                detailRow(label: "域名", value: domain)
+                detailRow(label: "原因", value: reason)
 
-                if !reason.isEmpty {
-                    Text(reason)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(3)
+                if isAlwaysAsk {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.meta)
+                            .foregroundStyle(Palette.warning)
+                        Text("每次必问")
+                            .font(.meta)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .padding(.vertical, OneDayMetrics.spacingMicro)
                 }
             }
 
@@ -123,11 +108,8 @@ struct VaultRequestCard: View {
             }
         }
         .padding(OneDayMetrics.spacingM)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 0.75)
-        )
+        .background(Palette.surface)
+        .cornerRadius(OneDayMetrics.radiusCard)
         .alert("操作失败", isPresented: Binding(
             get: { submitError != nil },
             set: { if !$0 { submitError = nil } }
@@ -149,36 +131,38 @@ struct VaultRequestCard: View {
             ForEach(fields, id: \.self) { field in
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(fieldDisplayName(field))
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Palette.inkSecondary)
+                        .font(.meta)
+                        .foregroundStyle(Palette.inkMuted)
 
-                    SecureField("输入\(fieldDisplayName(field))", text: Binding(
+                    SecureField("", text: Binding(
                         get: { fieldValues[field] ?? "" },
                         set: { fieldValues[field] = $0 }
                     ))
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Palette.settingsBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .font(.body)
+                    .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .privacySensitive()
                 }
             }
 
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Button(role: .destructive) {
+            HStack(spacing: OneDayMetrics.spacingM) {
+                Button {
                     Task {
                         await rejectRequest()
                     }
                 } label: {
                     Text("拒绝")
-                        .font(.subheadline.weight(.medium))
+                        .font(.body)
+                        .foregroundStyle(Palette.danger)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                        .background(Palette.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
+                                .stroke(Palette.danger, lineWidth: 1)
+                        )
                 }
-                .buttonStyle(.bordered)
-                .tint(Palette.danger)
                 .disabled(submitting)
 
                 Button {
@@ -186,20 +170,22 @@ struct VaultRequestCard: View {
                         await fulfillRequest()
                     }
                 } label: {
-                    Group {
-                        if submitting {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("安全提供")
-                                .font(.subheadline.weight(.semibold))
-                        }
+                    if submitting {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, OneDayMetrics.spacingS)
+                    } else {
+                        Text("提供")
+                            .font(.body)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, OneDayMetrics.spacingS)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.primary)
+                .background(Palette.primary)
+                .cornerRadius(OneDayMetrics.radiusTile)
                 .disabled(submitting || !canFulfill)
             }
         }
@@ -251,6 +237,18 @@ struct VaultRequestCard: View {
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
+    @ViewBuilder
+    private func detailRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Text("\(label):")
+                .font(.meta)
+                .foregroundStyle(Palette.inkMuted)
+            Text(value)
+                .font(.meta)
+                .foregroundStyle(Palette.ink)
+        }
     }
 
     private var canFulfill: Bool {

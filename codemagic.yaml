@@ -13,8 +13,6 @@ workflows:
         script: xcodebuild -version
       - name: Install Tuist
         script: brew install tuist
-      - name: Install dependencies
-        script: tuist install
       - name: Generate project
         script: tuist generate --no-open
       - name: Build (no codesign)

@@ -139,20 +139,11 @@ final class ChatSendMechanism451PinTests: XCTestCase {
     private func makeConnectedAppState(
         mainThreadID: UUID, script: RunsScript
     ) async throws -> AppState {
-        let sharedOutboxRetry = OutboxRetryStore(persisted: true)
-        let sharedSessionLedger = SessionLedger(persisted: true)
-        let sharedRunLedger = RunLedgerStore(persisted: true)
-        let testAPIKey = "sendmech-pin-key"
-
         let appState = AppState(
             client: ScriptedRunsClient(
                 recorder: CatalogCallRecorder(), runs: script
             ),
-            demoMode: .off,
-            outboxRetryStorage: sharedOutboxRetry,
-            sessionLedgerStorage: sharedSessionLedger,
-            runLedgerStorage: sharedRunLedger,
-            apiKeyProvider: { testAPIKey }
+            demoMode: .off
         )
         appState.sessionLedger.designateMainThread(mainThreadID)
         appState.sessionLedger.setMainServerSessionID(
@@ -165,12 +156,17 @@ final class ChatSendMechanism451PinTests: XCTestCase {
             config: try XCTUnwrap(
                 ServerConfig(rawInput: "https://sendmechpin.test")
             ),
-            apiKey: testAPIKey
+            apiKey: "sendmech-pin-key"
         )
 
-        XCTAssertEqual(
-            appState.apiKey, testAPIKey,
-            "注入的 apiKey 应从 apiKeyProvider 读到"
+        // 探针（0.51.0 修复轮，判读 release-0510-red12-triage）：
+        // connectDirect 已把 apiKey 经 KeychainStore.save 落盘，
+        // appState.apiKey 即 KeychainStore.read 读回——读回 nil
+        // 即 A 簇断点在钥匙串往返（提交泵的 apiKey 闸永远过
+        // 不了），与提交泵／发送产品代码无关。
+        XCTAssertNotNil(
+            appState.apiKey,
+            "探针红：connectDirect 后 apiKey 钥匙串读回为 nil——A 簇断点在钥匙串往返，先修测试台/夹具，不许动产品代码"
         )
         return appState
     }

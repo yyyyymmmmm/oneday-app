@@ -97,7 +97,7 @@ struct AgentShareCardView: View {
                 }
                 Text("OneDay 智能体")
                     .font(.system(size: 22))
-                    .foregroundStyle(Palette.inkSecondary)
+                    .foregroundStyle(Palette.inkMuted)
             }
             Spacer(minLength: 0)
         }

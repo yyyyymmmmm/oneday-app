@@ -1,6 +1,5 @@
 import Foundation
 import OneDayCore
-import SwiftData
 import SwiftUI
 
 /// 三步探活的步骤口径：连接页与设置页「重新测试连接」共用。
@@ -1031,23 +1030,13 @@ final class AppState {
         networkPathEpoch += 1
     }
 
-    private let apiKeyProvider: (() -> String?)?
-
-    init(
-        client: HermesClientProtocol = HermesClient(),
-        demoMode: DemoMode = .off,
-        outboxRetryStorage: OutboxRetryStore? = nil,
-        sessionLedgerStorage: SessionLedger? = nil,
-        runLedgerStorage: RunLedgerStore? = nil,
-        apiKeyProvider: (() -> String?)? = nil
-    ) {
-        self.apiKeyProvider = apiKeyProvider
+    init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
-        sessionLedger = sessionLedgerStorage ?? SessionLedger(persisted: !demoMode.isDemo)
-        runLedger = runLedgerStorage ?? RunLedgerStore(persisted: !demoMode.isDemo)
-        outboxRetry = outboxRetryStorage ?? OutboxRetryStore(persisted: !demoMode.isDemo)
+        sessionLedger = SessionLedger(persisted: !demoMode.isDemo)
+        runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
+        outboxRetry = OutboxRetryStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
@@ -1131,15 +1120,9 @@ final class AppState {
     }
 
     private func restore() {
-        let hasKey: Bool
-        if let provider = apiKeyProvider {
-            hasKey = provider() != nil
-        } else {
-            hasKey = KeychainStore.read(account: CredentialKey.apiKey) != nil
-        }
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
               let config = ServerConfig(rawInput: base),
-              hasKey else {
+              KeychainStore.read(account: CredentialKey.apiKey) != nil else {
             phase = .needsConnection
             return
         }
@@ -1151,9 +1134,6 @@ final class AppState {
     var apiKey: String? {
         // 演示假值：只会被递给 DemoHermesClient，不出设备
         if isDemo { return "demo-api-key" }
-        if let provider = apiKeyProvider {
-            return provider()
-        }
         return KeychainStore.read(account: CredentialKey.apiKey)
     }
 
@@ -1531,10 +1511,6 @@ final class AppState {
     private var modelCatalogAttemptEpoch = -1
     /// §368 单飞句柄：并发触发搭同一轮，不各拉各的
     private var modelCatalogLoadTask: Task<Void, Never>?
-
-    func makeLocalStoreCoordinator(modelContext: ModelContext) -> LocalStoreCoordinator {
-        LocalStoreCoordinator(modelContext: modelContext, ledger: sessionLedger)
-    }
 
     /// §368 目录失效：模型写路径的成功点与强制刷新
     /// 调用；只动取数时机，目录消费语义一字不变

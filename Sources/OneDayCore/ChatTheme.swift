@@ -88,18 +88,13 @@ public enum ChatThemes {
             // 0.41.0（§66.1 浅档专项）同色相加深一档至
             // 0x136FC1 → 2026-11-15（第 85 条）再深一
             // 档至 0x1268B8（压助手泡面差线）
-            // accentDark 沿革：0.26.0～0.50.x 长期 0x5EB1EF
-            // （H206 S61% V94%）→ dp-214 降饱和收带至
-            // 0x359FF0（S78%，H/V 不变，落回降饱和
-            // 10–15% 门槛带内）
-            accentLight: 0x1268B8, accentDark: 0x359FF0,
+            accentLight: 0x1268B8, accentDark: 0x5EB1EF,
             tintLight: 0xEDF7FD, tintDark: 0x16242E,
             // §503：AI 卡＝Muse 实测浅 #E9EAEC／暗在
-            // 册 #2C2C2E；背景＝页底在册值（浅 #FFFFFF
+            // 册 #2C2C2E；背景＝页底在册值（浅 #FCFCFC
             // ／暗 #000000，与 chatSurface 定版同值）
-            // dp-214：浅档 #FCFCFC→#FFFFFF 收敛
             aiCardLight: 0xE9EAEC, aiCardDark: 0x2C2C2E,
-            backgroundLight: 0xFFFFFF, backgroundDark: 0x000000
+            backgroundLight: 0xFCFCFC, backgroundDark: 0x000000
         ),
         ChatTheme(
             // §503 新增「微信」款：配色逐值取自取样表

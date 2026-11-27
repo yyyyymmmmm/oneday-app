@@ -349,19 +349,24 @@ struct ImageViewerView: View {
         }
     }
 
-    /// Phase 6.3：收敛到设计系统统一 `FloatingToastView` 胶囊提示（失败类常驻可划/点关，状态类 2.5s 自动清）
     private func noticeOverlay(
         _ notice: ViewerNotice
     ) -> some View {
         VStack {
             Spacer()
-            FloatingToastView(
-                message: notice.text,
-                tone: notice.isFailure ? .error : .info
-            ) {
-                self.notice = nil
-            }
-            .padding(.bottom, OneDayMetrics.spacingXXL)
+            Text(notice.text)
+                .font(.footnote)
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.vertical, OneDayMetrics.spacingS)
+                .glassEffect(.regular, in: Capsule())
+                .padding(.bottom, OneDayMetrics.spacingXXL)
+        }
+        // 失败类常驻可点关；成功/状态类不挡操作、2.5
+        // 秒自清（旧制）
+        .allowsHitTesting(notice.isFailure)
+        .onTapGesture {
+            if notice.isFailure { self.notice = nil }
         }
         .task(id: notice.text) {
             guard !notice.isFailure else { return }
@@ -610,32 +615,6 @@ final class ZoomHostingController<Content: View>:
                 ZoomSourceRegistry.shared.view(for: sourceID)
             }
         )
-    }
-}
-
-// MARK: - iOS 18+ SwiftUI 原生 Zoom 转场标准入口（Phase 6.4）
-
-extension View {
-    /// 在 `NavigationStack` 场景中声明原生缩略图 Zoom 转场源（替代手搓 `ZoomSourceRegistry`）。
-    func nativeZoomTransitionSource<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> some View {
-        matchedTransitionSource(id: id, in: namespace)
-    }
-
-    /// 在目标查看器上启用原生 `.navigationTransition(.zoom)`（遵循 Reduce Motion）。
-    @ViewBuilder
-    func nativeZoomTransition<ID: Hashable>(
-        sourceID: ID,
-        in namespace: Namespace.ID,
-        reduceMotion: Bool = false
-    ) -> some View {
-        if reduceMotion {
-            self
-        } else {
-            self.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
-        }
     }
 }
 

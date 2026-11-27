@@ -131,7 +131,7 @@ struct HubIdentitySection: View {
             Text("风格")
                 // §500：13 → 11（量测实测参照 ≈11）
                 .font(.caption2)
-                .foregroundStyle(Palette.inkSecondary)
+                .foregroundStyle(Palette.inkMuted)
             ForEach(
                 Array(paragraphs.enumerated()), id: \.offset
             ) { _, paragraph in
@@ -164,7 +164,7 @@ struct HubIdentitySection: View {
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity)
             .frame(height: OneDayMetrics.minTapTarget)
-            .glassEffect(.regular, in: Capsule())
+            .background(Palette.fillSecondary, in: Capsule())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.hubGutter)

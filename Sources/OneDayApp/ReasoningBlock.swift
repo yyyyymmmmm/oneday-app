@@ -154,7 +154,7 @@ struct ReasoningBlock: View {
         } label: {
             if isStreaming {
                 TimelineView(
-                    .periodic(from: startedAt ?? Date(), by: 1.0)
+                    .periodic(from: startedAt ?? Date(), by: 0.5)
                 ) { context in
                     headerLabel(
                         title: ReasoningPresentation.header(

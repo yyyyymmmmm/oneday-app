@@ -83,19 +83,19 @@ struct TodoChecklistCardView: View {
         switch status {
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .font(.captionText)
+                .font(.system(size: 13))
                 .foregroundStyle(Palette.success)
         case .inProgress:
             Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                .font(.captionText)
+                .font(.system(size: 13))
                 .foregroundStyle(Palette.primary)
         case .cancelled:
             Image(systemName: "xmark.circle")
-                .font(.captionText)
+                .font(.system(size: 13))
                 .foregroundStyle(Palette.inkMuted)
         case .pending:
             Image(systemName: "circle")
-                .font(.captionText)
+                .font(.system(size: 13))
                 .foregroundStyle(Palette.inkMuted)
         }
     }

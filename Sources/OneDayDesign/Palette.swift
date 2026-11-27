@@ -231,10 +231,8 @@ public enum Palette {
     /// 审计 D1：旧派生 #101619 是带蓝灰的「灰雾」基底、
     /// 与 settingsBG 双基底并存（互比 1.03），自本版
     /// 基底身份归一为语义 base 锚）
-    /// dp-214：浅档 #FCFCFC→#FFFFFF（systemBackground
-    /// 逐值对齐，Δ2 口径收敛）
     public static let pageBG = appleColor(
-        light: 0xFFFFFF, dark: .systemBackground
+        light: 0xFCFCFC, dark: .systemBackground
     )
     /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗档
     /// secondarySystemBackground #1C1C1E——层级步对齐
@@ -265,9 +263,8 @@ public enum Palette {
     )
     /// 聊天表面（OpenMuse canvas #FCFCFC；暗档随页面
     /// 底同锚 systemBackground #000）
-    /// dp-214：浅档 #FCFCFC→#FFFFFF（与 pageBG 同步收敛）
     public static let chatSurface = appleColor(
-        light: 0xFFFFFF, dark: .systemBackground
+        light: 0xFCFCFC, dark: .systemBackground
     )
     /// 聊天页背景（台账 179，OB-I1，DESIGN §391）：只供
     /// 聊天页背景层现读——默认档与 chatSurface 逐值相
@@ -1049,15 +1046,15 @@ public enum OneDayMetrics {
     /// 卡内边距（0.6.1 新增：OpenMuse card padding 20，
     /// ui.tsx:52）
     public static let cardPadding: CGFloat = 20
-    /// 枢纽分段条高（dp-213 量测对位表，2026-11-27：
-    /// 48→44，取 HIG 命中下限；§222 量测 ≈48 让位）
-    public static let hubSegBarHeight: CGFloat = 44
-    /// 枢纽分段选中胶囊高（dp-213 量测对位表：36→32，
-    /// 条 44－胶囊 32＝上下衬仍各 6；§222 量测 ≈36 让位）
-    public static let hubSegCapsuleHeight: CGFloat = 32
-    /// 枢纽分段图标字形（dp-213 量测对位表：22→20，
-    /// 与文字并行档对位；§222 量测 ≈22 让位）
-    public static let hubSegGlyphSize: CGFloat = 20
+    /// 枢纽分段条高（§222，2026-11-14 对 Muse 智能
+    /// 体页真机图量测：整条胶囊 ≈48；系统 segmented
+    /// 轨道 32 不可调、自绘条按此值落）
+    public static let hubSegBarHeight: CGFloat = 48
+    /// 枢纽分段选中胶囊高（§222，同上量测 ≈36；条内
+    /// 上下各留 6）
+    public static let hubSegCapsuleHeight: CGFloat = 36
+    /// 枢纽分段图标字形（§222，同上量测 ≈22）
+    public static let hubSegGlyphSize: CGFloat = 22
 
     // —— 气泡内边距（0.6.1 改挂 OpenMuse 气泡内边距
     // 16/13，chat.tsx:588-589；0.3.2 收编的 14/10 让位）——

@@ -321,22 +321,11 @@ struct MarkdownText: View {
         return result
     }
 
-    /// 高亮拼装（Phase 2.5）：优先走 Highlightr 185+ 语言引擎（暗/浅色主题同步），
-    /// 回退到等宽 footnote 词法高亮——关键词紫／字符串绿／数字蓝／注释次墨／普通正文墨
+    /// 高亮拼装：等宽 footnote 为底，类色映射——关键
+    /// 词紫／字符串绿／数字蓝／注释次墨／普通正文墨
     private func highlighted(
         _ code: String, language: String?
     ) -> AttributedString {
-        #if canImport(Highlightr)
-        let theme = colorScheme == .dark ? "atom-one-dark" : "atom-one-light"
-        if let nsAttributed = CodeHighlight.attributedString(
-            code: code,
-            language: language,
-            theme: theme
-        ), var rich = try? AttributedString(nsAttributed, including: \.uiKit) {
-            rich.font = .system(.footnote, design: .monospaced)
-            return rich
-        }
-        #endif
         var result = AttributedString()
         for token in CodeHighlight.tokens(
             code: code, language: language
@@ -417,9 +406,7 @@ struct MarkdownText: View {
     /// 正文仍逐项可选（§149）。普通列表已进合并散
     /// 文段（proseView），不在此渲染
     private func listView(_ items: [MarkdownListItem]) -> some View {
-        let category = dynamicTypeSize.contentSizeCategory
-        let isBold = legibilityWeight == .bold
-        return VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             ForEach(
                 Array(items.enumerated()), id: \.offset
             ) { _, item in
@@ -444,8 +431,9 @@ struct MarkdownText: View {
                     .alignmentGuide(.firstTextBaseline) { _ in
                         InlineTextFonts.firstBaseline(
                             textStyle: .body,
-                            category: category,
-                            boldText: isBold
+                            category: dynamicTypeSize
+                                .contentSizeCategory,
+                            boldText: legibilityWeight == .bold
                         )
                     }
                 }

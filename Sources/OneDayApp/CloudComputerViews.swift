@@ -504,40 +504,25 @@ struct CredentialFormView: View {
         connection.provider == "vps_ssh" || connection.provider == "vps_agent"
     }
 
-    private var existingCredentialSummary: String? {
-        guard connection.configured == true else { return nil }
-        if isVPS {
-            let addr = [connection.meta?.host, connection.meta?.port.map(String.init)]
-                .compactMap { $0 }.joined(separator: ":")
-            let user = connection.meta?.username ?? "root"
-            let auth = connection.meta?.authType == "password" ? "密码认证" : "SSH 密钥"
-            return addr.isEmpty ? "已绑定 \(auth)" : "\(user)@\(addr) · \(auth)"
-        }
-        if connection.provider == "simular_box" {
-            return "已保存密钥（••••••••）"
-        }
-        return "已绑定反向配对令牌"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-            if let summary = existingCredentialSummary {
+            if connection.configured == true {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "checkmark.shield.fill")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.success)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.successText)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("当前已配置凭据")
-                            .font(.caption.weight(.semibold))
+                        Text("已保存加密凭据（••••••••）")
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(Palette.ink)
-                        Text(summary)
-                            .font(.caption2)
+                        Text("出于安全考虑不回显明文；下方填写新值并保存即可替换。")
+                            .font(.caption)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                .padding(10)
-                .background(Palette.success.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(OneDayMetrics.spacingSM)
+                .background(Palette.tintGreen.opacity(0.6), in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous))
             }
 
             if connection.provider == "reverse_node" {
