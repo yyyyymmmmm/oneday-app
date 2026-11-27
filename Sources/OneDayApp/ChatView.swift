@@ -460,7 +460,13 @@ struct ChatView: View {
     /// 字节（HermesClient 带进度版上传＋Core 聚合
     /// 器），非上传段为 nil；呈现只读它显示百分比，
     /// 不许任何地方再拿菊花冒充进度
-    @State var uploadProgressFraction: Double?
+    /// 修法 C：改按条目 ID 索引，支持多条并发上传
+    @State var uploadProgressFraction: [UUID: Double] = [:]
+    /// 修法 A：乐观附件快照——发送时立即缓存附件数据
+    /// 到本地字典，绕过 SwiftData 刷新竞态，保证附件
+    /// 立即显示；发送完成（状态变为 .delivered）后清
+    /// 除快照，恢复使用持久化数据
+    @State private var optimisticAttachments: [UUID: [Data]] = [:]
     /// 聊天可靠性包：发送准备失败被保留的待发条目，
     /// 其附件在同一次运行内按条目 id 暂存供点按重
     /// 发；§237 起发送起手已同步落磁盘暂存，进程重
@@ -5311,7 +5317,10 @@ struct ChatView: View {
                     // imageData 只取首图的呈现口径
                     // 随单槽落盘一并作废（见 Chat-
                     // Entry.imageDatasData）
-                    let localImageDatas = entry.allImageDatas
+                    // 修法 A：优先使用乐观快照，快照缺失
+                    // 时才回落到持久化数据，绕过 SwiftData
+                    // 刷新竞态
+                    let localImageDatas = optimisticAttachments[entry.id] ?? entry.allImageDatas
                     if !localImageDatas.isEmpty {
                         // §265（S3）：图片行是铬件——整
                         // 行菜单挂载面之一
@@ -6149,6 +6158,7 @@ struct ChatView: View {
     /// 图时等于 cardSize），图居中完整显示不裁
     /// 切、图窄于卡时两侧露 bubbleFill 底；点开
     /// 查看器（0.36.4 集合载荷、同线程可翻页）
+    /// 修法 C：上传进度在附件缩略图上叠加显示
     func localImageCard(
         data: Data, image: UIImage, cardSize: CGSize,
         entry: ChatEntry
@@ -6168,6 +6178,14 @@ struct ChatView: View {
                         width: fittedSize.width,
                         height: fittedSize.height
                     )
+                // 修法 C：上传期间叠加进度遮罩
+                if entry.sendState == .uploading,
+                   let progress = uploadProgressFraction[entry.id] {
+                    Color.black.opacity(0.3)
+                    ProgressView(value: progress)
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                }
             }
             .frame(width: cardSize.width, height: cardSize.height)
             .background(
@@ -10337,6 +10355,11 @@ struct ComposerBarLayout: Layout {
         )
         modelContext.insert(newEntry)
         sessionSentEntryIDs.insert(newEntry.id)
+        // 修法 A：发送时立即快照附件数据到 @State，
+        // 绕过 SwiftData 刷新竞态
+        if !imageDatas.isEmpty {
+            optimisticAttachments[newEntry.id] = imageDatas
+        }
         // 发送触感（2026-11-14 定版）：消息落盘上屏
         // 同帧补最轻档 impact——「把球交出去」一下轻
         // 震；自动重发/队列补发不经本函数、不许响
