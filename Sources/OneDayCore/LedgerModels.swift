@@ -277,9 +277,9 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
     public var isInternalSystemTask: Bool {
         let keywords = ["动态", "调研"]
         let matchesKeyword = keywords.contains { title.contains($0) }
-            || (titleHuman?.contains(where: { char in
-                keywords.contains { $0.contains(char) }
-            }) ?? false)
+            || (titleHuman.map { humanTitle in
+                keywords.contains { humanTitle.contains($0) }
+            } ?? false)
         let isSystemSource = source == .bridge || source == .cron
         return matchesKeyword && isSystemSource
     }
