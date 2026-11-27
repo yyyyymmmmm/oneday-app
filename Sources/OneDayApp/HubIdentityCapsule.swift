@@ -66,7 +66,7 @@ struct HubIdentityCapsule: View {
                         avatar
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 36, height: 36)
+                            .frame(width: Palette.avatarChatHero, height: Palette.avatarChatHero)
                             .clipShape(Circle())
                         if let statusColor {
                             Circle()
@@ -79,14 +79,7 @@ struct HubIdentityCapsule: View {
                                 .offset(x: 1, y: 1)
                         }
                     }
-                    .frame(
-                        width: HeaderButtonSpec.diameter,
-                        height: HeaderButtonSpec.diameter
-                    )
                     .glassEffect(.regular, in: Circle())
-                    .frame(
-                        width: OneDayMetrics.minTapTarget,
-                        height: OneDayMetrics.minTapTarget
                     )
                     .contentShape(Circle())
                 }
