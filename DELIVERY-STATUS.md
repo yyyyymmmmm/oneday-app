@@ -190,7 +190,7 @@ ForEach(snapshot.daySections) { section in
 
 **数据结构**：`snapshot.daySections` - 已按天分组的数据（LedgerDayGroup）
 
-**说明**：段名与按天分组机制在基线中已存在，本轮未修改此文件
+**说明**：段名与按天分组机制在基线中已存在，本轮增加了内部系统任务过滤与人话标题优先显示（见下方"第三批验收修订"）
 
 ---
 
