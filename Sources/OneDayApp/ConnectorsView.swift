@@ -87,17 +87,11 @@ struct ConnectorsView: View {
             detailTarget = .device(descriptor.sourceID)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                // 图标：40pt，来自 descriptor.iconAssetName 或 SF Symbol
-                if let assetName = descriptor.iconAssetName {
-                    Image(assetName)
-                        .resizable()
-                        .frame(width: Palette.iconSlot, height: Palette.iconSlot)
-                } else {
-                    Image(systemName: descriptor.systemIcon ?? "circle")
-                        .font(.system(size: Palette.iconSlot))
-                        .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: Palette.iconSlot, height: Palette.iconSlot)
-                }
+                // 图标：30pt，来自 descriptor.tileSymbol
+                Image(systemName: descriptor.tileSymbol)
+                    .font(.system(size: OneDayMetrics.iconSlot))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(descriptor.name)
@@ -135,7 +129,7 @@ struct ConnectorsView: View {
         }
         .buttonStyle(.odPressable)
         .alignmentGuide(.listRowSeparatorLeading) { _ in
-            Palette.iconSlot + OneDayMetrics.spacingSM
+            OneDayMetrics.iconSlot + OneDayMetrics.spacingSM
         }
     }
 
@@ -215,18 +209,18 @@ struct ConnectorsView: View {
 
     private func mcpServerRow(_ server: MCPServerItem) -> some View {
         let testResult = facade.testResults[server.name]
-        let toolCount = server.tools ?? testResult?.tools.count ?? 0
+        let toolCount = server.tools ?? testResult?.toolCount ?? 0
         let isToggling = facade.toggling.contains(server.name)
 
         return Button {
             detailTarget = .mcpServer(server.name)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                // 图标：40pt
+                // 图标：30pt
                 Image(systemName: "puzzlepiece.extension.fill")
-                    .font(.system(size: Palette.iconSlot))
+                    .font(.system(size: OneDayMetrics.iconSlot))
                     .foregroundStyle(server.enabled ? Palette.primary : Palette.inkSecondary)
-                    .frame(width: Palette.iconSlot, height: Palette.iconSlot)
+                    .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(server.name)
@@ -276,7 +270,7 @@ struct ConnectorsView: View {
         }
         .buttonStyle(.odPressable)
         .alignmentGuide(.listRowSeparatorLeading) { _ in
-            Palette.iconSlot + OneDayMetrics.spacingSM
+            OneDayMetrics.iconSlot + OneDayMetrics.spacingSM
         }
     }
 
@@ -286,12 +280,10 @@ struct ConnectorsView: View {
     private func detailSheet(for target: DetailTarget) -> some View {
         switch target {
         case .device(let sourceID):
-            if let descriptor = DeviceSourceDirectory.roster.first(where: { $0.sourceID == sourceID }) {
-                DeviceDetailDestination(
-                    descriptor: descriptor,
-                    appState: appState
-                )
-            }
+            DeviceDetailDestination(
+                source: sourceID,
+                inSheet: true
+            )
         case .mcpServer(let name):
             if let server = facade.servers.first(where: { $0.name == name }) {
                 MCPServerDetailView(
