@@ -206,15 +206,12 @@ extension ChatView {
     /// 顶带（§449；2026-11-27 用户亲令改版）：
     /// 汉堡/查找/铃铛与居中身份区同带。
     /// 2026-11-27 改版：右侧查找/铃铛两按钮收进同一胶囊容器
-    /// 2026-11-28 对齐修正：左右按钮对齐头像行垂直中心（大厂标准单行对齐）
+    /// 左右按钮与头像顶缘由顶对齐容器直接对齐。
     var topBand: some View {
-        ZStack(alignment: .center) {
+        ZStack(alignment: .top) {
             headerIdentityHero
-            HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 drawerButton
-                    .alignmentGuide(VerticalAlignment.center) { d in
-                        d[VerticalAlignment.center] + self.avatarToButtonOffset
-                    }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 // 右侧两按钮收进同一胶囊（2026-11-27）
                 HStack(spacing: 4) {
@@ -223,21 +220,10 @@ extension ChatView {
                 }
                 .padding(.horizontal, 4)
                 .glassEffect(.regular, in: Capsule())
-                .alignmentGuide(VerticalAlignment.center) { d in
-                    d[VerticalAlignment.center] + self.avatarToButtonOffset
-                }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
         }
         .padding(.vertical, OneDayMetrics.spacingS)
-    }
-
-    /// 头像行与按钮对齐偏移量（2026-11-28）：
-    /// 按钮顶缘对齐头像顶缘（D 案）
-    private var avatarToButtonOffset: CGFloat {
-        let buttonRadius = HeaderButtonSpec.diameter / 2
-        // 按钮中心需下移的量 = 按钮自身半径（使按钮顶缘与头像顶缘齐平）
-        return buttonRadius
     }
 
     /// 左钮：汉堡（开抽屉）
