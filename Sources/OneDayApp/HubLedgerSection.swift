@@ -223,7 +223,7 @@ struct HubLedgerSection: View {
                                 }
                             }
                         } label: {
-                            sectionTitle("\(cronTotalCount) 项")
+                            sectionTitle("\(cronTotalCount) 项预定任务")
                         }
                         .listRowSeparator(.hidden)
                         .listRowInsets(rowInsets)
@@ -280,7 +280,7 @@ struct HubLedgerSection: View {
                         .listRowBackground(Color.clear)
                     }
                 } header: {
-                    sectionTitle("当前活动")
+                    sectionTitle("活动记录")
                 }
             }
             .listStyle(.plain)

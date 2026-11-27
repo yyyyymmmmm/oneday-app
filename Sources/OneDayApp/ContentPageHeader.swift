@@ -18,6 +18,8 @@ struct ContentPageHeader<Trailing: View>: View {
                 statusWord: appState.liveActivityPhrase,
                 avatar: appState.agentAvatarImage,
                 statusColor: statusColor,
+                liveActivityPhrase: appState.liveActivityPhrase,
+                connectionStatusWord: appState.connectionStatus.phaseWord,
                 onOpenHub: onOpenHub
             )
             HStack(alignment: .center) {

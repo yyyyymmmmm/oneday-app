@@ -28,8 +28,14 @@ import SwiftUI
 /// 16 档收 pitch 至 ≈20；「风格」标签改三级灰 13
 /// 档；摘要量由 Builder §477 摘要化承接（首段＋气
 /// 质），编辑钮与双卡随之回首屏；双卡本体不动。
+/// §名下状态行（2026-11-27）：段内大名下增连接状态
+/// 行＋模型选择入口归位（模型胶囊不冒充状态）
 struct HubIdentitySection: View {
     let store: AgentHubStore
+    /// 模型选择入口注入（§434 注入包，宿主 AgentHub-
+    /// View 给齐才出入口）
+    var modelEntry: HubModelEntry? = nil
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         if store.identityFailed {
@@ -79,18 +85,20 @@ struct HubIdentitySection: View {
     /// 像与 hero 重复、退役，本行只留名作正文题——
     /// 对位参照身份格以名起头的排版
     private var headerRow: some View {
-        Text(store.displayName)
-            // §500：段内大名 28 bold → 22 semibold
-            // （量测实测参照 ≈22 semibold——全页唯一
-            // 「又大又粗」处，hub-type-measurement-
-            // 20261124.md）；FontRoles.screenName 本
-            // 体不动（抽屉名字头等他面沿用）
-            .font(.title2.weight(.semibold))
-            .foregroundStyle(Palette.ink)
-            .lineLimit(1)
-            .padding(.horizontal, OneDayMetrics.hubGutter)
-            .padding(.top, OneDayMetrics.spacingSM)
-            .padding(.bottom, OneDayMetrics.spacingXS)
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            Text(store.displayName)
+                // §500：段内大名 28 bold → 22 semibold
+                // （量测实测参照 ≈22 semibold——全页唯一
+                // 「又大又粗」处，hub-type-measurement-
+                // 20261124.md）；FontRoles.screenName 本
+                // 体不动（抽屉名字头等他面沿用）
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, OneDayMetrics.hubGutter)
+        .padding(.top, OneDayMetrics.spacingSM)
+        .padding(.bottom, OneDayMetrics.spacingXS)
     }
 
     /// 人设为空时的安静占位（不编造内容）：只给出去处

@@ -309,6 +309,7 @@ extension ChatView {
     }
 
     /// 居中身份区（§434）：大头像 67pt 居中＋名/状态身份胶囊
+    /// §名下状态行改造（2026-11-27）：传入活动短语与连接状态词
     var headerIdentityHero: some View {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
@@ -316,6 +317,8 @@ extension ChatView {
             needsApproval: appState.sharedHubStore().hasPendingApprovals,
             avatar: appState.agentAvatarImage,
             statusColor: overviewStatusColor,
+            liveActivityPhrase: appState.liveActivityPhrase,
+            connectionStatusWord: appState.connectionStatus.phaseWord,
             onOpenHub: { presentHub() },
             onFindInConversation: { findController.open() },
             onForkSession: currentThread?.serverSessionID != nil
