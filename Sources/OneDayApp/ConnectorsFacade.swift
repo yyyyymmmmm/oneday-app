@@ -188,7 +188,8 @@ final class ConnectorsFacade {
             name: original.name, transport: original.transport,
             url: original.url, command: original.command,
             enabled: newValue,
-            source: original.source, plugin: original.plugin
+            source: original.source, plugin: original.plugin,
+            tools: original.tools
         )
         toggling.insert(server.name)
         defer { toggling.remove(server.name) }

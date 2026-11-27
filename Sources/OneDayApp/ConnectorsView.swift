@@ -82,8 +82,6 @@ struct ConnectorsView: View {
     private func deviceRow(_ descriptor: DeviceSourceDescriptor) -> some View {
         let permission = appState.deviceSession.permissions[descriptor.sourceID] ?? .notDetermined
         let dataset = DeviceSyncDataset.fromSource(descriptor.sourceID)
-        let syncStatus = dataset.flatMap { appState.deviceSync.statuses[$0] }
-        let syncEnabled = syncStatus != nil
 
         return Button {
             detailTarget = .device(descriptor.sourceID)
@@ -93,12 +91,12 @@ struct ConnectorsView: View {
                 if let assetName = descriptor.iconAssetName {
                     Image(assetName)
                         .resizable()
-                        .frame(width: 40, height: 40)
+                        .frame(width: Palette.iconSlot, height: Palette.iconSlot)
                 } else {
                     Image(systemName: descriptor.systemIcon ?? "circle")
-                        .font(.system(size: 40))
+                        .font(.system(size: Palette.iconSlot))
                         .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: 40, height: 40)
+                        .frame(width: Palette.iconSlot, height: Palette.iconSlot)
                 }
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -120,16 +118,11 @@ struct ConnectorsView: View {
                 // 同步开关：只在有 dataset 且权限允许时显示
                 if let ds = dataset,
                    DeviceSyncControl.agentCanQuery(permission: permission) {
+                    let syncEnabled = appState.deviceSession.agentCallEnabled[descriptor.sourceID] ?? false
                     Toggle("同步", isOn: Binding(
                         get: { syncEnabled },
                         set: { newValue in
-                            Task {
-                                if newValue {
-                                    await appState.deviceSync.enable(dataset: ds)
-                                } else {
-                                    await appState.deviceSync.disable(dataset: ds)
-                                }
-                            }
+                            appState.deviceSession.setAgentCallEnabled(descriptor.sourceID, newValue)
                         }
                     ))
                     .labelsHidden()
@@ -142,7 +135,7 @@ struct ConnectorsView: View {
         }
         .buttonStyle(.odPressable)
         .alignmentGuide(.listRowSeparatorLeading) { _ in
-            40 + OneDayMetrics.spacingSM
+            Palette.iconSlot + OneDayMetrics.spacingSM
         }
     }
 
@@ -222,7 +215,7 @@ struct ConnectorsView: View {
 
     private func mcpServerRow(_ server: MCPServerItem) -> some View {
         let testResult = facade.testResults[server.name]
-        let toolCount = testResult?.tools.count ?? 0
+        let toolCount = server.tools ?? testResult?.tools.count ?? 0
         let isToggling = facade.toggling.contains(server.name)
 
         return Button {
@@ -231,9 +224,9 @@ struct ConnectorsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 // 图标：40pt
                 Image(systemName: "puzzlepiece.extension.fill")
-                    .font(.system(size: 40))
+                    .font(.system(size: Palette.iconSlot))
                     .foregroundStyle(server.enabled ? Palette.primary : Palette.inkSecondary)
-                    .frame(width: 40, height: 40)
+                    .frame(width: Palette.iconSlot, height: Palette.iconSlot)
 
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(server.name)
@@ -283,7 +276,7 @@ struct ConnectorsView: View {
         }
         .buttonStyle(.odPressable)
         .alignmentGuide(.listRowSeparatorLeading) { _ in
-            40 + OneDayMetrics.spacingSM
+            Palette.iconSlot + OneDayMetrics.spacingSM
         }
     }
 
@@ -336,7 +329,7 @@ private struct MCPServerDetailView: View {
                 Section {
                     Button("测试连接") {
                         Task {
-                            await facade.testServer(server, appState: appState)
+                            await facade.test(server, appState: appState)
                         }
                     }
                 }

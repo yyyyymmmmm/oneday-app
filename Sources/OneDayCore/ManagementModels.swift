@@ -264,6 +264,8 @@ public struct MCPServerItem: Decodable, Sendable, Identifiable {
     /// "plugin"＝插件预置（非用户手配），其余/缺失＝手动配置
     public let source: String?
     public let plugin: String?
+    /// 工具数（端点返回 tools 字段时解出；为 null 或无此字段时为 nil）
+    public let tools: Int?
 
     public var id: String { name }
 
@@ -288,7 +290,7 @@ public struct MCPServerItem: Decodable, Sendable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name, transport, url, command, enabled, source, plugin
+        case name, transport, url, command, enabled, source, plugin, tools
     }
 
     public init(from decoder: Decoder) throws {
@@ -300,12 +302,13 @@ public struct MCPServerItem: Decodable, Sendable, Identifiable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         source = try container.decodeIfPresent(String.self, forKey: .source)
         plugin = try container.decodeIfPresent(String.self, forKey: .plugin)
+        tools = try container.decodeIfPresent(Int.self, forKey: .tools)
     }
 
     public init(
         name: String, transport: String? = nil, url: String? = nil,
         command: String? = nil, enabled: Bool = true,
-        source: String? = nil, plugin: String? = nil
+        source: String? = nil, plugin: String? = nil, tools: Int? = nil
     ) {
         self.name = name
         self.transport = transport
@@ -314,6 +317,7 @@ public struct MCPServerItem: Decodable, Sendable, Identifiable {
         self.enabled = enabled
         self.source = source
         self.plugin = plugin
+        self.tools = tools
     }
 }
 
