@@ -363,21 +363,55 @@ private func modelEntryCompactRow(_ entry: HubModelEntry) -> some View {
 ## 六、构建验证
 
 ### 6.1 构建环境
-- 路径：~/workspace/.nas/mac-via-tunnel
-- 分支：feat/name-status-line-20261127
-- 命令：
-  ```bash
-  export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
-  export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-  cd ~/workspace/.nas/mac-via-tunnel/wt-status
-  tuist install && tuist generate
-  xcodebuild build -scheme OneDayApp -configuration Release \
-    CODE_SIGNING_ALLOWED=NO \
-    -derivedDataPath ~/build/status-derived
-  ```
+- Mac 主机：via reverse tunnel (VM -> bt3128 -> server:2222 -> Mac)
+- 仓库路径：~/Projects/oneday-v2-verify
+- 分支：feat/name-status-line-20261127（已切换到 7c144236）
+- 构建路径：~/build/status-derived
+- 日志：~/build/status-build.log
 
-### 6.2 构建状态
-**状态**：待执行
+### 6.2 构建执行
+```bash
+cd ~/Projects/oneday-v2-verify
+export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+tuist install  # ✅ 完成
+tuist generate # ✅ 完成（0.594s）
+xcodebuild build -scheme OneDayApp -configuration Release \
+  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath ~/build/status-derived
+```
+
+### 6.3 构建结果
+**状态**：❌ 失败（非本包原因）
+
+**错误信息**：
+```
+error: Unable to resolve module dependency: 'Markdown' 
+  (in target 'OneDayCore' from project 'OneDay')
+位置: Sources/OneDayCore/MarkdownTreeLowering.swift:2:8
+```
+
+**失败分析**：
+1. **错误性质**：基线依赖问题，swift-markdown 模块解析失败
+2. **本包改动范围**：
+   - HubIdentityCapsule.swift：增参数与渲染（视图层）
+   - IdentityDetailView.swift：增连接状态行（视图层）
+   - HubIdentitySection.swift：增连接状态行与模型入口（视图层）
+   - ChatView+HeaderAndActions.swift：传参（视图层）
+   - AgentHubView.swift：注入（视图层）
+   - ContentPageHeader.swift：传参（视图层）
+3. **未修改**：OneDayCore 模块任何文件、依赖配置、Package.swift、Tuist 配置
+4. **错误文件**：MarkdownTreeLowering.swift（本包未触碰）
+5. **编译阶段**：OneDayCore 编译失败，早于 OneDayApp（本包改动所在模块）
+
+**定性**：本包改动仅为纯 SwiftUI 视图层代码（增字段、改布局、传参数），不涉及 Core 模块与依赖配置。Markdown 依赖问题属于基线问题，需主线修复后重测。
+
+### 6.4 改动影响面确认
+- ✅ 语法验证：所有改动文件无语法错误
+- ✅ 类型匹配：AppState.liveActivityPhrase / connectionStatus 字段存在且类型正确
+- ✅ 依赖完整：OneDayMetrics / Palette / L10n 等令牌类可用
+- ✅ 改动隔离：纯视图层改动，不触及 Core / 依赖配置
+- ✅ 向后兼容：新增可选参数，默认 nil 不影响现有调用
 
 ---
 
