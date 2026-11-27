@@ -32,13 +32,11 @@ struct FeedListSnapshot {
         )
         // UI7-7：过滤非动态内容——点子卡归点子面，不混入
         // 动态流（大厂口径：Twitter/Mastodon 分 tab 不混排）。
-        // 判定：按 FeedPostKind 判别——当服务端下发真正点子卡时，
-        // 给独立 kind（如 .ideaCard），据此过滤；事件帖（.event）
-        // 可合法引用点子（refs 含 idea），但本身不是点子卡，不滤。
-        // 当前状态：服务端未下发点子卡，暂无需过滤（保留所有帖子）
+        // 判定：按 FeedPostKind 判别——.seed 即点子卡形态（FA-2
+        // 首次种子帖，App 内置），滤除；事件帖（.event）可合法
+        // 引用点子（refs 含 idea），但本身不是点子卡，不滤。
         let feedPosts = posts.filter { post in
-            // 未来点子卡 kind 出现时在此补判别：post.kind != .ideaCard
-            true
+            post.kind != .seed
         }
         let visible: [BridgeFeedPost]
         if isSearching, !query.isEmpty {

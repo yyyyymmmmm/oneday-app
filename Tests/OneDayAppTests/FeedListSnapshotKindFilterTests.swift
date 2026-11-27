@@ -3,23 +3,23 @@ import XCTest
 import OneDayCore
 
 /// 动态流过滤点子卡测试（UI7-7 返工）：按 FeedPostKind 判别——
-/// 点子卡给独立 kind 时滤除，事件帖引用点子不误滤，普通帖保留
+/// .seed 即点子卡形态（FA-2 首次种子帖），滤除；事件帖引用点子不误滤
 final class FeedListSnapshotKindFilterTests: XCTestCase {
 
-    /// 纯点子卡（future）：当服务端下发 kind=ideaCard 时应滤除
-    func testIdeaCardFiltering_futureKind() {
-        // 当前 FeedPostKind 无 ideaCard，此测试预留给未来
-        // 实现时验证：点子卡应从动态流滤除
+    /// 种子帖过滤：kind=.seed 应从动态流滤除
+    func testSeedPostFiltering() {
         let posts: [BridgeFeedPost] = [
             makeMockPost(kind: .digest, title: "普通动态", refs: []),
-            // 未来点子卡：kind 为 .ideaCard（待补充枚举值）
-            makeMockPost(kind: .digest, title: "点子", refs: [])
+            makeMockPost(kind: .seed, title: "动态替你盯着感兴趣的事", refs: []),
+            makeMockPost(kind: .research, title: "调研帖", refs: [])
         ]
         let snapshot = FeedListSnapshot.make(
             posts: posts, searchText: "", isSearching: false
         )
-        // 当前实现：所有帖都保留（点子卡 kind 未出现）
+        // 种子帖应滤除，只保留 digest 和 research
         XCTAssertEqual(snapshot.visiblePosts.count, 2)
+        XCTAssertEqual(snapshot.visiblePosts[0].title, "普通动态")
+        XCTAssertEqual(snapshot.visiblePosts[1].title, "调研帖")
     }
 
     /// 事件帖带点子引用：应保留（不按 refs 误滤）
