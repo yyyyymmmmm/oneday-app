@@ -113,7 +113,10 @@ final class HitArea44Tests: XCTestCase {
 
     /// 3-硬1 输入舱三钮（发送/停止变形键、麦克风、附件＋）
     func testComposerButtonsExpanded() throws {
-        let chat = try fileText("OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try fileText("OneDayApp/ChatView.swift")
+        let sendChat = try fileText("OneDayApp/ChatView+SendAndOutbox.swift")
+        let chat = mainChat + "\n" + sendChat
         let compensation =
             "ComposerLayout.buttonHeight) / 2"
         let send = segment(
@@ -179,7 +182,10 @@ final class HitArea44Tests: XCTestCase {
 
     /// 3-硬6 听写失败条关闭钮
     func testDictationFailureCloseExpanded() throws {
-        let chat = try fileText("OneDayApp/ChatView.swift")
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try fileText("OneDayApp/ChatView.swift")
+        let overlaysChat = try fileText("OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let chat = mainChat + "\n" + overlaysChat
         let seg = segment(
             chat, from: "dictation.clearFailure()",
             to: ".accessibilityLabel(\"关闭提示\")"

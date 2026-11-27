@@ -128,9 +128,13 @@ final class ChatSwapStep6StructureTests: XCTestCase {
     /// chatSurface 单路原生面（§409 步 B：
     /// settleStreamFollow 随流式跟随退役出列）
     func testFollowChainSingleSourceInChatView() throws {
-        let chatView = codeLines(
-            try source("Sources/OneDayApp/ChatView.swift")
-        )
+        // #37 模块化拆分后 ChatView 分布在多个文件，合并读取
+        let mainChat = try source("Sources/OneDayApp/ChatView.swift")
+        let sendChat = try source("Sources/OneDayApp/ChatView+SendAndOutbox.swift")
+        let overlaysChat = try source("Sources/OneDayApp/ChatView+OverlaysAndModifiers.swift")
+        let headerChat = try source("Sources/OneDayApp/ChatView+HeaderAndActions.swift")
+        let combined = mainChat + "\n" + sendChat + "\n" + overlaysChat + "\n" + headerChat
+        let chatView = codeLines(combined)
         for name in [
             "func scrollToBottom(",
             "func performScrollToBottom(",
