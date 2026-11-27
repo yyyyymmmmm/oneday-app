@@ -9,19 +9,7 @@ public enum SSEEvent: Equatable, Sendable {
     case done
 }
 
-/// OpenAI 兼容流式响应的逐行解析器（纯逻辑，单测覆盖）。
-///
-/// 只认 data: 行：`data: [DONE]` → .done；`data: {json}` 解
-/// ChatStreamChunk 取增量；空行、event:/id:/注释行与解不出
-/// 增量的分片一律忽略（返回 nil），流不中断。
-/// 非流式错误（如接后端前的提示文本）走完整 JSON 响应，
-/// 不经本解析器，由客户端在非 200 / 非流式分支处理。
-///
-/// 思考通道（0.5.1，§32）：delta.reasoning_content →
-/// .reasoning。正文与思考同帧并存时正文优先、思考让位
-/// ——网关与 DeepSeek 均为分帧下发（思考期 content 为
-/// 空、正文期 reasoning_content 缺席），并存不发生；
-/// 让位保证正文永不丢字。
+/// OpenAI 兼容流式响应解析器（纯逻辑，单测覆盖；#22 兼容 RFC 8895 EventSource 直入载荷）。
 public struct SSEParser: Sendable {
     private let decoder = JSONDecoder()
 
@@ -32,10 +20,17 @@ public struct SSEParser: Sendable {
         guard trimmed.hasPrefix("data:") else { return nil }
         let payload = trimmed.dropFirst("data:".count)
             .trimmingCharacters(in: .whitespaces)
+        return consume(dataPayload: String(payload))
+    }
+
+    /// 供 RFC 8895 `EventSource` 事件流直喂 `event.data` 载荷（#22 真切流）。
+    public func consume(dataPayload rawPayload: String) -> SSEEvent? {
+        let payload = rawPayload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !payload.isEmpty else { return nil }
         if payload == "[DONE]" {
             return .done
         }
-        guard let data = String(payload).data(using: .utf8),
+        guard let data = payload.data(using: .utf8),
               let chunk = try? decoder.decode(ChatStreamChunk.self, from: data) else {
             return nil
         }

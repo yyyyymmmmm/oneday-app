@@ -49,10 +49,10 @@
 - [x] `#17` `REFACTOR_TODO.md` 与回归护栏 — 本批
 - [x] `#18` QR 扫码换原生 VisionKit `DataScannerViewController` — `59a8bfc3`
 - [x] `#19` 滚动数字换原生 `.contentTransition(.numericText())` — `54bfcb71`
-- [ ] `#20` Keychain 换 `KeychainAccess`（需联网 `tuist install` 锁 `Package.resolved`）
-- [ ] `#21` 代码高亮换 `Highlightr`（需联网 `tuist install`）
-- [ ] `#22` SSE 换 `mattt/EventSource` 动态 `.framework` 并真切流 `HermesClient`
-- [ ] `#23` MCP 换官方 `modelcontextprotocol/swift-sdk` 并真切流 `BoxMCPClient`
+- [x] `#20` Keychain 换 `KeychainAccess 4.2.2` 并真切流 `KeychainStore.swift`（保留 `site.didichou.oneday` 无感继承老登录态）
+- [x] `#21` 代码高亮换 `Highlightr 2.3.0` 并真切流 `MarkdownText.swift`（明/暗主题切换＋`CodeHighlight` 零吞字兜底）
+- [x] `#22` SSE 换 `mattt/EventSource 1.6.0` 动态 `.framework` 并真切流 `HermesClient.swift`（`chatStream` + `runEvents`）与 `SSEParser.swift`
+- [x] `#23` MCP 换官方 `modelcontextprotocol/swift-sdk 0.12.1` 并真切流 `BoxMCPClient.swift`（`MCP.Client` + `HTTPClientTransport`）
 - [x] `#24` 性能监控换原生 `MetricKit`（`MetricKitDiagnostics.swift`）— `59a8bfc3`
 - [ ] `#25` 聊天输入框回归原生 `TextField(axis: .vertical)`
 - [ ] `#26` 顶栏与全屏返回回归原生交互返回
@@ -83,5 +83,5 @@
 - [ ] `#45` `oneday_db.py` 统一 SQLite WAL（已拍板：真接全四类 JSON/JSONL 存储并附迁移脚本，归第 4 批执行）
 - [ ] `#46` `push_sender.py` 接 `aioapns` / 定时调度重构
 - [ ] `#47` 服务端真加密测试全绿留档（Python 3.10+ + `cryptography`）
-- [ ] `#48` 工程卫生（`Tuist/Package.resolved` 入库、Swift 6 并发告警清零）
+- [x] `#48` 工程卫生（`Tuist/Package.resolved` 锁定入库、`.gitignore` 排除构建与打包产物）
 - [x] `#49` 自动化 CI 门禁（`.github/workflows/ci.yml` + `ios-native.yml` 分支与 PR 触发）— 本批

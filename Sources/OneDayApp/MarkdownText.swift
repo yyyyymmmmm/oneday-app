@@ -4,6 +4,9 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 import UIKit
+#if canImport(Highlightr)
+import Highlightr
+#endif
 
 /// Markdown 渲染（0.36.25 渲染补全）：块级解析在 Core
 /// MarkdownParser（可测层），本视图只按结构呈现——段
@@ -321,11 +324,22 @@ struct MarkdownText: View {
         return result
     }
 
-    /// 高亮拼装：等宽 footnote 为底，类色映射——关键
-    /// 词紫／字符串绿／数字蓝／注释次墨／普通正文墨
+    /// 高亮拼装（#21 真切流 Highlightr 2.3.0 185+ 语言高亮，按深浅色切换主题，
+    /// 高亮失败或空返回时自动回退至 Core CodeHighlight 五类词法确保永不吞字）
     private func highlighted(
         _ code: String, language: String?
     ) -> AttributedString {
+        #if canImport(Highlightr)
+        if let attr = HighlightrCache.highlight(
+            code: code,
+            language: CodeHighlight.normalizeLanguage(language),
+            isDark: colorScheme == .dark
+        ) {
+            var swiftAttr = AttributedString(attr)
+            swiftAttr.font = .system(.footnote, design: .monospaced)
+            return swiftAttr
+        }
+        #endif
         var result = AttributedString()
         for token in CodeHighlight.tokens(
             code: code, language: language
@@ -850,4 +864,26 @@ private struct MarkdownInlineImageView: View {
         }
     }
 }
+
+#if canImport(Highlightr)
+/// Highlightr 实例缓存（#21）：按深浅色主题切换并复用于主线程渲染，避免每帧重建 JSContext。
+@MainActor
+private enum HighlightrCache {
+    private static var engine: Highlightr? = Highlightr()
+    private static var lastDark: Bool?
+
+    static func highlight(
+        code: String,
+        language: String?,
+        isDark: Bool
+    ) -> NSAttributedString? {
+        guard let engine else { return nil }
+        if lastDark != isDark {
+            _ = engine.setTheme(to: isDark ? "atom-one-dark" : "atom-one-light")
+            lastDark = isDark
+        }
+        return engine.highlight(code, as: language, fastRender: true)
+    }
+}
+#endif
 

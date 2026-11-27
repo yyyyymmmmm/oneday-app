@@ -27,8 +27,11 @@ let project = Project(
             deploymentTargets: corePlatforms,
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
-            // §417：swift-markdown 解析核（Tuist/Package.swift 钉版 0.6.0）
-            dependencies: [.external(name: "Markdown")]
+            // §417：swift-markdown 解析核（0.6.0）+ #22 RFC 8895 EventSource（1.6.0 动态库）
+            dependencies: [
+                .external(name: "Markdown"),
+                .external(name: "EventSource"),
+            ]
         ),
         .target(
             name: "OneDayDesign",
@@ -139,10 +142,14 @@ let project = Project(
                 .target(name: "OneDayCore"),
                 .target(name: "OneDayDesign"),
                 .target(name: "OneDayWidgets"),
-                // §418（#23 图片管线换底）：Nuke 核心＋
-                // NukeUI（版本钉死在 Tuist/Package.swift）
+                // §418：Nuke 核心＋NukeUI（13.2.3）
                 .external(name: "Nuke"),
                 .external(name: "NukeUI"),
+                // 第 2 批成熟库真切流（#20–#23）
+                .external(name: "KeychainAccess"),
+                .external(name: "Highlightr"),
+                .external(name: "EventSource"),
+                .external(name: "MCP"),
             ]
         ),
         .target(

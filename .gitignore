@@ -2,6 +2,7 @@
 *.xcodeproj
 *.xcworkspace
 DerivedData/
+Derived/
 .build/
 .swiftpm/
 Tuist/.build/
@@ -16,5 +17,8 @@ xcuserdata/
 *.swp
 .idea/
 
-# 日志与临时
+# 日志与临时打包产物
 *.log
+*.ipa
+*.bundle
+*.xcresult

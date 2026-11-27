@@ -1,5 +1,8 @@
 import Foundation
 import OneDayCore
+#if canImport(EventSource)
+import EventSource
+#endif
 
 /// Hermes 服务端对接协议：连接页三步探活、总览与聊天走对话面，
 /// 智能体/设置的总览外全部功能走 Dashboard 管理面（/api/*，
@@ -1461,6 +1464,32 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                     // 0.8.0：工具调用分片累积——拼装完成即
                     // 以整卡事件下发，流收尾 flush 余量
                     var toolAccumulator = ToolCallStreamAccumulator()
+                    #if canImport(EventSource)
+                    // #22 真切流：使用 RFC 8895 标准 mattt/EventSource 逐事件解析字节流
+                    for try await sse in bytes.events {
+                        if Task.isCancelled {
+                            throw HermesError.cancelled
+                        }
+                        switch parser.consume(dataPayload: sse.data) {
+                        case .delta(let text):
+                            continuation.yield(.content(text))
+                        case .reasoning(let text):
+                            continuation.yield(.reasoning(text))
+                        case .toolCalls(let fragments):
+                            for card in toolAccumulator.ingest(fragments) {
+                                continuation.yield(.toolCall(card))
+                            }
+                        case .done:
+                            for card in toolAccumulator.flush() {
+                                continuation.yield(.toolCall(card))
+                            }
+                            continuation.finish()
+                            return
+                        case nil:
+                            continue
+                        }
+                    }
+                    #else
                     for try await line in bytes.lines {
                         if Task.isCancelled {
                             throw HermesError.cancelled
@@ -1484,6 +1513,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                             continue
                         }
                     }
+                    #endif
                     // 服务端未发 [DONE] 就收尾：已产出内容照常成篇
                     for card in toolAccumulator.flush() {
                         continuation.yield(.toolCall(card))
@@ -1660,12 +1690,31 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                         return
                     }
                     var parser = RunEventParser()
+                    #if canImport(EventSource)
+                    // #22 真切流：/v1/runs/{id}/events 同步切换 RFC 8895 EventSource 字节流解析
+                    for try await sse in bytes.events {
+                        if Task.isCancelled { break }
+                        if let id = sse.id, !id.isEmpty {
+                            _ = parser.consume(line: "id: \(id)")
+                        }
+                        if let eventName = sse.event, !eventName.isEmpty {
+                            _ = parser.consume(line: "event: \(eventName)")
+                        }
+                        for dataLine in sse.data.split(separator: "\n", omittingEmptySubsequences: false) {
+                            _ = parser.consume(line: "data: \(dataLine)")
+                        }
+                        if let envelope = parser.consume(line: "") {
+                            continuation.yield(envelope)
+                        }
+                    }
+                    #else
                     for try await line in bytes.lines {
                         if Task.isCancelled { break }
                         if let envelope = parser.consume(line: line) {
                             continuation.yield(envelope)
                         }
                     }
+                    #endif
                     continuation.finish()
                 } catch {
                     // 流断（切后台被掐/网络抖动）只收尾：
