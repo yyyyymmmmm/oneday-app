@@ -1065,11 +1065,12 @@ final class AppState {
 
     private func restore() {
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
-              let config = ServerConfig(rawInput: base),
+              var config = ServerConfig(rawInput: base),
               KeychainStore.read(account: CredentialKey.apiKey) != nil else {
             phase = .needsConnection
             return
         }
+        config.username = KeychainStore.read(account: CredentialKey.username)
         self.config = config
         self.shortLivedTokenPair = KeychainStore.readShortLivedTokenPair()
         phase = .connected
@@ -1175,6 +1176,11 @@ final class AppState {
     private var password: String? {
         if isDemo { return "demo-password" }
         return KeychainStore.read(account: CredentialKey.password)
+    }
+
+    private var username: String? {
+        if isDemo { return "" }
+        return KeychainStore.read(account: CredentialKey.username)
     }
 
     // MARK: - 三步探活并连接
@@ -1310,10 +1316,9 @@ final class AppState {
                 KeychainStore.save(
                     config.baseString, account: CredentialKey.baseURL
                 )
+                KeychainStore.save(username, account: CredentialKey.username)
                 KeychainStore.save(password, account: CredentialKey.password)
                 KeychainStore.save(fetchedKey, account: CredentialKey.apiKey)
-                // §244：账号键退役（面板密码无账号概念）
-                KeychainStore.delete(account: CredentialKey.username)
             }
             self.config = config
             return ConnectionServiceInfo(

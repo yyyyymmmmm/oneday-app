@@ -110,6 +110,13 @@ struct ConnectView: View {
                 password = "demo-password"
                 apiKey = "demo-api-key"
             }
+            // 回显已存账号：优先从 config 读（restore 已恢复）；
+            // 未连接时直接读 Keychain 存量（用户断开后重登）
+            if let stored = appState.config?.username
+                ?? KeychainStore.read(account: CredentialKey.username),
+               !stored.isEmpty {
+                username = stored
+            }
             withAnimation(
                 MotionTokens.resolved(
                     MotionTokens.entrance, reduceMotion: reduceMotion
