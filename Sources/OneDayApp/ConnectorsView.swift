@@ -2,92 +2,30 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 连接器目录页（0.28.0，用户 10:32 对标 Muse 连接
-/// 器页令；设置「MCP 连接」升级）：页顶搜索（系统
-/// searchable）＋可连接/已连接分段＋分类分组卡。
-/// 0.36.5（用户 19:03 点名，对照 Muse 目录图）：
-/// 分段胶囊改「可连接」在前、「已连接」在后，默认
-/// 落地可连接（目录的首要任务是发现新连接），且胶
-/// 囊上移至名单首位、紧贴搜索框（旧序已连接在前＋
-/// 胶囊夹在本机服务/设备组之后，被指逻辑不对）。
-/// 第一纪律＝状态真实（Core ConnectorCatalog 口径）：
-/// 「已连接」只来自 GET /api/mcp/servers 的实时读
-/// 取——与既有 MCP 页同一条数据链、不另造状态口
-/// 径；2026-11-10 实查在册仅 box（Simular 官方插件
-/// 预置、enabled）。「可连接」是静态目录八家，全标
-/// 未接入＋接入路径，**不设假连接按钮**：行尾只有
-/// 「未接入」状态字，点开详情 sheet 看接入说明。
-/// 已连接条目的详情保留真实操作（启停 PUT、连接测
-/// 试 POST，沿旧 MCP 页语义：乐观更新＋失败回滚、
-/// 回执无显式成功信号不判成功）。页面规范遵
-/// 0.24.0 定版＋0.26.0 设置语言：List(.insetGrouped)
-/// ＋settingsBG＋行题 Body 17（rowTitleL）＋分区头
-/// Footnote 13（sectionLabel）＋行高 settingsRowHeight。
-///
-/// 0.29.0 补组（用户 12:30 点名、12:31 拍板）：顶部
-/// 第一组「本机服务」——自家的四条线（Hermes 本体/
-/// 记忆与技能审批桥/目标与点子/总览数据）补上名分
-/// 与状态。0.28.0 时内部桥以「自身设施」为由不列，
-/// 用户口径是它们同样要能在目录里看到通断。状态进
-/// 页实时探活（各桥既有客户端的只读 GET、与功能页
-/// 同源同钥匙），不缓存上次结果冒充实时；电脑
-/// （Simular Box）0.29.0 时留在已连接组原位、本组
-/// 不重复列（box-bridge 是电脑页的内部设施、同样
-/// 不列）——0.37.0 起按云电脑规格 §6.1 收敛：Box
-/// 迁入新设「云电脑」组，已连接组滤掉其在册行，
-/// 同一台电脑全页只出现一处。
-/// §259（拼装普查收口第 69 条）：面内客户端与状态
-/// 全收 ConnectorsFacade 门面——本 View 只持门面一
-/// 个入口，连接状态只在门面一处记账、目录只读派生。
+/// 连接器页（2026-11-27 重做）：iOS 原生 List(.insetGrouped)
+/// 分两类呈现——①手机应用权限区（日历/提醒事项/通讯录等，
+/// 显示 iOS 系统权限真实状态＋同步开关）；②MCP 服务区
+/// （数据来自 GET /api/mcp/servers，显示启用状态＋工具数）。
+/// 数据源：系统权限 API、DeviceSync 状态、服务端端点，经
+/// ConnectorsFacade 门面统一。视觉规范：settingsBG 背景、
+/// settingsRowHeight 行高、rowTitleL 行题、sectionLabel 分区头。
 struct ConnectorsView: View {
     @Environment(AppState.self) private var appState
 
-    // §259 起：面内状态与客户端全收 ConnectorsFacade
-    // 门面，本 View 只持门面一个入口、状态只读门面派生
     @State private var facade = ConnectorsFacade()
     @State private var query = ""
-    /// 默认落地可连接（0.36.5）：先进目录先见可接
-    /// 入的，已连接是回头看的
-    @State private var segment: Segment = .available
     @State private var detailTarget: DetailTarget?
 
-    /// 分段序（0.36.5）：声明序即胶囊呈现序——可连
-    /// 接在前、已连接在后（对照 Muse 目录图）
-    private enum Segment: String, CaseIterable, Identifiable {
-        case available = "可连接"
-        case connected = "已连接"
-        var id: String { rawValue }
-    }
-
     private enum DetailTarget: Identifiable {
-        case connected(String)
-        case catalog(String)
-        case local(LocalServiceID)
         case device(DeviceSourceID)
-        case computer(String)
+        case mcpServer(String)
+
         var id: String {
             switch self {
-            case .connected(let name): return "c-\(name)"
-            case .catalog(let id): return "a-\(id)"
-            case .local(let service): return "l-\(service.rawValue)"
-            case .device(let source): return "d-\(source.rawValue)"
-            case .computer(let id): return "pc-\(id)"
+            case .device(let source): return "device-\(source.rawValue)"
+            case .mcpServer(let name): return "mcp-\(name)"
             }
         }
-    }
-
-    @State private var showAddComputer = false
-
-    private var connected: [ConnectedConnector] {
-        facade.connectedConnectors
-    }
-
-    private var available: [ConnectorCatalogEntry] {
-        facade.availableConnectors
-    }
-
-    private var searching: Bool {
-        !query.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var rowInsets: EdgeInsets {
@@ -96,40 +34,10 @@ struct ConnectorsView: View {
 
     var body: some View {
         List {
-            if searching {
-                searchSections
-            } else {
-                // 0.36.5：胶囊置顶紧贴搜索框（名单首
-                // 位），本机服务/你的设备两组随其后、
-                // 分段内容殿后
-                segmentSection
-                localSection
-                deviceSection
-                computerSection
-                if segment == .connected {
-                    connectedSections
-                } else {
-                    catalogSections
-                }
-            }
-            if let notice = facade.notice {
-                Section {
-                    Text(notice)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(rowInsets)
-            }
+            deviceSection
+            mcpSection
         }
         .listStyle(.insetGrouped)
-        // 0.36.7（用户点名胶囊上下间距太大）：本页间
-        // 距自设置页梯队 28 收紧到 spacingM 16——胶囊
-        // 与搜索框、与下方名单的间距同源于此（胶囊行
-        // 自身内边距再归零，见 segmentSection）；本页
-        // 是目录面、节奏从 Muse 参照的紧凑口径，不
-        // 动设置页本体的 28
-        .listSectionSpacing(OneDayMetrics.spacingM)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("连接器")
@@ -148,1090 +56,300 @@ struct ConnectorsView: View {
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
         }
-        .sheet(isPresented: $showAddComputer) {
-            AddComputerView(store: facade.connectionsStore)
-        }
     }
 
-    private func headerText(_ title: String) -> some View {
-        Text(title)
-            .font(.sectionLabel)
-            .foregroundStyle(Palette.inkSecondary)
-            .textCase(nil)
-    }
+    // MARK: - 手机应用权限区
 
-    // MARK: - 分段
-
-    @Namespace private var segmentNamespace
-    @Environment(\.accessibilityReduceMotion)
-    private var reduceMotion
-
-    /// 分段胶囊（0.36.10，判词 2 按图量测对齐）：系
-    /// 统 segmented 退役——实拍三宗错：轨道灰
-    /// （#E3E2E8 量测）＋选中片白（角色与定版语言
-    /// 正反）、轨道高仅约 31pt、胶囊上方留白实测约
-    /// 56pt。改与文件页同源的自制控件（Segmented-
-    /// ControlSpec 钉死）：轨道＝surface 白＋发丝边、
-    /// 全胶囊总高 48；选中药丸＝selectionFill 浅灰
-    /// 垫（#F0F1F2，与 Muse 实测选中片 #F3F4F6 同
-    /// 级）、高 36、内缩 6、无阴影；字 17 semibold
-    /// 两态皆 ink，区分只靠灰垫。对照量测（2026-
-    /// 11-10 用户图，3x 像素实测）：Muse 轨白
-    /// #FFFFFF、选中片 #F3F4F6、总高 ≈47.5pt、内缩
-    /// ≈5pt、搜索框→轨道 16pt、轨道→分组头 ≈30pt；
-    /// 本页左右边距由 List 行距 20 承接（Muse 连
-    /// 接器页实测 ≈21pt、同本页页面节奏）。行上下
-    /// 内边距归零，间距只由 listSectionSpacing（16）
-    /// 一处出——对照旧实测 56pt 的叠加留白
-    private var segmentSection: some View {
-        Section {
-            HStack(spacing: 0) {
-                ForEach(Segment.allCases) { item in
-                    segmentButton(item)
-                }
-            }
-            .padding(SegmentedControlSpec.inset)
-            .background(Palette.surface, in: Capsule())
-            .overlay {
-                Capsule()
-                    .strokeBorder(Palette.separator, lineWidth: 1)
-            }
-            .sensoryFeedback(.selection, trigger: segment)
-        }
-        .listRowBackground(Color.clear)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-    }
-
-    private func segmentButton(_ item: Segment) -> some View {
-        let selected = segment == item
-        return Button {
-            withAnimation(
-                MotionTokens.resolved(
-                    MotionTokens.selectionSpring,
-                    reduceMotion: reduceMotion
-                )
-            ) { segment = item }
-        } label: {
-            Text(item.rawValue)
-                .font(.bodyText.weight(.semibold))
-                .foregroundStyle(Palette.ink)
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: SegmentedControlSpec.pillHeight
-                )
-                .background {
-                    if selected {
-                        Capsule()
-                            .fill(Palette.selectionFill)
-                            .matchedGeometryEffect(
-                                id: "connectorSegmentPill",
-                                in: segmentNamespace
-                            )
-                    }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel(item.rawValue)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-
-    // MARK: - 本机服务（0.29.0 补组，进页实时探活）
-
-    /// 本机服务组：分段胶囊之下第一组（0.36.5 胶囊
-    /// 置顶前的旧序为目录顶部）；四条全列、状态随
-    /// 探活逐条落定，读取中也占行不塌组
-    private var localSection: some View {
-        Section {
-            ForEach(LocalServiceDirectory.roster) { descriptor in
-                localRow(descriptor)
-            }
-        } header: {
-            headerText("本机服务")
-        }
-        // 0.36.7（用户点名）：本机服务组下方的备注脚
-        // 注整段删除、不留替代文案——那段话是给开发
-        // 者解释分组口径的，不是给用户看的
-        .listRowBackground(Palette.surface)
-        .listRowInsets(rowInsets)
-    }
-
-    private func localRow(
-        _ descriptor: LocalServiceDescriptor
-    ) -> some View {
-        let state = facade.localStates[descriptor.serviceID] ?? .loading
-        return Button {
-            detailTarget = .local(descriptor.serviceID)
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                // 0.36.3（§4 加严口径）：本机服务换定
-                // 制图标面资产，裸 SF 符号瓷砖退役
-                ConnectorIconView(
-                    spec: .asset(descriptor.iconAssetName), size: 40
-                )
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(descriptor.name)
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    HStack(spacing: OneDayMetrics.iconTextGap) {
-                        localStatusMark(state)
-                        Text(state.subline)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                DisclosureChevron(font: .footnote.weight(.semibold))
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        // 0.36.3（目录行语法，对照 Muse 目录参考
-        // 图）：分隔线对齐文字列——起于名称左缘、
-        // 不穿图标下方（与设置页贯通口径不同页不
-        // 同规矩：目录页从参考图、设置页从用户点名）
-        .alignmentGuide(.listRowSeparatorLeading) { _ in
-            40 + OneDayMetrics.spacingSM
-        }
-    }
-
-    /// 状态点：正常绿/异常红/未配置灰；读取中是小转
-    /// 圈（不用灰点冒充已探）
+    /// 手机应用权限区：按数据源逐行（日历/提醒事项/通讯录/照片/步数/健康/家庭等），
+    /// 每行呈现 iOS 系统权限的真实状态（系统 API 实时读）＋同步开关 Toggle
+    /// （接现行 DeviceSync 真实状态，乐观更新＋失败回滚）
     @ViewBuilder
-    private func localStatusMark(
-        _ state: LocalServiceProbeState
-    ) -> some View {
-        // 状态点形态经全仓统一派生取值（第 9 项）：
-        // 本地服务入 ServiceHealth 词表后按档位选形，
-        // 不在此按探针自有枚举自拼（本地四档只入
-        // checking/up/down/notConfigured 四档，其余
-        // 档位在本面不出现、走灰点兜底不冒充已探）
-        switch ServiceHealth.from(local: state) {
-        case .checking:
-            ProgressView()
-                .controlSize(.small)
-        case .up:
-            Circle()
-                .fill(Palette.success)
-                .frame(width: 7, height: 7)
-                .accessibilityHidden(true)
-        case .down:
-            Circle()
-                .fill(Palette.danger)
-                .frame(width: 7, height: 7)
-                .accessibilityHidden(true)
-        default:
-            Circle()
-                .fill(Palette.inkSecondary)
-                .frame(width: 7, height: 7)
-                .accessibilityHidden(true)
-        }
-    }
-
-    // MARK: - 你的设备（0.34.0 批一，本机连接器）
-
-    /// 设备组状态行字典（目录行与搜索共用一处映射）
-    private var deviceStatusLines: [DeviceSourceID: String] {
-        var lines: [DeviceSourceID: String] = [:]
-        for descriptor in DeviceSourceDirectory.roster {
-            let dataset = DeviceSyncDataset.fromSource(
-                descriptor.sourceID
-            )
-            lines[descriptor.sourceID] = DeviceRowStatus.line(
-                descriptor: descriptor,
-                permission: appState.deviceSession
-                    .permissions[descriptor.sourceID] ?? .notDetermined,
-                agentCallEnabled: appState.deviceSession
-                    .agentCallEnabled[descriptor.sourceID] ?? false,
-                // 0.36.10（判词 4）：「可调用」须有自家
-                // 会话在线这一本地可验事实托底，离线如
-                // 实降级（DeviceRowStatus 口径）
-                sessionOnline: appState.deviceSession.sessionOnline,
-                metric: facade.deviceMetrics[descriptor.sourceID],
-                // 0.36.14：同步件在行尾拼同步段（副本条
-                // 数＋新到什么时候，Core 同口径组装）；
-                // 0.36.18 起授权态只认真实权限
-                syncSegment: dataset.map {
-                    DeviceSyncPresentation.segment(
-                        dataset: $0,
-                        status: appState.deviceSync.statuses[$0],
-                        authorized: DeviceSyncControl.agentCanQuery(
-                            permission: appState.deviceSession
-                                .permissions[descriptor.sourceID]
-                                ?? .notDetermined
-                        ),
-                        now: Date()
-                    )
-                },
-                // 照片/步数没有现读现回的通道，行里不
-                // 拼「可调用/调用已关」
-                showsCallState: dataset == nil
-                    || descriptor.sourceID == .calendar
-                    || descriptor.sourceID == .reminders
-                    || descriptor.sourceID == .contacts
-            )
-        }
-        return lines
-    }
-
-    /// 你的设备组：恒显（在本机服务之后、分段内容
-    /// 之前——两组都是「自家的东西」，与 MCP 的已
-    /// 连接/可连接语义无关，不被分段切换藏掉，设计
-    /// 档 §6.1；分段胶囊本体 0.36.5 起置于名单首
-    /// 位）。批一三件可点进详情；健康/家庭待签名权
-    /// 益，行在、状态如实、无假入口
     private var deviceSection: some View {
         Section {
             ForEach(DeviceSourceDirectory.roster) { descriptor in
                 deviceRow(descriptor)
             }
         } header: {
-            headerText("你的设备")
-        }
-        // 0.36.10（判词 1）：组下解释段整段删除——
-        // 「数据留在手机上、现读现回、不存副本」逐件
-        // 已在各自详情页尾的口径脚注里（descriptor
-        // .footnote），「健康/家庭待签名权益」在各自
-        // 行状态字与详情里都有；目录页不再成段复述，
-        // 也不换位置再出现
-        .listRowBackground(Palette.surface)
-        .listRowInsets(rowInsets)
-    }
-
-    // 云电脑组（0.37.0，规格 §6.1）：每台一行（名＋
-    // 类型＋状态词，词表与伴生面板同源），行尾添加
-    // 入口。状态来自 connections 契约的实时读取；读
-    // 失败如实露一行，不拿旧列表冒充
-    @ViewBuilder
-    private var computerSection: some View {
-        Section {
-            if let loadError = facade.connectionsStore.loadError,
-               facade.connectionsStore.cloudComputers.isEmpty {
-                Text(loadError)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            }
-            ForEach(facade.connectionsStore.cloudComputers) { connection in
-                Button {
-                    detailTarget = .computer(connection.id)
-                } label: {
-                    computerRowLabel(connection)
-                }
-                .buttonStyle(.odPressable)
-            }
-            Button {
-                showAddComputer = true
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: FrameworkIcon.tabGlyphSize))
-                        .foregroundStyle(Palette.primary)
-                    Text("添加电脑")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Spacer()
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-        } header: {
-            headerText("远程电脑")
+            Text("你的设备")
+                .font(.sectionLabel)
+                .foregroundStyle(Palette.inkSecondary)
+                .textCase(nil)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
     }
 
-    private func computerRowLabel(
-        _ connection: CompanionConnection
-    ) -> some View {
-        let status = ConnectionStatusWording.evaluate(connection)
-        return HStack(spacing: OneDayMetrics.spacingSM) {
-            Image(systemName: "desktopcomputer")
-                .font(.system(size: FrameworkIcon.rowGlyphSize))
-                .foregroundStyle(Palette.primary)
-                .frame(width: 40, height: 40)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(connection.name)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                Text("\(connection.providerWording) · \(status.text)")
-                    .font(.footnote)
-                    .foregroundStyle(
-                        status.tone == .ok ? Palette.successText
-                            : status.tone == .bad ? Palette.danger
-                            : Palette.inkSecondary
-                    )
-                    .lineLimit(1)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            DisclosureChevron(font: .footnote.weight(.semibold))
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        .contentShape(Rectangle())
-    }
+    private func deviceRow(_ descriptor: DeviceSourceDescriptor) -> some View {
+        let permission = appState.deviceSession.permissions[descriptor.sourceID] ?? .notDetermined
+        let dataset = DeviceSyncDataset.fromSource(descriptor.sourceID)
+        let syncStatus = dataset.flatMap { appState.deviceSync.statuses[$0] }
+        let syncEnabled = syncStatus != nil
 
-    @ViewBuilder
-    private func deviceRow(
-        _ descriptor: DeviceSourceDescriptor
-    ) -> some View {
-        let status = deviceStatusLines[descriptor.sourceID] ?? ""
-        if descriptor.isWired {
-            Button {
-                detailTarget = .device(descriptor.sourceID)
-            } label: {
-                deviceRowLabel(descriptor, status: status, chevron: true)
-            }
-            .buttonStyle(.odPressable)
-        } else {
-            deviceRowLabel(descriptor, status: status, chevron: false)
-        }
-    }
-
-    private func deviceRowLabel(
-        _ descriptor: DeviceSourceDescriptor, status: String,
-        chevron: Bool
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            DeviceAppIconView(source: descriptor.sourceID, size: 40)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(descriptor.name)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                Text(status)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if chevron {
-                DisclosureChevron(font: .footnote.weight(.semibold))
-            }
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        .contentShape(Rectangle())
-        // 0.36.3（目录行语法，对照 Muse 目录参考
-        // 图）：分隔线对齐文字列——起于名称左缘、
-        // 不穿图标下方（与设置页贯通口径不同页不
-        // 同规矩：目录页从参考图、设置页从用户点名）
-        .alignmentGuide(.listRowSeparatorLeading) { _ in
-            40 + OneDayMetrics.spacingSM
-        }
-    }
-
-    // MARK: - 已连接（实查数据链）
-
-    @ViewBuilder
-    private var connectedSections: some View {
-        if facade.isLoadingServers && facade.servers.isEmpty {
-            Section {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    ProgressView()
-                    Text("正在读取服务端连接…")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        } else if let errorMessage = facade.serversError, facade.servers.isEmpty {
-            Section {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-                    InlineError(errorMessage)
-                    Button("重试") { Task { await facade.loadServers(appState: appState) } }
-                        .buttonStyle(.odSecondary)
-                }
-                .padding(.vertical, OneDayMetrics.spacingS)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        } else if connected.isEmpty {
-            Section {
-                ContentUnavailableView(
-                    "还没有已连接的服务",
-                    systemImage: "cable.connector",
-                    description: Text("服务端还没有配置任何连接器。在电脑上给 Hermes 配置后，会显示在这里。")
-                )
-                .padding(.vertical, OneDayMetrics.spacingM)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        } else {
-            Section {
-                ForEach(connected) { entry in
-                    connectedRow(entry)
-                }
-            } header: {
-                headerText("已连接 · \(connected.count)")
-            } footer: {
-                // 0.41.0（收口批 P7 余项）：页脚由整句说
-                // 明瘦身为一句事实——去「MCP／服务端」术
-                // 语（宪法 §8），只留用户需要知道的：状
-                // 态是现读的、读不到不冒充（S7 如实）
-                Text("这里的状态是刚刚向服务器确认过的，读不到会如实显示。")
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        }
-    }
-
-    private func connectedRow(_ entry: ConnectedConnector) -> some View {
-        Button {
-            detailTarget = .connected(entry.id)
+        return Button {
+            detailTarget = .device(descriptor.sourceID)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                ConnectorIconView(spec: entry.iconSpec, size: 40)
+                // 图标：40pt，来自 descriptor.iconAssetName 或 SF Symbol
+                if let assetName = descriptor.iconAssetName {
+                    Image(assetName)
+                        .resizable()
+                        .frame(width: 40, height: 40)
+                } else {
+                    Image(systemName: descriptor.systemIcon ?? "circle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(width: 40, height: 40)
+                }
+
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(entry.displayName)
+                    Text(descriptor.name)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
+
                     HStack(spacing: OneDayMetrics.iconTextGap) {
-                        Circle()
-                            .fill(
-                                entry.server.enabled
-                                    ? Palette.success : Palette.inkSecondary
-                            )
-                            .frame(width: 7, height: 7)
-                            .accessibilityHidden(true)
-                        Text(entry.statusLabel)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                DisclosureChevron(font: .footnote.weight(.semibold))
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        // 0.36.3（目录行语法，对照 Muse 目录参考
-        // 图）：分隔线对齐文字列——起于名称左缘、
-        // 不穿图标下方（与设置页贯通口径不同页不
-        // 同规矩：目录页从参考图、设置页从用户点名）
-        .alignmentGuide(.listRowSeparatorLeading) { _ in
-            40 + OneDayMetrics.spacingSM
-        }
-    }
-
-    // MARK: - 可连接（静态目录）
-
-    @ViewBuilder
-    private var catalogSections: some View {
-        ForEach(ConnectorDirectory.grouped(available)) { group in
-            Section {
-                ForEach(group.entries) { entry in
-                    catalogRow(entry)
-                }
-            } header: {
-                headerText(group.category.title)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        }
-        // §388 H7：MCP 目录入口——与上方静态连接器目录
-        // 同段不同源：静态册是客户端写死的，MCP 目录是
-        // 服务端实时批准目录（点按安装新能力）；已连接
-        // 的 MCP 管理仍在「已连接」段，不在此重复
-        Section {
-            NavigationLink {
-                MCPCatalogView(facade: facade)
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("MCP 目录")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Text("服务器批准的 MCP 目录，点按安装")
+                        permissionStatusMark(permission)
+                        Text(permissionStatusText(permission))
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
                     }
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                    Text("去逛逛")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-        } header: {
-            headerText("MCP 目录")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(rowInsets)
-        // 0.36.10（判词 1）：页底总结段整段删除——
-        // 「尚未接入」在每行状态字、「接入路径」在各
-        // 自详情页（接入路径行＋accessDetail 明写 App
-        // 内暂不能直接连接），信息一件不少、目录页
-        // 不再成段复述
-    }
 
-    private func catalogRow(_ entry: ConnectorCatalogEntry) -> some View {
-        Button {
-            detailTarget = .catalog(entry.id)
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                ConnectorIconView(spec: entry.iconSpec, size: 40)
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(entry.name)
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(entry.blurb)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Text("未接入")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+
+                // 同步开关：只在有 dataset 且权限允许时显示
+                if let ds = dataset,
+                   DeviceSyncControl.agentCanQuery(permission: permission) {
+                    Toggle("同步", isOn: Binding(
+                        get: { syncEnabled },
+                        set: { newValue in
+                            Task {
+                                if newValue {
+                                    await appState.deviceSync.enable(dataset: ds)
+                                } else {
+                                    await appState.deviceSync.disable(dataset: ds)
+                                }
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                } else {
+                    DisclosureChevron(font: .footnote.weight(.semibold))
+                }
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        // 0.36.3（目录行语法，对照 Muse 目录参考
-        // 图）：分隔线对齐文字列——起于名称左缘、
-        // 不穿图标下方（与设置页贯通口径不同页不
-        // 同规矩：目录页从参考图、设置页从用户点名）
         .alignmentGuide(.listRowSeparatorLeading) { _ in
             40 + OneDayMetrics.spacingSM
         }
     }
 
-    // MARK: - 搜索（跨两段真过滤）
-
     @ViewBuilder
-    private var searchSections: some View {
-        let hitLocal = LocalServiceProbeMapping.filtered(
-            states: facade.localStates, query: query
-        )
-        let hitDevices = DeviceRowStatus.filtered(
-            statusLines: deviceStatusLines, query: query
-        )
-        let hitConnected = ConnectorDirectory.filteredConnected(
-            connected, query: query
-        )
-        let hitCatalog = ConnectorDirectory.filteredCatalog(
-            available, query: query
-        )
-        if hitLocal.isEmpty && hitDevices.isEmpty
-            && hitConnected.isEmpty && hitCatalog.isEmpty {
-            Section {
-                ContentUnavailableView(
-                    "没有匹配的连接器",
-                    systemImage: "magnifyingglass",
-                    description: Text("换个关键词试试，可按名称、分类或说明搜索。")
-                )
-                .padding(.vertical, OneDayMetrics.spacingM)
+    private func permissionStatusMark(_ permission: DevicePermissionState) -> some View {
+        let color: Color = {
+            switch permission {
+            case .granted, .limited, .writeOnly, .notApplicable:
+                return Palette.success
+            case .denied, .restricted:
+                return Palette.danger
+            case .notDetermined:
+                return Palette.inkSecondary
             }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
-        } else {
-            if !hitLocal.isEmpty {
-                Section {
-                    ForEach(hitLocal) { descriptor in
-                        localRow(descriptor)
-                    }
-                } header: {
-                    headerText("本机服务")
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
-            if !hitDevices.isEmpty {
-                Section {
-                    ForEach(hitDevices) { descriptor in
-                        deviceRow(descriptor)
-                    }
-                } header: {
-                    headerText("你的设备")
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
-            if !hitConnected.isEmpty {
-                Section {
-                    ForEach(hitConnected) { entry in
-                        connectedRow(entry)
-                    }
-                } header: {
-                    headerText("已连接")
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
-            ForEach(ConnectorDirectory.grouped(hitCatalog)) { group in
-                Section {
-                    ForEach(group.entries) { entry in
-                        catalogRow(entry)
-                    }
-                } header: {
-                    headerText(group.category.title)
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
+        }()
+
+        Circle()
+            .fill(color)
+            .frame(width: 7, height: 7)
+            .accessibilityHidden(true)
+    }
+
+    private func permissionStatusText(_ permission: DevicePermissionState) -> String {
+        switch permission {
+        case .granted: return "已授权"
+        case .limited: return "部分授权"
+        case .writeOnly: return "仅写入"
+        case .denied: return "已拒绝"
+        case .restricted: return "受限"
+        case .notDetermined: return "未询问"
+        case .notApplicable: return "无需权限"
         }
     }
 
-    // MARK: - 详情 sheet
+    // MARK: - MCP 服务区
 
+    /// MCP 服务区：数据只来自 GET /api/mcp/servers 实时读——每行服务名＋
+    /// 启用状态 Toggle（PUT /api/mcp/servers/:name/enabled，乐观更新＋
+    /// 失败回滚）＋工具数（端点返回的 tools 字段）
     @ViewBuilder
-    private func detailSheet(for target: DetailTarget) -> some View {
-        switch target {
-        case .connected(let name):
-            if let entry = connected.first(where: { $0.id == name }) {
-                sheetStack {
-                    connectedDetail(entry)
+    private var mcpSection: some View {
+        Section {
+            if facade.isLoadingServers && facade.servers.isEmpty {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("读取中...")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
-            }
-        case .catalog(let id):
-            if let entry = ConnectorDirectory.catalog
-                .first(where: { $0.id == id }) {
-                sheetStack {
-                    catalogDetail(entry)
-                }
-            }
-        case .local(let serviceID):
-            sheetStack {
-                localDetail(
-                    LocalServiceDirectory.descriptor(serviceID)
-                )
-            }
-        case .device(let source):
-            sheetStack {
-                deviceDetail(source)
-            }
-        case .computer(let id):
-            sheetStack {
-                CloudComputerDetailView(
-                    store: facade.connectionsStore, connectionID: id
-                )
-            }
-        }
-    }
-
-    /// 详情 sheet 壳（0.36.5，用户 19:08 点名退出机
-    /// 制缺失）：四类详情统一承载——关闭圆钮常驻左
-    /// 上（系统工具栏玻璃圆钮，与图片查看器 ✕ 同
-    /// 位）＋拖动指示器露面。0.36.0/0.36.3「撤手写
-    /// 关闭、走系统下拉手势」的口径在真机不成立：
-    /// 设备三页自带下拉刷新，下拉先被刷新截走（见
-    /// DeviceViews 的 RefreshableIfEnabled），关不
-    /// 掉又无按钮即无出口；连接器三页无刷新占用、
-    /// 下拉本可关，同壳补钮保四类一致、且明示可拖
-    private func sheetStack<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        NavigationStack {
-            content()
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            detailTarget = nil
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
-                        }
-                        .accessibilityLabel("关闭")
-                    }
-                }
-        }
-        .fullscreenPopBridge()
-        .presentationDragIndicator(.visible)
-    }
-
-    /// 设备详情分发：走共用件 DeviceDetailDestination
-    /// （台账 198 收敛 S1——与设备与权限页同一份映射，
-    /// 不再各持一份 switch）。本面恒以 sheet 呈现：
-    /// inSheet 标记，下拉手势归 sheet 关闭、不再被下
-    /// 拉刷新截走
-    @ViewBuilder
-    private func deviceDetail(_ source: DeviceSourceID) -> some View {
-        DeviceDetailDestination(source: source, inSheet: true)
-    }
-
-    /// 详情页头（0.36.3，详情页语法重做）：对齐
-    /// Muse 授权页五段式的领头段——居中大真图标
-    /// （64）→名称（Title2 bold，身份名档）→一句
-    /// 话能力说明（居中、次色、至多两行）。旧行首
-    /// 小图＋行题的设置式页头退役：详情页先让用户
-    /// 看见「它是谁、能干什么」，状态与动作随后。
-    private func sheetHeader(
-        spec: ConnectorIconSpec, name: String, subline: String
-    ) -> some View {
-        VStack(spacing: OneDayMetrics.spacingS) {
-            ConnectorIconView(spec: spec, size: 64)
-            Text(name)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Palette.ink)
-                .multilineTextAlignment(.center)
-            Text(subline)
-                .font(.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, OneDayMetrics.spacingSM)
-    }
-
-    private func detailRow(_ title: String, _ value: String) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(title)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-    }
-
-    /// 已连接详情：状态与证据如实列全，启停/测试沿
-    /// 旧 MCP 页的真实操作（不新造语义）
-    private func connectedDetail(_ entry: ConnectedConnector) -> some View {
-        let server = entry.server
-        return List {
-            Section {
-                sheetHeader(
-                    spec: entry.iconSpec,
-                    name: entry.displayName, subline: entry.blurb
-                )
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
-
-            Section {
-                detailRow("连接状态", entry.statusLabel)
-                detailRow("确认方式", entry.evidence.label)
-                detailRow("来源", server.originLabel)
-                detailRow("传输方式", transportLabel(server))
-                if let endpoint = server.endpointLine {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("连接地址")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Text(endpoint)
-                            .font(.metaMonospaced)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .textSelection(.enabled)
-                    }
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                }
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-
-            // 0.36.3（五段式）：主动作＝整宽主按钮
-            // （测试连接），启停开关作控件行在前；测
-            // 试结果独立成行，不与按钮挤一格。原「操
-            // 作」分区头撤除——控件自明
-            Section {
-                Toggle("启用", isOn: toggleBinding(for: server))
-                    .font(.rowTitleL)
-                    .disabled(facade.toggling.contains(server.name))
-                Button {
-                    Task { await facade.test(server, appState: appState) }
-                } label: {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        if facade.testing.contains(server.name) {
-                            ProgressView()
-                        }
-                        Text("测试连接")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.odPrimary)
-                .disabled(facade.testing.contains(server.name))
-                if let result = facade.testResults[server.name],
-                   !facade.testing.contains(server.name) {
-                    HStack(spacing: OneDayMetrics.spacingXS) {
-                        Image(
-                            systemName: result.succeeded
-                                ? "checkmark.circle.fill"
-                                : "xmark.circle.fill"
-                        )
-                        .font(.system(size: FrameworkIcon.smallGlyphSize))
-                        .foregroundStyle(
-                            result.succeeded
-                                ? Palette.success : Palette.danger
-                        )
-                        .accessibilityHidden(true)
-                        Text(resultLine(result))
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(2)
-                    }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            } else if let error = facade.serversError, facade.servers.isEmpty {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.danger)
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                }
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
-        .scrollContentBackground(.hidden)
-        .background(Palette.settingsBG)
-        // 0.36.0（宪法 §5／审计 C9）：撤居中标题栏与
-        // 手写关闭——sheetHeader 内容领头、关闭走系
-        // 统下拉手势，不再双份呈现
-    }
-
-    /// 可连接详情：只有状态与接入说明，没有任何
-    /// 形似连接的按钮——未接入就直说未接入
-    private func catalogDetail(_ entry: ConnectorCatalogEntry) -> some View {
-        List {
-            Section {
-                sheetHeader(
-                    spec: entry.iconSpec,
-                    name: entry.name, subline: entry.blurb
+            } else if facade.servers.isEmpty {
+                ContentUnavailableView(
+                    "暂无 MCP 服务",
+                    systemImage: "puzzlepiece.extension",
+                    description: Text("下拉刷新以查看可用服务")
                 )
+            } else {
+                ForEach(facade.servers) { server in
+                    mcpServerRow(server)
+                }
             }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
-
-            // 0.36.0（§5／C9）：原分区头「状态」与首
-            // 行行题「状态」同词重复——去分区头，行
-            // 本身即状态呈现
-            Section {
-                detailRow("状态", "未接入")
-                detailRow("分类", entry.category.title)
-                detailRow("接入路径", entry.accessSummary)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-
-            // 0.36.3（五段式）：说明文字下沉页脚小
-            // 字——不再成段塞卡（对照授权页条款段）
-            Section {
-                Text(entry.accessDetail)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
+        } header: {
+            Text("MCP 服务")
+                .font(.sectionLabel)
+                .foregroundStyle(Palette.inkSecondary)
+                .textCase(nil)
         }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
-        .scrollContentBackground(.hidden)
-        .background(Palette.settingsBG)
-        // 0.36.0（§5／C9）：同 connectedDetail，撤
-        // 标题与手写关闭、内容领头
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
     }
 
-    /// 本机服务详情（0.29.0）：状态/证据/探活时间如
-    /// 实列全；异常显错误原文、未配置显成因与补设入
-    /// 口；有对应功能页的给入口跳转（口径与本页其他
-    /// 详情一致：只跳转、不在本页另做一份功能面）
-    private func localDetail(
-        _ descriptor: LocalServiceDescriptor
-    ) -> some View {
-        let state = facade.localStates[descriptor.serviceID] ?? .loading
-        return List {
-            Section {
-                sheetHeader(
-                    spec: .asset(descriptor.iconAssetName),
-                    name: descriptor.name, subline: descriptor.blurb
-                )
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
+    private func mcpServerRow(_ server: MCPServerItem) -> some View {
+        let testResult = facade.testResults[server.name]
+        let toolCount = testResult?.tools.count ?? 0
+        let isToggling = facade.toggling.contains(server.name)
 
-            Section {
-                detailRow("状态", state.statusLabel)
-                if let metric = state.metric, !metric.isEmpty {
-                    detailRow("当前读数", metric)
-                }
-                if let lastProbeAt = facade.lastProbeAt {
-                    detailRow(
-                        "最近检查",
-                        DisplayDate.dateTime(lastProbeAt)
-                    )
-                }
-                if descriptor.serviceID == .writeGate,
-                   let gate = facade.gateSnapshot {
-                    detailRow("写入审批", gate.supported ? "已启用" : "未启用")
-                    detailRow(
-                        "记忆写入先审批", gate.memoryGateEnabled ? "开" : "关"
-                    )
-                    detailRow(
-                        "技能改动先审批", gate.skillsGateEnabled ? "开" : "关"
-                    )
-                }
-                if descriptor.serviceID == .overviewBridge,
-                   let generated = facade.overviewGeneratedAt {
-                    detailRow("生成存档", generated)
-                }
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-
-            // 0.36.3：证据口径下沉页脚小字（检查的是
-            // 什么、何时查的——小字交代、不占卡内行）
-            Section {
-                Text(descriptor.evidenceLine)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(rowInsets)
-
-            if case .down(let message) = state {
-                Section {
-                    Text(message)
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
-
-            if case .notConfigured = state {
-                Section {
-                    Text("这台手机上还没有登录信息。先到「设置」确认已连接并登录，再回到本页下拉刷新即可。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                }
-                .listRowBackground(Palette.surface)
-                .listRowInsets(rowInsets)
-            }
-
-            Section {
-                localEntries(descriptor.serviceID)
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(rowInsets)
-        }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
-        .scrollContentBackground(.hidden)
-        .background(Palette.settingsBG)
-        // 0.36.0（§5／C9）：同 connectedDetail，撤
-        // 标题与手写关闭、内容领头
-    }
-
-    /// 功能入口（按服务分发到各自既有页，不新造页面）
-    @ViewBuilder
-    private func localEntries(_ serviceID: LocalServiceID) -> some View {
-        switch serviceID {
-        case .hermes:
-            entryRow("服务器详情") { jumpSettings(.serverDetail) }
-        case .writeGate:
-            entryRow("记忆") { jumpAgent(.memory) }
-            entryRow("技能") { jumpAgent(.skills) }
-        case .oneDayBridge:
-            entryRow("目标") { jumpTab(.goals) }
-            entryRow("点子") { jumpTab(.ideas) }
-        case .overviewBridge:
-            // 原「总览」入口行已随结构归位包撤除
-            // （纲要 D5-1：总览撤独立页）；总览桥的
-            // 数据面（角标/进展胶囊）不受影响，本详
-            // 情只余状态呈现、无功能入口行
-            EmptyView()
-        }
-    }
-
-    private func entryRow(
-        _ title: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
+        return Button {
+            detailTarget = .mcpServer(server.name)
+        } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                Text(title)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
+                // 图标：40pt
+                Image(systemName: "puzzlepiece.extension.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(server.enabled ? Palette.primary : Palette.inkSecondary)
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(server.name)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+
+                    HStack(spacing: OneDayMetrics.iconTextGap) {
+                        Circle()
+                            .fill(server.enabled ? Palette.success : Palette.inkSecondary)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+
+                        if toolCount > 0 {
+                            Text("\(server.enabled ? "已启用" : "已停用") · \(toolCount) 工具")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        } else {
+                            Text(server.enabled ? "已启用" : "已停用")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
                 Spacer(minLength: OneDayMetrics.spacingS)
-                DisclosureChevron(font: .footnote.weight(.semibold))
+
+                // 启用开关
+                if isToggling {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Toggle("启用", isOn: Binding(
+                        get: { server.enabled },
+                        set: { newValue in
+                            Task {
+                                await facade.setEnabled(server, to: newValue, appState: appState)
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                }
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-    }
-
-    private func jumpAgent(_ route: AgentRoute) {
-        detailTarget = nil
-        appState.router.pendingAgentRoute = route
-    }
-
-    private func jumpSettings(_ route: SettingsRoute) {
-        detailTarget = nil
-        appState.router.pendingSettingsRoute = route
-    }
-
-    private func jumpTab(_ tab: ContentView.MainTab) {
-        detailTarget = nil
-        appState.router.mainTabSwitchRequest = tab
-    }
-
-    // MARK: - 数据链（与既有 MCP 页同源，语义不变）
-
-    private func transportLabel(_ server: MCPServerItem) -> String {
-        switch server.transport?.lowercased() {
-        case "http", "streamable-http", "sse":
-            return "远程连接"
-        case "stdio":
-            return "本机运行"
-        default:
-            return "—"
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            40 + OneDayMetrics.spacingSM
         }
     }
 
-    private func resultLine(_ result: MCPTestResult) -> String {
-        var text = result.displayMessage
-            ?? (result.succeeded ? "连接成功" : "连接未成功")
-        if let count = result.toolCount {
-            text += " · \(count) 个工具"
-        }
-        return text
-    }
+    // MARK: - 详情页
 
-    private func toggleBinding(for server: MCPServerItem) -> Binding<Bool> {
-        Binding(
-            get: { server.enabled },
-            set: { newValue in
-                Task { await facade.setEnabled(server, to: newValue, appState: appState) }
+    @ViewBuilder
+    private func detailSheet(for target: DetailTarget) -> some View {
+        switch target {
+        case .device(let sourceID):
+            if let descriptor = DeviceSourceDirectory.roster.first(where: { $0.sourceID == sourceID }) {
+                DeviceDetailDestination(
+                    descriptor: descriptor,
+                    appState: appState
+                )
             }
-        )
-    }
-}
-
-/// 连接器图标（0.36.0，宪法 §4／审计 C6）：口径
-/// 只两路——官方品牌原图资产（.asset，来源登记
-/// 在整改台账 D 节）或 SF Symbol 通用瓷砖
-/// （.symbol，走 Design 层 AppSymbolTile 的苹果
-/// 应用图标画法）。旧「彩色圆角底＋白色字母/汉
-/// 字」近似瓷砖（§55 登记）整类退役：既是字块、
-/// 又是仿绘品牌，双触 §4。
-private struct ConnectorIconView: View {
-    let spec: ConnectorIconSpec
-    var size: CGFloat = 40
-
-    var body: some View {
-        Group {
-            switch spec {
-            case .asset(let name):
-                Image(name)
-                    .resizable()
-                    .scaledToFit()
-            case .symbol(let name):
-                AppSymbolTile(
-                    symbol: name, glyphColor: Palette.ink, size: size
+        case .mcpServer(let name):
+            if let server = facade.servers.first(where: { $0.name == name }) {
+                MCPServerDetailView(
+                    server: server,
+                    facade: facade,
+                    appState: appState
                 )
             }
         }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - MCP Server Detail View (Placeholder)
+
+private struct MCPServerDetailView: View {
+    let server: MCPServerItem
+    let facade: ConnectorsFacade
+    let appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    LabeledContent("名称", value: server.name)
+                    LabeledContent("传输方式", value: server.transport)
+                    if let url = server.url {
+                        LabeledContent("地址", value: url)
+                    }
+                    LabeledContent("状态", value: server.enabled ? "已启用" : "已停用")
+                } header: {
+                    Text("基本信息")
+                }
+
+                Section {
+                    Button("测试连接") {
+                        Task {
+                            await facade.testServer(server, appState: appState)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(server.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
