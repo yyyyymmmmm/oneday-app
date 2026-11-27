@@ -55,8 +55,8 @@ extra blank bands. No new spacing token is needed.
 ## Implementation record
 
 Changed landing points in the resulting file: `FeedView.swift:642` (body
-modifier removed, 16 -> 0), `:650` (truncation modifier removed, 16 -> 0),
-`:663` (image modifier removed, 16 -> 0), `:667` (refs modifier removed,
+modifier removed, 16 -> 0), `:651` (truncation modifier removed, 16 -> 0),
+`:664` (image modifier removed, 16 -> 0), `:667` (refs modifier removed,
 8 -> 0), and `:674` (row top/bottom 16 -> 8).
 Values-only spacing changes are limited to `FeedView.swift`; no content, row
 structure, behavior, identity capsule, or chat header changes are in scope.
