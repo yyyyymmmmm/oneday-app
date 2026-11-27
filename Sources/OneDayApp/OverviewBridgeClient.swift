@@ -16,7 +16,7 @@ enum OverviewBridgeError: Error, Sendable, Equatable {
 /// /api/overview-bridge，与桥部署口径一致；用户改址后
 /// 桥随服务器走）。Bearer 只从 Keychain 的
 /// BridgeCredential 统一读（0.33.1：聊天同一份
-/// Hermes 登录密钥，入口在服务器内部换桥钥）；
+/// Hermes 登录令牌，桥面直接验令牌）；
 /// 读不到钥匙一律 noKey、不发请求、不冒充已接通。
 /// C-10 收敛：连接/单钥/管线/文案走统一基座（短请求
 /// waitsForConnectivity 与 HermesClient 短请求同口径，

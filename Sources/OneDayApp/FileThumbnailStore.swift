@@ -72,8 +72,8 @@ final class FileThumbnailStore {
     }
 
     /// 取字节通道组（§144）：原图走宿主 performAdmin
-    /// 文件下载、变体走桥 rendition 端点（桥钥在客户
-    /// 端内读，宽度固定 360 档）——FileThumbnailView／
+    /// 文件下载、变体走桥 rendition 端点（Bearer 经
+    /// BridgeCredential 统一读，宽度固定 360 档）——FileThumbnailView／
     /// 文件卡／影音预取三处同源，不各拼一份
     static func originalLoader(
         appState: AppState, path: String

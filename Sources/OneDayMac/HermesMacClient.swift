@@ -1146,7 +1146,7 @@ struct HermesMacClient: Sendable {
 
     /// oneday-bridge 通用口：与 iOS OneDayBridgeClient
     /// 同前缀（/api/oneday-bridge）、同 Bearer（登录密
-    /// 钥一把，服务器内部换桥钥）、同 DTO（Core 单源，
+    /// 钥一把，桥面直接验令牌）、同 DTO（Core 单源，
     /// 不另立第二形）。零新后端。
     private func bridgeRequest<T: Decodable>(
         config: ServerConfig, apiKey: String, path: String,

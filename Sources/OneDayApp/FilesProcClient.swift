@@ -11,7 +11,7 @@ import OneDayCore
 /// 文件预览双轨合一退役（表格一律走 QuickLook 原
 /// 文件预览），本类不再留转码方法。
 /// 路径挂服务器根下 /api/fileproc-bridge，Bearer 与
-/// 全 App 桥客户端同口径（登录密钥经入口换桥钥）；
+/// 全 App 桥客户端同口径（Bearer 为 Hermes 登录令牌，桥面直接验令牌）；
 /// 状态码口径与桥时代逐字不变：不走人话收敛、状态
 /// 码原样包成 HermesError.unexpectedStatus 交调用
 /// 方分型，无钥匙走 OneDayBridgeError.noKey

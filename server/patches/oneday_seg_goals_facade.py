@@ -24,9 +24,9 @@
 # already renders as conversation-born) and facade-written entries
 # carry source="agent". Every tools/call -- success or failure --
 # writes one P0 trace BEFORE the answer goes out.
-# NOT registered into Hermes: registration (mcp_servers entry +
-# gateway route) waits for the closing window; until then this is
-# "facade ready, awaiting registration", verified by direct calls.
+# Registered into Hermes as oneday-goals: the mcp_servers entry
+# and gateway route are in place, `hermes mcp list` shows it
+# enabled and `hermes mcp test` passes (verified 2026-11-27).
 GOAL_TOOLS = [
     {
         "name": "goals_list",
