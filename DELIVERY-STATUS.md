@@ -442,7 +442,12 @@ error: Unable to resolve module dependency: 'Markdown'
 - 调用适配：ChatView+HeaderAndActions、ContentPageHeader 传参
 - 注入传递：AgentHubView 传递 modelEntry 到 HubIdentitySection
 
-**未改动**：HubLedgerSection 的段名与预定任务机制在基线中已存在，本轮未修改
+**本轮返工新增（第三批验收修订）**：
+- **HubLedgerSection.swift**：活动记录段补内部系统任务过滤（动态调研等不进流水）＋条目人话标题/说明优先显示（titleHuman/summary 字段）
+- **LedgerListSnapshot.swift**：快照生成前过滤 isInternalSystemTask 条目
+- **LedgerModels.swift**：补 isInternalSystemTask 计算属性（按标题关键词＋来源判别）
+
+**说明**：HubLedgerSection 文件在本支内改动（非基线已有），DELIVERY-STATUS.md 本节已订正
 
 ---
 

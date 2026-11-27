@@ -392,10 +392,13 @@ struct HubLedgerSection: View {
     /// 源不动，详情面照旧消费
     private func ledgerRow(_ group: LedgerSessionGroup) -> some View {
         let item = group.representative
+        // §名下状态行改造：标题优先 titleHuman（人话标题），
+        // 副题优先 summary（人话摘要），缺省时回退原拼装逻辑
+        let displayTitle = item.titleHuman ?? item.title
         return HStack(spacing: OneDayMetrics.spacingSM) {
             iconBox(item)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(item.titleHuman ?? item.title)
+                Text(displayTitle)
                     .font(.system(
                         size: OneDayMetrics.hubTitleSize,
                         weight: .semibold
@@ -454,16 +457,22 @@ struct HubLedgerSection: View {
         }
     }
 
-    /// 副题人话摘要（§477）：[共 N 次运行 ·] 状态词
-    /// [· 已运行/已等 时长] [· 工具调用 N 次]——状
-    /// 态词与已耗时出 rowParts 单源（§344），聚合次
-    /// 数与工具调用数是台账真字段；证据迟滞的「最
-    /// 后确认」注（rowParts.trailingNote）不在列表
-    /// 消费、只留详情面
+    /// 副题人话摘要（§477＋§名下状态行改造）：优先显示
+    /// item.summary（服务端生成的人话摘要），缺省时回退原
+    /// 拼装逻辑——[共 N 次运行 ·] 状态词 [· 已运行/已等 时长]
+    /// [· 工具调用 N 次]。状态词与已耗时出 rowParts 单源
+    /// （§344），聚合次数与工具调用数是台账真字段；证据
+    /// 迟滞的「最后确认」注（rowParts.trailingNote）不在
+    /// 列表消费、只留详情面
     private func subtitleText(
         _ group: LedgerSessionGroup, serverNow: Double
     ) -> String {
         let item = group.representative
+        // §名下状态行改造：优先 summary（服务端人话摘要）
+        if let summary = item.summary, !summary.isEmpty {
+            return summary
+        }
+        // 回退原拼装逻辑
         let parts = LedgerBoard.rowParts(
             for: item, serverNow: serverNow
         )
