@@ -5409,8 +5409,12 @@ struct ChatView: View {
                                 entrySegmentProducts(entry)?[0],
                             // §503：查找着色（命中行正
                             // 文命中词加底；非命中行 nil）
+                            // 2026-11-27：两档强调——当前
+                            // 命中强背景、其他命中弱背景
                             searchHighlightQuery:
-                                findHighlightQuery(for: entry.id)
+                                findHighlightQuery(for: entry.id),
+                            searchIsCurrentMatch:
+                                entry.id == findController.session.currentMatchID
                         )
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
