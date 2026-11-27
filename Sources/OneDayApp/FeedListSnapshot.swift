@@ -35,8 +35,17 @@ struct FeedListSnapshot {
         // 判定：按 FeedPostKind 判别——.seed 即点子卡形态（FA-2
         // 首次种子帖，App 内置），滤除；事件帖（.event）可合法
         // 引用点子（refs 含 idea），但本身不是点子卡，不滤。
+        // 2.22.0（点子卡定 B）：event 帖按 eventKind 判别——
+        // eventKind=="idea" 归点子分类，滤除；其余 event 帖
+        // （briefing/monitor/task）留在动态流。
         let feedPosts = posts.filter { post in
-            post.kind != .seed
+            if post.kind == .seed {
+                return false
+            }
+            if post.eventKind == "idea" {
+                return false
+            }
+            return true
         }
         let visible: [BridgeFeedPost]
         if isSearching, !query.isEmpty {

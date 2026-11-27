@@ -289,6 +289,10 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     /// 按主题选定、digest 固定 📰；旧帖为 nil，呈现
     /// 走 kind 缺省（displayEmoji）
     public let emoji: String?
+    /// 事件类别（2.22.0，点子卡定 B）：event 帖带
+    /// eventKind 字段，值域 idea/briefing/monitor/task；
+    /// 旧帖为 nil（服务端已按 eventKey 前缀回填）
+    public let eventKind: String?
     /// epoch 秒（float）
     public let createdAt: Double
     public let expiresAt: Double?
@@ -328,7 +332,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         createdAt: Double, expiresAt: Double? = nil,
         readAt: Double? = nil, emoji: String? = nil,
         likedAt: Double? = nil,
-        category: String? = nil, usefulness: Double? = nil
+        category: String? = nil, usefulness: Double? = nil,
+        eventKind: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -347,6 +352,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         self.likedAt = likedAt
         self.category = category
         self.usefulness = usefulness
+        self.eventKind = eventKind
     }
 
     /// 本地已读副本（回执到达前的呈现不回退用；真源
@@ -359,7 +365,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
             readAt: ts, emoji: emoji, likedAt: likedAt,
-            category: category, usefulness: usefulness
+            category: category, usefulness: usefulness,
+            eventKind: eventKind
         )
     }
 
@@ -376,7 +383,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
             readAt: readAt, emoji: emoji, likedAt: ts,
-            category: category, usefulness: usefulness
+            category: category, usefulness: usefulness,
+            eventKind: eventKind
         )
     }
 
@@ -384,7 +392,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         case id, kind, title, body, refs, links, why
         case images, sourceCard, direction
         case createdAt, expiresAt, readAt, emoji, likedAt
-        case category, usefulness
+        case category, usefulness, eventKind
     }
 
     public init(from decoder: Decoder) throws {
@@ -435,6 +443,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         )
         usefulness = try container.decodeIfPresent(
             Double.self, forKey: .usefulness
+        )
+        eventKind = try container.decodeIfPresent(
+            String.self, forKey: .eventKind
         )
     }
 }
