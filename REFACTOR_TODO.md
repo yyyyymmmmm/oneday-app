@@ -23,7 +23,7 @@
 - [ ] 通知收件箱、中枢页模型切换与液态玻璃分段条
 - [ ] 服务端凭据库信封 v2 / v1 双轨自测（Python 3.10+ + `cryptography`）
 
-## 三、49 项改造进度追踪
+## 三、53 项改造进度追踪（49 项有效 + 4 项审计否决/缓办）
 
 ### Batch 1：UI 视觉、交互与体验精修（16 项）
 
@@ -85,3 +85,10 @@
 - [x] `#47` 全量服务端 `py_compile`、`oneday_db_selftest`、`auth_tokens_selftest`、`push_tokens_selftest`、`push_sender_and_schema_guard_selftest` 通过；修复 `.github/workflows/ci.yml` 路径并在 Python 3.12 + `cryptography` 环境下运行 `server/credential_vault_selftest.py` 真加密自测
 - [x] `#48` 工程卫生（`Tuist/Package.resolved` 锁定入库、`.gitignore` 排除构建与打包产物）
 - [x] `#49` 自动化 CI 门禁（`.github/workflows/ci.yml` + `ios-native.yml` 分支与 PR 触发）— 本批
+
+### Batch 5：全量视觉精修与架构收尾（4 项）
+
+- [ ] `#50` 全局配色对比度与字号体检（`Palette.swift` 增补语义图标前景色 Token `tintSkyInk`/`tintGreenInk`/`tintLavenderInk`/`tintOrangeInk`；排查并修复可读文本误用 `inkMuted` 导致对比度偏低的区域，如 `FeedLinkPreviewCard` `domainLine` 等，同时保持现有 `VisualDirectionGateTests` 对比度断言零回归）
+- [ ] `#51` 动态页（`FeedView.swift`）图标与卡片视觉统一（升级 `postRow` 图标容器为 36×36 连续圆角磁贴＋`.symbolRenderingMode(.hierarchical)`＋语义前景色对齐中枢/通知/点子页，补齐 `FeedSourceCardView`/`FeedLinkPreviewCard` `Palette.hairline` 描边）
+- [ ] `#52` 通知页（`NotificationsView.swift`）分类筛选胶囊与左滑标已读增强（在全部/未读分段条下方新增横向分类胶囊 `全部 / 审批 / 监测 / 任务` 与触觉反馈，保留左滑「标已读」与减动态兼容）
+- [ ] `#53` `ChatView.swift` 二次瘦身与 UIKit 桥体检（抽离顶部状态/查找栏/按钮簇与对话查找辅助至 `ChatView+HeaderAndActions.swift`，完成 `Sources/OneDayApp` 全部 11 处 `UIViewRepresentable` 桥接与计时器零泄漏审计）
