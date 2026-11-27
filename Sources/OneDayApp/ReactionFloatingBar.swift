@@ -312,33 +312,17 @@ struct ReactionActionCardView: View {
 /// .snappy(D×0.66≈0.2)、背景延迟 0.33D 后
 /// .easeOut(D) 淡出。背景双层参数同出 Exyte 原
 /// 文：.ultraThinMaterial＋.primary.opacity(0.1)
+/// 大厂对位版：本枚举已迁移至 ChatReactionMotion
+/// 统一管理（.menu* 前缀），本处保留别名作过渡
 enum ReactionBarMotion {
-    /// 基准时长 D（Exyte animationDuration 默认）
-    static let duration: CGFloat = 0.3
-    /// 段间时序点 0.33D（Exyte 状态机 original/
-    /// ready 推进点同值）
-    static var stageDelay: CGFloat { duration / 3 }
-    static var backgroundIn: Animation {
-        .easeInOut(duration: duration)
-    }
-    static var messageIn: Animation {
-        .easeInOut(duration: duration * 1.33)
-    }
-    static var chromeIn: Animation {
-        .bouncy(duration: duration)
-    }
-    static var chromeOut: Animation {
-        .snappy(duration: duration * 0.66)
-    }
-    static var backgroundOut: Animation {
-        .easeOut(duration: duration)
-            .delay(duration / 3)
-    }
-    /// 收起全程（背景淡出走完）后才摘会话的等待：
-    /// 0.33D 延迟＋D 淡出，留 0.02 余量
-    static var dismissalTotal: CGFloat {
-        duration / 3 + duration + 0.02
-    }
+    static let duration = ChatReactionMotion.menuDuration
+    static var stageDelay: CGFloat { ChatReactionMotion.menuStageDelay }
+    static var backgroundIn: Animation { ChatReactionMotion.menuBackgroundIn }
+    static var messageIn: Animation { ChatReactionMotion.menuMessageIn }
+    static var chromeIn: Animation { ChatReactionMotion.menuChromeIn }
+    static var chromeOut: Animation { ChatReactionMotion.menuChromeOut }
+    static var backgroundOut: Animation { ChatReactionMotion.menuBackgroundOut }
+    static var dismissalTotal: CGFloat { ChatReactionMotion.menuDismissalTotal }
 }
 
 /// 浮排布局产物（DESIGN §346／§440）：药丸原点／
