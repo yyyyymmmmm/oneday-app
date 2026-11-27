@@ -1,6 +1,9 @@
 import Foundation
 import OneDayCore
 import Security
+#if canImport(KeychainAccess)
+import KeychainAccess
+#endif
 
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
 enum CredentialKey {
@@ -68,13 +71,22 @@ enum RetiredBridgeKeyCleanup {
     }
 }
 
-/// Keychain 薄封装（kSecClassGenericPassword）。
+/// Keychain 封装（#20 真切流至 KeychainAccess 4.2.2，保持原 Service/Account 键名无感继承老登录态）。
 /// 服务器地址、面板账号密码、API 密钥只许存这里，不进
 /// UserDefaults / SwiftData / 文件（沿礼记凭据纪律）。
 enum KeychainStore {
     private static let service = "site.didichou.oneday"
 
+    #if canImport(KeychainAccess)
+    private static var keychain: Keychain {
+        Keychain(service: service)
+    }
+    #endif
+
     static func save(_ value: String, account: String) {
+        #if canImport(KeychainAccess)
+        try? keychain.set(value, key: account)
+        #else
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -88,9 +100,13 @@ enum KeychainStore {
             item[kSecValueData as String] = data
             SecItemAdd(item as CFDictionary, nil)
         }
+        #endif
     }
 
     static func read(account: String) -> String? {
+        #if canImport(KeychainAccess)
+        return try? keychain.getString(account)
+        #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -104,15 +120,20 @@ enum KeychainStore {
             return nil
         }
         return String(data: data, encoding: .utf8)
+        #endif
     }
 
     static func delete(account: String) {
+        #if canImport(KeychainAccess)
+        try? keychain.remove(account)
+        #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
+        #endif
     }
 
     static func clearAll() {

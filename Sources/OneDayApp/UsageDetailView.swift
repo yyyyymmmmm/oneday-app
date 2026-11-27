@@ -50,6 +50,7 @@ struct UsageDetailView: View {
                         .foregroundStyle(Palette.primary)
                 }
                 .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
 
             if usage == nil && errorMessage == nil {
@@ -64,6 +65,7 @@ struct UsageDetailView: View {
                     .padding(.vertical, OneDayMetrics.spacingM)
                 }
                 .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
         }
         .listStyle(.insetGrouped)

@@ -199,6 +199,10 @@ struct OneDayApp: App {
         // 平台通道）——开关缺省开，关口在关于页内部
         // 实验节；记录过隐私门落本机、报告面回读
         CrashDiagnosticsCollector.shared.startIfEnabled()
+        MetricKitDiagnostics.shared.start()
+        Task { @MainActor in
+            Haptics.prepare()
+        }
 #if ONEDAY_TABBAR_DIAG
         // §382 底栏诊断（诊断分支专用）：只登记激活
         // 通知、进程内自启四点快照，不碰视图树

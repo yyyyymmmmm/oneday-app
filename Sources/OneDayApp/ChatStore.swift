@@ -758,4 +758,20 @@ final class ChatEntry {
         if let goalQuote { return .goal(goalQuote) }
         return nil
     }
+
+    /// 结构化消息块解码缓存（#34）：优先解析 JSON `content_blocks` 信封，
+    /// 旧历史文本无损回退至兼容解析器（`[[deliver:...]]` / `[[cloud:...]]` / `MEDIA:`）。
+    @Transient var decodedBlocksCacheValue: [MessageContentBlock]? = nil
+    @Transient var decodedBlocksCacheSource: String? = nil
+
+    var decodedContentBlocks: [MessageContentBlock] {
+        if let cached = decodedBlocksCacheValue,
+           decodedBlocksCacheSource == content {
+            return cached
+        }
+        let decoded = MessageBlockCodec.decode(content)
+        decodedBlocksCacheValue = decoded
+        decodedBlocksCacheSource = content
+        return decoded
+    }
 }

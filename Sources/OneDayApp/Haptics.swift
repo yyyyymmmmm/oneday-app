@@ -42,9 +42,21 @@ enum Haptics {
     }
     #endif
 
+    /// 触感防抖节流间隔（收敛高频无效震动，保留状态结果与物理越阈）
+    private static var lastNotificationAt: TimeInterval = 0
+    private static var lastSelectionAt: TimeInterval = 0
+    private static var lastLightImpactAt: TimeInterval = 0
+
+    private static func allowTrigger(_ lastAt: inout TimeInterval, cooldown: TimeInterval) -> Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastAt >= cooldown else { return false }
+        lastAt = now
+        return true
+    }
+
     /// 任务成功（通知型反馈）
     static func success() {
-        guard isEnabled else { return }
+        guard isEnabled, allowTrigger(&lastNotificationAt, cooldown: 0.25) else { return }
         #if canImport(UIKit)
         notificationGenerator.notificationOccurred(.success)
         notificationGenerator.prepare()
@@ -53,7 +65,7 @@ enum Haptics {
 
     /// 需注意未失败（通知型反馈）
     static func warning() {
-        guard isEnabled else { return }
+        guard isEnabled, allowTrigger(&lastNotificationAt, cooldown: 0.25) else { return }
         #if canImport(UIKit)
         notificationGenerator.notificationOccurred(.warning)
         notificationGenerator.prepare()
@@ -62,26 +74,29 @@ enum Haptics {
 
     /// 操作失败/报错（通知型反馈）
     static func error() {
-        guard isEnabled else { return }
+        guard isEnabled, allowTrigger(&lastNotificationAt, cooldown: 0.25) else { return }
         #if canImport(UIKit)
         notificationGenerator.notificationOccurred(.error)
         notificationGenerator.prepare()
         #endif
     }
 
-    /// 离散值变化（选择型反馈）
+    /// 离散值变化（选择型反馈，120ms 防抖避免滑动/连点高频震动）
     static func selection() {
-        guard isEnabled else { return }
+        guard isEnabled, allowTrigger(&lastSelectionAt, cooldown: 0.12) else { return }
         #if canImport(UIKit)
         selectionGenerator.selectionChanged()
         selectionGenerator.prepare()
         #endif
     }
 
-    /// 物理落锤（影响型反馈）
+    /// 物理落锤（影响型反馈；轻触 120ms 防抖，重击删除确认不节流）
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard isEnabled else { return }
         #if canImport(UIKit)
+        if style == .light || style == .soft {
+            guard allowTrigger(&lastLightImpactAt, cooldown: 0.12) else { return }
+        }
         let generator = impactGenerator(for: style)
         generator.impactOccurred()
         generator.prepare()

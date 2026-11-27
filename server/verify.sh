@@ -20,7 +20,7 @@ unk()  { printf '[未验]   %s %s\n' "$1" "${2:-}"; UNKNOWN=$((UNKNOWN+1)); }
 
 # 与 manifest.yaml 同步的期望哈希
 declare -A WANT_SHA=(
-  [api_server.py]=abfdfac97d29510377c7ca8d5411ffeb6b0eaadb5173c55b7a175eaf6ed510fd
+  [api_server.py]=59ac9bb92a1c45a23a8f4fcb8bd10d26464470f72a76dda48080100239f03250
   [bitwarden_link.py]=d2e2a756a9057d64631cd779ec211294988fed434691d482becae7d5a8b89a27
   [hermes_state_portability.py]=6a93ecc83a8b5f059978bd3f2db1d63ea8a2ec30a5790028c89ec90c5b2a1d0c
   [web_routers_sessions.py]=215cde6e95080f11a4d550cf6d85e6753c339fa096016befc0be7f1bf8c86be0
@@ -34,12 +34,12 @@ declare -A WANT_SHA_EXTRA=(
   [mail_gateway.py]=c99103d7fa2970f39b2fbb9b9c23b6b3df7f665c560220ad71d0d893e7dfed6e
   [fileproc_gateway.py]=96654ddddebd33633c9c77c4a363545ea227b0cb1ef01e1d9c100af43ede914c
   [device_sync.py]=f2312d0caed820646a738c181b0e646c576ff22500b9c76d13f16960393bd838
-  [device_gateway.py]=41ec82462c947408b2dc379b6b0e25ced9702db00d948bcdb127197588c7b06a
+  [device_gateway.py]=dce3cabd6d176843816bba05ec98fc2e153dc62406a299a47abe9e13fac1151b
   [identity_gateway.py]=91ca959513e078db3dbfe2220262558b45f3a2ec8793c32f50789cf5a926578c
-  [front_gateway.py]=0162b7572c8f3cf52706b54b47143a6a88d49cbedfc57998cdc0be4fa95f4082
+  [front_gateway.py]=68e497ceb85e6a8a4a4298f3a75286923a1f650a51eaa124384b951395ef240d
   [react_to_message_tool.py]=703164714fae87674635581a30671cb231a41926121bc6fdcf5af4432e35357e
   [self_reaction_pending.py]=972577870fb0cb0d60b4d5535324b4cba5f5f15c178760dcdc9b92f6c0ddf626
-  [write_gate_gateway.py]=a0682135c7591193ed10eb340340d416a9c5de3350ada498d3077cdfb08ce58b
+  [write_gate_gateway.py]=d39d04f6036ae4be91f8f2d2960db562c607162778b433aae457dce51cdd12ac
   [oneday_memory.py]=43dea21475b7bb24724c1787ff19f93403fba4666826b40e0828d3864a383d44
   [system_prompt.py]=7d558e89af41ee492ae85b681f9e7f4a347c728c58818c8ea76fbec776bcc05f
   [oneday_prompt.py]=bafc6c3ca7597f348b6eeec5b76153e9ad8e04dc02278695aff55f03ed766227
@@ -53,17 +53,17 @@ declare -A WANT_SHA_EXTRA=(
   [oneday_ledger_lib.py]=04594033e0fb4404bbb7588cab6db0727e4d845a1124e5fc9f1e5dc4e96ddc09
   [cron_projection.py]=92ca5bf4e519921c3945efe05bae1fc46cd61d7c95ea62723b1dd86ae45e626c
   [api_server_oneday_routes.py]=a59ae01ee95f1ea76ffd2f03551dd5e7c9bfedd43e0f702e985c6a68cc89b608
-  [auth_tokens.py]=9291e5ca9495f8d676cc9076b368e1c7e383e4c49fb5902ff9c6bf1f9555c85a
+  [auth_tokens.py]=40128c4f56697d813e1ef45da9c5158abe212028e6ca16425fd8fc64e18b020e
   [push_tokens.py]=e01a5cdd1520f7a2af5d7b69c5bad4a341242f42452dd6e771693e76d68de8fe
-  [push_sender.py]=ca47d28826126b9d2f848af0a063f43e963389df675208cd8aa50a4c025fc865
+  [push_sender.py]=edc5c243d245c518b5f6e987b9ad94652e3ce055b9c7fb933465d0ddcb01860d
   [db_schema_guard.py]=040a19b476de75195e13600fdea9e11419f97c62a237d3e88af9d21bc842d05b
-  [credential_vault.py]=881fd29f42e4e2fd7d87169db8492c91c8ecbbdf18e0091702625f4dc8c8fab2
+  [credential_vault.py]=a0104b6ea304e29a9e2e0e005fcb83d395acdb7692bd6c38413426525e647ee7
   [credential_vault_tool.py]=a8f5e29baba4ee00d18b1bac745f9234f535a41f8666f5ed3adf81fb8859b6f9
   [oneday_seg_automation.py]=b10453f970ffc3d1a61969462419b5162764d1f57154d6489ec705cbd861502d
   [oneday_seg_briefings.py]=f9fc273c9a0d142f57541ba1c2a5708ada333f976c1ab79a67c64236a3e77440
   [oneday_seg_cron.py]=1027673950195efdced445677ea57d009c988ac7b8e3a8cb5ef090a25e191de7
   [oneday_seg_delivery.py]=08bd159801f3b9a9ca9c2d747676117d726251ddddb8646e83527b4490ac0954
-  [oneday_seg_feed.py]=8d2686cccff0e159a18af1a676883b56d195514a5aba5fff3c996808c4f83d5f
+  [oneday_seg_feed.py]=b570ff1db2c88f2ab5447cd730a84a5856ae3e83dcdf44253fa0ad06c01f5f64
   [oneday_seg_filelibrary.py]=f6586b45029814471f3401f6514a9b740cedfa868ca08ef366e405eb1d82ae28
   [oneday_seg_goals.py]=59388a1ac78d82bc1a173d0f0b4c03d2fe95735c611079da81007f9f224aa29a
   [oneday_seg_goals_activity.py]=f5ee4f564b5182acc30f27f091ccf386f7e84e17d7a36801c7b77a3368e8efcb
@@ -83,6 +83,10 @@ declare -A WANT_SHA_EXTRA=(
   [vault_request_pending.py]=edfd0400c17f15720c617f45fc139252f0a086b27615895d4b9a5620b439f583
   [activity_feed.py]=0fe11b660da275f8ccf90e31d5681296861c0fb6494b6dff2c852b05d3092e85
   [title_engine.py]=3b648327907466446030a7f9fe3dab3f9d23c30fd225085fcf4efe879d463135
+  [oneday_db.py]=9c046c2eea85ee78d26cac917ca058ceb50395ad939c67aed060b6b3770e0f99
+  [device_gateway_catalog.py]=ecceb04995f0595ba28472c3bc681c80c32507079ad55e58848a52fb34d6d454
+  [oneday_feed_helpers.py]=b2210399cbecf3d17f349afcbae4a9da0a2046f2d7b4f282a63b0422ce3764f9
+  [api_server_helpers.py]=59f7fc5a5a0ccb1045833856291a311c1332303c5791cd38df4cee3b0eef6cbb
 )
 for k in "${!WANT_SHA_EXTRA[@]}"; do WANT_SHA[$k]="${WANT_SHA_EXTRA[$k]}"; done
 declare -A CPATH=(
@@ -147,6 +151,10 @@ declare -A CPATH=(
   [vault_request_pending.py]=/opt/hermes/gateway/platforms/vault_request_pending.py
   [activity_feed.py]=/opt/hermes/gateway/platforms/activity_feed.py
   [title_engine.py]=/opt/hermes/gateway/platforms/title_engine.py
+  [oneday_db.py]=/opt/hermes/gateway/platforms/oneday_db.py
+  [device_gateway_catalog.py]=/opt/hermes/gateway/platforms/device_gateway_catalog.py
+  [oneday_feed_helpers.py]=/opt/hermes/gateway/platforms/oneday_feed_helpers.py
+  [api_server_helpers.py]=/opt/hermes/gateway/platforms/api_server_helpers.py
 )
 
 MEM_PCT=$(free | awk '/^Mem:/ {printf "%d", ($2 > 0) ? ($3 * 100 / $2) : 0}')
@@ -157,7 +165,7 @@ IMG=$(docker inspect hermes --format '{{.Config.Image}}' 2>/dev/null || echo "")
 if [ "$IMG" = "$TARGET_IMAGE" ]; then ok "hermes-version" "$IMG"; else bad "hermes-version" "实际: ${IMG:-无容器}"; fi
 
 # ---- 2. 补丁容器内回读哈希 ----
-for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py bitwarden_link.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py mail_gateway.py; do
+for name in api_server.py hermes_state_portability.py web_routers_sessions.py approval_projection.py grant_projection.py api_server_runs.py crash_reports.py bitwarden_link.py fileproc_gateway.py react_to_message_tool.py self_reaction_pending.py write_gate_gateway.py oneday_memory.py system_prompt.py oneday_prompt.py settings_registry.py settings_admin.py settings_admin_tool.py oneday_semantic.py skill_admission_gate.py web_routers_profiles.py web_routers_ops.py identity_gateway.py front_gateway.py oneday_ledger_lib.py cron_projection.py api_server_oneday_routes.py auth_tokens.py push_tokens.py push_sender.py db_schema_guard.py credential_vault.py credential_vault_tool.py vault_request_pending.py mail_gateway.py oneday_db.py device_gateway_catalog.py oneday_feed_helpers.py api_server_helpers.py; do
   got=$(docker exec hermes sha256sum "${CPATH[$name]}" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "${WANT_SHA[$name]}" ]; then ok "patch-hash $name" "容器内回读一致"; else bad "patch-hash $name" "容器内: ${got:-读不到}"; fi
 done

@@ -420,20 +420,23 @@ struct IdeaRowView: View {
         IdeaKicker.color(for: idea.category)
     }
 
+    private var kickerForeground: Color {
+        IdeaKicker.foregroundColor(for: idea.category)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Image(systemName: kickerSymbol)
-                .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 28, height: 28)
+                .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .medium))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(kickerForeground)
+                .frame(width: 34, height: 34)
                 .background(kickerColor)
-                // §486：瓷砖圆角与动态页同收 radiusTile
                 .clipShape(RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusTile
+                    cornerRadius: OneDayMetrics.radiusTile,
+                    style: .continuous
                 ))
-                .frame(width: 44, height: 44)
-                // kicker 字形块是点子的类别信号、详情另
-                // 有类别语义——对 VO 隐藏免逐字念名
+                .frame(width: 40, height: 40)
                 .accessibilityHidden(true)
             VStack(
                 alignment: .leading, spacing: OneDayMetrics.spacingXS
@@ -955,46 +958,40 @@ struct IdeaDetailView: View {
 // MARK: - Kicker 字形块映射（§462）
 
 enum IdeaKicker {
-    /// 点子 kicker 字形名（§462）：按 category 映射到
-    /// SF Symbol，无分类走灯泡兜底
+    /// 点子 kicker 字形名：统一轻盈分层符号体系，与全 App 图标重量一致
     static func symbolName(for category: String?) -> String {
         guard let category = category?.trimmingCharacters(
             in: .whitespacesAndNewlines
         ), !category.isEmpty else {
-            return "lightbulb.fill"
+            return "lightbulb"
         }
-        
-        // 按已知类别键或中文名映射
         switch category {
         case "health", "健康":
-            return "heart.fill"
+            return "heart"
         case "relationships", "人际关系":
-            return "person.2.fill"
+            return "person.2"
         case "finance", "财务":
-            return "dollarsign.circle.fill"
+            return "dollarsign.circle"
         case "career", "事业":
-            return "briefcase.fill"
+            return "briefcase"
         case "interest", "兴趣":
-            return "star.fill"
+            return "star"
         case "efficiency", "效率提升":
-            return "bolt.fill"
+            return "bolt"
         case "other", "其他":
-            return "lightbulb.fill"
+            return "lightbulb"
         default:
-            // 未知类别走兜底
-            return "lightbulb.fill"
+            return "lightbulb"
         }
     }
-    
-    /// 点子 kicker 底色（§462）：按 category 映射到
-    /// Palette 令牌，无分类走 fillSecondary
+
+    /// 点子 kicker 低饱和语义圆角底色（统一柔和浅底，消除纯色块突兀感）
     static func color(for category: String?) -> Color {
         guard let category = category?.trimmingCharacters(
             in: .whitespacesAndNewlines
         ), !category.isEmpty else {
             return Palette.fillSecondary
         }
-        
         switch category {
         case "health", "健康":
             return Palette.tintGreen
@@ -1003,15 +1000,36 @@ enum IdeaKicker {
         case "finance", "财务":
             return Palette.tintOrange
         case "career", "事业":
-            return Palette.primary
+            return Palette.tintSky
         case "interest", "兴趣":
             return Palette.tintSky
         case "efficiency", "效率提升":
-            return Palette.primaryPale
+            return Palette.primaryTint
         case "other", "其他":
             return Palette.fillSecondary
         default:
             return Palette.fillSecondary
+        }
+    }
+
+    /// 与柔和底色配套的同色系符号前景色
+    static func foregroundColor(for category: String?) -> Color {
+        guard let category = category?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ), !category.isEmpty else {
+            return Palette.inkSecondary
+        }
+        switch category {
+        case "health", "健康":
+            return Palette.successText
+        case "relationships", "人际关系":
+            return .purple
+        case "finance", "财务":
+            return Palette.warningText
+        case "career", "事业", "interest", "兴趣", "efficiency", "效率提升":
+            return Palette.primary
+        default:
+            return Palette.inkSecondary
         }
     }
 }

@@ -50,6 +50,7 @@ struct CrashReportsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
 
             if selectedTab == .local {
@@ -60,6 +61,7 @@ struct CrashReportsView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
                 } else {
                     ForEach(records) { record in
                         Section {
@@ -70,6 +72,7 @@ struct CrashReportsView: View {
                             .textSelection(.enabled)
                         }
                         .listRowBackground(Palette.surface)
+                        .listRowInsets(OneDayMetrics.settingsRowInsets)
                     }
                 }
             } else {
@@ -83,6 +86,7 @@ struct CrashReportsView: View {
                         }
                     }
                     .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
                 } else if serverItems.isEmpty {
                     Section {
                         Text("服务端暂无已上报的崩溃报告")
@@ -90,6 +94,7 @@ struct CrashReportsView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
                 } else {
                     ForEach(serverItems) { item in
                         Section {
@@ -98,6 +103,7 @@ struct CrashReportsView: View {
                                 .textSelection(.enabled)
                         }
                         .listRowBackground(Palette.surface)
+                        .listRowInsets(OneDayMetrics.settingsRowInsets)
                     }
                 }
             }

@@ -2,7 +2,17 @@ name: Build iOS (native, unsigned IPA)
 
 on:
   push:
-    branches: [main, "rel-*", "feat/*"]
+    branches: [main, "rel-*", "feat/*", "refactor/*"]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "App/**"
+      - "Project.swift"
+      - "Tuist.swift"
+      - "Scripts/ci/**"
+      - ".github/workflows/ios-native.yml"
+  pull_request:
+    branches: [main]
     paths:
       - "Sources/**"
       - "Tests/**"

@@ -633,6 +633,13 @@ private final class ChatNativeLayoutBox {
     /// 真＝单 section 逐 item 组高构造、假＝
     /// §329 逐行 section 构造（回退形态）
     var singleSection = false
+    /// #35：行高策略——默认 `.deterministicHeightLedger`（恪守 §329 防布局死循环护栏，
+    /// 确高账本 `.absolute` 喂入）；可选 `.adaptiveHostingSelfSizing` 走原生 `.estimated` 自适应。
+    enum SizingMode: Equatable {
+        case deterministicHeightLedger
+        case adaptiveHostingSelfSizing
+    }
+    var sizingMode: SizingMode = .deterministicHeightLedger
     /// 采用高按序镜像（测试读口/对账用；键缺
     /// 席回落占位常量——防御、正常路径不达）
     var orderedHeights: [CGFloat] {
@@ -1328,16 +1335,20 @@ final class ChatRootViewController: UIViewController,
         let height = sectionIndex < rowCount
             ? box.height(at: sectionIndex)
             : ChatNativeLayoutBox.estimatedPlaceholder
+        let rowHeightDim: NSCollectionLayoutDimension =
+            box.sizingMode == .adaptiveHostingSelfSizing
+                ? .estimated(max(44, height))
+                : .absolute(max(0, height))
         let itemSize = NSCollectionLayoutSize(
             widthDimension: .fractionalWidth(1),
-            heightDimension: .absolute(max(0, height))
+            heightDimension: rowHeightDim
         )
         let item = NSCollectionLayoutItem(
             layoutSize: itemSize
         )
         let groupSize = NSCollectionLayoutSize(
             widthDimension: .fractionalWidth(1),
-            heightDimension: .absolute(max(0, height))
+            heightDimension: rowHeightDim
         )
         let group = NSCollectionLayoutGroup.horizontal(
             layoutSize: groupSize, subitems: [item]

@@ -354,20 +354,14 @@ struct ImageViewerView: View {
     ) -> some View {
         VStack {
             Spacer()
-            Text(notice.text)
-                .font(.footnote)
-                .foregroundStyle(Palette.ink)
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .padding(.vertical, OneDayMetrics.spacingS)
-                .glassEffect(.regular, in: Capsule())
-                .padding(.bottom, OneDayMetrics.spacingXXL)
+            FloatingToastView(
+                message: notice.text,
+                tone: notice.isFailure ? .error : .info,
+                onDismiss: { self.notice = nil }
+            )
+            .padding(.bottom, OneDayMetrics.spacingXXL)
         }
-        // 失败类常驻可点关；成功/状态类不挡操作、2.5
-        // 秒自清（旧制）
         .allowsHitTesting(notice.isFailure)
-        .onTapGesture {
-            if notice.isFailure { self.notice = nil }
-        }
         .task(id: notice.text) {
             guard !notice.isFailure else { return }
             try? await Task.sleep(for: .seconds(2.5))
@@ -886,5 +880,23 @@ private struct ImageViewerPage: View {
                     config: config, path: path)
             }
         }
+    }
+}
+
+// MARK: - 原生 Zoom 转场扩展（#31 收尾）
+
+extension View {
+    func imageViewerZoomSource<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID
+    ) -> some View {
+        matchedTransitionSource(id: id, in: namespace)
+    }
+
+    func imageViewerZoomTransition<ID: Hashable>(
+        sourceID: ID,
+        in namespace: Namespace.ID
+    ) -> some View {
+        navigationTransition(.zoom(sourceID: sourceID, in: namespace))
     }
 }

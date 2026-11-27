@@ -80,7 +80,21 @@ def _sign_access_token(
     return f"{TOKEN_PREFIX}{payload_b64}.{_b64u_encode(sig)}", exp
 
 
+try:
+    from gateway.platforms import oneday_db as _oneday_db
+except ImportError:
+    try:
+        import oneday_db as _oneday_db  # type: ignore
+    except ImportError:
+        _oneday_db = None
+
+
 def _load_locked() -> dict[str, dict[str, Any]]:
+    if _oneday_db is not None:
+        try:
+            return _oneday_db.load_auth_sessions(STORE_PATH)
+        except Exception:
+            logger.exception("auth_tokens: sqlite store read failed; falling back to JSON")
     try:
         raw = json.loads(STORE_PATH.read_text(encoding="utf-8"))
         if isinstance(raw, dict) and isinstance(raw.get("sessions"), dict):
@@ -96,6 +110,11 @@ def _load_locked() -> dict[str, dict[str, Any]]:
 
 
 def _save_locked(sessions: dict[str, dict[str, Any]]) -> None:
+    if _oneday_db is not None:
+        try:
+            _oneday_db.save_auth_sessions(sessions, STORE_PATH)
+        except Exception:
+            logger.exception("auth_tokens: sqlite store write failed")
     STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = STORE_PATH.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:

@@ -11,15 +11,34 @@ struct VaultListView: View {
     @State private var isUnlocked = false
     @State private var showCreateEntry = false
     @State private var showRequests = false
+    @State private var searchText = ""
+
+    private var filteredEntries: [VaultEntryMeta] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return store.entries }
+        return store.entries.filter { entry in
+            entry.name.lowercased().contains(q)
+                || entry.service.lowercased().contains(q)
+                || (entry.username?.lowercased().contains(q) ?? false)
+                || entry.domains.contains { $0.lowercased().contains(q) }
+        }
+    }
 
     var body: some View {
         Group {
             if isUnlocked {
                 listContent
             } else {
-                Text("请验证身份以访问凭据库")
-                    .font(.body)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView {
+                    Label("已锁定", systemImage: "lock.shield")
+                } description: {
+                    Text("请验证身份以访问密码与安全凭证")
+                } actions: {
+                    Button("验证解锁") {
+                        Task { await authenticateAndUnlock() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
         }
         .navigationTitle("密码与安全凭证")
@@ -94,19 +113,26 @@ struct VaultListView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, OneDayMetrics.spacingL)
                 }
+            } else if filteredEntries.isEmpty {
+                Section {
+                    ContentUnavailableView.search(text: searchText)
+                }
             } else {
                 Section {
-                    ForEach(store.entries) { entry in
+                    ForEach(filteredEntries) { entry in
                         NavigationLink(destination: VaultDetailView(entryId: entry.id)) {
                             VaultEntryRow(entry: entry)
                         }
                     }
+                } header: {
+                    SettingsSectionHeader("已保存凭据（\(filteredEntries.count)）")
                 }
             }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
+        .searchable(text: $searchText, prompt: "搜索名称、服务、用户名或域名")
         .refreshable {
             await store.refresh(appState: appState)
         }
@@ -158,24 +184,53 @@ struct VaultListView: View {
 struct VaultEntryRow: View {
     let entry: VaultEntryMeta
 
+    private var badgeSymbol: String {
+        if !entry.domains.isEmpty { return "globe" }
+        if entry.fieldNames.contains("api_key") || entry.fieldNames.contains("token") {
+            return "key.horizontal"
+        }
+        return "lock.shield"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-            Text(entry.name)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Text(entry.service)
-                    .font(.meta)
-                    .foregroundStyle(Palette.inkSecondary)
-                if let domain = entry.domains.first {
-                    Text("·")
-                        .font(.meta)
-                        .foregroundStyle(Palette.inkMuted)
-                    Text(domain)
-                        .font(.meta)
-                        .foregroundStyle(Palette.inkSecondary)
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: badgeSymbol)
+                .font(.system(size: 16, weight: .medium))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Palette.primary)
+                .frame(width: 36, height: 36)
+                .background(Palette.primaryTint, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(entry.name)
+                    .font(.rowTitleL.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                HStack(spacing: OneDayMetrics.spacingXS) {
+                    if let username = entry.username, !username.isEmpty {
+                        Text(username)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    } else if !entry.service.isEmpty {
+                        Text(entry.service)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    if let domain = entry.domains.first {
+                        Text("·")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Text(domain)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
             }
+            Spacer(minLength: 0)
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .listRowBackground(Palette.surface)

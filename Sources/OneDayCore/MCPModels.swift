@@ -63,6 +63,16 @@ public struct MCPResult: Decodable, Sendable {
         case content, isError, structuredContent
     }
 
+    public init(
+        content: [MCPContent]? = nil,
+        isError: Bool? = nil,
+        structuredContent: JSONValue? = nil
+    ) {
+        self.content = content
+        self.isError = isError
+        self.structuredContent = structuredContent
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         content = try container.decodeIfPresent([MCPContent].self, forKey: .content)

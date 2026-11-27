@@ -556,16 +556,17 @@ struct FeedView: View {
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Image(systemName: post.kind.symbolName)
-                .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 28, height: 28)
-                .background(post.kind.kickerColor)
-                // §486.3：扁平瓷砖圆角收令牌 radiusTile
-                // （与点子页 §462 瓷砖同值同形）
-                .clipShape(RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusTile
-                ))
-                .frame(width: 44, height: 44)
+                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: FrameworkIcon.fileGlyphSize, weight: .semibold))
+                .foregroundStyle(post.kind.kickerTint)
+                .frame(width: 36, height: 36)
+                .background(
+                    post.kind.kickerColor,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusTile,
+                        style: .continuous
+                    )
+                )
                 // kicker 字形块是帖的类别信号、动作行另
                 // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
@@ -1411,8 +1412,18 @@ struct FeedSourceCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard,
+                style: .continuous
+            )
         )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard,
+                style: .continuous
+            )
+            .strokeBorder(Palette.hairline, lineWidth: 1)
+        }
         if let url = URL(string: card.url) {
             Link(destination: url) { content }
         } else {
@@ -1477,7 +1488,7 @@ struct FeedLinkPreviewCard: View {
                 if let domainLine {
                     Text(domainLine)
                         .font(.subheadline)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
             }
@@ -1486,9 +1497,17 @@ struct FeedLinkPreviewCard: View {
             .background(
                 Palette.surface,
                 in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusCard
+                    cornerRadius: OneDayMetrics.radiusCard,
+                    style: .continuous
                 )
             )
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusCard,
+                    style: .continuous
+                )
+                .strokeBorder(Palette.hairline, lineWidth: 1)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
@@ -1824,6 +1843,18 @@ extension FeedPostKind {
         case .research: return Palette.tintLavender
         case .seed: return Palette.tintGreen
         case .unknown: return Palette.primaryPale
+        }
+    }
+
+    /// kicker 图标语义前景色（Batch 5 #51）：与 kickerColor 成对，
+    /// 对齐通知页与点子页分层渲染风格
+    var kickerTint: Color {
+        switch self {
+        case .digest, .event: return Palette.tintSkyInk
+        case .morning: return Palette.tintOrangeInk
+        case .research: return Palette.tintLavenderInk
+        case .seed: return Palette.tintGreenInk
+        case .unknown: return Palette.primary
         }
     }
 }

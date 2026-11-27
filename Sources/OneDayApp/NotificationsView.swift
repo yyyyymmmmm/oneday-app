@@ -60,8 +60,28 @@ struct NotificationsView: View {
     private var reduceMotion
 
 
+    /// 通知分类筛选胶囊（Batch 5 #52）：纯本页呈现态，与全部/未读正交组合
+    private enum CategoryFilter: String, CaseIterable, Identifiable {
+        case all = "全部"
+        case decision = "审批"
+        case monitor = "监测"
+        case task = "任务"
+
+        var id: String { rawValue }
+
+        func matches(_ item: OverviewNotification) -> Bool {
+            switch self {
+            case .all: return true
+            case .decision: return NotificationDetail.iconKind(for: item) == .decision
+            case .monitor: return NotificationDetail.iconKind(for: item) == .monitor
+            case .task: return NotificationDetail.iconKind(for: item) == .task
+            }
+        }
+    }
+
     /// 筛选档（全部/未读）：纯本页呈现态，不落盘
     @State private var filter: NotificationDetail.Filter = .all
+    @State private var categoryFilter: CategoryFilter = .all
     /// 相对时间的新鲜度时钟：开页期间每 60 秒重算
     /// 一次，不许停留半小时还显旧「刚刚」（S7，沿旧版）
     @State private var now = Date()
@@ -76,9 +96,14 @@ struct NotificationsView: View {
         store.historyNotifications.filter { !$0.read }.count
     }
 
-    private var visibleItems: [OverviewNotification] {
+    private var baseFilteredItems: [OverviewNotification] {
         NotificationDetail.filtered(
             store.historyNotifications, filter: filter)
+    }
+
+    private var visibleItems: [OverviewNotification] {
+        guard categoryFilter != .all else { return baseFilteredItems }
+        return baseFilteredItems.filter { categoryFilter.matches($0) }
     }
 
     private var groups: [NotificationDayGroup] {
@@ -93,8 +118,36 @@ struct NotificationsView: View {
                 header
                 content
             }
-            .background(Palette.pageBG)
-            .toolbar(.hidden, for: .navigationBar)
+            .background(Palette.settingsBG)
+            .navigationTitle("通知")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if store.notificationsLoaded,
+                   !store.notificationsFailed,
+                   unreadCount > 0 {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("全部已读") {
+                            Haptics.success()
+                            Task {
+                                let ok = await store.markAllRead(
+                                    appState: appState
+                                )
+                                if !ok { markAllFailed = true }
+                            }
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .accessibilityLabel("关闭")
+                }
+            }
             .task {
                 await store.loadNotifications(
                     appState: appState,
@@ -118,62 +171,25 @@ struct NotificationsView: View {
         .presentationDragIndicator(.visible)
     }
 
-    // MARK: - 头部（标题＋全部已读＋关闭＋副标题＋筛选条）
+    // MARK: - 顶部筛选与状态条（原生导航栏承接标题与关闭）
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-                Text("通知")
-                    .font(.screenName)
-                    .foregroundStyle(Palette.ink)
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack {
+                Text(subtitleText)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.inkSecondary)
                 Spacer()
-                if store.notificationsLoaded,
-                   !store.notificationsFailed,
-                   unreadCount > 0 {
-                    Button("全部已读") {
-                        Task {
-                            let ok = await store.markAllRead(
-                                appState: appState
-                            )
-                            if !ok { markAllFailed = true }
-                        }
-                    }
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.primary)
-                    .frame(minHeight: OneDayMetrics.minTapTarget)
-                }
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
-                        .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Palette.selectionFill, in: Circle()
-                        )
-                        .frame(
-                            width: OneDayMetrics.minTapTarget,
-                            height: OneDayMetrics.minTapTarget
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel("关闭")
             }
-            Text(subtitleText)
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.top, OneDayMetrics.spacingXS)
             if store.notificationsLoaded, !store.notificationsFailed,
                !store.historyNotifications.isEmpty {
                 filterBar
-                    .padding(.top, OneDayMetrics.spacingSM)
+                categoryFilterBar
             }
         }
         .padding(.horizontal, ListRowSpec.horizontalPadding)
-        .padding(.top, OneDayMetrics.spacingSM)
-        .padding(.bottom, OneDayMetrics.spacingSM)
+        .padding(.top, OneDayMetrics.spacingXS)
+        .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     /// 副标题按面态分形（与原型同口径）：加载中/失败/
@@ -215,6 +231,58 @@ struct NotificationsView: View {
         .sensoryFeedback(.selection, trigger: filter)
     }
 
+    /// 分类筛选胶囊条（Batch 5 #52）：横向轻量胶囊，配合全部/未读快速定位审批、监测与任务
+    private var categoryFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ForEach(CategoryFilter.allCases) { category in
+                    let isSelected = categoryFilter == category
+                    let count = category == .all
+                        ? baseFilteredItems.count
+                        : baseFilteredItems.filter { category.matches($0) }.count
+                    Button {
+                        guard categoryFilter != category else { return }
+                        Haptics.selection()
+                        withAnimation(
+                            MotionTokens.resolved(
+                                MotionTokens.swap, reduceMotion: reduceMotion
+                            )
+                        ) {
+                            categoryFilter = category
+                        }
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingXS) {
+                            Text(category.rawValue)
+                                .font(.footnote.weight(isSelected ? .semibold : .medium))
+                            if category != .all, count > 0 {
+                                Text("\(count)")
+                                    .font(.caption2.weight(.semibold))
+                                    .monospacedDigit()
+                                    .opacity(isSelected ? 0.9 : 0.7)
+                            }
+                        }
+                        .foregroundStyle(isSelected ? Palette.primary : Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.vertical, 6)
+                        .background(
+                            isSelected ? Palette.primaryTint : Palette.surface,
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(
+                                    isSelected ? Palette.primary.opacity(0.28) : Palette.hairline,
+                                    lineWidth: 1
+                                )
+                        }
+                    }
+                    .buttonStyle(.odPressable)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+        }
+    }
+
     // MARK: - 内容面（四态：骨架/失败/空/列表）
 
     @ViewBuilder
@@ -247,15 +315,24 @@ struct NotificationsView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if visibleItems.isEmpty {
-            // 未读筛选为空（全部不空）：独立一形（原型
-            // 同款），给回看全部的出口
+            // 筛选结果为空（全部不空）：按当前筛选项给出清晰出口
             ContentUnavailableView {
-                Label("没有未读通知", systemImage: "bell")
+                Label(
+                    categoryFilter == .all ? "没有未读通知" : "暂无\(categoryFilter.rawValue)通知",
+                    systemImage: "bell"
+                )
             } description: {
-                Text("重要的变化，你都已经看过了。")
+                Text(
+                    categoryFilter == .all
+                        ? "重要的变化，你都已经看过了。"
+                        : "当前筛选条件下没有匹配的通知记录。"
+                )
             } actions: {
-                Button("查看全部通知") { filter = .all }
-                    .buttonStyle(.bordered)
+                Button("查看全部通知") {
+                    filter = .all
+                    categoryFilter = .all
+                }
+                .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -309,18 +386,16 @@ struct NotificationsView: View {
                         )
                     ) { row in
                         notificationRow(row)
+                            .listRowBackground(Palette.surface)
                     }
                 } header: {
-                    groupHeader(group, isFirst: index == 0)
+                    SettingsSectionHeader(group.title)
                 }
             }
             if store.historyNotifications.count
                 >= ReportCardHistory.retentionLimit {
-                // §241 留存上限：存档只保留最近 200 条，
-                // 达上限如实标注（旧「桥 50 条」注记随历
-                // 史面落地退役——历史已不止桥窗口）
                 Section {
-                    Text("只保留最近 200 条回告记录")
+                    Text("仅保留近期通知记录")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -329,7 +404,8 @@ struct NotificationsView: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.spacingM)
         .scrollContentBackground(.hidden)
         .refreshable {
             await store.loadNotifications(
@@ -468,17 +544,18 @@ struct NotificationsView: View {
         case .monitor:
             symbol = "waveform.path.ecg"
             fill = item.read ? Palette.tintSky : Palette.primaryTint
-            glyph = item.read ? Palette.primary : Palette.primary
+            glyph = item.read ? Palette.tintSkyInk : Palette.primary
         case .task:
             symbol = "checklist"
             fill = item.read ? Palette.tintLavender : Palette.primaryTint
-            glyph = item.read ? Palette.primary : Palette.primary
+            glyph = item.read ? Palette.tintLavenderInk : Palette.primary
         case .other:
             symbol = "bell"
             fill = item.read ? Palette.tintOrange : Palette.primaryTint
-            glyph = item.read ? Palette.warning : Palette.primary
+            glyph = item.read ? Palette.tintOrangeInk : Palette.primary
         }
         return Image(systemName: symbol)
+            .symbolRenderingMode(.hierarchical)
             .font(.system(size: FrameworkIcon.fileGlyphSize))
             .foregroundStyle(glyph)
             .frame(width: 36, height: 36)
@@ -726,17 +803,18 @@ private struct NotificationDetailView: View {
         case .monitor:
             symbol = "waveform.path.ecg"
             fill = Palette.tintSky
-            glyph = Palette.primary
+            glyph = Palette.tintSkyInk
         case .task:
             symbol = "checklist"
             fill = Palette.tintLavender
-            glyph = Palette.primary
+            glyph = Palette.tintLavenderInk
         case .other:
             symbol = "bell"
             fill = Palette.tintOrange
-            glyph = Palette.warning
+            glyph = Palette.tintOrangeInk
         }
         return Image(systemName: symbol)
+            .symbolRenderingMode(.hierarchical)
             .font(.system(size: FrameworkIcon.tabGlyphSize))
             .foregroundStyle(glyph)
             .frame(width: 48, height: 48)
