@@ -28,6 +28,8 @@
 - **批准流程**：
   - 点「发送」弹出批准卡（MailDraftsView 内部状态 `pendingApproval`）
   - 批准后生成 `approval_ref`（格式 `mail-{draftID}-{timestamp}`），调 `POST /v1/mail/drafts/{id}/send` 并带 `approval_ref`
+
+**清理**：删除根目录混入的一次性脚本 check_capabilities.py（已不需要）
   - 驳回则关闭卡片、草稿保留 draft 状态
   - 发送成功后刷新列表、草稿转 sent 状态
   - 发送失败显示错误（`sendError` 状态变量）
