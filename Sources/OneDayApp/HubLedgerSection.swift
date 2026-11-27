@@ -48,7 +48,9 @@ struct HubLedgerSection: View {
     /// 持有单例，本段只消费——条目只从共享 Ledger-
     /// Store 一口出；任务/监测数据面与全 App 各面同
     /// 一份（本段新建/动作在他面即时同见），不再私
-    /// 建互不相通的副本（段内 .task 加载序列不变）
+    /// 建互不相通的副本（段内 .task 加载序列不变）。
+    /// 活动记录保留期限：客户端暂不裁剪，以服务端返
+    /// 回数据为准（见 docs/hub-activity-retention.md）
     private var store: LedgerStore {
         appState.sharedLedgerStore()
     }
@@ -65,7 +67,10 @@ struct HubLedgerSection: View {
     /// 展开、收起的组名记在此集（组名＝LedgerDay-
     /// Group.title，与分组单源同键）
     @State private var collapsedDayTitles: Set<String> = []
-    @State private var hasInitializedCollapse = false
+    /// 已初始化折叠的标题集（防空快照锁死＋防重复折叠）：
+    /// 记录已处理过的标题，每轮只对首次出现且非今天的标题
+    /// 写折叠，绝不覆盖用户手动操作态
+    @State private var initializedDayTitles: Set<String> = []
     /// 定时数据（§434 并格）：与原定时段同源——共
     /// 享 CronStore 单源（台账 198 收敛口径不变）
     private var cronStore: CronStore {
@@ -367,17 +372,27 @@ struct HubLedgerSection: View {
             .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
-    /// 初始化按天折叠态（§502）：首次加载时，除今天
-    /// 外的所有时间段默认折叠——「今天」是本地化标题
-    /// （L10n.string("今天")），与 FeedBoard.groupTitle
-    /// 同源；只在首次初始化时执行，之后保持用户操作态
+    /// 初始化按天折叠态（§502 修订）：每轮只对首次出现且非
+    /// 今天的标题写折叠，绝不覆盖用户手动操作态——「今天」是
+    /// 本地化标题（L10n.string("今天")），与 FeedBoard.groupTitle
+    /// 同源。修法解决两症：①首轮快照为空（冷启动 allItems 尚
+    /// 空、或后续加载才补条目）时 hasInitializedCollapse 即被
+    /// 锁 true，后到非今天组默认展开；②午夜滚动「今天」变「昨
+    /// 天」同样漏折。改记「已初始化标题集」，onChange 每轮只
+    /// 对首次出现且非今天的标题写折叠，首轮空快照不锁死
     private func initializeCollapsedDays(snapshot: LedgerListSnapshot) {
-        guard !hasInitializedCollapse else { return }
         let todayTitle = L10n.string("今天", locale: AppLocale.uiLocale)
-        for section in snapshot.daySections where section.title != todayTitle {
-            collapsedDayTitles.insert(section.title)
+        for section in snapshot.daySections {
+            // 只处理首次出现的标题
+            guard !initializedDayTitles.contains(section.title) else { continue }
+            // 标记为已处理
+            initializedDayTitles.insert(section.title)
+            // 非今天的标题默认折叠（用户未手动操作过的情况下）
+            if section.title != todayTitle,
+               !collapsedDayTitles.contains(section.title) {
+                collapsedDayTitles.insert(section.title)
+            }
         }
-        hasInitializedCollapse = true
     }
 
     private func dayExpandedBinding(for title: String) -> Binding<Bool> {
