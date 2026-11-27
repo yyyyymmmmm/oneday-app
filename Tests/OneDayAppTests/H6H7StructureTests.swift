@@ -48,7 +48,9 @@ final class H6H7StructureTests: XCTestCase {
     }
 
     func testClientImplementsNewEndpoints() throws {
-        let src = try source("Sources/OneDayApp/HermesClient.swift")
+        let mainSrc = try source("Sources/OneDayApp/HermesClient.swift")
+        let extSrc = try source("Sources/OneDayApp/HermesClient+SessionsAndMemory.swift")
+        let combined = mainSrc + extSrc
         for path in [
             "/api/cron/blueprints",
             "/api/cron/blueprints/instantiate",
@@ -57,7 +59,7 @@ final class H6H7StructureTests: XCTestCase {
             "/api/mcp/catalog/install",
         ] {
             XCTAssertTrue(
-                src.contains("path: \"\(path)\""),
+                combined.contains("path: \"\(path)\""),
                 "§388：客户端缺端点实现 \(path)"
             )
         }
