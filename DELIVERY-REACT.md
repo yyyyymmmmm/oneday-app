@@ -105,7 +105,7 @@ if started is not None:
   - `.onAppear` 触发 `withAnimation(ChatReactionMotion.appearanceSpring)`
   - 动画参数：`spring(response: 0.55, dampingFraction: 0.825)`——来源标注"Apple WWDC 2023 spring 动画讲座、iOS Animations by Tutorials 第 4 章、GetStream swiftui-spring-animations 研究"
 - **实际表现**：弹性入场（scale + opacity），符合 iOS 典型动画风格
-- **与大厂对比**：参数略保守（response 0.55 vs iMessage 实测约 0.35-0.4），但在 iOS HIG 推荐范围内（0.3-0.5），效果温和弹性、不干扰阅读
+- **与大厂对比**：response 0.55 在 iOS HIG 推荐范围（0.3-0.5）外侧，效果温和弹性、不干扰阅读
 
 **证据**：
 ```swift
@@ -149,8 +149,8 @@ public static var appearanceSpring: Animation {
 | **渲染形态** | 尺寸 | **iMessage Tapback**：约 28-32pt 高。**Slack iOS**：反应 pill 高约 24pt | 屏幕截图量测 | 角标高 24pt，字号 13pt | **当前尺寸合理**（与 Slack 对齐），保持 |
 | **渲染形态** | 样式 | **iMessage**：半透明白底 + 细描边 + 轻阴影，悬浮感 | iOS 截图 | `Palette.surface` 底 + `Palette.pageBG` 描边（1.5pt）+ 阴影（黑 10%，radius 4，y 1） | **当前样式接近 iMessage**，保持。可微调：阴影 radius 可考虑减小到 3（iMessage 阴影更轻微） |
 | **渲染形态** | 位置 | **iMessage**：Tapback 覆盖在气泡角，约 1/3 悬出气泡外 | iOS 截图 | 悬挂于气泡底角，悬出 14pt（半身悬出） | **当前位置符合 iMessage 模式**，保持 |
-| **出现动画** | 动画类型 | **iMessage Tapback**：从中心点弹性缩放出现（scale 0.5→1.0）+ 轻微回弹，总时长约 0.4-0.5 秒。**Slack iOS**：淡入 + 轻微缩放（0.9→1.0），时长约 0.25 秒 | iOS 屏幕录制逐帧分析（60fps）/ Slack 录屏 | **已有弹性入场动画**：scale 0.5→1.0 + opacity 0→1.0，spring(response: 0.55, dampingFraction: 0.825) | **当前实现已符合大厂做法**，参数在 iOS HIG 推荐范围内。可选微调：response 降至 0.4 更接近 iMessage 实测，但当前值更保守稳妥 |
-| **出现动画** | 参数来源 | **iOS HIG Animation**：推荐 spring 动画用于"响应式"交互，response 0.3-0.5，dampingFraction 0.6-0.8 | Apple Human Interface Guidelines - Animation | 当前参数 response 0.55, dampingFraction 0.825，标注来源"Apple WWDC 2023 spring 动画讲座、iOS Animations by Tutorials 第 4 章、GetStream swiftui-spring-animations 研究" | **当前参数出处充分、在推荐范围内**，保持 |
+| **出现动画** | 动画类型 | **iMessage Tapback**：从中心点弹性缩放出现（scale 0.5→1.0）+ 轻微回弹，总时长约 0.4-0.5 秒。**Slack iOS**：淡入 + 轻微缩放（0.9→1.0），时长约 0.25 秒 | iOS 屏幕录制逐帧分析（60fps）/ Slack 录屏 | **已有弹性入场动画**：scale 0.5→1.0 + opacity 0→1.0，spring(response: 0.55, dampingFraction: 0.825) | **当前实现已落地动画**，response 0.55 略超 HIG 推荐范围（0.3-0.5）上限。可选微调：降至 0.4 更接近 iMessage 实测 |
+| **出现动画** | 参数来源 | **iOS HIG Animation**：推荐 spring 动画用于"响应式"交互，response 0.3-0.5，dampingFraction 0.6-0.8 | Apple Human Interface Guidelines - Animation | 当前参数 response 0.55, dampingFraction 0.825，标注来源"Apple WWDC 2023 spring 动画讲座、iOS Animations by Tutorials 第 4 章、GetStream swiftui-spring-animations 研究" | **当前参数来源标注具体**，response 超出推荐范围、dampingFraction 超出推荐范围 |
 | **行高预留** | 预留策略 | **iMessage**：Tapback 覆盖在气泡上，不额外占用行高。**Slack**：反应 pill 在消息下方，占用独立行高 | iOS 截图观察 / Slack 截图 | 预留 16pt（悬出 14pt + 2pt 呼吸） | **待问主线**：是否要改为 iMessage 模式（零预留，完全覆盖）？当前预留模式更保守，建议**暂保持当前预留模式**（16pt），等用户真机反馈 |
 | **行高预留** | 动画与布局 | 反应出现时，列表不应跳动——预留空间应在反应出现前就存在 | 通行体验原则 | 当前预留在渲染前已计算（行高合成器），符合此原则 | **当前实现正确**，保持 |
 
@@ -292,15 +292,16 @@ docs: AI 反应全链盘点与大厂对位表
 
 - 盘点服务端决策时机、表情选择、下发机制（8 个环节）
 - 盘点客户端接收、呈现、动画现状
-- 核心发现：动画已实现（ChatReactionMotion.swift），参数符合 iOS 典型值
+- 核心发现：动画已实现（ChatReactionMotion.swift）
 - 对位 iMessage/Slack/Discord/Muse 做法
 - 列服务端待办（终态判定、调色板收紧、推送、回执）
 - 列客户端待办（微调阴影、补齐监听）
 - 待问主线 7 条
+- 注明 Mac 构建未执行
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ```
 
 ---
 
-**交卷完毕，等待主线裁决。客户端动画已实现且符合大厂做法，无需额外落码，主要改进点在服务端（决策时机、推送机制）。**
+**交卷完毕，等待主线裁决。客户端动画已实现，主要改进点在服务端（决策时机、推送机制）。Mac 构建未执行，待补验。**
