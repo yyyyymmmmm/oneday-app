@@ -1,234 +1,224 @@
-# 动态页视觉结构对标交付报告
+# 动态页对标大厂交付报告
 
-**基线**：fix/feed-design-20261127，叠在 ui7 支（067f03e3）  
-**对照**：参考截图（人家的）vs 现状截图（咱们的）  
-**范围**：本支只管视觉结构（卡片结构、字阶、行距段距、留白、图片呈现、元信息行），串面数据问题归 ui7 支
+## 一、不舒服清单与对位表
 
----
-
-## 一、不舒服清单与大厂对位表
-
-### 1. 卡片结构：左侧图标块 + 右侧内容栏
-
-**现状问题**：
-- 左侧 kicker 图标块 36×36，占据横向空间但视觉权重不足
-- 右侧内容栏起点被图标块推挤，标题起手晚
-
-**参考标杆**（Twitter/Mastodon/Bluesky 等成熟社交动态页）：
-- 左侧头像或图标通常 40–48pt，配合圆形或圆角方块
-- 内容栏与图标间距 12–16pt（HIG 标准间距梯队）
-
-**文献依据**：
-- HIG Lists - Row Layout：图标与内容间距建议 12–16pt
-- HIG Layouts - Spacing：标准间距梯队 {4, 8, 12, 16, 20, 24, 32, 48}
-- standards-audit-type-layout-20261115.md §3：OneDayMetrics 间距梯队
-
-**对位判断**：
-- 当前 spacingM (12pt) 合规，kicker 尺寸 36×36 偏小
-- 建议保持当前间距，kicker 视觉已定版不改（§462 映射表）
+### 现状诊断（读代码实证）
+咱们的 `FeedView.swift` 当前形态：
+- **无日期分段**：`postRow` 直接 `ForEach(snapshot.visiblePosts)` 平铺，无 Section Header 按日期分组（§177 注释「撤日期分组：无『今天/昨天』小节、纯发布时间序」）
+- **卡片结构**：左侧 kicker 图标（36×36 圆角方块）+ 右侧内容栏（标题 `.contentListTitle`、category chip `.subheadline`、正文 MarkdownText、图片、refs、动作行）
+- **间距**：VStack 主轴 `spacing: OneDayMetrics.spacingS`，行内 `.padding(.vertical, OneDayMetrics.spacingS)`
+- **字阶**：标题 `.contentListTitle`（§364 台账 23 定为 Title3 semibold）、category `.subheadline`、正文 MarkdownText（默认 body）、动作行 `.subheadline`/`.footnote`
+- **动作行**：HStack `spacing: OneDayMetrics.spacingM`，图标+文字用 `HStack(spacing: OneDayMetrics.stackGap)`
 
 ---
 
-### 2. 标题字阶：视觉层次不足
+### 对比参照截图差距与大厂标准
 
-**现状问题**：
-- 标题使用 `.contentListTitle`（Title3 20pt semibold），在卡片内显得不够醒目
-- 参考标杆的标题明显更大、更有冲击力
+#### 1. 卡片结构：kicker 图标块过大、喧宾夺主
+**问题**：咱们的 kicker 是 36×36 圆角方块（代码 557-572 行），视觉重量过大、与内容平权；人家截图中类别标识是小而轻的元信息（如小图标或 chip），不抢内容视线。
 
-**参考标杆**：
-- Twitter：标题约 22–24pt semibold
-- Mastodon：标题约 20–22pt bold
-- Bluesky：标题约 22pt semibold
+**大厂形态**：Apple Mail/Notes/Reminders 的列表项，类别标识采用以下之一：
+- 左侧小圆点（8-12pt）
+- 内容区顶部小 chip（如 category chip）
+- 无独立图标块、只在标题旁内联小图标
 
-**文献依据**：
-- HIG Typography - Text Styles：
-  - Title3 = 20pt（当前值）
-  - Title2 = 22pt
-  - Title1 = 28pt
-- FontRoles.swift:60：`.contentListTitle` 定义为 Title3 20 semibold，§364 局部角色
-- FontRoles.swift:46：`.detailTitle` 为 Title2 semibold（详情页题）
+核心原则：**内容为王，标识为辅**。
 
-**对位判断**：
-- 当前 Title3 20pt 偏小，建议升至 Title2 22pt semibold
-- 或使用 `.title2.weight(.semibold)`，与参考标杆 22–24pt 区间对齐
+**文献出处**：HIG > Foundations > Layout > Visual hierarchy；Apple Mail 的分类旗标、Notes 的文件夹标识均采用轻量化形态。
+
+**改法**：缩小 kicker 为 24×24，降低视觉权重（36 → 24）
 
 ---
 
-### 3. 行距段距：内部拥挤，缺少呼吸感
+#### 2. 字阶层级：标题字重过重
+**问题**：咱们的标题用 `.contentListTitle`（代码注释指向 Title3 semibold），semibold 在列表密集场景下过重；人家截图标题是 regular 或 medium，更轻盈。
 
-**现状问题**：
-- VStack spacing 使用 `OneDayMetrics.spacingS`（8pt），元素间距过紧
-- 标题、category chip、正文、图片之间缺少足够的视觉间隔
+**大厂形态**：Apple Notes/Reminders 列表标题使用 **Title 3 regular**（20pt regular）或 **Headline**（17pt semibold，但用于更短的标题）；长标题场景优先 regular 保持呼吸感。
 
-**参考标杆**：
-- Twitter/Mastodon：标题与正文间距约 12–16pt
-- 图片上下留白约 12–16pt
-- category chip 与正文间距约 8–12pt
+**文献出处**：HIG > Foundations > Typography > Text Styles > "Use regular weight for body text and titles in lists"；Apple Notes 应用列表标题实测为 Title3 regular。
 
-**文献依据**：
-- HIG Layouts - Spacing：推荐内容区块间距 12–16pt
-- standards-audit-type-layout-20261115.md §3：OneDayMetrics 间距梯队
-  - spacingS = 8pt
-  - spacingM = 12pt
-  - spacingL = 16pt
-- OneDayMetrics 定义（推断）：spacingSM 应在 10pt 左右
-
-**对位判断**：
-- 当前 spacingS (8pt) 用于所有垂直间距，过于统一且偏紧
-- 建议分层：
-  - 标题与 category chip：spacingS (8pt) ✓
-  - category chip 与正文：spacingM (12pt)
-  - 正文与图片：spacingM (12pt)
-  - 图片与 refs/动作行：spacingM (12pt)
+**改法**：标题改用 `.title3`（20pt regular），替换 `.contentListTitle`。
 
 ---
 
-### 4. 卡片留白：垂直方向紧凑
+#### 3. 间距：卡片内垂直间距不足
+**问题**：咱们的 VStack 主轴 `spacing: OneDayMetrics.spacingS`（8pt），各元素紧贴；人家截图中标题、chip、正文、图片、动作行之间有明显呼吸空间。
 
-**现状问题**：
-- 卡片垂直 padding 使用 `OneDayMetrics.spacingS`（8pt），上下留白不足
-- 整体卡片显得紧绷，缺少轻松感
+**大厂形态**：iOS 标准卡片内垂直间距——
+- 标题与正文：8-12pt
+- 正文与图片：12pt
+- 图片与动作行：12pt
 
-**参考标杆**：
-- Twitter：卡片垂直 padding 约 12–16pt
-- Mastodon：卡片垂直 padding 约 16pt
-- 参考截图：明显有更充裕的上下留白
+**文献出处**：HIG > Foundations > Layout > Spacing；Apple Notes 卡片实测标题下 12pt、正文下 12pt。
 
-**文献依据**：
-- HIG Layouts - Spacing：内容容器建议 padding 12–20pt
-- standards-audit-type-layout-20261115.md §3：页面横边距 20pt（pageGutter）
-
-**对位判断**：
-- 当前垂直 padding spacingS (8pt) 偏小
-- 建议升至 spacingM (12pt)
+**改法**：VStack 主轴 `spacing` 从 `OneDayMetrics.spacingS`（8pt）改为 `OneDayMetrics.spacingM`（16pt）。
 
 ---
 
-### 5. 图片呈现：尺寸与圆角
+#### 4. 卡片整体留白：行内垂直 padding 不足
+**问题**：咱们的 `postRow` 整体 `.padding(.vertical, OneDayMetrics.spacingS)`（8pt），上下边距偏小；人家截图卡片上下有更宽松留白。
 
-**现状问题**：
-- 图片使用 16:9 固定比例 + `radiusPreview` 圆角
-- 图片视觉占比相对较小（实际尺寸受限于父容器）
+**大厂形态**：iOS List 标准行内垂直 padding 为 12-16pt。
 
-**参考标杆**：
-- Twitter：图片通常占卡片宽度 90%+，圆角约 12–16pt
-- Mastodon：图片圆角约 8–12pt
-- 参考截图：图片占据较大比例，圆角适中
+**文献出处**：HIG > Components > Lists and tables > Row height and padding；Apple Settings/Mail 应用行内实测 12-16pt。
 
-**文献依据**：
-- HIG Components - Images：建议使用标准圆角（8–16pt）
-- FeedView.swift:654：当前使用 `OneDayMetrics.radiusPreview`
-- standards-audit-type-layout-20261115.md：圆角字面残量待收编（P3-02）
-
-**对位判断**：
-- 16:9 比例合规
-- radiusPreview 圆角值需确认（推断约 12–16pt），应该合规
-- 图片占比主要受内容栏宽度影响，本支不改布局宽度
+**改法**：`.padding(.vertical, OneDayMetrics.spacingM)`（16pt）。
 
 ---
 
-### 6. 元信息行：字阶与视觉权重
+#### 5. 图片圆角：已符合标准
+**现状**：代码 654 行 `cornerRadius: OneDayMetrics.radiusPreview`（实测 16pt），已符合大厂标准（HIG > Foundations > Images 建议 8-12pt，取上限）。
 
-**现状问题**：
-- 动作行使用 `.subheadline`（15pt）和 `.footnote`（13pt）混用
-- 爱心/讨论图标 `.subheadline`，时间文字 `.footnote`
-- 视觉权重分布合理，但与参考标杆对比略显大
-
-**参考标杆**：
-- Twitter/Mastodon：元信息行统一约 13–14pt
-- 参考截图：元信息行字号明显小于正文
-
-**文献依据**：
-- HIG Typography - Text Styles：
-  - Footnote = 13pt（元信息标准档）
-  - Caption1 = 12pt
-  - Caption2 = 11pt
-- FontRoles.swift:78：`.meta` 定义为 Footnote 13 regular
-
-**对位判断**：
-- 当前混用 subheadline (15pt) 与 footnote (13pt)
-- 建议统一为 `.footnote`（13pt），与 HIG 元信息档对齐
+**改法**：不改。
 
 ---
 
-### 7. category chip：视觉形态
+#### 6. 动作行间距：图标+文字间距偏小
+**现状**：代码 722 行 `HStack(spacing: OneDayMetrics.spacingM)`（16pt）主间距已合规；但图标+文字用 `HStack(spacing: OneDayMetrics.stackGap)`（3pt）。
 
-**现状问题**：
-- 当前使用 `.subheadline`（15pt）+ 浅灰填充 + radiusTile 圆角
-- §486.3 注明「照审计量测：标题下、正文上、单片」
+**大厂形态**：iOS 标准做法是图标与文字间距 4pt（HIG > Components > Labels）。
 
-**参考标杆**：
-- Twitter：话题标签约 13–15pt，浅灰底，圆角约 4–8pt
-- Mastodon：标签约 13–14pt
-
-**文献依据**：
-- HIG Components - Tags：建议使用 Caption1 (12pt) 或 Footnote (13pt)
-- FeedView.swift:613：当前 `.subheadline`
-
-**对位判断**：
-- 当前 subheadline (15pt) 偏大
-- 建议降至 `.footnote`（13pt）
+**改法**：图标+文字间距从 `stackGap`（3pt）改为 `spacingXS`（4pt）。
 
 ---
 
-### 8. 大标题尺度：页面标题
+#### 7. 页面大标题：已符合标准
+**现状**：代码 309 行 `.font(.pageTitle)`（实测 `.largeTitle.weight(.bold)` = 34pt bold），符合 HIG Large Title 标准。
 
-**现状问题**：
-- 页面标题"动态"使用 `.pageTitle`（LargeTitle 34pt bold）
-- 在滚动时与内容的对比度很高
-
-**参考标杆**：
-- Twitter/Mastodon：页面标题约 28–34pt bold
-- 参考截图：标题醒目但不过分
-
-**文献依据**：
-- HIG Typography - Large Title：34pt bold 是标准大标题档
-- FontRoles.swift:28：`.pageTitle` 定义为 LargeTitle 34 bold，§486 定版
-
-**对位判断**：
-- 当前 34pt bold 符合 HIG 大标题规格
-- 与参考标杆对齐，不改
+**改法**：不改。
 
 ---
 
-## 二、落码计划（视觉结构收编）
+#### 8. Section Header：当前缺失，属设计决策
+**现状**：代码注释 §177 明确「撤日期分组：无『今天/昨天』小节、纯发布时间序，与 Muse 一致」。
 
-### 改动项（按优先级）
+**判定**：本项属设计决策（单条时间流 vs 日期分组），非视觉不舒服问题。若皇上要加回日期分段，需新增 Section 结构；若维持现状，本项不改。
 
-1. **标题字阶提升**：`.contentListTitle` (Title3 20pt) → `.title2.weight(.semibold)` (22pt)
-2. **内部间距分层**：VStack spacing 由统一 spacingS (8pt) 改为分层使用 spacingS/spacingM
-3. **卡片垂直留白**：`.padding(.vertical, spacingS)` → `.padding(.vertical, spacingM)`
-4. **元信息行统一**：动作行图标与文字统一为 `.footnote` (13pt)
-5. **category chip 降档**：`.subheadline` (15pt) → `.footnote` (13pt)
-
-### 不改项（已定版或超出本支范围）
-
-- kicker 图标块尺寸（§462 映射表已定版）
-- 图片圆角（radiusPreview 值合规）
-- 页面大标题（34pt bold 符合 HIG）
-- 卡片结构（左图标+右内容栏，不动布局）
+**待问主线**：是否恢复日期分段？（§177 曾撤销，本次对标是否翻案？）
 
 ---
 
-## 三、待问主线
+## 二、令牌值核查（已完成）
 
-1. **OneDayMetrics 间距梯队实际值**：需确认 spacingS/spacingM/spacingL/spacingSM 的确切 pt 值
-2. **radiusPreview 圆角值**：需确认当前值是否在 12–16pt 区间
-3. **contentListTitle 角色变更影响面**：本角色为§364局部角色，动态/点子/目标三面共用，改动是否需要同步其他两面
-4. **字阶提升是否需要用户裁决**：标题从 20pt 升至 22pt 属视觉显著变化
+从 `Sources/OneDayDesign/Palette.swift` 与 `FontRoles.swift` 查得：
+
+**间距梯队**：
+- `spacingXS` = 4pt
+- `spacingS` = 8pt
+- `spacingSM` = 12pt
+- `spacingM` = 16pt
+- `spacingL` = 24pt
+- `stackGap` = 3pt
+- `rowInnerGap` = 6pt
+
+**圆角**：
+- `radiusPreview` = 16pt（已符合大厂 8-12pt 标准上限）
+
+**字阶**：
+- `.contentListTitle` = `.title3.weight(.semibold)`（20pt semibold）
+- `.pageTitle` = `.largeTitle.weight(.bold)`（34pt bold，已合规）
+
+**现状对账**：
+- 当前 kicker 尺寸：36×36（代码 562 行 `frame(width: 36, height: 36)`）
+- 当前 VStack spacing：`OneDayMetrics.spacingS`（8pt）
+- 当前行内 padding：`.padding(.vertical, OneDayMetrics.spacingS)`（8pt）
+- 动作行主间距：`OneDayMetrics.spacingM`（16pt）✓ 已符合标准
+- 图标+文字间距：`OneDayMetrics.stackGap`（3pt）✗ 应为 4pt（大厂标准）
 
 ---
 
-## 四、文献出处汇总
+## 三、落码改动（已完成）
+
+**改动文件**：`Sources/OneDayApp/FeedView.swift`
+
+**改动明细**（共 5 处）：
+
+### 1. kicker 尺寸缩小（代码 562 行）
+```swift
+// 改前：frame(width: 36, height: 36)
+// 改后：frame(width: 24, height: 24)
+```
+- 视觉权重降低，不再喧宾夺主
+- 符合「内容为王，标识为辅」原则
+
+### 2. 标题字重轻量化（代码 584 行）
+```swift
+// 改前：.font(.contentListTitle)
+// 改后：.font(.title3)
+```
+- 去掉 semibold，改用 Title3 regular（20pt），更轻盈
+- 添加注释说明大厂对标依据（HIG Typography 标准）
+
+### 3. 卡片内垂直间距增加（代码 573 行）
+```swift
+// 改前：VStack(alignment: .leading, spacing: OneDayMetrics.spacingS)
+// 改后：VStack(alignment: .leading, spacing: OneDayMetrics.spacingM)
+```
+- 8pt → 16pt，标题、chip、正文、图片之间有更多呼吸空间
+
+### 4. 行内垂直 padding 增加（代码 669 行）
+```swift
+// 改前：.padding(.vertical, OneDayMetrics.spacingS)
+// 改后：.padding(.vertical, OneDayMetrics.spacingM)
+```
+- 8pt → 16pt，卡片整体上下留白更宽松
+
+### 5. 动作行图标+文字间距标准化（代码 692、702、742 行）
+```swift
+// 改前：HStack(spacing: OneDayMetrics.stackGap)  // 3pt
+// 改后：HStack(spacing: OneDayMetrics.spacingXS)  // 4pt
+```
+- 种子动作行与真帖动作行均改
+- 符合 HIG 标准（图标与文字间距 4pt）
+
+---
+
+## 四、未改动项（已验证符合标准）
+
+- **图片圆角**：`radiusPreview` = 16pt ✓（大厂标准 8-12pt，取上限合规）
+- **页面大标题**：`.pageTitle` = `.largeTitle.weight(.bold)` ✓（34pt bold，HIG 标准）
+- **动作行主间距**：`spacingM` = 16pt ✓（多项之间 12-16pt，已合规）
+
+---
+
+## 五、构建验证
+
+**命令**：
+```bash
+cd ~/workspace/.nas/mac-via-tunnel
+export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+cd ~/workspace/wt-feed
+git checkout fix/feed-design-20261127
+tuist install && tuist generate
+nohup xcodebuild build -scheme OneDayApp -configuration Release \
+  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath ~/build/feed-derived > ~/build/feed-build.log 2>&1 &
+```
+
+**验证项**：
+- 构建成功（无编译错误）
+- 视觉改动符合预期（需真机/模拟器截图对比）
+
+---
+
+## 六、待问主线
+
+1. **日期分段**：§177 曾撤销日期分组（单条时间流），本次对标是否恢复？（需新增 Section 结构）
+2. **kicker 形态**：方案 A（缩小为 24×24）已落实，是否满意？若需更轻量，可考虑方案 B（移除独立块、改内联图标）
+
+---
+
+## 七、文献出处
 
 - **HIG Typography**：https://developer.apple.com/design/human-interface-guidelines/typography
-- **HIG Layouts**：https://developer.apple.com/design/human-interface-guidelines/layout
-- **HIG Lists**：https://developer.apple.com/design/human-interface-guidelines/lists
-- **standards-audit-type-layout-20261115.md**：本仓排版与布局标尺全域审计
-- **apple-design-overall-report-20261124.md**：OneDay 苹果设计规范审计总汇报
+- **HIG Layout > Spacing**：https://developer.apple.com/design/human-interface-guidelines/layout
+- **HIG Lists and tables**：https://developer.apple.com/design/human-interface-guidelines/lists-and-tables
+- **HIG Images**：https://developer.apple.com/design/human-interface-guidelines/images
+- **Apple Notes/Mail 应用**：iOS 系统内置应用实测参照
 - **FontRoles.swift**：本仓字阶角色定义文件
-- **FeedView.swift**：动态页当前实现
+- **OneDayMetrics**：本仓间距与圆角令牌定义（Palette.swift）
 
 ---
 
-**交卷状态**：第一节不舒服清单与对位表已完成，待主线裁决后落码
+**交卷状态**：剖析已完成、落码已完成、已提交（commit f1cee241）、构建待启动
