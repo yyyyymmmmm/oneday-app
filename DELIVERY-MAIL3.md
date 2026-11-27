@@ -74,16 +74,33 @@
 # Mac 侧（经 mac-via-tunnel）
 export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-cd ~/workspace/wt-mail
+cd ~/build/wt-mail  # Mac 侧 worktree 路径
 tuist install && tuist generate
-nohup xcodebuild build -scheme OneDayApp -configuration Release \
+xcodebuild build -scheme OneDayApp -configuration Release \
   -destination 'generic/platform=iOS' \
   -derivedDataPath ~/build/mail-derived \
-  CODE_SIGNING_ALLOWED=NO > ~/build/mail-build.log 2>&1 &
+  CODE_SIGNING_ALLOWED=NO
 ```
 
-### 构建结果
-（待 Mac 构建完成后填写：构建成功/失败、错误日志、产物路径）
+### 构建结果：失败（环境问题，非代码问题）
+
+**错误**：
+```
+/Users/yangminjie/build/wt-mail/Sources/OneDayCore/MarkdownTreeLowering.swift:2:8: error: 
+Unable to resolve module dependency: 'Markdown' (in target 'OneDayCore' from project 'OneDay')
+import Markdown
+       ^
+```
+
+**根因**：Xcode 无法解析 swift-markdown 依赖模块（Markdown），尽管依赖已正确下载到 `Tuist/.build/checkouts/swift-markdown`。
+
+**环境诊断**：
+- tuist install 成功，12 个依赖包全部 restored（包括 swift-markdown 0.6.0）
+- tuist generate 成功，生成 OneDay.xcworkspace 和各子项目
+- 同样错误在 main 仓库（refactor/ios-ui-and-core-v2 分支）也复现，非 feat/mail-compose 分支特有
+- Mac 环境：Xcode 27.2 (DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer)
+
+**结论**：Mac 构建环境 Markdown 模块链接配置问题，需排查 tuist 项目生成配置或 Xcode 模块缓存。代码层面无问题（Linux 侧代码静态检查通过、依赖声明正确）。
 
 ---
 
@@ -212,9 +229,9 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 - ✅ 批准流程（弹卡/批准/驳回/错误人话化）
 - ✅ 交卷重写按代码实情（端点已上线、不写"待补全"）
 
-**待 Mac 构建验证**：
-- ❌ Mac 构建验证（经 mac-via-tunnel 执行，构建产物与日志待回填）
-- ❌ 真机联调（创建→列表→编辑→批准卡弹出，只走草稿自测、不实际发送）
+**Mac 构建验证失败（环境问题）**：
+- ❌ Mac 构建失败：Markdown 模块依赖解析错误（环境问题，main 仓库同样复现，非本分支代码问题）
+- ⏸ 真机联调暂停：构建失败阻塞，待 Mac 环境修复后执行（创建→列表→编辑→批准卡弹出，只走草稿自测、不实际发送）
 
 **已明标限制**：
 - 草稿编辑创建新稿、旧稿保留（无 PUT 更新端点）
