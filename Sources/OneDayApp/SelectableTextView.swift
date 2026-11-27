@@ -112,7 +112,11 @@ struct SelectableInlineText: View {
     /// 性、不动布局度量，量测台走 build 直拼不受
     /// 影响；着色副本不进拼装缓存（缓存单源不被
     /// 查找态污染，查找开关不使缓存失效）
+    /// 2026-11-27：searchIsCurrentMatch 增补——当前
+    /// 命中强背景（findMatchCurrent）、其他命中弱背
+    /// 景（findMatchOther），两档分明对齐标准
     var searchHighlightQuery: String? = nil
+    var searchIsCurrentMatch: Bool = false
 
     @Environment(\.self) private var environment
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -134,14 +138,19 @@ struct SelectableInlineText: View {
     /// §503：呈现串——拼装/产物串本体，查找着色在
     /// 副本上施加（区间由 Core ChatFind 在呈现串本
     /// 体上求，呈现所见即着色所及）
+    /// 2026-11-27：两档强调——当前命中强背景、其他
+    /// 命中弱背景，根据 searchIsCurrentMatch 选色
     private var presentedAttributed: NSAttributedString {
         let base = prebuiltAttributed ?? builtAttributedString
         guard let query = searchHighlightQuery
         else { return base }
+        let highlightColor = searchIsCurrentMatch
+            ? Palette.findMatchCurrent
+            : Palette.findMatchOther
         return Self.applyingFindHighlight(
             to: base, query: query,
             color: UIColor(
-                cgColor: Palette.findMatchFill
+                cgColor: highlightColor
                     .resolve(in: environment).cgColor
             )
         )

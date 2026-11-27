@@ -19,6 +19,7 @@ struct MarkdownText: View {
     let allowsDirectSelection: Bool
     let segmentProducts: [Int: NSAttributedString]?
     let searchHighlightQuery: String?
+    let searchIsCurrentMatch: Bool
     let onOpenImageGallery: ((ImageViewerSession) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -30,6 +31,7 @@ struct MarkdownText: View {
         segmentProducts: [Int: NSAttributedString]? = nil,
         allowsDirectSelection: Bool = true,
         searchHighlightQuery: String? = nil,
+        searchIsCurrentMatch: Bool = false,
         onOpenImageGallery: ((ImageViewerSession) -> Void)? = nil
     ) {
         self.content = content
@@ -37,6 +39,7 @@ struct MarkdownText: View {
         self.segmentProducts = segmentProducts
         self.allowsDirectSelection = allowsDirectSelection
         self.searchHighlightQuery = searchHighlightQuery
+        self.searchIsCurrentMatch = searchIsCurrentMatch
         self.onOpenImageGallery = onOpenImageGallery
     }
 
@@ -159,7 +162,8 @@ struct MarkdownText: View {
             onSelectionChange: onSelectionChange,
             allowsDirectSelection: allowsDirectSelection,
             prebuiltAttributed: product,
-            searchHighlightQuery: searchHighlightQuery
+            searchHighlightQuery: searchHighlightQuery,
+            searchIsCurrentMatch: searchIsCurrentMatch
         )
     }
 
@@ -319,7 +323,9 @@ struct MarkdownText: View {
                 )
             )
             result[lower..<upper].backgroundColor =
-                Palette.findMatchFill
+                searchIsCurrentMatch
+                    ? Palette.findMatchCurrent
+                    : Palette.findMatchOther
         }
         return result
     }
@@ -404,7 +410,8 @@ struct MarkdownText: View {
                 onSelectionChange: onSelectionChange,
                 allowsDirectSelection: allowsDirectSelection,
                 prebuiltAttributed: product,
-                searchHighlightQuery: searchHighlightQuery
+                searchHighlightQuery: searchHighlightQuery,
+                searchIsCurrentMatch: searchIsCurrentMatch
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -442,7 +449,8 @@ struct MarkdownText: View {
                         foreground: Palette.bodyInk,
                         onSelectionChange: onSelectionChange,
                         allowsDirectSelection: allowsDirectSelection,
-                        searchHighlightQuery: searchHighlightQuery
+                        searchHighlightQuery: searchHighlightQuery,
+                        searchIsCurrentMatch: searchIsCurrentMatch
                     )
                     .alignmentGuide(.firstTextBaseline) { _ in
                         InlineTextFonts.firstBaseline(
