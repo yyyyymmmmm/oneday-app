@@ -11,7 +11,7 @@ struct MailApprovalCard: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
             HStack(alignment: .firstTextBaseline) {
                 Image(systemName: "envelope.fill")
-                    .foregroundStyle(Palette.brandPrimary)
+                    .foregroundStyle(Palette.primary)
                 Text("邮件发送请求")
                     .font(.headline)
                     .foregroundStyle(Palette.ink)
@@ -48,11 +48,11 @@ struct MailApprovalCard: View {
         .padding(OneDayMetrics.spacingM)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Palette.surfaceSecondary)
+                .fill(Palette.floatFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Palette.brandPrimary.opacity(0.3), lineWidth: 1)
+                .stroke(Palette.primary.opacity(0.3), lineWidth: 1)
         )
     }
 
