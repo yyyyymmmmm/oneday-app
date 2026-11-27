@@ -327,12 +327,8 @@ extension ChatView {
     var headerIdentityHero: some View {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
-            statusWord: assistantActivityStatus,
-            needsApproval: appState.sharedHubStore().hasPendingApprovals,
             avatar: appState.agentAvatarImage,
-            statusColor: overviewStatusColor,
             liveActivityPhrase: appState.liveActivityPhrase,
-            connectionStatusWord: appState.connectionStatus.phaseWord,
             onOpenHub: { presentHub() },
             onFindInConversation: { findController.open() },
             onForkSession: currentThread?.serverSessionID != nil
