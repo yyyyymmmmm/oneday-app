@@ -233,22 +233,11 @@ extension ChatView {
     }
 
     /// 头像行与按钮对齐偏移量（2026-11-28）：
-    /// 头像 67pt、按钮 44pt、VStack spacing 6pt，
-    /// 按钮需上移使其中心对齐头像中心
+    /// 按钮顶缘对齐头像顶缘（D 案）
     private var avatarToButtonOffset: CGFloat {
-        let avatarRadius = OneDayMetrics.avatarChatHero / 2
         let buttonRadius = HeaderButtonSpec.diameter / 2
-        let vStackSpacing: CGFloat = 6
-        let nameCapsuleHeight = HeaderButtonSpec.diameter
-
-        // 整个 VStack 高度 = 头像 + spacing + 名胶囊
-        let totalHeight = OneDayMetrics.avatarChatHero + vStackSpacing + nameCapsuleHeight
-        // VStack 中心距顶端
-        let vStackCenterFromTop = totalHeight / 2
-        // 头像中心距 VStack 顶端
-        let avatarCenterFromTop = avatarRadius
-        // 按钮需上移的量 = VStack 中心到头像中心的距离
-        return vStackCenterFromTop - avatarCenterFromTop
+        // 按钮中心需下移的量 = 按钮自身半径（使按钮顶缘与头像顶缘齐平）
+        return buttonRadius
     }
 
     /// 左钮：汉堡（开抽屉）
