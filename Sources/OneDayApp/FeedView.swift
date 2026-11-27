@@ -313,8 +313,8 @@ struct FeedView: View {
                 .padding(.top, OneDayMetrics.spacingS)
             fieldSlot
                 .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingS)
-                .padding(.bottom, OneDayMetrics.spacingS)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingM)
         }
     }
 
@@ -454,8 +454,9 @@ struct FeedView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            .listSectionSpacing(OneDayMetrics.spacingM)
+            .listSectionSpacing(OneDayMetrics.spacingL)
             .contentMargins(.top, topMargin, for: .scrollContent)
+            .contentMargins(.bottom, OneDayMetrics.spacingL, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top
@@ -516,8 +517,9 @@ struct FeedView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            .listSectionSpacing(OneDayMetrics.spacingM)
+            .listSectionSpacing(OneDayMetrics.spacingL)
             .contentMargins(.top, topMargin, for: .scrollContent)
+            .contentMargins(.bottom, OneDayMetrics.spacingL, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             // §498：滚动偏移只驱动字段槽切换（归一
             // 化偏移＝offset＋顶 inset，静止恒 0）
@@ -570,7 +572,7 @@ struct FeedView: View {
                 // kicker 字形块是帖的类别信号、动作行另
                 // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                 Button {
                     openPost(post)
                 } label: {
@@ -602,7 +604,6 @@ struct FeedView: View {
                 }
                 .buttonStyle(.odPressable)
                 .accessibilityElement(children: .combine)
-                .padding(.bottom, OneDayMetrics.spacingS)
                 // §459：category chip——简报方向原文
                 // （如「GitHub 热门」）；事件/小结帖为
                 // nil 不渲染，不拿 kind 名冒充。视觉收编
@@ -629,7 +630,6 @@ struct FeedView: View {
                             )
                         )
                         .lineLimit(1)
-                        .padding(.bottom, OneDayMetrics.spacingS)
                 }
                 if !post.body.isEmpty {
                     let rowBody = FeedBoard.rowBodyPresentation(

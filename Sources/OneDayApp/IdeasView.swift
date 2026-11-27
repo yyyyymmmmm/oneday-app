@@ -227,7 +227,7 @@ struct IdeasView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingS)
-            .padding(.bottom, OneDayMetrics.spacingS)
+            .padding(.bottom, OneDayMetrics.spacingM)
     }
 
     @ViewBuilder
@@ -299,6 +299,8 @@ struct IdeasView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
+            .listSectionSpacing(OneDayMetrics.spacingL)
+            .contentMargins(.bottom, OneDayMetrics.spacingL, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)
@@ -439,7 +441,7 @@ struct IdeaRowView: View {
                 .frame(width: 40, height: 40)
                 .accessibilityHidden(true)
             VStack(
-                alignment: .leading, spacing: OneDayMetrics.spacingXS
+                alignment: .leading, spacing: OneDayMetrics.spacingS
             ) {
                 Text(idea.title)
                     // §364（台账 23）：行题升内容行题
@@ -471,7 +473,7 @@ struct IdeaRowView: View {
                 }
             }
         }
-        .padding(.vertical, OneDayMetrics.spacingS)
+        .padding(.vertical, OneDayMetrics.spacingM)
     }
 }
 
