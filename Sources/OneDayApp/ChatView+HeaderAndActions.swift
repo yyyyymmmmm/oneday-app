@@ -206,11 +206,15 @@ extension ChatView {
     /// 顶带（§449；2026-11-27 用户亲令改版）：
     /// 汉堡/查找/铃铛与居中身份区同带。
     /// 2026-11-27 改版：右侧查找/铃铛两按钮收进同一胶囊容器
+    /// 2026-11-28 对齐修正：左右按钮对齐头像行垂直中心（大厂标准单行对齐）
     var topBand: some View {
         ZStack(alignment: .center) {
             headerIdentityHero
             HStack(alignment: .center, spacing: 0) {
                 drawerButton
+                    .alignmentGuide(VerticalAlignment.center) { d in
+                        d[VerticalAlignment.center] + self.avatarToButtonOffset
+                    }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 // 右侧两按钮收进同一胶囊（2026-11-27）
                 HStack(spacing: 4) {
@@ -219,10 +223,32 @@ extension ChatView {
                 }
                 .padding(.horizontal, 4)
                 .glassEffect(.regular, in: Capsule())
+                .alignmentGuide(VerticalAlignment.center) { d in
+                    d[VerticalAlignment.center] + self.avatarToButtonOffset
+                }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
         }
         .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
+    /// 头像行与按钮对齐偏移量（2026-11-28）：
+    /// 头像 67pt、按钮 44pt、VStack spacing 6pt，
+    /// 按钮需上移使其中心对齐头像中心
+    private var avatarToButtonOffset: CGFloat {
+        let avatarRadius = OneDayMetrics.avatarChatHero / 2
+        let buttonRadius = HeaderButtonSpec.diameter / 2
+        let vStackSpacing: CGFloat = 6
+        let nameCapsuleHeight = HeaderButtonSpec.diameter
+
+        // 整个 VStack 高度 = 头像 + spacing + 名胶囊
+        let totalHeight = OneDayMetrics.avatarChatHero + vStackSpacing + nameCapsuleHeight
+        // VStack 中心距顶端
+        let vStackCenterFromTop = totalHeight / 2
+        // 头像中心距 VStack 顶端
+        let avatarCenterFromTop = avatarRadius
+        // 按钮需上移的量 = VStack 中心到头像中心的距离
+        return vStackCenterFromTop - avatarCenterFromTop
     }
 
     /// 左钮：汉堡（开抽屉）
