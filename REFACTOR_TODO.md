@@ -88,7 +88,7 @@
 
 ### Batch 5：全量视觉精修与架构收尾（4 项）
 
-- [ ] `#50` 全局配色对比度与字号体检（`Palette.swift` 增补语义图标前景色 Token `tintSkyInk`/`tintGreenInk`/`tintLavenderInk`/`tintOrangeInk`；排查并修复可读文本误用 `inkMuted` 导致对比度偏低的区域，如 `FeedLinkPreviewCard` `domainLine` 等，同时保持现有 `VisualDirectionGateTests` 对比度断言零回归）
-- [ ] `#51` 动态页（`FeedView.swift`）图标与卡片视觉统一（升级 `postRow` 图标容器为 36×36 连续圆角磁贴＋`.symbolRenderingMode(.hierarchical)`＋语义前景色对齐中枢/通知/点子页，补齐 `FeedSourceCardView`/`FeedLinkPreviewCard` `Palette.hairline` 描边）
-- [ ] `#52` 通知页（`NotificationsView.swift`）分类筛选胶囊与左滑标已读增强（在全部/未读分段条下方新增横向分类胶囊 `全部 / 审批 / 监测 / 任务` 与触觉反馈，保留左滑「标已读」与减动态兼容）
-- [ ] `#53` `ChatView.swift` 二次瘦身与 UIKit 桥体检（抽离顶部状态/查找栏/按钮簇与对话查找辅助至 `ChatView+HeaderAndActions.swift`，完成 `Sources/OneDayApp` 全部 11 处 `UIViewRepresentable` 桥接与计时器零泄漏审计）
+- [x] `#50` 全局配色对比度与字号体检（`Palette.swift` 增补语义图标前景色 Token `tintSkyInk`/`tintGreenInk`/`tintLavenderInk`/`tintOrangeInk`；修复 `FeedLinkPreviewCard` `domainLine` 误用 `inkMuted` 为 `inkSecondary`，保持现有 `VisualDirectionGateTests` 对比度断言零回归）
+- [x] `#51` 动态页（`FeedView.swift`）图标与卡片视觉统一（升级 `postRow` 图标容器为 36×36 连续圆角磁贴＋`.symbolRenderingMode(.hierarchical)`＋语义前景色 `kickerTint` 对齐中枢/通知/点子页，补齐 `FeedSourceCardView`/`FeedLinkPreviewCard` `Palette.hairline` 描边）
+- [x] `#52` 通知页（`NotificationsView.swift`）分类筛选胶囊与左滑标已读增强（在全部/未读分段条下方新增横向分类胶囊 `全部 / 审批 / 监测 / 任务`、计数角标与 `Haptics.selection()` 反馈，图标砖升级 `.hierarchical` 语义色，保留左滑「标已读」与减动态兼容）
+- [x] `#53` `ChatView.swift` 二次瘦身与 UIKit 桥体检（抽离顶部状态/查找栏/按钮簇/中枢入口与对话内查找至 `ChatView+HeaderAndActions.swift`，完成 `Sources/OneDayApp` 全部 11 处 `UIViewRepresentable` 与计时器零泄漏审计）

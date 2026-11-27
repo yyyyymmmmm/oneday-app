@@ -677,6 +677,21 @@ public enum Palette {
         light: 0xFDF0DF,
         dark: UIColor.systemOrange.withAlphaComponent(0.20)
     )
+    /// 语义点缀图标前景色（Batch 5 #50）：与 tintSky/tintGreen/
+    /// tintLavender/tintOrange 成对使用，浅档保证 ≥4.5:1 对比度，
+    /// 暗档挂系统同色相语义色，替代纯黑/低对比字形。
+    public static let tintSkyInk = appleColor(
+        light: 0x0F62A8, dark: .systemBlue
+    )
+    public static let tintGreenInk = appleColor(
+        light: 0x1A7431, dark: .systemGreen
+    )
+    public static let tintLavenderInk = appleColor(
+        light: 0x5E43B8, dark: .systemPurple
+    )
+    public static let tintOrangeInk = appleColor(
+        light: 0x9C5700, dark: .systemOrange
+    )
     /// 查找命中词底（§503）：对话内查找激活时正文
     /// 命中词的着色面——成熟会话内查找的通行黄标
     /// （WhatsApp/TG 同族）；浅档实色 #FBE38A、暗
