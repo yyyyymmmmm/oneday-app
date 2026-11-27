@@ -26,8 +26,22 @@ jobs:
           python3 Scripts/ci/check_symbol_motion.py --selftest
           python3 Scripts/ci/check_symbol_motion.py
 
-      - name: Credential vault v2/v1 envelope selftest
-        run: python3 server/patches/credential_vault_selftest.py
+      - name: Compile all server patches and migration scripts
+        run: python3 -m py_compile server/patches/*.py server/migrate_json_to_sqlite.py server/oneday_db_selftest.py
+
+      - name: Unified SQLite WAL, push scheduler & modularization selftest
+        run: python3 server/oneday_db_selftest.py
+
+      - name: Auth tokens & push tokens selftests
+        run: |
+          python3 server/auth_tokens_selftest.py
+          python3 server/push_tokens_selftest.py
+          if [ -f server/push_sender_and_schema_guard_selftest.py ]; then
+            python3 server/push_sender_and_schema_guard_selftest.py
+          fi
+
+      - name: Credential vault v2/v1 envelope selftest (real AES-256-GCM)
+        run: python3 server/credential_vault_selftest.py
 
       - name: Bitwarden link selftest
         run: |

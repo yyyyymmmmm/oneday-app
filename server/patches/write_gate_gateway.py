@@ -651,6 +651,15 @@ def _append_jsonl(name: str, entry: dict) -> None:
         logger.warning("%s write failed: %s", name, e)
 
 
+try:
+    from gateway.platforms import oneday_db as _oneday_db
+except ImportError:
+    try:
+        import oneday_db as _oneday_db  # type: ignore
+    except ImportError:
+        _oneday_db = None
+
+
 def _append_decision(rec: dict, subsystem: str, decision: str,
                      via_rule: str | None = None) -> None:
     entry = _record_head(subsystem, rec)
@@ -666,11 +675,24 @@ def _append_decision(rec: dict, subsystem: str, decision: str,
         # the decision value stays "approved"; via_rule carries the
         # rule id so history/panel can show 「按规则放行」 honestly.
         entry["via_rule"] = via_rule
+    if _oneday_db is not None:
+        try:
+            _oneday_db.append_write_gate_decision(
+                entry, _home() / "write-gate" / "decisions.jsonl"
+            )
+        except Exception as e:
+            logger.warning("oneday_db decision write failed: %s", e)
+    # Write-through mirror to decisions.jsonl for approval_history/overview readers.
     _append_jsonl("decisions.jsonl", entry)
 
 
 def _read_decisions(limit: int) -> list[dict]:
     p = _home() / "write-gate" / "decisions.jsonl"
+    if _oneday_db is not None:
+        try:
+            return _oneday_db.read_write_gate_decisions(limit, p)
+        except Exception as e:
+            logger.warning("oneday_db decision read failed: %s", e)
     if not p.exists():
         return []
     rows = []

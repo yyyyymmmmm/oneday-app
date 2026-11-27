@@ -104,8 +104,22 @@ def _paths(scope: str) -> tuple[Path, Path]:
             AUDIT_PATH.with_name(f"{AUDIT_PATH.stem}-{safe_scope}{AUDIT_PATH.suffix}"))
 
 
+try:
+    from gateway.platforms import oneday_db as _oneday_db
+except ImportError:
+    try:
+        import oneday_db as _oneday_db  # type: ignore
+    except ImportError:
+        _oneday_db = None
+
+
 def _load(scope: str = "default") -> dict[str, Any]:
     store_path, _ = _paths(scope)
+    if _oneday_db is not None:
+        try:
+            return _oneday_db.load_vault_entries(scope, store_path)
+        except Exception:
+            pass
     try:
         data = json.loads(store_path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) and isinstance(data.get("entries"), dict) else {"entries": {}}
@@ -115,6 +129,11 @@ def _load(scope: str = "default") -> dict[str, Any]:
 
 def _save(data: dict[str, Any], scope: str = "default") -> None:
     store_path, _ = _paths(scope)
+    if _oneday_db is not None:
+        try:
+            _oneday_db.save_vault_entries(data, scope, store_path)
+        except Exception:
+            pass
     store_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = store_path.with_name(store_path.name + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:

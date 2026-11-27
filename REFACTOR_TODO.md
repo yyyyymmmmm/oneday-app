@@ -79,9 +79,9 @@
 - [~] `#41` ~~引入第二把主钥 `VAULT_MASTER_KEY`~~（审计红线禁止）
 - [~] `#42` ~~`auth_tokens.py` 换 JWT 铸造格式~~（审计缓办）
 - [~] `#43` ~~`requirements-standard.txt` 零引用依赖与空壳 `sqlite-vec`~~（审计清退）
-- [ ] `#44` 基于 `2.18.12+` 拆解 `api_server.py` / `device_gateway.py` / `oneday_seg_feed.py` 并全量登记 4 件套
-- [ ] `#45` `oneday_db.py` 统一 SQLite WAL（已拍板：真接全四类 JSON/JSONL 存储并附迁移脚本，归第 4 批执行）
-- [ ] `#46` `push_sender.py` 接 `aioapns` / 定时调度重构
-- [ ] `#47` 服务端真加密测试全绿留档（Python 3.10+ + `cryptography`）
+- [x] `#44` 基于 `2.18.12+` 拆解 `device_gateway.py`（→ `device_gateway_catalog.py`，900 行）、`oneday_seg_feed.py`（→ `oneday_feed_helpers.py`）、`api_server.py`（→ `api_server_helpers.py`）并全量登记 4 件套（`manifest.yaml` `2.18.13` / `install.sh` / `verify.sh` / `CAPABILITIES.md` `#72`）
+- [x] `#45` `oneday_db.py` 统一 SQLite WAL 真接全四类 JSON/JSONL 存储（`front_gateway` / `credential_vault` / `auth_tokens` / `write_gate_gateway`，保留写穿镜像与无感自动迁移）＋ `server/migrate_json_to_sqlite.py` 幂等迁移脚本 ＋ `server/oneday_db_selftest.py`
+- [x] `#46` `push_sender.py` 升级 `aioapns` 异步发送（无依赖时回退 `httpx[http2]` + `PyJWT`）与 `PushDispatchScheduler` 合并调度队列
+- [x] `#47` 全量服务端 `py_compile`、`oneday_db_selftest`、`auth_tokens_selftest`、`push_tokens_selftest`、`push_sender_and_schema_guard_selftest` 通过；修复 `.github/workflows/ci.yml` 路径并在 Python 3.12 + `cryptography` 环境下运行 `server/credential_vault_selftest.py` 真加密自测
 - [x] `#48` 工程卫生（`Tuist/Package.resolved` 锁定入库、`.gitignore` 排除构建与打包产物）
 - [x] `#49` 自动化 CI 门禁（`.github/workflows/ci.yml` + `ios-native.yml` 分支与 PR 触发）— 本批

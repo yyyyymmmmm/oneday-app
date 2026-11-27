@@ -172,7 +172,23 @@ def _conn_defaults() -> list[dict]:
     ]
 
 
+try:
+    from gateway.platforms import oneday_db as _oneday_db
+except ImportError:
+    try:
+        import oneday_db as _oneday_db  # type: ignore
+    except ImportError:
+        _oneday_db = None
+
+
 def conn_load() -> list[dict]:
+    if _oneday_db is not None:
+        try:
+            loaded = _oneday_db.load_connections(CONN_PATH)
+            if loaded is not None:
+                return loaded
+        except Exception:
+            pass
     if CONN_PATH.exists():
         try:
             return json.loads(CONN_PATH.read_text())
@@ -184,6 +200,11 @@ def conn_load() -> list[dict]:
 
 
 def conn_save(recs: list[dict]) -> None:
+    if _oneday_db is not None:
+        try:
+            _oneday_db.save_connections(recs, CONN_PATH)
+        except Exception:
+            pass
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     write_text_inplace(CONN_PATH, json.dumps(recs, ensure_ascii=False, indent=1))
     try:
