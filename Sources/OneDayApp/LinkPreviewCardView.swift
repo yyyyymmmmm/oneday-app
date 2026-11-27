@@ -19,7 +19,7 @@ struct LinkPreviewCardView: View {
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Palette.inkTertiary)
+                    .foregroundStyle(Palette.inkMuted)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }

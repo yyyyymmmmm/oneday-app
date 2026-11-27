@@ -1212,6 +1212,38 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
+    /// Bearer POST＋编码请求体＋解码响应：401/403 → apiKeyRejected；
+    /// 其余非 2xx 统一经 HermesError.fromHTTPResponse 拦截
+    func bearerPostJSON<T: Decodable, B: Encodable>(
+        config: ServerConfig, apiKey: String, path: String,
+        body: B, endpoint: String
+    ) async throws -> T {
+        var request = URLRequest(url: config.endpoint(path))
+        request.httpMethod = "POST"
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint,
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
     /// 带 JSON body 的写请求：2xx 即成功；非 2xx 统一经错误码拦截器解析人话。
     func sendJSON(
         config: ServerConfig, path: String, method: String, endpoint: String,
@@ -1967,3 +1999,6 @@ enum RewindError: Error {
     /// 409 冲突对账后仍未截断、新围栏重试耗尽
     case conflictExhausted
 }
+
+/// 空响应类型：用于无返回体的 POST 端点（如发送邮件）
+struct EmptyResponse: Decodable {}

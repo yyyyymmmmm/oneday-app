@@ -471,7 +471,7 @@ struct ChatView: View {
     /// 到本地字典，绕过 SwiftData 刷新竞态，保证附件
     /// 立即显示；发送完成（状态变为 .delivered）后清
     /// 除快照，恢复使用持久化数据
-    @State private var optimisticAttachments: [UUID: [Data]] = [:]
+    @State var optimisticAttachments: [UUID: [Data]] = [:]
     /// 聊天可靠性包：发送准备失败被保留的待发条目，
     /// 其附件在同一次运行内按条目 id 暂存供点按重
     /// 发；§237 起发送起手已同步落磁盘暂存，进程重
@@ -4023,7 +4023,7 @@ struct ChatView: View {
             runIDEstablished: ledger?.runID != nil,
             tailSendState: tailSendState,
             isUploading: isUploadingFiles,
-            uploadFraction: uploadProgressFraction,
+            uploadFraction: nil,
             hasReasoning: reasoningPublishGate.hasContent,
             hasToolCards: !liveToolCards.isEmpty
         )

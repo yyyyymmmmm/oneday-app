@@ -9,7 +9,7 @@ struct MailComposeView: View {
 
     @State private var to: String
     @State private var subject: String
-    @State private var body: String
+    @State private var bodyText: String
     @State private var saving = false
     @State private var errorMessage: String?
 
@@ -21,7 +21,7 @@ struct MailComposeView: View {
         self.existingDraft = draft
         self._to = State(initialValue: draft?.to ?? to)
         self._subject = State(initialValue: draft?.subject ?? subject)
-        self._body = State(initialValue: draft?.bodyText ?? body)
+        self._bodyText = State(initialValue: draft?.bodyText ?? body)
     }
 
     var body: some View {
@@ -38,7 +38,7 @@ struct MailComposeView: View {
                 }
 
                 Section {
-                    TextEditor(text: $body)
+                    TextEditor(text: $bodyText)
                         .frame(minHeight: 200)
                 } header: {
                     Text("正文")
@@ -87,7 +87,7 @@ struct MailComposeView: View {
             let request = CreateDraftRequest(
                 to: to.trimmingCharacters(in: .whitespacesAndNewlines),
                 subject: subject.trimmingCharacters(in: .whitespacesAndNewlines),
-                bodyText: body
+                bodyText: bodyText
             )
             _ = try await client.createMailDraft(
                 config: config, apiKey: apiKey, request: request

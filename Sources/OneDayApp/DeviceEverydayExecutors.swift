@@ -1270,6 +1270,7 @@ enum DeviceComposeBridge {
             self.continuation = continuation
         }
 
+        @MainActor
         func mailComposeController(
             _ controller: MFMailComposeViewController,
             didFinishWith result: MFMailComposeResult,
