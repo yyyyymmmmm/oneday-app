@@ -1200,7 +1200,7 @@ final class AppState {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.login)
-        try await client.login(config: config, password: password)
+        try await client.login(config: config, username: config.username ?? "", password: password)
         onStep(.apiKey)
         let ids = try await client.models(config: config, apiKey: apiKey)
         if let first = ids.first {
@@ -1429,7 +1429,7 @@ final class AppState {
             guard let password else {
                 throw HermesError.sessionExpired
             }
-            try await client.login(config: config, password: password)
+            try await client.login(config: config, username: config.username ?? "", password: password)
             do {
                 return try await operation(client, config)
             } catch let retryError as HermesError where retryError.isHTTPUnauthorized {
