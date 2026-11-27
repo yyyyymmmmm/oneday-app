@@ -13,6 +13,8 @@ struct MailComposeView: View {
     @State private var saving = false
     @State private var errorMessage: String?
 
+    /// 编辑现有草稿时传入（服务端 2.20.0 无 PUT /v1/mail/drafts/{id} 更新端点，
+    /// 存草稿会创建新草稿、旧草稿保留，用户需手动删除旧草稿——限制已在交卷明标）
     let existingDraft: MailDraft?
 
     init(to: String = "", subject: String = "", body: String = "", draft: MailDraft? = nil) {

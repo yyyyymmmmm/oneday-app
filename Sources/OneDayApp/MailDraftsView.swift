@@ -10,6 +10,7 @@ struct MailDraftsView: View {
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var showingCompose = false
+    @State private var editingDraft: MailDraft?
     @State private var pendingApproval: MailSendApproval?
     @State private var sendingDraftID: String?
     @State private var sendError: String?
@@ -33,6 +34,10 @@ struct MailDraftsView: View {
         }
         .sheet(isPresented: $showingCompose) {
             MailComposeView()
+                .onDisappear { load() }
+        }
+        .sheet(item: $editingDraft) { draft in
+            MailComposeView(draft: draft)
                 .onDisappear { load() }
         }
         .task { await loadDrafts() }
@@ -143,7 +148,7 @@ struct MailDraftsView: View {
                     .disabled(sendingDraftID != nil)
 
                     Button("编辑") {
-                        // TODO: 打开编辑面
+                        editingDraft = draft
                     }
                     .buttonStyle(.bordered)
                 }
