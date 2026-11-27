@@ -265,6 +265,11 @@ extension ChatView {
                     height: HeaderButtonSpec.diameter
                 )
                 .contentShape(Circle())
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("在对话中查找")
@@ -299,6 +304,11 @@ extension ChatView {
                 }
             }
             .contentShape(Circle())
+            .frame(
+                width: OneDayMetrics.minTapTarget,
+                height: OneDayMetrics.minTapTarget
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(
