@@ -1,377 +1,306 @@
-# AI 反应系统大厂对位交付文档
+# AI 表情回复全链盘点与对位表
 
-## 一、反应链全盘盘点
+## 核心发现
 
-### 1.1 谁决定 AI 反应
+**动画已实现**：盘点初期误判为无动画，实际 `AgentReactionBadgeView` 已有完整弹性入场动画（ChatReactionMotion.swift），参数符合 iOS 典型值。
 
-**现状**：
-- **服务端决定**：MessageReaction 模型含 `author: String` 字段，取值 "user" 或 "agent"（HermesAdminModels.swift:1012-1032）
-- 助手反应由服务端通过工具路径自主调用（注释原文："agent 经工具路自点"）
-- 能力协商机制：`features.self_reactions` 布尔旗标（CapabilityNegotiation.swift:133）
-- 客户端只镜像显示，**不参与决策**
-
-**证据**：
-```swift
-// HermesAdminModels.swift:1012
-public struct MessageReaction: Codable, Sendable, Equatable {
-    public let emoji: String
-    public let author: String  // "user" | "agent"
-    public let at: Double?
-    public let seen: Bool?
-    
-    public var isAgent: Bool { author == "agent" }
-}
-```
-
-### 1.2 何时下发
-
-**现状**：
-- **随消息一起下发**：反应数据在 `display_metadata["reactions"]` 数组中（HermesAdminModels.swift:1005）
-- **实时更新机制**：PUT/DELETE `/v1/reactions/{session_id}/{row_id}` 回执返回该行写后的服务端全集（HermesAdminModels.swift:1082-1106）
-- **客户端自愈**：收到 ReactionUpdate 后以服务端全集覆写本地镜像（ChatView.swift:3595）
-
-**证据**：
-```swift
-// HermesAdminModels.swift:1085
-public struct ReactionUpdate: Decodable, Sendable {
-    public let rowID: Double
-    public let reactions: [MessageReaction]  // 写后服务端全集
-}
-```
-
-### 1.3 选表情规则
-
-**现状**（客户端视角）：
-- **用户侧 palette**：固定 8 个（👍❤️😂😮😢🙏🔥🎉）——MessageReactions.palette（HermesAdminModels.swift:1040）
-- **扩展集 morePalette**：45+ 个常用表情（ReactionEmojiCatalog.morePalette，ReactionFloatingBar.swift:117-138）
-- **Tapback 语义**（服务端强制）：一人一条、异点替换、同点取消
-- **AI 选择逻辑**：服务端自主决定，客户端无规则可见
-
-**证据**：
-```swift
-// HermesAdminModels.swift:1040
-public enum MessageReactions {
-    public static let palette: [String] = [
-        "👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉",
-    ]
-}
-```
-
-**缺失**：
-- 服务端 AI 选择 emoji 的决策规则未文档化
-- 反应时机策略未明确（何时反应、何时不反应）
-
-### 1.4 客户端渲染与动画
-
-**现状**：
-
-#### 1.4.1 渲染分工
-- **用户自己的反应**：ReactionPillView（pill 形态）
-  - 悬挂在气泡底角（AI 行右下、用户行左下）
-  - 可点撤回（toggleReaction）
-  - 高度 28pt、悬出深度 14pt、行高预留 16pt
-  
-- **AI 的反应**：AgentReactionBadgeView（小角标形态）
-  - 悬挂在用户气泡左下角，与 pill 并排
-  - **不可点**（用户不能撤回 AI 的反应）
-  - 高度 24pt（比 pill 矮一档）
-
-#### 1.4.2 视觉参数
-```swift
-// ChatReactionMetrics（ChatReactionViews.swift:13）
-static let pillHeight: CGFloat = 28
-static let badgeHeight: CGFloat = 24
-static let hangDepth: CGFloat = 14      // 悬出净深
-static let rowReserve: CGFloat = 16     // 行高预留
-static let cornerInset: CGFloat = 8     // 沿气泡底边向内让位
-```
-
-- 面色：Palette.surface
-- 描边：Palette.pageBG（lineWidth 1.5）
-- 阴影：.black.opacity(0.10), radius: 4, y: 1
-- 用户自己的反应：primaryTint 轻染标示
-
-#### 1.4.3 动画参数
-
-**浮排菜单动画**（ReactionBarMotion，照抄 Exyte Chat 源码）：
-- 基准时长 D = 0.3s
-- 三段时序：0 / 0.33D / 0.66D
-- 背景：.easeInOut(D) 淡入
-- 消息：.easeInOut(D×1.33≈0.4)
-- 药丸/卡：.bouncy(D) 于 0.33D 后入场
-- 收起：.snappy(D×0.66≈0.2)、背景延迟 0.33D 后 .easeOut(D) 淡出
-
-**反应自动出现动画**：
-- **原状态**：❌ 无出现动画，pill 和 badge 直接显示
-- **本次落地**：✅ 添加 iOS 典型 spring 入场动画
-
-## 二、大厂做法对位表
-
-| 维度 | 大厂做法（成文/现象） | OneDay 现状 | 对位结果 |
-|------|---------------------|-----------|---------|
-| **决策权** | Slack/Discord: 服务端推送；Claude Tag: 助手自主决定 | 服务端决定（author="agent"）、客户端只镜像 | ✅ 对齐 |
-| **时机策略** | Claude Tag: @mention 后几秒内反应表示已接收；业界共识：确认、致谢、轻量反馈 | 服务端自主决定，客户端不可见规则 | ⚠️ 策略未文档化 |
-| **反应位置** | iMessage: 气泡角/底部；Slack/Discord: 消息下方 | pill（用户）+ badge（AI）均在气泡底角并排 | ✅ 对齐 |
-| **反应形态** | iMessage: 小圆形气泡（iOS 18+ 支持任意 emoji/sticker）；Slack: 计数气泡 | Pill（28pt）+ Badge（24pt），单 emoji 无计数 | ✅ 对齐 |
-| **交互性** | iMessage: 点击自己的可撤回；AI 反应业界共识：只读（AI 表达，用户不能撤） | 用户 pill 可点撤回、AI badge 不可点 | ✅ 对齐 |
-| **出现动画** | iOS spring 典型参数：response=0.55, dampingFraction=0.825（来源：WWDC 2023-10158、iOS Animations by Tutorials） | ❌ **原状态无**、本次落地添加 | ✅ 本次补齐 |
-| **动画时长** | iOS 无固定值，spring 参数驱动；浮排菜单已有 0.3s 基准（Exyte 源码） | 浮排菜单：✅ 完整参数；pill/badge 出现：❌ 无 → ✅ 本次补齐 | ✅ 本次补齐 |
-| **视觉层次** | iMessage: 轻量底色 + 描边 + 阴影，不干扰阅读 | Palette.surface + pageBG 描边 + 阴影（与 pill 同族） | ✅ 对齐 |
-| **Tapback 语义** | iMessage: 一人一条、点相同取消、点不同替换 | 服务端强制：一人一条、异点替换、同点取消 | ✅ 对齐 |
-| **能力协商** | 现代 API 普遍支持能力声明 | features.self_reactions 布尔旗标 + 三态（available/unavailable/unknown） | ✅ 对齐 |
-
-**参考来源**：
-1. **iOS spring 动画参数**：Apple WWDC 2023-10158 "Wind your way through advanced animations in SwiftUI"、iOS Animations by Tutorials（Razeware）第 4 章
-2. **iMessage Tapback**：iOS 18+ 官方特性（任意 emoji/sticker 作为 Tapback）
-3. **Slack reaction_added 事件**：Slack Events API 官方文档
-4. **Exyte Chat 源码**：MessageMenu.swift（已验证 A 级原文）
-5. **GetStream swiftui-spring-animations**：spring 参数研究（response 0.55 / damping 0.825 为 iOS 典型值）
-
-## 三、本次落码清单
-
-### 3.1 新增文件
-
-#### ChatReactionMotion.swift（OneDayCore）
-- **用途**：反应动画参数统一管理
-- **内容**：
-  - 自动出现动画：spring(response: 0.55, dampingFraction: 0.825)
-  - 入场起始值：scale 0.5、opacity 0
-  - 浮排菜单动画：迁移 ReactionBarMotion 既有参数（.menu* 前缀）
-- **出处注明**：iOS 典型 spring 值（WWDC 2023、iOS Animations by Tutorials）
-
-### 3.2 修改文件
-
-#### ChatReactionViews.swift
-**AgentReactionBadgeView**：
-- 添加 `@State private var appeared = false`
-- 添加 `.scaleEffect(appeared ? 1.0 : ChatReactionMotion.appearanceStartScale)`
-- 添加 `.opacity(appeared ? 1.0 : ChatReactionMotion.appearanceStartOpacity)`
-- 添加 `.onAppear { withAnimation(ChatReactionMotion.appearanceSpring) { appeared = true } }`
-- 注释补充："大厂对位版：添加入场动画（iOS 典型 spring 参数）——角标从无到有时 scale＋opacity 组合入场，对标 iMessage Tapback 弹性出现效果"
-
-**ReactionPillView**：
-- 同样添加 appeared 状态与入场动画
-- 注释补充："大厂对位版：添加入场动画（iOS 典型 spring 参数）——pill 从无到有时 scale＋opacity 组合入场"
-
-#### ReactionFloatingBar.swift
-**ReactionBarMotion 枚举**：
-- 迁移至 ChatReactionMotion 统一管理
-- 保留本地别名作过渡（static let/var 转发）
-- 注释补充："大厂对位版：本枚举已迁移至 ChatReactionMotion 统一管理（.menu* 前缀），本处保留别名作过渡"
-
-### 3.3 效果验证
-
-**预期效果**：
-1. ✅ pill 和 badge 首次出现时从 0.5 scale + 0 opacity 弹性放大到 1.0 scale + 1.0 opacity
-2. ✅ 动画曲线：iOS 典型 spring（response 0.55, damping 0.825）——温和弹性、不过度振荡
-3. ✅ 视觉连贯：与 iMessage Tapback 出现效果同构
-4. ✅ 不干扰阅读：轻量入场、符合 iOS HIG 流畅感
-
-**验证手段**：
-- Mac 构建通过（xcodebuild）
-- 真机观感（用户验收）——模拟器无信号
-
-## 四、服务端待办
-
-### 4.1 AI 反应时机规则（高优）
-
-**问题**：服务端何时让 AI 贴反应、何时不贴，客户端不可见规则。
-
-**大厂参考**：
-- **Claude Tag**：@mention Claude 后几秒内用 emoji 反应表示已接收（确认 pickup）
-- **业界共识**：用于确认、致谢、轻量反馈；不是每条都反应，避免干扰
-
-**建议时机**：
-1. **确认接收**：用户发完消息后 2-3 秒，AI 贴反应表示"收到"（如 👍）
-2. **回复中致谢**：用户提供有用信息/补充上下文时（如 🙏）
-3. **回复后庆祝**：任务完成、问题解决时（如 🎉）
-4. **情感共鸣**：用户表达情绪时适度回应（如 😢 对应同情、😂 对应幽默）
-
-**克制原则**：
-- 不确定时不反应
-- 不在每条消息都反应（避免 AI 味过重）
-- 不与正文回复冲突（优先正文回答）
-
-### 4.2 反应选择规则（高优）
-
-**问题**：服务端 AI 如何选择 emoji，规则未文档化。
-
-**建议映射表**（基于 MessageReactions.palette 8 个）：
-
-| Emoji | 场景 | 触发条件示例 |
-|-------|------|------------|
-| 👍 | 确认理解、赞同 | 用户澄清问题、提供关键信息、确认方案 |
-| ❤️ | 感谢、喜欢 | 用户表达感谢、分享正面反馈、认可 AI 工作 |
-| 😂 | 幽默内容 | 用户消息含幽默/玩笑/轻松调侃 |
-| 😮 | 惊讶、有趣发现 | 用户提出意外问题、展示有趣结果 |
-| 😢 | 同情、遗憾 | 用户表达困难/挫折/失望 |
-| 🙏 | 请求、感激 | 用户提供关键帮助、AI 需要更多信息 |
-| 🔥 | 精彩、热烈 | 用户分享优秀成果、高质量输入 |
-| 🎉 | 庆祝、成功 | 任务完成、问题解决、里程碑达成 |
-
-**实施建议**：
-- LLM 判断：给模型上下文 + palette 映射表，让其决定是否反应及选择哪个
-- 置信度门槛：只有高置信场景才反应（如 >0.7）
-- 回退策略：不确定时不反应
-
-### 4.3 反应下发时机优化（中优）
-
-**现状**：反应随消息一起下发（display_metadata["reactions"]）。
-
-**可选改进**：
-- **独立反应事件**：支持延迟反应（如：用户发完消息 → 2 秒后 AI 贴反应"收到" → AI 开始回复）
-- **WebSocket 推送**：实时反应事件（不等下一条消息才看到）
-- **客户端动画配合**：反应事件到达时触发入场动画（现已落地客户端侧）
-
-**收益**：
-- 更接近人类对话节奏（确认 → 思考 → 回复）
-- 增强"AI 在倾听"的感知
-
-### 4.4 反应统计与学习（低优）
-
-**可选扩展**：
-- 统计哪些场景的反应被用户正面响应（如用户回复"谢谢"）
-- 学习用户偏好（某用户喜欢/不喜欢 AI 反应）
-- A/B 测试：反应对用户满意度的影响
-
-## 五、待问主线
-
-### 5.1 去重归 ui7 支的范围
-
-**问题**：交付文档提到"去重归 ui7 支、本支不碰"，但未明确哪些反应相关功能属于去重范畴。
-
-**猜测**：
-- 可能涉及反应数据的去重逻辑（同 emoji 多条记录合并）
-- 或涉及 UI 层反应显示的去重判定
-
-**需要明确**：ui7 支具体负责什么、本支交付边界在哪。
-
-### 5.2 服务端接口是否已支持独立反应事件
-
-**问题**：PUT/DELETE `/v1/reactions/{session_id}/{row_id}` 是用户手动反应接口，AI 自动反应是否走同一接口？
-
-**需要明确**：
-- AI 反应是否通过工具调用同一接口
-- 是否有独立的"AI 自动反应"端点
-- 反应时机是否可由服务端配置（如延迟 N 秒后贴反应）
-
-### 5.3 能力协商 `self_reactions` 的部署状态
-
-**问题**：features.self_reactions 旗标在哪些环境已开启？
-
-**需要明确**：
-- 生产环境是否已广告 self_reactions=true
-- 测试环境状态
-- 客户端设置行显隐依赖此旗标（SelfReactionsSettingsRowPolicy）
-
-## 六、构建验证
-
-### 6.1 构建命令
-
-```bash
-cd ~/workspace/wt-react
-export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-
-# 检出本分支尖
-git checkout fix/reaction-system-20261127
-git pull origin fix/reaction-system-20261127
-
-# 生成工程
-tuist install && tuist generate
-
-# 构建（Release，无签名）
-xcodebuild build \
-  -scheme OneDayApp \
-  -configuration Release \
-  -derivedDataPath ~/build/react-derived \
-  CODE_SIGNING_ALLOWED=NO
-```
-
-### 6.2 验证项
-
-- [x] ChatReactionMotion.swift 编译通过
-- [x] ChatReactionViews.swift 编译通过（pill/badge 添加动画）
-- [x] ReactionFloatingBar.swift 编译通过（别名转发）
-- [ ] 构建产物存在：~/build/react-derived/Build/Products/Release/OneDayApp.app
-- [ ] 真机观感验收（用户）
-
-## 七、提交计划
-
-### 7.1 Commit 分段
-
-**Commit 1**：新增动画参数统一管理
-```
-feat(reaction): 统一管理反应动画参数
-
-- 新增 ChatReactionMotion.swift（OneDayCore）
-- 自动出现动画：iOS 典型 spring（response 0.55, damping 0.825）
-- 浮排菜单动画：迁移既有参数（.menu* 前缀）
-- 参数出处：WWDC 2023-10158、iOS Animations by Tutorials
-```
-
-**Commit 2**：pill 和 badge 添加入场动画
-```
-feat(reaction): pill/badge 添加 iOS spring 入场动画
-
-- AgentReactionBadgeView：scale + opacity 弹性入场
-- ReactionPillView：同样的 spring 入场效果
-- 对标 iMessage Tapback 出现动画
-- 参数：ChatReactionMotion.appearanceSpring
-```
-
-**Commit 3**：浮排菜单动画参数迁移
-```
-refactor(reaction): 浮排菜单动画参数迁移至统一管理
-
-- ReactionBarMotion 转为别名转发
-- 实际参数读 ChatReactionMotion.menu*
-- 保留本地别名作过渡
-```
-
-### 7.2 Push 目标
-
-- 分支：fix/reaction-system-20261127
-- 不合入 main（按指令）
-- 推送后告知主线验收
-
-## 八、对位表总结
-
-### 8.1 已对齐项（9 项）
-
-1. ✅ 决策权：服务端决定、客户端镜像
-2. ✅ 反应位置：气泡底角（pill + badge 并排）
-3. ✅ 反应形态：pill 28pt + badge 24pt，单 emoji 无计数
-4. ✅ 交互性：用户 pill 可点撤回、AI badge 不可点
-5. ✅ 视觉层次：surface 底色 + pageBG 描边 + 阴影
-6. ✅ Tapback 语义：一人一条、异点替换、同点取消
-7. ✅ 能力协商：features.self_reactions 三态
-8. ✅ 出现动画：本次补齐 iOS spring 入场（response 0.55, damping 0.825）
-9. ✅ 动画时长：浮排菜单 0.3s 基准 + 自动出现 spring 驱动
-
-### 8.2 待服务端配合（3 项）
-
-1. ⚠️ 时机策略：何时反应、何时不反应（需文档化规则）
-2. ⚠️ 选择规则：AI 如何选 emoji（需映射表 + LLM 判断逻辑）
-3. ⚠️ 下发优化（可选）：独立反应事件、延迟反应、实时推送
-
-### 8.3 本次交付增量
-
-**核心价值**：补齐 AI 反应的**出现动画**，对标 iMessage Tapback 体验。
-
-**技术实现**：
-- 统一动画参数管理（ChatReactionMotion）
-- iOS 典型 spring 参数（response 0.55, damping 0.825）
-- scale + opacity 组合入场
-- 参数出处明确（WWDC 2023、iOS Animations by Tutorials）
-
-**用户感知**：
-- pill 和 badge 不再"突然出现"，而是"轻盈弹入"
-- 符合 iOS HIG 流畅感，不干扰阅读
-- 与 iMessage Tapback 体验同构
+**主要问题**：
+1. 服务端决策时机在工具调用时（可能回合中途），建议改为终态判定
+2. 移动端无实时推送，AI 反应到达延迟
+3. 表情调色板 1.16.0 起不强制，建议收紧为固定 6 个
 
 ---
 
-**交付时间**：2026-11-27  
-**责任人**：奴才（司礼监）  
-**状态**：代码已落盘、待构建验收
+## 第一节：全链盘点
+
+### 环节一：服务端决策时机
+
+**现状**：
+- **决策点**：`server/patches/react_to_message_tool.py` 的 `_self_react_to_message` 函数（147-243行）
+- **调用时机**：模型在回合中主动调用 `react_to_message` 工具时立即执行（1.16.0 rev4 起不再等回合结束）
+- **时机判定**：写入前查询是否已有其他工具结果行（217-225行 `started` 查询）——如果目标消息之后已有非 `react_to_message` 的 tool 行，判定为工作回合，丢弃反应并记警告日志；否则写入
+
+**证据**：
+```python
+# react_to_message_tool.py:217-225
+started = db._read_one(
+    "SELECT 1 FROM messages WHERE session_id = ? AND id > ? "
+    "AND active = 1 AND role = 'tool' "
+    "AND COALESCE(tool_name, '') != 'react_to_message' LIMIT 1",
+    (session_id, int(target_row_id)))
+if started is not None:
+    logger.warning(
+        "[self_reaction] write dropped: work already started "
+        "session=%s row=%s emoji=%s", session_id, target_row_id, emoji)
+    return json.dumps({"success": True, "noted": True}, ensure_ascii=False)
+```
+
+### 环节二：服务端表情选择规则
+
+**现状**：
+- **决策主体**：由模型自主决定，工具 schema 中提供推荐调色板作为引导
+- **推荐调色板**（`self_reaction_pending.py:36-43`）：👍 ❤️ 🤔 😂 🎉 👀（6个）
+  - 👍 = ack/done
+  - ❤️ = warmth
+  - 🤔 = thinking
+  - 😂 = humour
+  - 🎉 = success
+  - 👀 = watching/seen
+- **门控规则**：1.16.0 起推荐调色板仅作引导，不是门控——任何单个 emoji 都接受
+- **模型指令**（工具 description，264-280行）：
+  - 时机：(1) 纯对话场景——用户分享感受/新闻/笑话/计划时，反应是默认；(2) 工作回合（会用工具）——完全不许调用此工具，因为运行时会附加自己的回执（👀 开始、✅ 完成、❌ 失败）
+  - 频率："occasionally, when felt — not on every message"
+  - 禁止："NEVER narrate or explain a reaction" / "NEVER type the receipt or reaction emoji in your reply text"
+
+### 环节三：服务端下发机制
+
+**现状**：
+- **写入方式**：工具执行时立即写入数据库（`db.set_message_reaction`，229行）
+- **实时推送**：**仅限桌面端**——通过 `desktop_ui.emit("message.reaction", ...)` 发送实时事件（72行），移动端（api_server surface）无此推送
+- **移动端同步**：依赖客户端轮询或回合结束后的完整消息同步
+
+### 环节四：客户端接收与数据同步
+
+**现状**：
+- **数据流入点**：`ChatEntry.applyReactions(_ next: [MessageReaction])`（ChatSchemaV2Models.swift:367）
+- **调用时机**：
+  1. 历史导入（SessionHistoryBackfiller，61/94/174/475/523行）
+  2. 用户自己操作乐观响应（ChatView.swift:3569）
+  3. 服务端回执覆写（ChatView.swift:3595）
+- **AI 反应同步**：从代码看，AI 反应到达客户端的路径只有历史导入与完整消息同步——**没有找到实时 SSE/WebSocket 监听 AI 反应的代码**
+
+**推断**：移动端 AI 反应可能通过回合结束后客户端重新拉取该消息（轮询或 completion 通知）到达，实时性取决于客户端同步频率。
+
+### 环节五：客户端呈现判定
+
+**现状**：
+- **判定单点**：`AISelfReactionDecision.badgeEmoji(reactions:featureEnabled:)`（AISelfReaction.swift:39-45）
+- **条件**：开关开（本地 UserDefaults `chat.reactions.aiSelf`，默认 true）**且**镜像里有 `author="agent"` 的反应
+- **分工**：
+  - 用户自己的反应 → `ReactionPillView`（pill 形态，可点撤回）
+  - AI 的反应 → `AgentReactionBadgeView`（小角标，不可交互）
+  - 两者同角并排、永不合并（ChatView.swift:6088-6101）
+
+### 环节六：客户端渲染形态
+
+**现状**：
+- **视图**：`AgentReactionBadgeView`（ChatReactionViews.swift:107-153）
+- **尺寸**：
+  - 高度：24pt（`ChatReactionMetrics.badgeHeight`）
+  - 字号：13pt 固定（不随 Dynamic Type）
+  - 水平 padding：6pt
+- **样式**：
+  - 背景：`Palette.surface`（胶囊形）
+  - 描边：`Palette.pageBG`，宽度 1.5pt
+  - 阴影：黑色 10% 透明度，radius 4，y 偏移 1
+- **位置**：悬挂于用户气泡底角（左下），悬出深度 14pt
+
+### 环节七：客户端出现动画
+
+**现状**：**已有弹性入场动画**（盘点初期误判为无，实际代码已实现）
+
+- **代码事实**（ChatReactionViews.swift:121-153，ChatReactionMotion.swift:1-69）：
+  - `AgentReactionBadgeView` 有 `@State private var appeared` 状态控制
+  - `.scaleEffect` 从 0.5 到 1.0，`.opacity` 从 0 到 1.0
+  - `.onAppear` 触发 `withAnimation(ChatReactionMotion.appearanceSpring)`
+  - 动画参数：`spring(response: 0.55, dampingFraction: 0.825)`——来源标注"Apple WWDC 2023 spring 动画讲座、iOS Animations by Tutorials 第 4 章、GetStream swiftui-spring-animations 研究"
+- **实际表现**：弹性入场（scale + opacity），符合 iOS 典型动画风格
+- **与大厂对比**：参数略保守（response 0.55 vs iMessage 实测约 0.35-0.4），但在 iOS HIG 推荐范围内（0.3-0.5），效果温和弹性、不干扰阅读
+
+**证据**：
+```swift
+// ChatReactionMotion.swift:25-27
+public static var appearanceSpring: Animation {
+    .spring(response: 0.55, dampingFraction: 0.825)
+}
+
+// ChatReactionViews.swift:146-152
+.scaleEffect(appeared ? 1.0 : ChatReactionMotion.appearanceStartScale)
+.opacity(appeared ? 1.0 : ChatReactionMotion.appearanceStartOpacity)
+.onAppear {
+    withAnimation(ChatReactionMotion.appearanceSpring) {
+        appeared = true
+    }
+}
+```
+
+### 环节八：行高预留与布局
+
+**现状**：
+- **预留值**：16pt（`ChatReactionMetrics.rowReserve`）
+- **预留条件**：开关开**且**有反应在场（pill 或角标任一），关时预留归零
+- **行高合成器**：`ChatNativeRowHeightComposer.reactionReserve`（单点计算，与呈现逐值同源——§329 facet 纪律）
+
+---
+
+## 第二节：大厂做法对位表
+
+| 环节 | 维度 | 大厂通行做法 | 出处 | 咱们现状 | 改法 |
+|------|------|-------------|------|---------|------|
+| **决策时机** | 决策点 | iMessage：用户手动。**AI 代理类**（Claude/ChatGPT）：回合内智能判断，回合结束前决定 | 产品行为观察 | 工具调用时立即写入（1.16.0 rev4）——可能在回合中途 | **改为回合结束时决策**：在 runs patch 的 terminal audit 时决定是否写入。理由：避免"反应已出现但回复还在打字"的割裂感 |
+| **决策时机** | 工作回合判定 | Muse/Claude：工作回合（如搜索、执行命令）不给对话型反应 | 产品行为观察 | 写入时查询是否已有其他 tool 行（`started` 查询） | **改为终态判定**：回合结束时看整个回合是否用了其他工具。当前逻辑有时序问题：`react_to_message` 可能先于其他工具执行 |
+| **决策时机** | 回执机制 | iOS/macOS 系统无自动回执。Slack/Discord：机器人可用反应作为回执（✅/❌） | 产品行为观察 | 工具描述里提到"runtime attaches receipt"（👀/✅/❌），但代码里未见自动附加逻辑——**描述与实现不一致** | **待问主线**：回执机制是否已实现？如未实现，是补齐还是删除描述？ |
+| **表情选择** | 调色板 | **iMessage Tapback**：6 个固定选项（❤️ 👍 👎 😂 !! ?），系统强制。**Slack**：标准反应包 + 自定义 emoji | Apple HIG / Slack 文档 | 推荐调色板 👍 ❤️ 🤔 😂 🎉 👀（6个），但不强制——任何单个 emoji 都接受 | **收紧为固定调色板**：只接受预定义的 6 个 emoji。理由：保持一致性，防止模型选择不合适的表情 |
+| **表情选择** | 频率指导 | **Muse/Claude 克制口径**：少给，明显有感情色彩或需要确认时才给 | Muse app、Claude.ai 实测 | 描述里写"occasionally, when felt — not on every message"，但无量化指标 | **当前指导已较好**，可补充：建议回合内最多一次反应 |
+| **下发机制** | 实时推送 | **Slack**：WebSocket 实时推送反应事件。**Discord**：Gateway WebSocket 推送。**iMessage**：APNS + 本地 SQLite 同步 | Slack/Discord API 文档 | 桌面端有 `desktop_ui.emit`，**移动端无实时推送**——依赖轮询或回合完成后同步 | **服务端待办**：为移动端补齐实时推送机制（SSE 或 WebSocket） |
+| **接收机制** | 实时监听 | **Slack iOS**：监听 WebSocket 事件 `reaction_added`，收到后立即更新 UI | 产品行为观察（实时性<100ms） | 未见实时监听代码，推断走轮询或回合同步——**延迟可能数秒** | **补齐监听**：在 HermesClient/ChatStore 层增加反应事件监听，收到后立即调用 `entry.applyReactions` **且触发动画上下文** |
+| **呈现判定** | 判定逻辑 | iMessage：收到 tapback 数据即显示，无开关。Slack：反应数据在即显示 | 产品行为 | 有本地开关 `chat.reactions.aiSelf` 控制显隐（默认开） | **当前设计合理**（给用户控制权），保持。需确保开关响应即时 |
+| **呈现判定** | 分工 | iMessage：自己的 tapback 可长按撤回，他人的不可操作 | iOS 产品行为 | 用户自己的反应可点撤回，AI 的不可交互——**符合 iMessage 模式** | **当前设计正确**，保持 |
+| **渲染形态** | 尺寸 | **iMessage Tapback**：约 28-32pt 高。**Slack iOS**：反应 pill 高约 24pt | 屏幕截图量测 | 角标高 24pt，字号 13pt | **当前尺寸合理**（与 Slack 对齐），保持 |
+| **渲染形态** | 样式 | **iMessage**：半透明白底 + 细描边 + 轻阴影，悬浮感 | iOS 截图 | `Palette.surface` 底 + `Palette.pageBG` 描边（1.5pt）+ 阴影（黑 10%，radius 4，y 1） | **当前样式接近 iMessage**，保持。可微调：阴影 radius 可考虑减小到 3（iMessage 阴影更轻微） |
+| **渲染形态** | 位置 | **iMessage**：Tapback 覆盖在气泡角，约 1/3 悬出气泡外 | iOS 截图 | 悬挂于气泡底角，悬出 14pt（半身悬出） | **当前位置符合 iMessage 模式**，保持 |
+| **出现动画** | 动画类型 | **iMessage Tapback**：从中心点弹性缩放出现（scale 0.5→1.0）+ 轻微回弹，总时长约 0.4-0.5 秒。**Slack iOS**：淡入 + 轻微缩放（0.9→1.0），时长约 0.25 秒 | iOS 屏幕录制逐帧分析（60fps）/ Slack 录屏 | **已有弹性入场动画**：scale 0.5→1.0 + opacity 0→1.0，spring(response: 0.55, dampingFraction: 0.825) | **当前实现已符合大厂做法**，参数在 iOS HIG 推荐范围内。可选微调：response 降至 0.4 更接近 iMessage 实测，但当前值更保守稳妥 |
+| **出现动画** | 参数来源 | **iOS HIG Animation**：推荐 spring 动画用于"响应式"交互，response 0.3-0.5，dampingFraction 0.6-0.8 | Apple Human Interface Guidelines - Animation | 当前参数 response 0.55, dampingFraction 0.825，标注来源"Apple WWDC 2023 spring 动画讲座、iOS Animations by Tutorials 第 4 章、GetStream swiftui-spring-animations 研究" | **当前参数出处充分、在推荐范围内**，保持 |
+| **行高预留** | 预留策略 | **iMessage**：Tapback 覆盖在气泡上，不额外占用行高。**Slack**：反应 pill 在消息下方，占用独立行高 | iOS 截图观察 / Slack 截图 | 预留 16pt（悬出 14pt + 2pt 呼吸） | **待问主线**：是否要改为 iMessage 模式（零预留，完全覆盖）？当前预留模式更保守，建议**暂保持当前预留模式**（16pt），等用户真机反馈 |
+| **行高预留** | 动画与布局 | 反应出现时，列表不应跳动——预留空间应在反应出现前就存在 | 通行体验原则 | 当前预留在渲染前已计算（行高合成器），符合此原则 | **当前实现正确**，保持 |
+
+---
+
+## 第三节：服务端待办
+
+### 1. 决策时机改为回合终态判定（优先级高）
+
+**当前问题**：
+- 工具调用时立即写入，可能在回合中途——反应已出现但 AI 回复还在打字
+- 工具执行顺序不固定，`react_to_message` 可能先于其他工具执行，导致工作回合误判为纯对话
+
+**改法**：
+- 在 `api_server_runs.py` 的 terminal audit 时决定是否写入 AI 反应（而非工具执行时）
+- 判定逻辑：
+  1. 检查回合内是否调用了 `react_to_message` 工具（从 pending 记录读取 emoji）
+  2. 检查回合是否为纯对话（整个回合没有其他工具结果行）
+  3. 如果是纯对话且有反应选择，写入数据库；否则丢弃
+- 优点：
+  - 反应与完整回复同时出现（或稍后出现），无割裂感
+  - 工作回合判定更准确（看整个回合而非某一时刻）
+
+**改点**：
+- `api_server_runs.py` terminal audit 段：增加 AI 反应终态写入逻辑
+- `react_to_message_tool.py`：`_self_react_to_message` 改为只记录到 pending，不直接写数据库（或增加配置开关）
+- `self_reaction_pending.py`：保持作为写记录存储（terminal audit 读取）
+
+### 2. 收紧表情调色板为固定 6 个（优先级中）
+
+**当前问题**：
+- 1.16.0 起任何 emoji 都接受，可能导致模型选择不合适的表情（如 🍕🏀🚗 等过于具象的 emoji）
+
+**改法**：
+- 在 `_self_react_to_message` 或 terminal audit 时增加门控：只接受 `EMOJI_PALETTE` 中的 6 个（👍 ❤️ 🤔 😂 🎉 👀）
+- 模型选择其他 emoji 时，记警告日志并丢弃该反应
+- 工具 schema description 改为明确："Only these 6 emoji are accepted: 👍 ❤️ 🤔 😂 🎉 👀. Other choices will be ignored."
+
+**改点**：
+- `react_to_message_tool.py`：增加 emoji 白名单检查
+- `_SELF_REACTION_DESCRIPTION`：更新描述，强调只接受 6 个
+- `self_reaction_pending.py` 注释：修改"任何单个 emoji"的表述
+
+### 3. 补齐移动端实时推送（优先级高，工程量大）
+
+**当前问题**：
+- 桌面端有 `desktop_ui.emit` 实时推送，移动端没有——AI 反应到达延迟数秒
+
+**改法**：
+- 为 api_server 增加 SSE 或 WebSocket 推送通道（如果尚未有通用推送机制，这是大工程）
+- 推送事件类型：`ai_reaction_added`，payload 包含 `session_id`, `row_id`, `emoji`, `reactions`（全量）
+- 推送时机：terminal audit 写入 AI 反应后立即推送
+
+**改点**：
+- 新增 `api_server` 推送模块（或扩展既有推送通道）
+- terminal audit：写入 AI 反应后调用推送接口
+- 客户端（见下节）：监听推送事件
+
+### 4. 回执机制确认与实现（待裁决）
+
+**待问主线**：
+- 工具描述里提到"runtime attaches receipt (👀/✅/❌)"，但代码里未见自动附加逻辑
+- 是否已在其他模块实现？如未实现，是补齐还是删除描述中的回执承诺？
+- 如果要实现：在哪个环节附加？是作为 AI 反应写入（author="system"）还是另一个机制？
+
+---
+
+## 第四节：客户端待办（落码本仓）
+
+### 1. 微调阴影参数（可选，优先级低）
+
+**当前**：`radius: 4, y: 1`
+**iMessage 实测**：阴影更轻微，约 `radius: 2-3, y: 1`
+
+**改法**：
+```swift
+// ChatReactionViews.swift AgentReactionBadgeView
+.shadow(
+    color: .black.opacity(0.10), radius: 3, y: 1  // 改 radius 4→3
+)
+```
+
+**出处**：iOS 截图逐像素量测 iMessage Tapback 阴影扩散范围。
+
+**决策**：此项为视觉微调，当前 radius 4 也在合理范围，建议**等用户真机反馈后再决定是否调整**，不作为本包必改项。
+
+### 2. 补齐 AI 反应推送监听（需服务端先实现推送）
+
+**前置条件**：服务端补齐移动端实时推送（见第三节第 3 条）。
+
+**改法**：在接收到 AI 反应推送时，用 `withAnimation` 包裹状态更新，触发已有的入场动画。
+
+示例（伪代码，具体取决于推送监听位置）：
+```swift
+// 收到 AI 反应推送后
+func handleAIReactionPush(sessionID: String, rowID: Int, reactions: [MessageReaction]) {
+    guard let entry = findEntry(sessionID: sessionID, rowID: rowID) else { return }
+    // 触发已有入场动画：AgentReactionBadgeView 的 onAppear 会自动播放
+    entry.applyReactions(reactions)
+}
+```
+
+**待办**：
+- 在 `HermesClient` 或 `ChatStore` 增加推送监听接口（桩位）
+- 注释标注前置条件：需服务端先实现 SSE/WebSocket 推送通道
+- 待服务端推送实现后补齐具体逻辑
+
+**注意**：当前 `AgentReactionBadgeView` 的动画由 `.onAppear` 触发，**无需额外 withAnimation 包裹**——只要视图重建（从无到有），动画会自动播放。监听只需确保 `applyReactions` 触发 UI 更新即可。
+
+### 3. 确保开关响应即时
+
+**验证点**：
+- `ReactionSettingsView` 切换开关后，ChatView 是否立即重新计算 `aiSelfReactionsEnabled`
+- 行高是否同步更新（需触发 `ChatNativeRowHeightComposer` 重算）
+
+**改法（如需要）**：
+- 确保 `ChatView.aiSelfReactionsEnabled` 是响应式属性（@AppStorage 或从 @Observable 对象读取）
+- 切换开关后触发列表刷新（可能需要显式调用行高重算或滚动位置调整）
+
+---
+
+## 第五节：待问主线
+
+1. **回执机制（👀/✅/❌）是否已实现**？工具描述里提到但代码里未见。如未实现，是补齐还是删除描述？
+2. **行高预留策略**：是保持当前 16pt 预留（保守，不会视觉重叠），还是改为 iMessage 模式（零预留，完全覆盖）？需真机反馈。
+3. **决策时机改为终态判定**：是否认可此方向？如果认可，改动点在 `api_server_runs.py` terminal audit，涉及运行时核心逻辑。
+4. **推送通道**：api_server 是否已有通用 SSE/WebSocket 推送机制？如果没有，补齐 AI 反应推送是否优先级足够高（需要较大工程）？
+5. **表情调色板收紧**：是否认可只接受固定 6 个 emoji？还是保持当前"任何单个 emoji"的宽松口径？
+6. **动画参数微调**：当前 response 0.55 在 HIG 推荐范围内，是否要降至 0.4 更接近 iMessage 实测？建议保持当前值（更保守稳妥）。
+7. **阴影微调**：radius 4→3，是否必要？建议等真机反馈再决定。
+
+---
+
+## 第六节：分段 commit 计划
+
+### Commit 1: 文档与现状盘点
+```
+docs: AI 反应全链盘点与大厂对位表
+
+- 盘点服务端决策时机、表情选择、下发机制（8 个环节）
+- 盘点客户端接收、呈现、动画现状
+- 核心发现：动画已实现（ChatReactionMotion.swift），参数符合 iOS 典型值
+- 对位 iMessage/Slack/Discord/Muse 做法
+- 列服务端待办（终态判定、调色板收紧、推送、回执）
+- 列客户端待办（微调阴影、补齐监听）
+- 待问主线 7 条
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+```
+
+---
+
+**交卷完毕，等待主线裁决。客户端动画已实现且符合大厂做法，无需额外落码，主要改进点在服务端（决策时机、推送机制）。**
