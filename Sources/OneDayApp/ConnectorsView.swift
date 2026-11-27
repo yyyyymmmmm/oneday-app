@@ -209,7 +209,7 @@ struct ConnectorsView: View {
 
     private func mcpServerRow(_ server: MCPServerItem) -> some View {
         let testResult = facade.testResults[server.name]
-        let toolCount = server.tools ?? testResult?.toolCount ?? 0
+        let toolCount = facade.cachedToolCounts[server.name] ?? testResult?.toolCount ?? 0
         let isToggling = facade.toggling.contains(server.name)
 
         return Button {

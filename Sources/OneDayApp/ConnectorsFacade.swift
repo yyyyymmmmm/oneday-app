@@ -35,6 +35,8 @@ final class ConnectorsFacade {
     private(set) var toggling: Set<String> = []
     private(set) var testing: Set<String> = []
     private(set) var testResults: [String: MCPTestResult] = [:]
+    /// 工具数缓存（进页显示缓存值，测连/刷新时更新）
+    private(set) var cachedToolCounts: [String: Int] = [:]
     // MARK: - MCP 目录（§388 H7，服务端单源）
 
     private(set) var catalogEntries: [MCPCatalogEntry] = []
@@ -212,11 +214,15 @@ final class ConnectorsFacade {
         testing.insert(server.name)
         defer { testing.remove(server.name) }
         do {
-            testResults[server.name] = try await appState.performAdmin {
+            let result = try await appState.performAdmin {
                 client, config in
                 try await client.testMCPServer(
                     config: config, name: server.name
                 )
+            }
+            testResults[server.name] = result
+            if let toolCount = result.toolCount {
+                cachedToolCounts[server.name] = toolCount
             }
         } catch {
             testResults[server.name] = MCPTestResult(
