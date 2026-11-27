@@ -865,6 +865,37 @@ struct ChatView: View {
 
     var isStreaming: Bool { streamingText != nil }
 
+    /// 助手当前活动状态短语（状态行用）：按优先级判定当前状态，
+    /// 返回人话短语；nil＝空闲或由其他机制（needsApproval）呈现
+    var assistantActivityStatus: String? {
+        // 1. 工具执行中（最高优先级）
+        if let phrase = appState.liveActivityPhrase {
+            return phrase
+        }
+        // 2. 思考中
+        if reasoningStartedAt != nil, case .generating = runMachine.phase {
+            return "思考中"
+        }
+        // 3. 停止中
+        if case .generating(stopping: true) = runMachine.phase {
+            return "停止中"
+        }
+        // 4. 生成中
+        if case .generating(stopping: false) = runMachine.phase {
+            return "正在回复"
+        }
+        // 5. 提交中
+        if case .submitting = runMachine.phase {
+            return "发送中"
+        }
+        // 6. 对账中
+        if case .reconciling = runMachine.phase {
+            return "同步中"
+        }
+        // 7. 空闲（finished或无活动）
+        return nil
+    }
+
     // MARK: - §158 隐藏服务商（§449 迁中枢选择面）
 
     /// （分流/确认/落账三件已随顶栏选择面退役整套

@@ -312,7 +312,7 @@ extension ChatView {
     var headerIdentityHero: some View {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
-            statusWord: appState.liveActivityPhrase,
+            statusWord: assistantActivityStatus,
             needsApproval: appState.sharedHubStore().hasPendingApprovals,
             avatar: appState.agentAvatarImage,
             statusColor: overviewStatusColor,
