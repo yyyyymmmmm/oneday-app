@@ -817,7 +817,7 @@ if crontab -l 2>/dev/null | grep -q 'prompt-refresh-watcher'; then ok "prompt-re
 DASHB="http://127.0.0.1:9119"
 PLUG_DIR="$DEPLOY_DIR/data/plugins/oneday-console/dashboard"
 if [ -f "$PLUG_DIR/manifest.json" ]; then ok "webplug-manifest" "data/plugins/oneday-console/dashboard/manifest.json 在位（dashboard 官方插件 user 源）"; else bad "webplug-manifest" "插件 manifest 缺失（install 3f 未同步）"; fi
-for pair in "manifest.json 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09" "dist/index.js 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3" "dist/style.css 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887"; do
+for pair in "manifest.json d095af9e5ed65e9cda10e48c27010a56b9a1352e8133931d51cb2ae647d209b8" "dist/index.js 5701d77c6ff8e26412d1376d130265ce5e6deb3b0ad2a72e2d4fe126a1b77178" "dist/style.css febea643cd3b123135ebfb743cca951536f950620c62bbd2f5ddfcb162392334"; do
   set -- $pair
   got=$(sha256sum "$PLUG_DIR/$1" 2>/dev/null | awk '{print $1}')
   if [ "$got" = "$2" ]; then ok "webplug-hash $1" "数据卷回读与包内登记一致"; else bad "webplug-hash $1" "数据卷: ${got:-读不到}（期望 $2）"; fi
@@ -910,7 +910,7 @@ unk "webbar4-dashfaces" "学习图谱（/api/learning/*）、连接器（/api/mc
 unk "webbar4-browser" "棒 4 真浏览器目视（记忆分层/洞察/图谱节点编辑回读、文件库预览与 App 同文件对账、监控造单往返删净、连接器开关/测试回读、委派后端切换往返与路线保存回读）属部署验收人工项；服务端等价链由部署单实测留据"
 
 # ---- 39. 网页端棒 5 P2 面（包 2.17.0, #57；插件版本期望随棒 6 收尾同步 0.7.0，包 2.18.0）: 工具集/设置/身份/设备数据源只读探针（网关 Bearer 面）+ 公网设备通道 + 插件版本 + dashboard 会话面人工项 ----
-if grep -q '"version": "0.7.0"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 0.7.0（棒 6 收尾）"; else bad "webplug-version" "数据卷插件 manifest 版本非 0.7.0（install 3f 未同步棒 6 资产）"; fi
+if grep -q '"version": "1.0.0"' "$PLUG_DIR/manifest.json" 2>/dev/null; then ok "webplug-version" "数据卷插件 manifest 版本 1.0.0（console v1.0.0 管理台）"; else bad "webplug-version" "数据卷插件 manifest 版本非 1.0.0（install 3f 未同步 console v1.0.0 资产）"; fi
 if [ -n "$API_KEY" ]; then
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Authorization: Bearer $API_KEY" "http://127.0.0.1:8642/v1/toolsets" || true)
   if [ "$code" = "200" ]; then ok "webtoolsets-list" "GET /v1/toolsets → 200（工具集面数据源）"; else bad "webtoolsets-list" "toolsets 应答 $code（期望 200）"; fi
