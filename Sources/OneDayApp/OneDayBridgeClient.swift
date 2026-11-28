@@ -433,6 +433,15 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// POST /ideas/generate：手动起一轮点子生成
+    /// （与动态同式；在跑时桥回 409）
+    func generateIdeas(config: ServerConfig) async throws {
+        let _: BridgeOKResponse = try await sendEmpty(
+            config: config, path: "/ideas/generate", method: "POST",
+            endpoint: L10n.string("生成点子")
+        )
+    }
+
     // MARK: - 图片变体（§138）
 
     /// 端点已迁伴生独立 fileproc 模块（API 直连 B

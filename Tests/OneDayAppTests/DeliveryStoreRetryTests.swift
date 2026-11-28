@@ -278,6 +278,9 @@ final class MockFailingBridgeClient: OneDayBridgeClientProtocol {
     func generateFeed(config: ServerConfig) async throws {
         fatalError("Stub not implemented")
     }
+    func generateIdeas(config: ServerConfig) async throws {
+        fatalError("Stub not implemented")
+    }
 
     func saveFeedText(config: ServerConfig, text: String) async throws -> BridgeBriefDoc {
         fatalError("Stub not implemented")

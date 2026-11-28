@@ -147,6 +147,16 @@ final class IdeasStore {
         await load(appState: appState, now: now)
     }
 
+    /// 下拉刷新专用（267，与动态同式）：静默请一
+    /// 轮手动点子生成再重拉；在跑（409）与触发失败
+    /// 都不挡列表刷新
+    func pullGenerateAndReload(appState: AppState) async {
+        if let config = appState.config {
+            _ = try? await client.generateIdeas(config: config)
+        }
+        await load(appState: appState)
+    }
+
     func load(appState: AppState, now: Date = Date()) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {

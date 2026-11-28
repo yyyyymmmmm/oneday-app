@@ -30,6 +30,7 @@ protocol OneDayBridgeClientProtocol: Sendable {
     // MARK: - 点子
 
     func ideas(config: ServerConfig) async throws -> [BridgeIdea]
+    func generateIdeas(config: ServerConfig) async throws
     func createIdea(
         config: ServerConfig, request body: BridgeIdeaCreateRequest
     ) async throws -> BridgeIdea

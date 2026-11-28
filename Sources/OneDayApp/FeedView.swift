@@ -277,6 +277,12 @@ struct FeedView: View {
         await store.load(appState: appState)
     }
 
+    /// 下拉刷新（267）：先请服务端起一轮新调研，
+    /// 再重拉本面——定时轮之外的人手动刷新口
+    private func pullRefresh() async {
+        await store.pullGenerateAndReload(appState: appState)
+    }
+
     /// 读触发入口（.task）：过新鲜度门，TTL 内零请求
     private func loadIfNeeded() async {
         await store.loadIfNeeded(appState: appState)
@@ -464,7 +470,7 @@ struct FeedView: View {
                 updateFieldSlot(newValue)
             }
             .refreshable {
-                await reload()
+                await pullRefresh()
             }
         } else if store.posts.isEmpty {
             VStack(spacing: 0) {
@@ -529,7 +535,7 @@ struct FeedView: View {
                 updateFieldSlot(newValue)
             }
             .refreshable {
-                await reload()
+                await pullRefresh()
             }
             // §170（用户 2026-11-11 23:28 亲定「底部导航
             // 栏上边、下边都加上同款朦胧收边，与输入框下

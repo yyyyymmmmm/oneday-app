@@ -262,6 +262,17 @@ final class FeedStore {
         }
     }
 
+    /// 下拉刷新专用（267，2026-11-28 皇上亲定「定
+    /// 时＋手动」）：静默请一轮手动调研再重拉列表。
+    /// 在跑（409）不是失败、不落 briefError；触发失
+    /// 败也不挡列表刷新——生成是请，列表才是真源
+    func pullGenerateAndReload(appState: AppState) async {
+        if let config = appState.config {
+            _ = try? await client.generateFeed(config: config)
+        }
+        await load(appState: appState)
+    }
+
     // MARK: - 点赞（§233 乐观时序：点即翻心，桥回执对账）
 
     /// 名单装载收口（load 与测试共用一个落点）：整表

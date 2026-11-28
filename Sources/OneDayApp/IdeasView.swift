@@ -303,7 +303,7 @@ struct IdeasView: View {
             .contentMargins(.bottom, OneDayMetrics.spacingL, for: .scrollContent)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
-                await store.load(appState: appState)
+                await store.pullGenerateAndReload(appState: appState)
                 if !store.adoptedIdeas.isEmpty {
                     await kanban.load(appState: appState)
                 }

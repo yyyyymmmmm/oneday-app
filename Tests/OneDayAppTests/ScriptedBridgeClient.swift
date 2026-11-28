@@ -13,6 +13,7 @@ final class BridgeScript: @unchecked Sendable {
     var feedGenerationCount = 0
     var feedBriefCount = 0
     var generateFeedCount = 0
+    var generateIdeasCount = 0
     var markReadCount = 0
     var setLikedCount = 0
 
@@ -92,6 +93,10 @@ struct ScriptedBridgeClient: OneDayBridgeClientProtocol {
 
     func generateFeed(config: ServerConfig) async throws {
         script.generateFeedCount += 1
+        throw stub
+    }
+    func generateIdeas(config: ServerConfig) async throws {
+        script.generateIdeasCount += 1
         throw stub
     }
 
