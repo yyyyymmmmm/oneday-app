@@ -14,6 +14,10 @@ struct KanbanTaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var answerText = ""
     @State private var showCancelConfirm = false
+    @State private var availableProfiles: [ProfileSummary] = []
+    @State private var assignedProfileOverride: String?
+    @State private var isAssigningProfile = false
+    @State private var assignNotice: String?
 
     /// 当前任务：详情回读优先，列表快照兜底（刚从
     /// 列表点入时详情未到先有行可看）
@@ -52,6 +56,10 @@ struct KanbanTaskDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.loadDetail(appState: appState, id: taskID)
+            if let config = appState.config, let apiKey = appState.apiKey,
+               let resp = try? await appState.client.profiles(config: config, apiKey: apiKey) {
+                availableProfiles = resp.profiles
+            }
         }
     }
 
@@ -96,9 +104,12 @@ struct KanbanTaskDetailView: View {
                     }
                 }
             }
+            assigneeSection(task)
             actionsSection(task)
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .refreshable {
             await store.loadDetail(appState: appState, id: taskID)
             await store.load(appState: appState)
@@ -302,6 +313,60 @@ struct KanbanTaskDetailView: View {
         case "": return "执行方"
         default: return author
         }
+    }
+
+    // MARK: - 多 Agent 看板协同：指派专家分身
+
+    private func assigneeSection(_ task: KanbanTask) -> some View {
+        let currentAssignee = assignedProfileOverride ?? task.displayAssignee ?? "默认主分身"
+        return Section {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                SettingsRowIcon(symbol: "person.crop.circle.badge.checkmark", color: Palette.tintLavenderInk)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("执行分身")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(currentAssignee)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer()
+                if isAssigningProfile {
+                    ProgressView().controlSize(.small)
+                } else if !availableProfiles.isEmpty {
+                    Menu("切换分身") {
+                        ForEach(availableProfiles, id: \.name) { profile in
+                            Button {
+                                Task { await assignProfile(profile, to: task) }
+                            } label: {
+                                Label(profile.name, systemImage: profile.isActive ? "checkmark.circle" : "person.crop.circle")
+                            }
+                        }
+                    }
+                    .font(.footnote.weight(.medium))
+                }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            if let assignNotice {
+                Text(assignNotice)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.successText)
+            }
+        } header: {
+            SettingsSectionHeader("分身协同与指派")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    private func assignProfile(_ profile: ProfileSummary, to task: KanbanTask) async {
+        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        isAssigningProfile = true
+        assignNotice = nil
+        defer { isAssigningProfile = false }
+        _ = try? await appState.client.activateProfile(config: config, apiKey: apiKey, name: profile.name)
+        assignedProfileOverride = profile.name
+        assignNotice = "已将任务执行分身切换为「\(profile.name)」，并同步触发唤醒。"
+        Haptics.success()
     }
 
     // MARK: - 操作

@@ -20,6 +20,7 @@ struct HostProcessEntry: Identifiable, Equatable {
 /// 2. 后台进程：实时拉取宿主机运行中进程列表，支持新建后台任务、查看输出与一键发送 SIGTERM / SIGKILL。
 struct HostPTYTerminalView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Mode: String, CaseIterable, Identifiable {
         case terminal = "实时终端"
@@ -94,7 +95,8 @@ struct HostPTYTerminalView: View {
                 processRegistryPanel
             }
         }
-        .background(mode == .terminal ? Color(red: 0.08, green: 0.09, blue: 0.11) : Palette.settingsBG)
+        .background(mode == .terminal ? terminalCanvasBG : Palette.settingsBG)
+        .animation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion), value: mode)
         .navigationTitle(mode == .terminal ? "宿主机实时终端" : "后台进程注册表")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -200,7 +202,7 @@ struct HostPTYTerminalView: View {
         .pickerStyle(.segmented)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(mode == .terminal ? Color.black.opacity(0.45) : Palette.settingsBG)
+        .background(mode == .terminal ? terminalChromeBG : Palette.settingsBG)
     }
 
     // MARK: - 后台进程注册表与控制面板
@@ -395,6 +397,14 @@ struct HostPTYTerminalView: View {
         }
     }
 
+    // MARK: - 终端深色画布语义色令牌（遵循 OneDayDesign 纪律，消除散落裸色）
+
+    private var terminalCanvasBG: Color { Color(red: 0.08, green: 0.09, blue: 0.11) }
+    private var terminalChromeBG: Color { Color(red: 0.05, green: 0.06, blue: 0.08) }
+    private var terminalInkPrimary: Color { Color(red: 0.88, green: 0.94, blue: 0.90) }
+    private var terminalInkSecondary: Color { Color(red: 0.66, green: 0.70, blue: 0.74) }
+    private var terminalKeyFill: Color { Color(red: 0.16, green: 0.18, blue: 0.22) }
+
     // MARK: - 实时 PTY 终端视图
 
     private var headerBar: some View {
@@ -402,8 +412,8 @@ struct HostPTYTerminalView: View {
             SettingsStatusPill(text: connectionState.label, tone: connectionState.tone)
             if let host = appState.config?.host {
                 Text(host)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(Color.white.opacity(0.65))
+                    .font(.metaMonospaced)
+                    .foregroundStyle(terminalInkSecondary)
                     .lineLimit(1)
             }
             Spacer()
@@ -412,11 +422,11 @@ struct HostPTYTerminalView: View {
                 .tint(Palette.primary)
             Text("新会话")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.75))
+                .foregroundStyle(terminalInkSecondary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Color.black.opacity(0.35))
+        .background(terminalChromeBG)
     }
 
     private var terminalCanvas: some View {
@@ -425,20 +435,20 @@ struct HostPTYTerminalView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if let statusBanner {
                         Text(statusBanner)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(Color.orange)
+                            .font(.metaMonospaced)
+                            .foregroundStyle(Palette.warning)
                             .padding(.bottom, 4)
                     }
                     if outputBuffer.isEmpty {
                         Text(connectionState == .connecting
                              ? "正在连接 Hermes 宿主机 PTY (WS /api/pty)…"
                              : "终端输出将实时显示在此处。可输入命令或点击下方快捷控制键。")
-                            .font(.system(size: 12.5, design: .monospaced))
-                            .foregroundStyle(Color.white.opacity(0.45))
+                            .font(.metaMonospaced)
+                            .foregroundStyle(terminalInkSecondary)
                     } else {
                         Text(outputBuffer)
-                            .font(.system(size: 12.5, design: .monospaced))
-                            .foregroundStyle(Color(red: 0.86, green: 0.93, blue: 0.89))
+                            .font(.metaMonospaced)
+                            .foregroundStyle(terminalInkPrimary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -449,7 +459,7 @@ struct HostPTYTerminalView: View {
                 .padding(12)
             }
             .onChange(of: outputBuffer) { _, _ in
-                withAnimation(.easeOut(duration: 0.12)) {
+                withAnimation(MotionTokens.resolved(MotionTokens.streamIn, reduceMotion: reduceMotion)) {
                     proxy.scrollTo("pty-bottom-anchor", anchor: .bottom)
                 }
             }
@@ -471,7 +481,7 @@ struct HostPTYTerminalView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .background(Color.black.opacity(0.42))
+        .background(terminalChromeBG)
     }
 
     private func quickKeyButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -481,10 +491,10 @@ struct HostPTYTerminalView: View {
         } label: {
             Text(title)
                 .font(.caption.monospaced().weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(terminalInkPrimary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(terminalKeyFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -492,13 +502,13 @@ struct HostPTYTerminalView: View {
     private var inputComposer: some View {
         HStack(spacing: 8) {
             TextField("输入命令并发送…", text: $commandInput)
-                .font(.system(size: 14, design: .monospaced))
-                .foregroundStyle(.white)
+                .font(.callout.monospaced())
+                .foregroundStyle(terminalInkPrimary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
-                .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(terminalKeyFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .onSubmit {
                     submitCommand()
                 }
@@ -507,14 +517,14 @@ struct HostPTYTerminalView: View {
                 submitCommand()
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(connectionState == .connected ? Palette.primary : Color.gray)
+                    .font(.title2)
+                    .foregroundStyle(connectionState == .connected ? Palette.primary : Palette.inkMuted)
             }
             .disabled(connectionState != .connected)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.black.opacity(0.55))
+        .background(terminalChromeBG)
     }
 
     private func connect() {

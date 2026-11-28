@@ -78,6 +78,18 @@ struct ConnectorsView: View {
 
     var body: some View {
         List {
+            if trimmedQuery.isEmpty {
+                let enabledMCPCount = facade.servers.filter(\.enabled).count
+                let paidCount = MCPBudgetStore.shared.paidServerCount()
+                SettingsHeroCard(
+                    symbol: "cable.connector",
+                    tint: Palette.tintGreenInk,
+                    title: "连接器与权限",
+                    subtitle: "统一治理本机 iOS 权限、云端 MCP 服务、工具读写审批档位与付费 spend_limit 预算门。",
+                    statusText: paidCount > 0 ? "\(enabledMCPCount) 个启用 · \(paidCount) 个预算门" : "\(enabledMCPCount) 个 MCP 已启用",
+                    statusTone: enabledMCPCount > 0 ? .healthy : .neutral
+                )
+            }
             if let notice = facade.catalogNotice ?? facade.notice {
                 Section {
                     HStack(spacing: OneDayMetrics.spacingS) {

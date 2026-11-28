@@ -15,8 +15,10 @@ import SwiftUI
 
 struct ToolsetsSettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = ToolsetsStore()
     @State private var selectedName: String?
+    @State private var configuringBackend: TerminalBackend?
 
     var body: some View {
         List {
@@ -36,6 +38,9 @@ struct ToolsetsSettingsView: View {
         }
         .navigationDestination(item: $selectedName) { name in
             ToolsetDetailView(store: store, name: name)
+        }
+        .sheet(item: $configuringBackend) { backend in
+            TerminalBackendConfigSheet(backend: backend)
         }
     }
 
@@ -85,6 +90,14 @@ struct ToolsetsSettingsView: View {
 
     @ViewBuilder
     private var readyContent: some View {
+        SettingsHeroCard(
+            symbol: "wrench.and.screwdriver.fill",
+            tint: Palette.tintOrangeInk,
+            title: "工具集与终端后端",
+            subtitle: "管理手机会话可用的工具集开关，并切换或配置 Local / Docker / SSH / 云沙箱终端执行后端。",
+            statusText: store.backends?.active.map { "后端：\($0)" } ?? "已同步",
+            statusTone: .healthy
+        )
         if let list = store.list {
             Section {
                 if list.data.isEmpty {
@@ -246,16 +259,27 @@ struct ToolsetsSettingsView: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if store.selectingBackend {
                     ProgressView()
-                } else if isActive {
-                    Image(systemName: "checkmark")
-                        .font(
-                            .system(
-                                size: FrameworkIcon.smallGlyphSize,
-                                weight: .semibold
-                            )
-                        )
-                        .foregroundStyle(Palette.primary)
-                        .accessibilityHidden(true)
+                } else {
+                    HStack(spacing: 10) {
+                        if isActive {
+                            Image(systemName: "checkmark")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Palette.primary)
+                                .accessibilityHidden(true)
+                        }
+                        Button {
+                            Haptics.selection()
+                            configuringBackend = backend
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(Palette.inkSecondary)
+                                .frame(width: 30, height: 30)
+                                .background(Palette.fillTertiary, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("配置 \(backend.displayLabel) 参数")
+                    }
                 }
             }
             .contentShape(Rectangle())
