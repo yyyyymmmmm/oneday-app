@@ -43,10 +43,10 @@ struct ResidentSubagent: Identifiable, Codable, Equatable, Sendable {
     func asProfileItem() -> ProfileItem {
         ProfileItem(
             name: name,
-            isActive: true,
             isDefault: false,
             model: model ?? "常驻分身",
-            provider: roleSummary.isEmpty ? "房间常驻" : roleSummary
+            provider: roleSummary.isEmpty ? "房间常驻" : roleSummary,
+            gatewayRunning: true
         )
     }
 }

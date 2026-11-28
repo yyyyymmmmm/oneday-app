@@ -90,6 +90,12 @@ enum Haptics {
         #endif
     }
 
+    /// 轻触（合并接缝修复：v23 调用点按 Haptics.light() 取
+    /// 轻击反馈，本体只有 impact(_:) 原语——按 .light 补语义别名）
+    static func light() {
+        impact(.light)
+    }
+
     /// 物理落锤（影响型反馈；轻触 120ms 防抖，重击删除确认不节流）
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard isEnabled else { return }

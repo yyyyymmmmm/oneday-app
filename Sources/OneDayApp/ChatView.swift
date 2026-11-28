@@ -1167,7 +1167,7 @@ struct ChatView: View {
                     let agent = residentSubagents.enlist(
                         name: name,
                         roleSummary: role,
-                        in: thread.id
+                        in: thread.id.uuidString
                     )
                     Haptics.success()
                     showNotice("常驻分身 @\(agent.name) 已上线，随时可 @ 派活或点卡片 × 关闭")
@@ -2261,7 +2261,7 @@ struct ChatView: View {
                 : nil,
             slashCommandPaletteVisible: !HermesSlashCommand.matching(for: input).isEmpty
                 || ChatMentionQuery.activeQuery(in: input) != nil
-                || !residentSubagents.activeAgents(in: currentThread?.id).isEmpty,
+                || !residentSubagents.activeAgents(in: currentThread?.id.uuidString).isEmpty,
             slashCommandPaletteView: {
                 let matched = HermesSlashCommand.matching(for: input)
                 if !matched.isEmpty {
@@ -2312,7 +2312,7 @@ struct ChatView: View {
                     return AnyView(
                         ChatMentionPaletteView(
                             query: mention.keyword,
-                            profiles: mergedMentionProfiles(for: currentThread?.id),
+                            profiles: mergedMentionProfiles(for: currentThread?.id.uuidString),
                             isLoading: isLoadingMentionRoster,
                             onSelect: { token in
                                 input = ChatMentionQuery.applyingMention(token, to: input)
@@ -2324,7 +2324,7 @@ struct ChatView: View {
                         )
                     )
                 }
-                let activeResidents = residentSubagents.activeAgents(in: currentThread?.id)
+                let activeResidents = residentSubagents.activeAgents(in: currentThread?.id.uuidString)
                 if !activeResidents.isEmpty {
                     return AnyView(
                         ResidentSubagentBarView(
@@ -5704,7 +5704,7 @@ struct ChatView: View {
                             name: fallbackName,
                             roleSummary: "后台委派转常驻协作分身",
                             model: delegationCallback.modelName,
-                            in: threadID
+                            in: threadID.uuidString
                         )
                         Haptics.success()
                         showNotice("已将 @\(agent.name) 设为常驻分身，随时可 @ 派活或点击卡片关闭")
@@ -10744,26 +10744,26 @@ struct ComposerBarLayout: Layout {
         if pending.isEmpty, unsentEditTargetID == nil,
            let command = ResidentSubagentCommand.parse(
                text,
-               activeAgents: residentSubagents.activeAgents(in: thread.id)
+               activeAgents: residentSubagents.activeAgents(in: thread.id.uuidString)
            ) {
             switch command {
             case .spawn(let name, let roleSummary):
                 let agent = residentSubagents.enlist(
                     name: name,
                     roleSummary: roleSummary,
-                    in: thread.id
+                    in: thread.id.uuidString
                 )
                 Haptics.success()
                 showNotice("常驻分身 @\(agent.name) 已上线，随时可 @ 派活或点卡片 × 关闭")
             case .closeNamed(let target):
-                if let removed = residentSubagents.dismiss(named: target, in: thread.id) {
+                if let removed = residentSubagents.dismiss(named: target, in: thread.id.uuidString) {
                     Haptics.light()
                     showNotice("已关闭常驻分身 @\(removed.name)")
                 } else {
                     showNotice("当前对话未找到名为「\(target)」的常驻分身")
                 }
             case .closeAll:
-                let count = residentSubagents.dismissAll(in: thread.id)
+                let count = residentSubagents.dismissAll(in: thread.id.uuidString)
                 Haptics.light()
                 showNotice(count > 0 ? "已关闭本对话全部 \(count) 位常驻分身" : "当前对话没有在线常驻分身")
             }
@@ -10912,10 +10912,10 @@ struct ComposerBarLayout: Layout {
         // 上下文组装走共用出口 outgoingContext（组装
         // 口径注在该函数；基础止血包起失败重发同走它，
         // 两路不许分叉）
-        let activeResidents = residentSubagents.activeAgents(in: thread.id)
+        let activeResidents = residentSubagents.activeAgents(in: thread.id.uuidString)
         let outgoingText = ChatMentionQuery.enrichedOutgoingPrompt(
             for: text,
-            knownProfiles: mergedMentionProfiles(for: thread.id),
+            knownProfiles: mergedMentionProfiles(for: thread.id.uuidString),
             residentAgents: activeResidents
         )
         let context = outgoingContext(
@@ -10958,7 +10958,7 @@ struct ComposerBarLayout: Layout {
 
     /// 推断本条助手回复对应的单分身署名（当紧邻的上一条用户消息明确点名 1 位常驻分身且未 `@全员` 时）
     func inferredSingleSpecialistProfile(for entry: ChatEntry) -> ProfileItem? {
-        let roster = mergedMentionProfiles(for: currentThread?.id)
+        let roster = mergedMentionProfiles(for: currentThread?.id.uuidString)
         guard !roster.isEmpty,
               let entries = currentThread?.sortedEntries,
               let idx = entries.firstIndex(where: { $0.id == entry.id }),

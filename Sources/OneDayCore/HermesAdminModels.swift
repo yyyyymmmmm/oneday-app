@@ -1706,6 +1706,31 @@ public struct ProfileItem: Decodable, Sendable, Identifiable, Equatable {
         case displayName = "display_name"
         case descriptionAuto = "description_auto"
     }
+
+    /// 合并接缝修复：补公开成员构造器——合成成员 init
+    /// 是 internal，App 侧（常驻分身 asProfileItem）跨
+    /// 模块构造不到（同 AgentPluginCatalogEntry 先例）
+    public init(
+        name: String,
+        isDefault: Bool? = nil,
+        model: String? = nil,
+        provider: String? = nil,
+        skillCount: Int? = nil,
+        gatewayRunning: Bool? = nil,
+        displayName: String? = nil,
+        description: String? = nil,
+        descriptionAuto: Bool? = nil
+    ) {
+        self.name = name
+        self.isDefault = isDefault
+        self.model = model
+        self.provider = provider
+        self.skillCount = skillCount
+        self.gatewayRunning = gatewayRunning
+        self.displayName = displayName
+        self.description = description
+        self.descriptionAuto = descriptionAuto
+    }
 }
 
 /// POST /api/profiles/{name}/describe-auto 回执
