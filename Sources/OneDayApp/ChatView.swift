@@ -22,6 +22,8 @@ struct ChatView: View {
     @State var showHub = false
     @State var showPendingApprovalSheet = false
     @State var activeCloudTakeover: CloudComputerTarget?
+    @State var showQuickProfilesSheet = false
+    @State var showQuickConnectorsSheet = false
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -1115,6 +1117,26 @@ struct ChatView: View {
                 }
             )
         }
+        .sheet(isPresented: $showQuickProfilesSheet) {
+            NavigationStack {
+                ProfilesView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("完成") { showQuickProfilesSheet = false }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $showQuickConnectorsSheet) {
+            NavigationStack {
+                ConnectorsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("完成") { showQuickConnectorsSheet = false }
+                        }
+                    }
+            }
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -2094,9 +2116,50 @@ struct ChatView: View {
                 guard !matched.isEmpty else { return nil }
                 return AnyView(
                     ChatSlashCommandPaletteView(commands: matched) { item in
-                        input = item.insertText
-                        composerFocusHandle.focusAtEnd()
+                        switch item.id {
+                        case "branch":
+                            input = ""
+                            forkCurrentSession()
+                        case "profiles":
+                            input = ""
+                            showQuickProfilesSheet = true
+                        case "connectors":
+                            input = ""
+                            showQuickConnectorsSheet = true
+                        default:
+                            input = item.insertText
+                            composerFocusHandle.focusAtEnd()
+                        }
                     }
+                )
+            }(),
+            liveRunDockVisible: isStreaming || activeRunThreadID != nil,
+            liveRunDockView: {
+                guard isStreaming || activeRunThreadID != nil else { return nil }
+                let activeRunID = (activeRunThreadID ?? currentThread?.id)
+                    .flatMap { appState.runLedger.entry(forThreadID: $0)?.runID }
+                let phrase = appState.liveActivityPhrase
+                    ?? assistantActivityStatus
+                    ?? "Hermes 正在执行任务…"
+                return AnyView(
+                    ChatLiveRunDockView(
+                        activityPhrase: phrase,
+                        liveToolCards: liveToolCards,
+                        canSteer: activeRunID != nil,
+                        onSteer: { text in
+                            if let activeRunID {
+                                steerActiveRun(runID: activeRunID, text: text)
+                            }
+                        },
+                        onStop: { requestRunStop() },
+                        onCloudTakeover: {
+                            activeCloudTakeover = CloudComputerTarget(
+                                id: "live-box",
+                                boxID: nil,
+                                liveURL: ""
+                            )
+                        }
+                    )
                 )
             }(),
             dictation: dictation,

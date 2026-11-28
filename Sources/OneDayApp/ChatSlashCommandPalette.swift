@@ -83,6 +83,24 @@ struct HermesSlashCommand: Identifiable, Equatable {
             category: .skill
         ),
         HermesSlashCommand(
+            id: "profiles",
+            command: "/profiles",
+            insertText: "",
+            title: "管理与切换分身",
+            subtitle: "直达分身档案页：新建、克隆、导入导出",
+            symbol: "person.2.crop.square.stack.fill",
+            category: .mode
+        ),
+        HermesSlashCommand(
+            id: "connectors",
+            command: "/connectors",
+            insertText: "",
+            title: "连接器与 MCP 中心",
+            subtitle: "直达本机权限、官方 MCP 目录与自定义 MCP",
+            symbol: "puzzlepiece.extension.fill",
+            category: .mode
+        ),
+        HermesSlashCommand(
             id: "bang",
             command: "!",
             insertText: "! ",
