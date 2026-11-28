@@ -10652,26 +10652,22 @@ struct ComposerBarLayout: Layout {
         // 至多一轮在飞」改由出口 drain 守卫把守，
         // 入口不再禁止
         guard !text.isEmpty || !pending.isEmpty else { return }
-        // 有待批审批卡时拦截发送，给轻量浮条提示并自动滚回审批卡位置
+        // 仅当「当前对话」自身有待批审批卡时才拦截发送；绝不因为其他会话的待批卡误拦当前对话或旁聊！
         let hubStore = appState.sharedHubStore()
-        if hubStore.hasPendingApprovals {
+        if let pendingAnchor = currentThread?.sortedEntries.last(where: { entry in
+            guard let key = entry.approvalKey,
+                  let recordID = ApprovalAnchor.recordID(fromKey: key)
+            else { return false }
+            if case .pending(let record) = hubStore.anchorRowState(recordID: recordID) {
+                return record.appliesToChat(sessionID: currentThread?.serverSessionID)
+            }
+            return false
+        }) {
             showNotice(
                 L10n.string("先处理上面的批准请求"),
                 tier: .brief
             )
-            if let pendingAnchor = currentThread?.sortedEntries.last(where: { entry in
-                guard let key = entry.approvalKey,
-                      let recordID = ApprovalAnchor.recordID(fromKey: key)
-                else { return false }
-                if case .pending(let record) = hubStore.anchorRowState(recordID: recordID) {
-                    return record.appliesToChat(sessionID: currentThread?.serverSessionID)
-                }
-                return false
-            }) {
-                surfaceScrollToEntry(pendingAnchor.id, animated: true)
-            } else {
-                scrollToBottom(animated: true)
-            }
+            surfaceScrollToEntry(pendingAnchor.id, animated: true)
             return
         }
         // D3（DESIGN §352）：编辑态在武装时发送分

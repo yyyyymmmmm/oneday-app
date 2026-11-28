@@ -921,8 +921,20 @@ extension ChatView {
 
     /// 消费环踢动口：单例防重入
     func kickConsumer() {
-        guard !appState.isDemo, consumeTask == nil
-        else { return }
+        guard !appState.isDemo else { return }
+        // 若上一条被卡住的消费任务属于「其他会话」，立即让出前台消费槽位给当前会话/旁聊
+        // （旧会话的 run 仍安全保存在服务端与 runLedger，切回时自动续接对账，绝不互相卡死）
+        if consumeTask != nil {
+            if let activeID = activeRunThreadID, let curID = currentThread?.id, activeID != curID {
+                consumeTask?.cancel()
+                consumeTask = nil
+                isDrivingRun = false
+                activeRunThreadID = nil
+                streamingText = nil
+            } else {
+                return
+            }
+        }
         consumeTask = Task {
             await runConsumerLoop()
             consumeTask = nil
@@ -3136,9 +3148,12 @@ extension ChatView {
             appState.runLedger.upsert(entry)
         }
 
-        // 2. 立即取消本地在飞任务与提交泵（所有阶段统一即时生效）
+        // 2. 立即取消本地在飞任务、消费环与提交泵（彻底释放全局锁，防止拖死其他会话与旁聊）
         sendTask?.cancel()
         sendTask = nil
+        consumeTask?.cancel()
+        consumeTask = nil
+        isDrivingRun = false
         if let threadID = targetThreadID {
             submitPumpTasks[threadID]?.cancel()
             submitPumpTasks[threadID] = nil
@@ -3278,9 +3293,20 @@ extension ChatView {
     /// 预算耗尽遗留）：半截呈现回填＋对账落定。无账
     /// 本或驱动在途即返回
     func resumeRunIfNeeded() async {
-        guard !appState.isDemo, !isDrivingRun,
+        guard !appState.isDemo,
               scenePhase == .active,
-              let thread = currentThread,
+              let thread = currentThread else { return }
+        // 切换到新会话或旁聊时，若其他会话正占着前台消费环，立即释放前台槽位
+        if isDrivingRun, let activeID = activeRunThreadID, activeID != thread.id {
+            consumeTask?.cancel()
+            consumeTask = nil
+            sendTask?.cancel()
+            sendTask = nil
+            isDrivingRun = false
+            activeRunThreadID = nil
+            streamingText = nil
+        }
+        guard !isDrivingRun,
               let entry = appState.runLedger.entry(
                   forThreadID: thread.id
               ) else { return }
