@@ -4047,6 +4047,43 @@
 
   // ---------------- v1.0.0 Flagship Faces: Overview / Agents & Prompts / Skills & Plugins ----------------
 
+  function safeText(v, fallback) {
+    if (v == null || v === "") return fallback || "";
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    if (typeof v === "object") {
+      if (v.display != null && v.display !== "") return String(v.display);
+      if (v.human != null && v.human !== "") return String(v.human);
+      if (v.label != null && v.label !== "") return String(v.label);
+      if (v.expr != null && v.expr !== "") return String(v.expr);
+      if (v.name != null && v.name !== "") return String(v.name);
+      if (v.title != null && v.title !== "") return String(v.title);
+      try { return JSON.stringify(v); } catch (e) { return fallback || ""; }
+    }
+    return String(v);
+  }
+
+  function ConsoleErrorBoundary(props) {
+    React.Component.call(this, props);
+    this.state = { err: null };
+  }
+  ConsoleErrorBoundary.prototype = Object.create(React.Component.prototype);
+  ConsoleErrorBoundary.prototype.constructor = ConsoleErrorBoundary;
+  ConsoleErrorBoundary.getDerivedStateFromError = function (err) {
+    return { err: err };
+  };
+  ConsoleErrorBoundary.prototype.render = function () {
+    var self = this;
+    if (this.state && this.state.err) {
+      return h("div", { className: "odc-card" },
+        h("div", { className: "odc-face-head" },
+          h("h3", null, "当前功能面渲染异常"),
+          h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-primary", onClick: function () { self.setState({ err: null }); } }, "重试")),
+        h("p", { className: "odc-error" }, safeText(this.state.err && this.state.err.message, String(this.state.err))));
+    }
+    return this.props.children;
+  };
+
   function OverviewFace(props) {
     var onNavigate = props && props.onNavigate ? props.onNavigate : function () {};
     var st = React.useState({ phase: "loading", data: null, error: null });
@@ -4167,13 +4204,13 @@
       if (d.jobs.length) {
         parts.push(h("p", { key: "jh", className: "odc-summary-head" }, "定时任务排期快照（前 5 项）"));
         parts.push(h("ul", { key: "jl", className: "odc-list" }, d.jobs.slice(0, 5).map(function (j, idx) {
-          var title = j.name || j.title || j.id || ("任务 " + (idx + 1));
-          var sched = j.schedule_human || j.schedule || j.cron || "未标排期";
-          var status = j.enabled === false ? "已暂停" : (j.last_status || "运行中");
+          var title = safeText(j && (j.name || j.title || j.id), "任务 " + (idx + 1));
+          var sched = safeText(j && (j.schedule_human || j.schedule || j.cron), "未标排期");
+          var status = (j && j.enabled === false) ? "已暂停" : safeText(j && j.last_status, "运行中");
           return h("li", { key: "ovj-" + idx, className: "odc-row" },
             h("span", { className: "odc-row-title" }, title),
             h("span", { className: "odc-row-meta" }, sched),
-            h("span", { className: "odc-st " + (j.enabled === false ? "odc-st-pending" : "odc-st-done") }, status));
+            h("span", { className: "odc-st " + ((j && j.enabled === false) ? "odc-st-pending" : "odc-st-done") }, status));
         })));
       }
     }
@@ -4676,9 +4713,9 @@
               onClick: function () { setViewMode(viewMode === "focus" ? "all" : "focus"); }
             }, viewMode === "focus" ? "切换全览" : "切回聚焦"))),
         viewMode === "focus"
-          ? h("div", { key: activeId, id: activeId, className: "odc-anchor" }, renderFaceById(activeId, navigateTo, handlePulse))
+          ? h("div", { key: activeId, id: activeId, className: "odc-anchor" }, h(ConsoleErrorBoundary, { key: "eb-" + activeId }, renderFaceById(activeId, navigateTo, handlePulse)))
           : ALL_NAV_ITEMS.map(function (n) {
-              return h("div", { key: n.id, id: n.id, className: "odc-anchor" }, renderFaceById(n.id, navigateTo, handlePulse));
+              return h("div", { key: n.id, id: n.id, className: "odc-anchor" }, h(ConsoleErrorBoundary, { key: "eb-" + n.id }, renderFaceById(n.id, navigateTo, handlePulse)));
             })));
   }
 

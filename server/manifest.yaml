@@ -797,7 +797,7 @@ components:
         - path: dashboard/manifest.json
           sha256: d095af9e5ed65e9cda10e48c27010a56b9a1352e8133931d51cb2ae647d209b8
         - path: dashboard/dist/index.js
-          sha256: 5701d77c6ff8e26412d1376d130265ce5e6deb3b0ad2a72e2d4fe126a1b77178
+          sha256: abb002770f6fc0ec82631fd336462011060883154d1c129d4351a21f6fad3ff4
         - path: dashboard/dist/style.css
           sha256: febea643cd3b123135ebfb743cca951536f950620c62bbd2f5ddfcb162392334
       provides: [web-console-tab, web-overview-deck, web-agents-prompts, web-skills-plugins, web-approvals-read, web-approvals-decide, web-vault-read, web-vault-requests, web-activity-feed, web-feed-posts, web-ideas, web-goals, web-hub-ledger, web-hub-audit, web-grants-manage, web-cron, web-memory, web-files, web-monitors, web-connectors, web-delegation, web-toolsets, web-reactions, web-speech, web-dictation, web-identity, web-devices, web-computer, web-settings, web-search, web-diagnostics, web-crash-reports, web-image-viewer, web-approval-notify]
