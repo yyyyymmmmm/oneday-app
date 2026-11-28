@@ -256,7 +256,7 @@ struct SkillHubView: View {
             let sourceOK = (source == nil || source == item.source)
             guard sourceOK else { return false }
             if q.isEmpty { return true }
-            return item.name.lowercased().contains(q)
+            return (item.name ?? "").lowercased().contains(q)
                 || (item.description?.lowercased().contains(q) ?? false)
                 || (item.source?.lowercased().contains(q) ?? false)
         }

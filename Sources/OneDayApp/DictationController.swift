@@ -99,6 +99,13 @@ final class DictationController {
             warmIfNeeded()
         }
     }
+    /// 通话面入口别名（合并接缝修复：v23 通话面按
+    /// toggle(currentDraft:) 调用；本体开关口径就是
+    /// handleMicTap——闲置起录、录音中收尾落稿）
+    func toggle(currentDraft: String) {
+        handleMicTap(baseDraft: currentDraft)
+    }
+
     /// 是否正在录音（通话面等消费方按此判麦克风实况；
     /// 合并接缝修复：v23 通话面引用此名，控制器只有
     /// phase——按 .recording 态派生，与 isActive 分工）

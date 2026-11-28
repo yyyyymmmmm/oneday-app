@@ -204,7 +204,7 @@ struct AsyncDelegationResultCardView: View {
                     if let dispatched = data.dispatchedAt, !dispatched.isEmpty {
                         Text("派出时间：\(dispatched)")
                             .font(.caption2)
-                            .foregroundStyle(Palette.inkTertiary)
+                            .foregroundStyle(Palette.inkMuted)
                             .lineLimit(1)
                     }
                 }
@@ -233,7 +233,7 @@ struct AsyncDelegationResultCardView: View {
                             chip(text: "耗时 \(duration)", fg: Palette.inkSecondary, bg: Palette.fillTertiary)
                         }
                         if let batchID = data.batchID, !batchID.isEmpty {
-                            chip(text: batchID, fg: Palette.inkTertiary, bg: Palette.fillTertiary)
+                            chip(text: batchID, fg: Palette.inkMuted, bg: Palette.fillTertiary)
                         }
                     }
                 }
