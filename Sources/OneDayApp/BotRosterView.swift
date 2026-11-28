@@ -11,7 +11,7 @@ struct BotRosterView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var profiles: [ProfileSummary] = []
+    @State private var profiles: [ProfileItem] = []
     @State private var activeProfileName: String = ""
     @State private var isLoading = false
     @State private var switchingProfile: String?
@@ -19,7 +19,7 @@ struct BotRosterView: View {
     @State private var errorMessage: String?
     @State private var noticeMessage: String?
 
-    private var filteredProfiles: [ProfileSummary] {
+    private var filteredProfiles: [ProfileItem] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return profiles }
         return profiles.filter { p in
@@ -122,8 +122,8 @@ struct BotRosterView: View {
         .task { await loadRoster() }
     }
 
-    private func botRow(_ profile: ProfileSummary) -> some View {
-        let isActive = profile.isActive || profile.name == activeProfileName
+    private func botRow(_ profile: ProfileItem) -> some View {
+        let isActive = profile.name == activeProfileName
         let visual = botVisual(for: profile.name)
         return HStack(spacing: OneDayMetrics.spacingSM) {
             Image(systemName: visual.symbol)
@@ -201,32 +201,31 @@ struct BotRosterView: View {
     }
 
     private func loadRoster() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
-            let response = try await appState.client.profiles(config: config, apiKey: apiKey)
-            profiles = response.profiles
-            activeProfileName = response.activeProfile ?? profiles.first(where: \.isActive)?.name ?? ""
+            profiles = try await appState.performAdmin { client, config in
+                try await client.profiles(config: config)
+            }
+            activeProfileName = (try? await appState.performAdmin { client, config in
+                try await client.activeProfileName(config: config)
+            }) ?? profiles.first(where: { $0.isDefault == true })?.name ?? ""
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "无法读取分身花名册：\(error.localizedDescription)"
         }
     }
 
-    private func wakeAndChat(_ profile: ProfileSummary) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+    private func wakeAndChat(_ profile: ProfileItem) async {
         switchingProfile = profile.name
         errorMessage = nil
         noticeMessage = nil
         defer { switchingProfile = nil }
         do {
             if profile.name != activeProfileName {
-                _ = try await appState.client.activateProfile(
-                    config: config,
-                    apiKey: apiKey,
-                    name: profile.name
-                )
+                try await appState.performAdmin { client, config in
+                    try await client.setActiveProfile(config: config, name: profile.name)
+                }
                 activeProfileName = profile.name
             }
             noticeMessage = "已唤醒专家分身「\(profile.name)」，正在切换至对话界面。"

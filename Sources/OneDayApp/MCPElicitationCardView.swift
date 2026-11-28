@@ -63,23 +63,24 @@ struct MCPElicitationPrompt: Equatable {
 
 enum MCPElicitationParser {
     static func parse(from card: ToolCard) -> MCPElicitationPrompt? {
-        let lowerName = card.name.lowercased()
-        let combined = "\(card.args)\n\(card.result ?? "")"
+        let lowerName = card.toolName.lowercased()
+        let arguments = card.arguments ?? ""
+        let combined = "\(arguments)\n\(card.result ?? "")"
         let looksLikeElicitation = lowerName.contains("elicit")
             || lowerName.contains("mcp_form")
             || combined.contains("\"requestedSchema\"")
             || combined.contains("\"elicitation\"")
         guard looksLikeElicitation else { return nil }
 
-        let payloadSource = (card.result?.contains("{") == true ? card.result : nil) ?? card.args
+        let payloadSource = (card.result?.contains("{") == true ? card.result : nil) ?? arguments
         guard let data = payloadSource.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
             return MCPElicitationPrompt(
                 id: card.id,
-                serverName: card.name,
+                serverName: card.toolName,
                 title: "MCP 服务请求补充信息",
-                message: "请确认或补充参数以继续执行 \(card.name)。",
+                message: "请确认或补充参数以继续执行 \(card.toolName)。",
                 fields: [
                     MCPElicitationField(
                         id: "value",
@@ -95,7 +96,7 @@ enum MCPElicitationParser {
 
         let serverName = (obj["server"] as? String)
             ?? (obj["mcp_server"] as? String)
-            ?? card.name
+            ?? card.toolName
         let message = (obj["message"] as? String)
             ?? (obj["prompt"] as? String)
             ?? "MCP 服务需要你补充以下信息后才能继续。"

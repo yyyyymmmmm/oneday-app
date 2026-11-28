@@ -193,7 +193,6 @@ final class TopBarHitIntermittentTests: XCTestCase {
 
                 HubIdentityCapsule(
                     displayName: "三狗",
-                    statusWord: "在线",
                     onOpenHub: { state.capsuleTaps += 1 },
                     onFindInConversation: {}
                 )

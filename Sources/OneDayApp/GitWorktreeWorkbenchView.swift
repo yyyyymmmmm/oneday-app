@@ -309,17 +309,17 @@ struct GitWorktreeWorkbenchView: View {
         defer { loading = false }
 
         do {
-            status = try await appState.performAdmin { config in
-                try await appState.client.gitStatus(config: config, path: trimmed)
+            status = try await appState.performAdmin { client, config in
+                try await client.gitStatus(config: config, path: trimmed)
             }
-            files = try await appState.performAdmin { config in
-                try await appState.client.gitReviewList(config: config, path: trimmed, scope: "uncommitted")
+            files = try await appState.performAdmin { client, config in
+                try await client.gitReviewList(config: config, path: trimmed, scope: "uncommitted")
             }
-            branches = try await appState.performAdmin { config in
-                try await appState.client.gitBranches(config: config, path: trimmed)
+            branches = try await appState.performAdmin { client, config in
+                try await client.gitBranches(config: config, path: trimmed)
             }
-            worktrees = try await appState.performAdmin { config in
-                try await appState.client.gitWorktrees(config: config, path: trimmed)
+            worktrees = try await appState.performAdmin { client, config in
+                try await client.gitWorktrees(config: config, path: trimmed)
             }
         } catch {
             errorText = error.localizedDescription
@@ -328,8 +328,8 @@ struct GitWorktreeWorkbenchView: View {
 
     private func openDiff(_ file: GitReviewFileItem) async {
         do {
-            diffContent = try await appState.performAdmin { config in
-                try await appState.client.gitReviewDiff(
+            diffContent = try await appState.performAdmin { client, config in
+                try await client.gitReviewDiff(
                     config: config, path: repoPath, file: file.path, staged: file.staged
                 )
             }
@@ -341,11 +341,11 @@ struct GitWorktreeWorkbenchView: View {
 
     private func toggleStage(_ file: GitReviewFileItem) async {
         do {
-            try await appState.performAdmin { config in
+            try await appState.performAdmin { client, config in
                 if file.staged {
-                    try await appState.client.gitUnstageFile(config: config, path: repoPath, file: file.path)
+                    try await client.gitUnstageFile(config: config, path: repoPath, file: file.path)
                 } else {
-                    try await appState.client.gitStageFile(config: config, path: repoPath, file: file.path)
+                    try await client.gitStageFile(config: config, path: repoPath, file: file.path)
                 }
             }
             Haptics.success()
@@ -357,8 +357,8 @@ struct GitWorktreeWorkbenchView: View {
 
     private func revert(_ file: GitReviewFileItem) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitRevertFile(config: config, path: repoPath, file: file.path)
+            try await appState.performAdmin { client, config in
+                try await client.gitRevertFile(config: config, path: repoPath, file: file.path)
             }
             Haptics.success()
             feedbackText = "已还原 \(file.path)"
@@ -370,8 +370,8 @@ struct GitWorktreeWorkbenchView: View {
 
     private func switchBranch(_ branch: String) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitSwitchBranch(config: config, path: repoPath, branch: branch)
+            try await appState.performAdmin { client, config in
+                try await client.gitSwitchBranch(config: config, path: repoPath, branch: branch)
             }
             Haptics.success()
             feedbackText = "已切换至分支 \(branch)"
@@ -383,8 +383,8 @@ struct GitWorktreeWorkbenchView: View {
 
     private func pushBranch() async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitPush(config: config, path: repoPath)
+            try await appState.performAdmin { client, config in
+                try await client.gitPush(config: config, path: repoPath)
             }
             Haptics.success()
             feedbackText = "已推送至远端仓库"
@@ -396,8 +396,8 @@ struct GitWorktreeWorkbenchView: View {
 
     private func removeWorktree(_ wt: GitWorktreeItem) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitRemoveWorktree(
+            try await appState.performAdmin { client, config in
+                try await client.gitRemoveWorktree(
                     config: config, path: repoPath, worktreePath: wt.path, force: false
                 )
             }
@@ -484,8 +484,8 @@ private struct GitCommitSheet: View {
         errorText = nil
         defer { busy = false }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitCommit(
+            try await appState.performAdmin { client, config in
+                try await client.gitCommit(
                     config: config, path: repoPath,
                     message: message.trimmingCharacters(in: .whitespacesAndNewlines),
                     push: alsoPush
@@ -550,8 +550,8 @@ private struct GitAddWorktreeSheet: View {
         errorText = nil
         defer { busy = false }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.gitAddWorktree(
+            try await appState.performAdmin { client, config in
+                try await client.gitAddWorktree(
                     config: config, path: repoPath,
                     name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                     branch: branch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : branch.trimmingCharacters(in: .whitespacesAndNewlines)

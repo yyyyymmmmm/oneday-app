@@ -1412,6 +1412,18 @@ final class AppState {
         }
     }
 
+    func readDashboardConfig() async throws -> [String: JSONValue] {
+        try await performAdmin { client, config in
+            try await client.rawConfig(config: config)
+        }
+    }
+
+    func applyDashboardConfig(_ changes: [String: JSONValue]) async throws {
+        try await performAdmin { client, config in
+            try await client.updateConfig(config: config, newConfig: changes)
+        }
+    }
+
     // MARK: - 会话接口（自动重登）
 
     /// 管理面统一通道：拿当前配置执行操作，遇 401 先用已存

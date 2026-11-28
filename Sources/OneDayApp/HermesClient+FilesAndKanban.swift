@@ -650,6 +650,17 @@ extension HermesClient {
         )
     }
 
+    func kanbanAssignTask(
+        config: ServerConfig, board: String, id: String, assignee: String
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/tasks/\(id)",
+            method: "PATCH", endpoint: L10n.string("任务指派"),
+            query: kanbanQuery(board: board),
+            body: ["assignee": .string(assignee)]
+        )
+    }
+
     func kanbanDeleteTask(
         config: ServerConfig, board: String, id: String
     ) async throws {

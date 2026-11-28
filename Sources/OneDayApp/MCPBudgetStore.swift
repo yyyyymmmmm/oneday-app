@@ -72,23 +72,23 @@ final class MCPBudgetStore {
 
     /// 同步 `spend_limit` 配置至 Hermes 服务端 `config.yaml`
     func syncToServer(serverName: String, appState: AppState) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         let b = budget(for: serverName)
-        let patch: [String: Any] = [
-            "mcp": [
-                "spend_limits": [
-                    serverName: [
-                        "enabled": b.isPaidService,
-                        "per_call_usd": b.perCallSpendLimitUSD,
-                        "monthly_usd": b.monthlySpendLimitUSD,
-                        "estimated_call_usd": b.estimatedPricePerCallUSD,
-                        "require_approval": b.immuneToYoloMode,
-                    ]
-                ]
-            ]
+        let patch: [String: JSONValue] = [
+            "mcp": .object([
+                "spend_limits": .object([
+                    serverName: .object([
+                        "enabled": .bool(b.isPaidService),
+                        "per_call_usd": .number(b.perCallSpendLimitUSD),
+                        "monthly_usd": .number(b.monthlySpendLimitUSD),
+                        "estimated_call_usd": .number(b.estimatedPricePerCallUSD),
+                        "require_approval": .bool(b.immuneToYoloMode),
+                    ]),
+                ]),
+            ]),
         ]
         do {
-            try await appState.client.updateConfig(config: config, apiKey: apiKey, values: patch)
+            try await appState.applyDashboardConfig(patch)
             lastSyncMessage = "已同步「\(serverName)」的预算门配置至服务端。"
             Haptics.success()
         } catch {

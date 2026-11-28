@@ -27,7 +27,7 @@ enum ChatSpecialistReplyParser {
 
     static func parse(
         markdown: String,
-        inferredSingleProfile: ProfileSummary? = nil
+        inferredSingleProfile: ProfileItem? = nil
     ) -> ChatSpecialistReplyLayout {
         let trimmed = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .plain }

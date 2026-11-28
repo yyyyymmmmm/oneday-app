@@ -145,8 +145,8 @@ struct ChannelPairingStatusSection: View {
         defer { testingPlatform = false }
 
         do {
-            let result = try await appState.performAdmin { config in
-                try await appState.client.testMessagingPlatform(config: config, platform: channel.id)
+            let result = try await appState.performAdmin { client, config in
+                try await client.testMessagingPlatform(config: config, platform: channel.id)
             }
             testResult = result
             if result.ok { Haptics.success() }

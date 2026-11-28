@@ -57,13 +57,8 @@ private extension JSONValue {
         return nil
     }
 
-    var numberValue: Double? {
-        if case .number(let value) = self { return value }
-        return nil
-    }
-
     /// 整数提取：数字直取，字符串数字也认（服务端序列化口径不一）
-    var intValue: Int? {
+    var kanbanIntValue: Int? {
         if let number = numberValue { return Int(number) }
         if let string = stringValue { return Int(string) }
         return nil
@@ -107,7 +102,7 @@ private struct KanbanFields {
 
     func int(_ keys: String...) -> Int? {
         for key in keys {
-            if let value = dict[key]?.intValue { return value }
+            if let value = dict[key]?.kanbanIntValue { return value }
         }
         return nil
     }

@@ -15,6 +15,10 @@ struct ChatView: View {
     /// 0.6.0：总览桥状态（壳层持有）：顶栏状态行与铃铛
     /// 角标的数据源；nil 时状态行落「暂时联系不上」
     var overviewStore: OverviewBridgeStore?
+
+    init(overviewStore: OverviewBridgeStore? = nil) {
+        self.overviewStore = overviewStore
+    }
     /// 0.17.0（真机五修⑤）：枢纽 sheet 开合——底栏活
     /// 动格撤销后，身份胶囊身份域与回告卡点按改开本
     /// sheet（AgentHubView .activity 四段，自带导航栈；
@@ -30,7 +34,7 @@ struct ChatView: View {
     @State var showSessionExportSheet = false
     @State var showSkillBundlesSheet = false
     @State var showInteractivePreviewSheet = false
-    @State var mentionRosterProfiles: [ProfileSummary] = []
+    @State var mentionRosterProfiles: [ProfileItem] = []
     @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
     @State var activeRunApproval: RunApprovalPrompt?
@@ -10805,16 +10809,18 @@ struct ComposerBarLayout: Layout {
     func refreshMentionRosterIfNeeded(force: Bool = false) async {
         guard !isLoadingMentionRoster else { return }
         if !force && !mentionRosterProfiles.isEmpty { return }
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isLoadingMentionRoster = true
         defer { isLoadingMentionRoster = false }
-        if let response = try? await appState.client.profiles(config: config, apiKey: apiKey) {
-            mentionRosterProfiles = response.profiles
+        if let profiles = try? await appState.performAdmin({ client, config in
+            try await client.profiles(config: config)
+        }) {
+            mentionRosterProfiles = profiles
         }
     }
 
     /// 推断本条助手回复对应的单分身署名（当紧邻的上一条用户消息明确点名 1 位常驻分身且未 `@全员` 时）
-    func inferredSingleSpecialistProfile(for entry: ChatEntry) -> ProfileSummary? {
+    func inferredSingleSpecialistProfile(for entry: ChatEntry) -> ProfileItem? {
         guard !mentionRosterProfiles.isEmpty,
               let entries = currentThread?.sortedEntries,
               let idx = entries.firstIndex(where: { $0.id == entry.id }),

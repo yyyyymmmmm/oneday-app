@@ -721,13 +721,11 @@ private struct MCPServerDetailView: View {
                             subStore.update(updated, for: currentServer.name)
                             Haptics.selection()
                             Task {
-                                if let config = appState.config, let apiKey = appState.apiKey {
-                                    _ = try? await appState.client.updateConfig(
-                                        config: config,
-                                        apiKey: apiKey,
-                                        values: ["mcp_servers.\(currentServer.name).subscribe_events": .bool(enabled)]
-                                    )
-                                }
+                                try? await appState.applyDashboardConfig([
+                                    "mcp_servers": .object([
+                                        currentServer.name: .object(["subscribe_events": .bool(enabled)]),
+                                    ]),
+                                ])
                             }
                         }
                     )) {

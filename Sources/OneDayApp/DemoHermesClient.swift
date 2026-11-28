@@ -1156,6 +1156,10 @@ extension DemoHermesClient {
         // 演示写方法静默成功（类头口径）
     }
 
+    func kanbanAssignTask(config: ServerConfig, board: String, id: String, assignee: String) async throws {
+        throw HermesError.demoLimitReached
+    }
+
     func kanbanDeleteTask(
         config: ServerConfig, board: String, id: String
     ) async throws {

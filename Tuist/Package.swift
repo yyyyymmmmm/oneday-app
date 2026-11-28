@@ -9,7 +9,11 @@ let packageSettings = PackageSettings(
     // 显式指定为动态库避免静态符号重复链接警告（#22）。
     productTypes: [
         "EventSource": .framework,
-    ]
+    ],
+    baseSettings: .settings(base: [
+        "IPHONEOS_DEPLOYMENT_TARGET[sdk=iphoneos*]": "26.0",
+        "IPHONEOS_DEPLOYMENT_TARGET[sdk=iphonesimulator*]": "26.0",
+    ])
 )
 #endif
 

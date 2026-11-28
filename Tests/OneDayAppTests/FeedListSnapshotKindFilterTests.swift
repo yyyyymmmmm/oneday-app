@@ -28,7 +28,7 @@ final class FeedListSnapshotKindFilterTests: XCTestCase {
             makeMockPost(
                 kind: .event,
                 title: "我可以出本周 GitHub 活动汇总",
-                refs: [.init(type: .idea, id: "idea-123")]
+                refs: [.init(type: "idea", id: "idea-123")]
             ),
             makeMockPost(kind: .digest, title: "普通动态", refs: [])
         ]
@@ -65,11 +65,8 @@ final class FeedListSnapshotKindFilterTests: XCTestCase {
             kind: kind,
             title: title,
             body: "",
-            emoji: nil,
-            kicker: nil,
-            createdAt: Date().timeIntervalSince1970,
-            updatedAt: Date().timeIntervalSince1970,
-            refs: refs
+            refs: refs,
+            createdAt: Date().timeIntervalSince1970
         )
     }
 }

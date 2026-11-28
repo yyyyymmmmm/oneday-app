@@ -119,27 +119,19 @@ final class ReasoningEffortStore {
     }
 
     func syncToServer(model: String, appState: AppState) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isSyncing = true
         defer { isSyncing = false }
 
-        var serializedOverrides: [String: String] = [:]
-        for (k, v) in overrides {
-            serializedOverrides[k] = v.rawValue
-        }
-
-        let patch: [String: Any] = [
-            "agent": [
-                "reasoning_overrides": serializedOverrides,
-                "fast_mode": isFastEnabled(for: model),
-            ]
+        let patch: [String: JSONValue] = [
+            "agent": .object([
+                "reasoning_overrides": .object(overrides.mapValues { .string($0.rawValue) }),
+                "fast_mode": .bool(isFastEnabled(for: model)),
+            ]),
         ]
 
         do {
-            try await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: patch
+            try await appState.applyDashboardConfig(patch
             )
             lastSyncMessage = "已同步至 Hermes 服务端（\(effort(for: model).title)\(isFastEnabled(for: model) ? " + Fast" : "")）"
             Haptics.success()

@@ -58,7 +58,7 @@ struct ACPEditorApprovalView: View {
                     }
                 }
                 .onChange(of: acpEnabled) { _, newValue in
-                    Task { await persistConfig(key: "acp.enabled", value: .bool(newValue)) }
+                    Task { await persistConfig(key: "enabled", value: .bool(newValue)) }
                 }
 
                 Toggle(isOn: $pushApprovalsToMobile) {
@@ -72,7 +72,7 @@ struct ACPEditorApprovalView: View {
                 }
                 .disabled(!acpEnabled)
                 .onChange(of: pushApprovalsToMobile) { _, newValue in
-                    Task { await persistConfig(key: "acp.mobile_approval_push", value: .bool(newValue)) }
+                    Task { await persistConfig(key: "mobile_approval_push", value: .bool(newValue)) }
                 }
 
                 Picker("传输桥接模式", selection: $transportMode) {
@@ -81,7 +81,7 @@ struct ACPEditorApprovalView: View {
                     Text("仅本地 stdio").tag("local_stdio")
                 }
                 .onChange(of: transportMode) { _, newValue in
-                    Task { await persistConfig(key: "acp.transport", value: .string(newValue)) }
+                    Task { await persistConfig(key: "transport", value: .string(newValue)) }
                 }
             } header: {
                 SettingsSectionHeader("协议与推送策略")
@@ -195,7 +195,7 @@ struct ACPEditorApprovalView: View {
                     Button("拒绝修改") {
                         Haptics.selection()
                         item.wrappedValue.decision = .rejected
-                        Task { await persistConfig(key: "acp.decisions.\(val.id)", value: .string("rejected")) }
+                        Task { await persistConfig(key: "decisions", value: .object([val.id: .string("rejected")])) }
                     }
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Palette.danger)
@@ -207,7 +207,7 @@ struct ACPEditorApprovalView: View {
                     Button("批准写入") {
                         Haptics.success()
                         item.wrappedValue.decision = .approved
-                        Task { await persistConfig(key: "acp.decisions.\(val.id)", value: .string("approved")) }
+                        Task { await persistConfig(key: "decisions", value: .object([val.id: .string("approved")])) }
                     }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
@@ -225,8 +225,8 @@ struct ACPEditorApprovalView: View {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        if let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
+        guard appState.config != nil else { return }
+        if let raw = try? await appState.readDashboardConfig(),
            let acp = raw["acp"]?.objectValue {
             if let v = acp["enabled"]?.boolValue { acpEnabled = v }
             if let v = acp["mobile_approval_push"]?.boolValue { pushApprovalsToMobile = v }
@@ -235,9 +235,9 @@ struct ACPEditorApprovalView: View {
     }
 
     private func persistConfig(key: String, value: JSONValue) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         do {
-            _ = try await appState.client.updateConfig(config: config, apiKey: apiKey, values: [key: value])
+            try await appState.applyDashboardConfig(["acp": .object([key: value])])
             notice = "ACP 配置已同步至服务端。"
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "配置同步失败，请稍后重试。"

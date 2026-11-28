@@ -54,6 +54,25 @@ public enum JSONValue: Codable, Sendable, Equatable {
         return nil
     }
 
+    public var objectValue: [String: JSONValue]? {
+        if case .object(let value) = self { return value }
+        return nil
+    }
+
+    public var arrayValue: [JSONValue]? {
+        if case .array(let value) = self { return value }
+        return nil
+    }
+
+    public var numberValue: Double? {
+        if case .number(let value) = self { return value }
+        return nil
+    }
+
+    public var intValue: Int? {
+        numberValue.flatMap { Int(exactly: $0) }
+    }
+
     /// 展示用字符串：数字去掉无意义的小数尾，对象/数组不展开
     public var displayString: String {
         switch self {
@@ -1666,7 +1685,7 @@ public struct LogsResponse: Decodable, Sendable {
 /// "description": "", "display_name": ""}]}
 /// 激活档案：GET /api/profiles/active → {"active": "default",
 /// "current": "default"}；切换走 POST 同路径 {"name": "…"}。
-public struct ProfileItem: Decodable, Sendable, Identifiable {
+public struct ProfileItem: Decodable, Sendable, Identifiable, Equatable {
     public let name: String
     public let isDefault: Bool?
     public let model: String?

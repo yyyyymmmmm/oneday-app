@@ -21,14 +21,15 @@ enum CodeExecutionParser {
     ]
 
     static func parse(from card: ToolCard) -> CodeExecutionCardData? {
-        let lower = card.name.lowercased()
+        let lower = card.toolName.lowercased()
         let isCodeTool = codeToolNames.contains(lower)
             || lower.contains("execute_code")
             || lower.contains("python")
         guard isCodeTool else { return nil }
 
-        let code = extractField(["code", "script", "source", "command"], from: card.args)
-            ?? card.args.trimmingCharacters(in: .whitespacesAndNewlines)
+        let arguments = card.arguments ?? ""
+        let code = extractField(["code", "script", "source", "command"], from: arguments)
+            ?? arguments.trimmingCharacters(in: .whitespacesAndNewlines)
         let rawResult = card.result ?? ""
         let stdout = extractField(["stdout", "output", "result"], from: rawResult) ?? rawResult
         let stderr = extractField(["stderr", "error", "traceback"], from: rawResult) ?? ""
@@ -41,8 +42,8 @@ enum CodeExecutionParser {
             stdout: stdout.trimmingCharacters(in: .whitespacesAndNewlines),
             stderr: stderr.trimmingCharacters(in: .whitespacesAndNewlines),
             artifacts: artifacts,
-            isRunning: card.status == .running,
-            isFailed: card.status == .failed || !stderr.isEmpty
+            isRunning: card.result == nil,
+            isFailed: card.resultFailed || !stderr.isEmpty
         )
     }
 
@@ -270,14 +271,15 @@ struct CheckpointHistorySheet: View {
         let fileTools = ["write_file", "patch", "edit_file", "replace_file_content", "multi_replace_file_content", "delete_file"]
         for entry in entries.reversed() {
             guard let card = entry.toolCard else { continue }
-            let lower = card.name.lowercased()
+            let lower = card.toolName.lowercased()
             guard fileTools.contains(where: { lower.contains($0) }) else { continue }
-            let path = extractPath(from: card.args) ?? card.name
-            let diffLines = buildDiffLines(from: card.args, result: card.result ?? "")
+            let arguments = card.arguments ?? ""
+            let path = extractPath(from: arguments) ?? card.toolName
+            let diffLines = buildDiffLines(from: arguments, result: card.result ?? "")
             result.append(
                 FileCheckpointSnapshot(
                     id: card.id,
-                    toolName: card.name,
+                    toolName: card.toolName,
                     filePath: path,
                     timestamp: entry.createdAt,
                     diffLines: diffLines

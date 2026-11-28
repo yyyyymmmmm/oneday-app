@@ -144,7 +144,7 @@ struct ToolsetsSettingsView: View {
                 }
             }
             .onChange(of: toolSearchEnabled) { _, val in
-                Task { await saveToolSearchConfig(key: "tools.tool_search.enabled", value: .bool(val)) }
+                Task { await saveToolSearchConfig(key: "enabled", value: .bool(val)) }
             }
 
             if toolSearchEnabled {
@@ -155,7 +155,7 @@ struct ToolsetsSettingsView: View {
                     Text("超过 60 个工具").tag(60)
                 }
                 .onChange(of: toolSearchLazyThreshold) { _, val in
-                    Task { await saveToolSearchConfig(key: "tools.tool_search.lazy_threshold", value: .int(val)) }
+                    Task { await saveToolSearchConfig(key: "lazy_threshold", value: .number(Double(val))) }
                 }
 
                 Toggle(isOn: $pinCoreTools) {
@@ -168,7 +168,7 @@ struct ToolsetsSettingsView: View {
                     }
                 }
                 .onChange(of: pinCoreTools) { _, val in
-                    Task { await saveToolSearchConfig(key: "tools.tool_search.pin_core_tools", value: .bool(val)) }
+                    Task { await saveToolSearchConfig(key: "pin_core_tools", value: .bool(val)) }
                 }
             }
         } header: {
@@ -179,8 +179,8 @@ struct ToolsetsSettingsView: View {
     }
 
     private func loadToolSearchConfig() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        if let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
+        guard appState.config != nil else { return }
+        if let raw = try? await appState.readDashboardConfig(),
            let ts = raw["tools"]?.objectValue?["tool_search"]?.objectValue {
             if let e = ts["enabled"]?.boolValue { toolSearchEnabled = e }
             if let t = ts["lazy_threshold"]?.intValue { toolSearchLazyThreshold = t }
@@ -189,8 +189,8 @@ struct ToolsetsSettingsView: View {
     }
 
     private func saveToolSearchConfig(key: String, value: JSONValue) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        _ = try? await appState.client.updateConfig(config: config, apiKey: apiKey, values: [key: value])
+        guard appState.config != nil else { return }
+        try? await appState.applyDashboardConfig(["tools": .object(["tool_search": .object([key: value])])])
     }
 
     private func toolsetRow(_ row: ToolsetRow) -> some View {

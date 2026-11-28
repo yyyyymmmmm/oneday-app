@@ -60,7 +60,7 @@ enum ChatMentionQuery {
 
     struct ResolvedTargets: Equatable {
         let mentionsAll: Bool
-        let matchedProfiles: [ProfileSummary]
+        let matchedProfiles: [ProfileItem]
 
         var isActive: Bool {
             mentionsAll || !matchedProfiles.isEmpty
@@ -69,7 +69,7 @@ enum ChatMentionQuery {
 
     static func resolveTargets(
         in text: String,
-        knownProfiles: [ProfileSummary]
+        knownProfiles: [ProfileItem]
     ) -> ResolvedTargets {
         let mentionsAll = text.contains("@\(allMembersToken)")
             || text.localizedCaseInsensitiveContains("@all")
@@ -84,7 +84,7 @@ enum ChatMentionQuery {
     /// 不污染用户本地聊天记录气泡），让主助手按真实分身画像并行委派并统一汇总。
     static func enrichedOutgoingPrompt(
         for rawText: String,
-        knownProfiles: [ProfileSummary]
+        knownProfiles: [ProfileItem]
     ) -> String {
         let resolved = resolveTargets(in: rawText, knownProfiles: knownProfiles)
         guard resolved.isActive else { return rawText }
@@ -126,7 +126,7 @@ enum ChatMentionQuery {
 /// 平时零界面堆砌，敲 `@` 即刻弹出真实常驻分身花名册与置顶「@全员」协作入口。
 struct ChatMentionPaletteView: View {
     let query: String
-    let profiles: [ProfileSummary]
+    let profiles: [ProfileItem]
     let isLoading: Bool
     let onSelect: (String) -> Void
     let onManageProfiles: () -> Void
@@ -143,7 +143,7 @@ struct ChatMentionPaletteView: View {
             || "全".contains(normalizedQuery)
     }
 
-    private var filteredProfiles: [ProfileSummary] {
+    private var filteredProfiles: [ProfileItem] {
         guard !normalizedQuery.isEmpty else { return profiles }
         return profiles.filter { profile in
             profile.name.lowercased().contains(normalizedQuery)
@@ -289,7 +289,7 @@ struct ChatMentionPaletteView: View {
         .buttonStyle(.plain)
     }
 
-    private func profileRow(_ profile: ProfileSummary) -> some View {
+    private func profileRow(_ profile: ProfileItem) -> some View {
         let visual = Self.visual(for: profile.name)
         return Button {
             Haptics.selection()
@@ -312,13 +312,13 @@ struct ChatMentionPaletteView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Palette.ink)
                             .lineLimit(1)
-                        if profile.isActive {
-                            Text("当前默认")
+                        if profile.isDefault == true {
+                            Text("默认档案")
                                 .font(.caption2.weight(.medium))
                                 .foregroundStyle(Palette.successText)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Palette.tintGreenBG, in: Capsule())
+                                .background(Palette.tintGreen, in: Capsule())
                         }
                     }
 
@@ -393,7 +393,7 @@ struct ChatMentionPaletteView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 32, height: 32)
                     .background(
-                        Palette.fill,
+                        Palette.fillPrimary,
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                     )
                 VStack(alignment: .leading, spacing: 2) {

@@ -220,14 +220,14 @@ struct LocalModelsManagerView: View {
         defer { loading = false }
 
         do {
-            status = try await appState.performAdmin { config in
-                try await appState.client.localModelsStatus(config: config)
+            status = try await appState.performAdmin { client, config in
+                try await client.localModelsStatus(config: config)
             }
-            hardware = try? await appState.performAdmin { config in
-                try await appState.client.localModelsHardware(config: config)
+            hardware = try? await appState.performAdmin { client, config in
+                try await client.localModelsHardware(config: config)
             }
-            catalog = (try? await appState.performAdmin { config in
-                try await appState.client.localModelsCatalog(config: config)
+            catalog = (try? await appState.performAdmin { client, config in
+                try await client.localModelsCatalog(config: config)
             }) ?? []
         } catch {
             errorText = error.localizedDescription
@@ -238,8 +238,8 @@ struct LocalModelsManagerView: View {
         busyID = "server"
         defer { busyID = nil }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.localModelsServerAction(config: config, action: start ? "start" : "stop")
+            try await appState.performAdmin { client, config in
+                try await client.localModelsServerAction(config: config, action: start ? "start" : "stop")
             }
             Haptics.success()
             feedbackText = start ? "本地推理服务已启动" : "本地推理服务已停止"
@@ -253,8 +253,8 @@ struct LocalModelsManagerView: View {
         busyID = id
         defer { busyID = nil }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.activateLocalModel(config: config, modelID: id)
+            try await appState.performAdmin { client, config in
+                try await client.activateLocalModel(config: config, modelID: id)
             }
             Haptics.success()
             feedbackText = "已激活本地模型 \(id)"
@@ -268,8 +268,8 @@ struct LocalModelsManagerView: View {
         busyID = "eject"
         defer { busyID = nil }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.ejectLocalModel(config: config, modelID: id)
+            try await appState.performAdmin { client, config in
+                try await client.ejectLocalModel(config: config, modelID: id)
             }
             Haptics.success()
             feedbackText = "已卸载模型并释放显存"
@@ -283,8 +283,8 @@ struct LocalModelsManagerView: View {
         busyID = id
         defer { busyID = nil }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.deleteLocalModel(config: config, modelID: id)
+            try await appState.performAdmin { client, config in
+                try await client.deleteLocalModel(config: config, modelID: id)
             }
             Haptics.success()
             feedbackText = "已删除本地模型 \(id)"
@@ -298,8 +298,8 @@ struct LocalModelsManagerView: View {
         busyID = id
         defer { busyID = nil }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.downloadLocalModel(config: config, modelID: id)
+            try await appState.performAdmin { client, config in
+                try await client.downloadLocalModel(config: config, modelID: id)
             }
             Haptics.success()
             feedbackText = "已开始在宿主机后台下载 \(id)"

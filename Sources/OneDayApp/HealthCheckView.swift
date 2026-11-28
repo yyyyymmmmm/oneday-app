@@ -981,8 +981,8 @@ struct HealthCheckView: View {
         opsFeedback = nil
         defer { downloadingBackup = false }
         do {
-            let data = try await appState.performAdmin { config in
-                try await appState.client.downloadOpsBackup(config: config, archive: archive)
+            let data = try await appState.performAdmin { client, config in
+                try await client.downloadOpsBackup(config: config, archive: archive)
             }
             let fileName = (archive as NSString).lastPathComponent
             let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -1002,8 +1002,8 @@ struct HealthCheckView: View {
         opsFeedback = nil
         defer { pruningCheckpoints = false }
         do {
-            let receipt = try await appState.performAdmin { config in
-                try await appState.client.pruneOpsCheckpoints(config: config)
+            let receipt = try await appState.performAdmin { client, config in
+                try await client.pruneOpsCheckpoints(config: config)
             }
             Haptics.success()
             opsFeedback = receipt.message

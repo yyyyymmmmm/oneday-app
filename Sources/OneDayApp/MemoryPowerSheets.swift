@@ -25,9 +25,9 @@ struct MemoryMarkdownEditorSheet: View {
 
         var configKey: String {
             switch self {
-            case .memory: return "memory.files.memory_md"
-            case .user: return "memory.files.user_md"
-            case .soul: return "memory.files.soul_md"
+            case .memory: return "memory_md"
+            case .user: return "user_md"
+            case .soul: return "soul_md"
             }
         }
     }
@@ -195,8 +195,8 @@ struct MemoryMarkdownEditorSheet: View {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        if let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey) {
+        guard appState.config != nil else { return }
+        if let raw = try? await appState.readDashboardConfig() {
             if let memoryCfg = raw["memory"]?.objectValue {
                 if let approval = memoryCfg["require_write_approval"]?.boolValue {
                     requireWriteApproval = approval
@@ -222,20 +222,23 @@ struct MemoryMarkdownEditorSheet: View {
     private func saveToServer() async {
         isSaving = true
         defer { isSaving = false }
-        guard let config = appState.config, let apiKey = appState.apiKey else {
+        guard appState.config != nil else {
             feedback = "当前未连接到 Hermes 服务端。"
             return
         }
-        var payload: [String: JSONValue] = [
-            "memory.require_write_approval": .bool(requireWriteApproval),
-        ]
+        var files: [String: JSONValue] = [:]
         for tab in MemoryDocTab.allCases {
             if let text = drafts[tab] {
-                payload[tab.configKey] = .string(text)
+                files[tab.configKey] = .string(text)
             }
         }
         do {
-            _ = try await appState.client.updateConfig(config: config, apiKey: apiKey, values: payload)
+            try await appState.applyDashboardConfig([
+                "memory": .object([
+                    "require_write_approval": .bool(requireWriteApproval),
+                    "files": .object(files),
+                ]),
+            ])
             Haptics.success()
             onSaved()
             dismiss()
@@ -375,8 +378,8 @@ struct MemoryRewindSheet: View {
     }
 
     private func loadCurrentBackend() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        if let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
+        guard appState.config != nil else { return }
+        if let raw = try? await appState.readDashboardConfig(),
            let backend = raw["memory"]?.objectValue?["backend"]?.stringValue,
            !backend.isEmpty {
             selectedBackend = backend
@@ -386,13 +389,9 @@ struct MemoryRewindSheet: View {
     private func saveBackend(_ backend: String) async {
         isSavingBackend = true
         defer { isSavingBackend = false }
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         do {
-            _ = try await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: ["memory.backend": .string(backend)]
-            )
+            try await appState.applyDashboardConfig(["memory": .object(["backend": .string(backend)])])
             Haptics.success()
             statusMessage = "已切换记忆后端为 \(backend)。"
         } catch {
@@ -402,14 +401,12 @@ struct MemoryRewindSheet: View {
 
     private func triggerRewind(_ target: String) async {
         Haptics.selection()
-        if let config = appState.config, let apiKey = appState.apiKey {
-            _ = try? await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: ["memory.rewind_target": .string(target)]
-            )
+        do {
+            try await appState.applyDashboardConfig(["memory": .object(["rewind_target": .string(target)])])
+            onRewindSubmitted(target)
+            dismiss()
+        } catch {
+            statusMessage = (error as? HermesError)?.userMessage ?? "回滚请求未能保存。"
         }
-        onRewindSubmitted(target)
-        dismiss()
     }
 }

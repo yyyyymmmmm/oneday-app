@@ -321,11 +321,11 @@ struct OpsHooksView: View {
         .refreshable { await store.loadHooks(ops: ops) }
     }
 
-    private func deleteHook(_ hook: OpsHookItem) async {
+    private func deleteHook(_ hook: OpsHookRow) async {
         mutationError = nil
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.deleteOpsHook(
+            try await appState.performAdmin { client, config in
+                try await client.deleteOpsHook(
                     config: config, event: hook.event, command: hook.command
                 )
             }
@@ -413,8 +413,8 @@ private struct AddOpsHookSheet: View {
         errorText = nil
         defer { saving = false }
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.createOpsHook(
+            try await appState.performAdmin { client, config in
+                try await client.createOpsHook(
                     config: config,
                     event: event.trimmingCharacters(in: .whitespacesAndNewlines),
                     command: command.trimmingCharacters(in: .whitespacesAndNewlines),

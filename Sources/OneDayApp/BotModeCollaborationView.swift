@@ -13,7 +13,7 @@ struct BotModeCollaborationView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // 多分身 @mention 群聊编排
-    @State private var rosterProfiles: [ProfileSummary] = []
+    @State private var rosterProfiles: [ProfileItem] = []
     @State private var selectedBotNames: Set<String> = []
     @State private var groupTopic = ""
 
@@ -264,9 +264,10 @@ struct BotModeCollaborationView: View {
     }
 
     private func loadRosterProfiles() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        if let resp = try? await appState.client.profiles(config: config, apiKey: apiKey) {
-            rosterProfiles = resp.profiles
+        if let profiles = try? await appState.performAdmin({ client, config in
+            try await client.profiles(config: config)
+        }) {
+            rosterProfiles = profiles
         }
     }
 

@@ -259,14 +259,14 @@ struct CustomEndpointsAndPoolView: View {
         defer { loading = false }
 
         do {
-            let epResp = try await appState.performAdmin { config in
-                try await appState.client.customEndpoints(config: config)
+            let epResp = try await appState.performAdmin { client, config in
+                try await client.customEndpoints(config: config)
             }
             endpoints = epResp.endpoints
             currentProvider = epResp.currentProvider
 
-            poolGroups = try await appState.performAdmin { config in
-                try await appState.client.credentialPool(config: config)
+            poolGroups = try await appState.performAdmin { client, config in
+                try await client.credentialPool(config: config)
             }
         } catch {
             errorText = error.localizedDescription
@@ -275,8 +275,8 @@ struct CustomEndpointsAndPoolView: View {
 
     private func activate(_ endpoint: CustomModelEndpoint) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.activateCustomEndpoint(config: config, endpointID: endpoint.id)
+            try await appState.performAdmin { client, config in
+                try await client.activateCustomEndpoint(config: config, endpointID: endpoint.id)
             }
             Haptics.success()
             await loadAll()
@@ -287,8 +287,8 @@ struct CustomEndpointsAndPoolView: View {
 
     private func deleteEndpoint(_ endpoint: CustomModelEndpoint) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.deleteCustomEndpoint(config: config, endpointID: endpoint.id)
+            try await appState.performAdmin { client, config in
+                try await client.deleteCustomEndpoint(config: config, endpointID: endpoint.id)
             }
             Haptics.success()
             await loadAll()
@@ -299,8 +299,8 @@ struct CustomEndpointsAndPoolView: View {
 
     private func deletePoolEntry(provider: String, index: Int) async {
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.deleteCredentialPoolEntry(config: config, provider: provider, index: index)
+            try await appState.performAdmin { client, config in
+                try await client.deleteCredentialPoolEntry(config: config, provider: provider, index: index)
             }
             Haptics.success()
             await loadAll()
@@ -427,8 +427,8 @@ private struct AddCustomEndpointSheet: View {
         defer { validating = false }
 
         do {
-            let result = try await appState.performAdmin { config in
-                try await appState.client.validateCustomEndpoint(
+            let result = try await appState.performAdmin { client, config in
+                try await client.validateCustomEndpoint(
                     config: config,
                     baseURL: baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
                     apiKey: apiKey.isEmpty ? nil : apiKey,
@@ -450,8 +450,8 @@ private struct AddCustomEndpointSheet: View {
         defer { saving = false }
 
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.upsertCustomEndpoint(
+            try await appState.performAdmin { client, config in
+                try await client.upsertCustomEndpoint(
                     config: config,
                     id: nil,
                     name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -544,8 +544,8 @@ private struct AddCredentialPoolKeySheet: View {
         defer { saving = false }
 
         do {
-            try await appState.performAdmin { config in
-                try await appState.client.addCredentialPoolEntry(
+            try await appState.performAdmin { client, config in
+                try await client.addCredentialPoolEntry(
                     config: config,
                     provider: provider.trimmingCharacters(in: .whitespacesAndNewlines),
                     apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),

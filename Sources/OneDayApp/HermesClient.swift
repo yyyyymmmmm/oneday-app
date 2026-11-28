@@ -988,6 +988,9 @@ protocol HermesClientProtocol: Sendable {
     func kanbanPatchTaskStatus(
         config: ServerConfig, board: String, id: String, status: String
     ) async throws
+    func kanbanAssignTask(
+        config: ServerConfig, board: String, id: String, assignee: String
+    ) async throws
     /// DELETE /api/plugins/kanban/tasks/{id}?board=
     func kanbanDeleteTask(config: ServerConfig, board: String, id: String) async throws
     /// POST /api/plugins/kanban/tasks/{id}/comments?board=（答题注入）
@@ -1009,6 +1012,12 @@ protocol HermesClientProtocol: Sendable {
 /// 后续 /api/* 自动带上；进程重启后 cookie 仍在（系统持久化），
 /// 过期则由 AppState 的自动重登兜底。
 extension HermesClientProtocol {
+    func kanbanAssignTask(
+        config: ServerConfig, board: String, id: String, assignee: String
+    ) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("任务指派"), status: 501)
+    }
+
     /// §410 默认实现（测试替身/演示客户端用）：拼
     /// data_url 后转调既有 dataURL 版，行为与旧链一
     /// 致；真实客户端覆盖为后台流式组包版

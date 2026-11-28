@@ -184,67 +184,64 @@ struct TerminalBackendConfigSheet: View {
     }
 
     private func loadExistingConfig() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
-              let term = raw["terminal"] as? [String: Any]
+        guard let raw = try? await appState.readDashboardConfig(),
+              let term = raw["terminal"]?.objectValue
         else { return }
-        if let img = term["docker_image"] as? String, !img.isEmpty { dockerImage = img }
-        if let mount = term["docker_mount_cwd"] as? Bool { dockerMountCwd = mount }
-        if let host = term["ssh_host"] as? String { sshHost = host }
-        if let user = term["ssh_user"] as? String, !user.isEmpty { sshUser = user }
-        if let port = term["ssh_port"] as? Int { sshPort = String(port) }
-        if let key = term["ssh_key"] as? String { sshKeyPath = key }
-        if let cwd = term["cwd"] as? String { workingDirectory = cwd }
-        if let t = term["timeout"] as? Int, t >= 30 { timeoutSeconds = t }
-        if let pass = term["env_passthrough"] as? [String] {
+        if let img = term["docker_image"]?.stringValue, !img.isEmpty { dockerImage = img }
+        if let mount = term["docker_mount_cwd"]?.boolValue { dockerMountCwd = mount }
+        if let host = term["ssh_host"]?.stringValue { sshHost = host }
+        if let user = term["ssh_user"]?.stringValue, !user.isEmpty { sshUser = user }
+        if let port = term["ssh_port"]?.intValue { sshPort = String(port) }
+        if let key = term["ssh_key"]?.stringValue { sshKeyPath = key }
+        if let cwd = term["cwd"]?.stringValue { workingDirectory = cwd }
+        if let t = term["timeout"]?.intValue, t >= 30 { timeoutSeconds = t }
+        if let pass = term["env_passthrough"]?.arrayValue?.compactMap(\.stringValue) {
             envPassthrough = pass.joined(separator: ",")
         }
     }
 
     private func saveConfig() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isSaving = true
         statusMessage = nil
         isError = false
         defer { isSaving = false }
 
-        var terminalPatch: [String: Any] = [
-            "backend": backend.name,
-            "timeout": timeoutSeconds,
+        var terminalPatch: [String: JSONValue] = [
+            "backend": .string(backend.name),
+            "timeout": .number(Double(timeoutSeconds)),
         ]
         if !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            terminalPatch["cwd"] = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+            terminalPatch["cwd"] = .string(workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         let passList = envPassthrough
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         if !passList.isEmpty {
-            terminalPatch["env_passthrough"] = passList
+            terminalPatch["env_passthrough"] = .array(passList.map(JSONValue.string))
         }
         if normalizedKind.contains("docker") {
-            terminalPatch["docker_image"] = dockerImage.trimmingCharacters(in: .whitespacesAndNewlines)
-            terminalPatch["docker_mount_cwd"] = dockerMountCwd
+            terminalPatch["docker_image"] = .string(dockerImage.trimmingCharacters(in: .whitespacesAndNewlines))
+            terminalPatch["docker_mount_cwd"] = .bool(dockerMountCwd)
         }
         if normalizedKind.contains("ssh") {
-            terminalPatch["ssh_host"] = sshHost.trimmingCharacters(in: .whitespacesAndNewlines)
-            terminalPatch["ssh_user"] = sshUser.trimmingCharacters(in: .whitespacesAndNewlines)
-            terminalPatch["ssh_port"] = Int(sshPort) ?? 22
+            terminalPatch["ssh_host"] = .string(sshHost.trimmingCharacters(in: .whitespacesAndNewlines))
+            terminalPatch["ssh_user"] = .string(sshUser.trimmingCharacters(in: .whitespacesAndNewlines))
+            terminalPatch["ssh_port"] = .number(Double(Int(sshPort) ?? 22))
             if !sshKeyPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                terminalPatch["ssh_key"] = sshKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
+                terminalPatch["ssh_key"] = .string(sshKeyPath.trimmingCharacters(in: .whitespacesAndNewlines))
             }
         }
         if !sandboxWorkspace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            terminalPatch["sandbox_image"] = sandboxWorkspace.trimmingCharacters(in: .whitespacesAndNewlines)
+            terminalPatch["sandbox_image"] = .string(sandboxWorkspace.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
         do {
-            try await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: ["terminal": terminalPatch]
+            try await appState.applyDashboardConfig(["terminal": .object(terminalPatch)]
             )
             statusMessage = "已保存并同步至 Hermes 服务端。"
             isError = false

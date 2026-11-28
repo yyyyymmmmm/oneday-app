@@ -96,7 +96,7 @@ struct SecurityGuardrailsView: View {
                                 .foregroundStyle(exists ? Palette.inkMuted : Palette.primary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(exists ? Palette.fill : Palette.primaryTint, in: Capsule())
+                                .background(exists ? Palette.fillPrimary : Palette.primaryTint, in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .disabled(exists)
@@ -256,31 +256,31 @@ struct SecurityGuardrailsView: View {
     }
 
     private func loadGuardrails() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isLoading = true
         defer { isLoading = false }
-        guard let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
-              let sec = raw["security"] as? [String: Any]
+        guard let raw = try? await appState.readDashboardConfig(),
+              let sec = raw["security"]?.objectValue
         else { return }
-        if let mode = sec["approval_mode"] as? String, !mode.isEmpty {
+        if let mode = sec["approval_mode"]?.stringValue, !mode.isEmpty {
             approvalMode = mode
         }
-        if let patterns = sec["deny_patterns"] as? [String] {
+        if let patterns = sec["deny_patterns"]?.arrayValue?.compactMap(\.stringValue) {
             denyPatterns = patterns
         }
-        if let policy = sec["website_policy"] as? String, !policy.isEmpty {
+        if let policy = sec["website_policy"]?.stringValue, !policy.isEmpty {
             websitePolicy = policy
         }
-        if let domains = sec["website_domains"] as? [String] {
+        if let domains = sec["website_domains"]?.arrayValue?.compactMap(\.stringValue) {
             websiteDomainsText = domains.joined(separator: ",")
         }
-        if let osv = sec["osv_scan_enabled"] as? Bool {
+        if let osv = sec["osv_scan_enabled"]?.boolValue {
             osvScanEnabled = osv
         }
     }
 
     private func saveGuardrails() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isSaving = true
         statusMessage = nil
         isError = false
@@ -291,18 +291,15 @@ struct SecurityGuardrailsView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        let securityPatch: [String: Any] = [
-            "approval_mode": approvalMode,
-            "deny_patterns": denyPatterns,
-            "website_policy": websitePolicy,
-            "website_domains": domains,
-            "osv_scan_enabled": osvScanEnabled,
+        let securityPatch: [String: JSONValue] = [
+            "approval_mode": .string(approvalMode),
+            "deny_patterns": .array(denyPatterns.map(JSONValue.string)),
+            "website_policy": .string(websitePolicy),
+            "website_domains": .array(domains.map(JSONValue.string)),
+            "osv_scan_enabled": .bool(osvScanEnabled),
         ]
         do {
-            try await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: ["security": securityPatch]
+            try await appState.applyDashboardConfig(["security": .object(securityPatch)]
             )
             statusMessage = "安全护栏与风控策略已同步至 Hermes 服务端。"
             isError = false

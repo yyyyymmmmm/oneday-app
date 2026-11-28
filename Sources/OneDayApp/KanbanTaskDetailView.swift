@@ -14,10 +14,10 @@ struct KanbanTaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var answerText = ""
     @State private var showCancelConfirm = false
-    @State private var availableProfiles: [ProfileSummary] = []
-    @State private var assignedProfileOverride: String?
+    @State private var availableProfiles: [ProfileItem] = []
     @State private var isAssigningProfile = false
     @State private var assignNotice: String?
+    @State private var assignFailed = false
 
     /// 当前任务：详情回读优先，列表快照兜底（刚从
     /// 列表点入时详情未到先有行可看）
@@ -56,9 +56,10 @@ struct KanbanTaskDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.loadDetail(appState: appState, id: taskID)
-            if let config = appState.config, let apiKey = appState.apiKey,
-               let resp = try? await appState.client.profiles(config: config, apiKey: apiKey) {
-                availableProfiles = resp.profiles
+            if let profiles = try? await appState.performAdmin({ client, config in
+                try await client.profiles(config: config)
+            }) {
+                availableProfiles = profiles
             }
         }
     }
@@ -318,7 +319,7 @@ struct KanbanTaskDetailView: View {
     // MARK: - 多 Agent 看板协同：指派专家分身
 
     private func assigneeSection(_ task: KanbanTask) -> some View {
-        let currentAssignee = assignedProfileOverride ?? task.displayAssignee ?? "默认主分身"
+        let currentAssignee = task.displayAssignee ?? "默认主分身"
         return Section {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 SettingsRowIcon(symbol: "person.crop.circle.badge.checkmark", color: Palette.tintLavenderInk)
@@ -333,13 +334,13 @@ struct KanbanTaskDetailView: View {
                 Spacer()
                 if isAssigningProfile {
                     ProgressView().controlSize(.small)
-                } else if !availableProfiles.isEmpty {
-                    Menu("切换分身") {
+                } else if !store.readOnly, !availableProfiles.isEmpty {
+                    Menu("指派分身") {
                         ForEach(availableProfiles, id: \.name) { profile in
                             Button {
                                 Task { await assignProfile(profile, to: task) }
                             } label: {
-                                Label(profile.name, systemImage: profile.isActive ? "checkmark.circle" : "person.crop.circle")
+                                Label(profile.name, systemImage: task.assignee == profile.name ? "checkmark.circle" : "person.crop.circle")
                             }
                         }
                     }
@@ -350,7 +351,7 @@ struct KanbanTaskDetailView: View {
             if let assignNotice {
                 Text(assignNotice)
                     .font(.footnote)
-                    .foregroundStyle(Palette.successText)
+                    .foregroundStyle(assignFailed ? Palette.danger : Palette.successText)
             }
         } header: {
             SettingsSectionHeader("分身协同与指派")
@@ -358,15 +359,32 @@ struct KanbanTaskDetailView: View {
         .listRowBackground(Palette.surface)
     }
 
-    private func assignProfile(_ profile: ProfileSummary, to task: KanbanTask) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+    private func assignProfile(_ profile: ProfileItem, to task: KanbanTask) async {
+        guard !store.readOnly, !isAssigningProfile else { return }
         isAssigningProfile = true
         assignNotice = nil
+        assignFailed = false
         defer { isAssigningProfile = false }
-        _ = try? await appState.client.activateProfile(config: config, apiKey: apiKey, name: profile.name)
-        assignedProfileOverride = profile.name
-        assignNotice = "已将任务执行分身切换为「\(profile.name)」，并同步触发唤醒。"
-        Haptics.success()
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.kanbanAssignTask(
+                    config: config, board: KanbanContract.boardSlug,
+                    id: task.id, assignee: profile.name
+                )
+            }
+            await store.loadDetail(appState: appState, id: task.id)
+            guard store.detail?.task.assignee == profile.name else {
+                assignFailed = true
+                assignNotice = "暂未确认任务指派结果，请刷新后查看。"
+                return
+            }
+            assignNotice = "任务已指派给「\(profile.name)」。"
+            Haptics.success()
+        } catch {
+            assignFailed = true
+            assignNotice = (error as? HermesError)?.userMessage ?? error.localizedDescription
+            Haptics.error()
+        }
     }
 
     // MARK: - 操作

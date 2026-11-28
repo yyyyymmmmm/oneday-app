@@ -228,54 +228,51 @@ struct VoiceSettingsView: View {
     }
 
     private func loadVoiceConfig() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
-        guard let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey) else { return }
-        if let tts = raw["tts"] as? [String: Any] {
-            if let provider = tts["provider"] as? String, !provider.isEmpty {
+        guard appState.config != nil else { return }
+        guard let raw = try? await appState.readDashboardConfig() else { return }
+        if let tts = raw["tts"]?.objectValue {
+            if let provider = tts["provider"]?.stringValue, !provider.isEmpty {
                 selectedEngine = provider
             }
-            if let voice = tts["voice"] as? String, !voice.isEmpty {
+            if let voice = tts["voice"]?.stringValue, !voice.isEmpty {
                 voiceName = voice
             }
-            if let speed = tts["speed"] as? Double, speed >= 0.5, speed <= 2.0 {
+            if let speed = tts["speed"]?.numberValue, speed >= 0.5, speed <= 2.0 {
                 speechRate = speed
             }
         }
-        if let voice = raw["voice"] as? [String: Any] {
-            if let duplex = voice["full_duplex"] as? Bool {
+        if let voice = raw["voice"]?.objectValue {
+            if let duplex = voice["full_duplex"]?.boolValue {
                 fullDuplexEnabled = duplex
             }
-            if let vad = voice["vad_enabled"] as? Bool {
+            if let vad = voice["vad_enabled"]?.boolValue {
                 vadEnabled = vad
             }
-            if let stt = voice["stt_engine"] as? String, !stt.isEmpty {
+            if let stt = voice["stt_engine"]?.stringValue, !stt.isEmpty {
                 sttEngine = stt
             }
         }
     }
 
     private func saveVoiceConfig() async {
-        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        guard appState.config != nil else { return }
         isSaving = true
         saveNotice = nil
         isError = false
         defer { isSaving = false }
 
-        let ttsPatch: [String: Any] = [
-            "provider": selectedEngine,
-            "voice": voiceName.trimmingCharacters(in: .whitespacesAndNewlines),
-            "speed": (speechRate * 100).rounded() / 100,
+        let ttsPatch: [String: JSONValue] = [
+            "provider": .string(selectedEngine),
+            "voice": .string(voiceName.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "speed": .number((speechRate * 100).rounded() / 100),
         ]
-        let voicePatch: [String: Any] = [
-            "full_duplex": fullDuplexEnabled,
-            "vad_enabled": vadEnabled,
-            "stt_engine": sttEngine,
+        let voicePatch: [String: JSONValue] = [
+            "full_duplex": .bool(fullDuplexEnabled),
+            "vad_enabled": .bool(vadEnabled),
+            "stt_engine": .string(sttEngine),
         ]
         do {
-            try await appState.client.updateConfig(
-                config: config,
-                apiKey: apiKey,
-                values: ["tts": ttsPatch, "voice": voicePatch]
+            try await appState.applyDashboardConfig(["tts": .object(ttsPatch), "voice": .object(voicePatch)]
             )
             saveNotice = "语音与全双工配置已同步至服务端。"
             isError = false
