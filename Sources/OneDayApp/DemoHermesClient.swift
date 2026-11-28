@@ -711,6 +711,19 @@ struct DemoHermesClient: HermesClientProtocol {
     func pluginsAutoUpdate(config: ServerConfig) async throws -> PluginAutoUpdateState { throw HermesError.demoLimitReached }
     func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState { throw HermesError.demoLimitReached }
     func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus { throw HermesError.demoLimitReached }
+    func transcribeAudio(config: ServerConfig, dataURL: String, mimeType: String?) async throws -> AudioTranscribeReceipt { throw HermesError.demoLimitReached }
+    func customEndpoints(config: ServerConfig) async throws -> CustomEndpointsResponse { throw HermesError.demoLimitReached }
+    func upsertCustomEndpoint(config: ServerConfig, id: String?, name: String, baseURL: String, apiKey: String?, model: String?, makeDefault: Bool) async throws { throw HermesError.demoLimitReached }
+    func activateCustomEndpoint(config: ServerConfig, endpointID: String) async throws { throw HermesError.demoLimitReached }
+    func deleteCustomEndpoint(config: ServerConfig, endpointID: String) async throws { throw HermesError.demoLimitReached }
+    func validateCustomEndpoint(config: ServerConfig, baseURL: String, apiKey: String?, model: String?) async throws -> CustomEndpointValidationResult { throw HermesError.demoLimitReached }
+    func credentialPool(config: ServerConfig) async throws -> [CredentialPoolProviderGroup] { throw HermesError.demoLimitReached }
+    func addCredentialPoolEntry(config: ServerConfig, provider: String, apiKey: String, label: String?) async throws { throw HermesError.demoLimitReached }
+    func deleteCredentialPoolEntry(config: ServerConfig, provider: String, index: Int) async throws { throw HermesError.demoLimitReached }
+    func createRoomInvitation(config: ServerConfig, apiKey: String, roomID: String, homeInstallID: String, authorityGatewayID: String, authorityEpoch: Int, memberID: String, ttlSeconds: Int) async throws -> RoomMemberInvitationReceipt { throw HermesError.demoLimitReached }
+    func roomMemberCapabilities(config: ServerConfig, grantToken: String) async throws -> RoomMemberCapabilitiesResponse { throw HermesError.demoLimitReached }
+    func refreshRoomGrant(config: ServerConfig, grantToken: String, ttlSeconds: Int) async throws -> RoomGrantRefreshReceipt { throw HermesError.demoLimitReached }
+    func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt { throw HermesError.demoLimitReached }
 
     // MARK: - 配置与密钥
 

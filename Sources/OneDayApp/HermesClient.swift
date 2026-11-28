@@ -480,6 +480,24 @@ protocol HermesClientProtocol: Sendable {
     func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState
     /// GET /api/audio/voice-live/status
     func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus
+    /// POST /api/audio/transcribe（服务端录音转写）
+    func transcribeAudio(config: ServerConfig, dataURL: String, mimeType: String?) async throws -> AudioTranscribeReceipt
+
+    // MARK: - 自定义模型端点与凭据池（Hermes v0.23.0 config_env.py / ops.py）
+    func customEndpoints(config: ServerConfig) async throws -> CustomEndpointsResponse
+    func upsertCustomEndpoint(config: ServerConfig, id: String?, name: String, baseURL: String, apiKey: String?, model: String?, makeDefault: Bool) async throws
+    func activateCustomEndpoint(config: ServerConfig, endpointID: String) async throws
+    func deleteCustomEndpoint(config: ServerConfig, endpointID: String) async throws
+    func validateCustomEndpoint(config: ServerConfig, baseURL: String, apiKey: String?, model: String?) async throws -> CustomEndpointValidationResult
+    func credentialPool(config: ServerConfig) async throws -> [CredentialPoolProviderGroup]
+    func addCredentialPoolEntry(config: ServerConfig, provider: String, apiKey: String, label: String?) async throws
+    func deleteCredentialPoolEntry(config: ServerConfig, provider: String, index: Int) async throws
+
+    // MARK: - Bot Mode 多智能体房间协作与授权（Hermes v0.23.0 api_server_room_grants.py）
+    func createRoomInvitation(config: ServerConfig, apiKey: String, roomID: String, homeInstallID: String, authorityGatewayID: String, authorityEpoch: Int, memberID: String, ttlSeconds: Int) async throws -> RoomMemberInvitationReceipt
+    func roomMemberCapabilities(config: ServerConfig, grantToken: String) async throws -> RoomMemberCapabilitiesResponse
+    func refreshRoomGrant(config: ServerConfig, grantToken: String, ttlSeconds: Int) async throws -> RoomGrantRefreshReceipt
+    func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -1166,6 +1184,58 @@ extension HermesClientProtocol {
 
     func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("实时语音状态"), status: 501)
+    }
+
+    func transcribeAudio(config: ServerConfig, dataURL: String, mimeType: String?) async throws -> AudioTranscribeReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("音频转写"), status: 501)
+    }
+
+    func customEndpoints(config: ServerConfig) async throws -> CustomEndpointsResponse {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("自定义模型端点"), status: 501)
+    }
+
+    func upsertCustomEndpoint(config: ServerConfig, id: String?, name: String, baseURL: String, apiKey: String?, model: String?, makeDefault: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("保存自定义端点"), status: 501)
+    }
+
+    func activateCustomEndpoint(config: ServerConfig, endpointID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("启用自定义端点"), status: 501)
+    }
+
+    func deleteCustomEndpoint(config: ServerConfig, endpointID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("删除自定义端点"), status: 501)
+    }
+
+    func validateCustomEndpoint(config: ServerConfig, baseURL: String, apiKey: String?, model: String?) async throws -> CustomEndpointValidationResult {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("校验自定义端点"), status: 501)
+    }
+
+    func credentialPool(config: ServerConfig) async throws -> [CredentialPoolProviderGroup] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("凭据池"), status: 501)
+    }
+
+    func addCredentialPoolEntry(config: ServerConfig, provider: String, apiKey: String, label: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("添加凭据池密钥"), status: 501)
+    }
+
+    func deleteCredentialPoolEntry(config: ServerConfig, provider: String, index: Int) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("删除凭据池密钥"), status: 501)
+    }
+
+    func createRoomInvitation(config: ServerConfig, apiKey: String, roomID: String, homeInstallID: String, authorityGatewayID: String, authorityEpoch: Int, memberID: String, ttlSeconds: Int) async throws -> RoomMemberInvitationReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("创建房间邀请"), status: 501)
+    }
+
+    func roomMemberCapabilities(config: ServerConfig, grantToken: String) async throws -> RoomMemberCapabilitiesResponse {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("房间成员能力"), status: 501)
+    }
+
+    func refreshRoomGrant(config: ServerConfig, grantToken: String, ttlSeconds: Int) async throws -> RoomGrantRefreshReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("续期房间授权"), status: 501)
+    }
+
+    func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("撤销房间授权"), status: 501)
     }
 }
 

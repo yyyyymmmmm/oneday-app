@@ -217,6 +217,200 @@ extension HermesClient {
         )
     }
 
+    func transcribeAudio(
+        config: ServerConfig, dataURL: String, mimeType: String?
+    ) async throws -> AudioTranscribeReceipt {
+        var body: [String: JSONValue] = ["data_url": .string(dataURL)]
+        if let mimeType, !mimeType.isEmpty {
+            body["mime_type"] = .string(mimeType)
+        }
+        return try await sendJSONDecoding(
+            config: config, path: "/api/audio/transcribe",
+            method: "POST", endpoint: L10n.string("音频转写"),
+            body: body
+        )
+    }
+
+    // MARK: - 自定义模型端点与凭据池（Hermes v0.23.0）
+
+    private func encodedPathSegment(_ raw: String) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
+    }
+
+    func customEndpoints(config: ServerConfig) async throws -> CustomEndpointsResponse {
+        try await getJSON(
+            config: config, path: "/api/providers/custom-endpoints",
+            endpoint: L10n.string("自定义模型端点")
+        )
+    }
+
+    func upsertCustomEndpoint(
+        config: ServerConfig, id: String?, name: String, baseURL: String,
+        apiKey: String?, model: String?, makeDefault: Bool
+    ) async throws {
+        var body: [String: JSONValue] = [
+            "name": .string(name),
+            "base_url": .string(baseURL),
+            "make_default": .bool(makeDefault),
+        ]
+        if let id, !id.isEmpty { body["id"] = .string(id) }
+        if let apiKey { body["api_key"] = .string(apiKey) }
+        if let model, !model.isEmpty { body["model"] = .string(model) }
+        try await sendJSON(
+            config: config, path: "/api/providers/custom-endpoints",
+            method: "POST", endpoint: L10n.string("保存自定义端点"),
+            body: body
+        )
+    }
+
+    func activateCustomEndpoint(config: ServerConfig, endpointID: String) async throws {
+        let encoded = encodedPathSegment(endpointID)
+        try await sendJSON(
+            config: config, path: "/api/providers/custom-endpoints/\(encoded)/activate",
+            method: "POST", endpoint: L10n.string("启用自定义端点"),
+            body: [:]
+        )
+    }
+
+    func deleteCustomEndpoint(config: ServerConfig, endpointID: String) async throws {
+        let encoded = encodedPathSegment(endpointID)
+        try await sendJSON(
+            config: config, path: "/api/providers/custom-endpoints/\(encoded)",
+            method: "DELETE", endpoint: L10n.string("删除自定义端点")
+        )
+    }
+
+    func validateCustomEndpoint(
+        config: ServerConfig, baseURL: String, apiKey: String?, model: String?
+    ) async throws -> CustomEndpointValidationResult {
+        var body: [String: JSONValue] = [
+            "name": .string("probe"),
+            "base_url": .string(baseURL),
+        ]
+        if let apiKey, !apiKey.isEmpty { body["api_key"] = .string(apiKey) }
+        if let model, !model.isEmpty { body["model"] = .string(model) }
+        return try await sendJSONDecoding(
+            config: config, path: "/api/providers/custom-endpoints/validate",
+            method: "POST", endpoint: L10n.string("校验自定义端点"),
+            body: body
+        )
+    }
+
+    func credentialPool(config: ServerConfig) async throws -> [CredentialPoolProviderGroup] {
+        let response: CredentialPoolResponse = try await getJSON(
+            config: config, path: "/api/credentials/pool",
+            endpoint: L10n.string("凭据池")
+        )
+        return response.providers
+    }
+
+    func addCredentialPoolEntry(
+        config: ServerConfig, provider: String, apiKey: String, label: String?
+    ) async throws {
+        var body: [String: JSONValue] = [
+            "provider": .string(provider),
+            "api_key": .string(apiKey),
+        ]
+        if let label, !label.isEmpty { body["label"] = .string(label) }
+        try await sendJSON(
+            config: config, path: "/api/credentials/pool",
+            method: "POST", endpoint: L10n.string("添加凭据池密钥"),
+            body: body
+        )
+    }
+
+    func deleteCredentialPoolEntry(
+        config: ServerConfig, provider: String, index: Int
+    ) async throws {
+        let encoded = encodedPathSegment(provider)
+        try await sendJSON(
+            config: config, path: "/api/credentials/pool/\(encoded)/\(index)",
+            method: "DELETE", endpoint: L10n.string("删除凭据池密钥")
+        )
+    }
+
+    // MARK: - Bot Mode 多智能体房间协作与授权（Hermes v0.23.0）
+
+    func createRoomInvitation(
+        config: ServerConfig, apiKey: String, roomID: String,
+        homeInstallID: String, authorityGatewayID: String,
+        authorityEpoch: Int, memberID: String, ttlSeconds: Int
+    ) async throws -> RoomMemberInvitationReceipt {
+        let body: [String: JSONValue] = [
+            "room_id": .string(roomID),
+            "home_install_id": .string(homeInstallID),
+            "authority_gateway_id": .string(authorityGatewayID),
+            "authority_epoch": .number(Double(authorityEpoch)),
+            "member_id": .string(memberID),
+            "ttl_seconds": .number(Double(ttlSeconds)),
+        ]
+        return try await sendJSONDecoding(
+            config: config, path: "/v1/room-members/invitations",
+            method: "POST", endpoint: L10n.string("创建房间邀请"),
+            body: body, bearer: apiKey
+        )
+    }
+
+    private func hermesRoomRequest<T: Decodable>(
+        config: ServerConfig, path: String, method: String,
+        grantToken: String, body: [String: JSONValue]? = nil,
+        endpoint: String
+    ) async throws -> T {
+        var request = URLRequest(url: config.endpoint(path))
+        request.httpMethod = method
+        request.setValue("HermesRoom \(grantToken)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try encoder.encode(body)
+        }
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.fromHTTPResponse(
+                endpoint: endpoint, status: http.statusCode,
+                data: data, retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    func roomMemberCapabilities(
+        config: ServerConfig, grantToken: String
+    ) async throws -> RoomMemberCapabilitiesResponse {
+        try await hermesRoomRequest(
+            config: config, path: "/v1/room-members/capabilities",
+            method: "GET", grantToken: grantToken,
+            endpoint: L10n.string("房间成员能力")
+        )
+    }
+
+    func refreshRoomGrant(
+        config: ServerConfig, grantToken: String, ttlSeconds: Int
+    ) async throws -> RoomGrantRefreshReceipt {
+        try await hermesRoomRequest(
+            config: config, path: "/v1/room-members/grants/refresh",
+            method: "POST", grantToken: grantToken,
+            body: ["ttl_seconds": .number(Double(ttlSeconds))],
+            endpoint: L10n.string("续期房间授权")
+        )
+    }
+
+    func revokeRoomGrant(
+        config: ServerConfig, grantToken: String
+    ) async throws -> RoomGrantRevokeReceipt {
+        try await hermesRoomRequest(
+            config: config, path: "/v1/room-members/grants/revoke",
+            method: "POST", grantToken: grantToken,
+            body: [:],
+            endpoint: L10n.string("撤销房间授权")
+        )
+    }
+
     func computerUseStatus(
         config: ServerConfig
     ) async throws -> ComputerUseStatus {

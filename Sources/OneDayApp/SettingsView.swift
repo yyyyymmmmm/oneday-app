@@ -297,6 +297,12 @@ struct SettingsView: View {
             DevicePermissionsView()
         case .plugins:
             AgentPluginsView()
+        case .hostPTY:
+            HostPTYTerminalView()
+        case .customEndpoints:
+            CustomEndpointsAndPoolView()
+        case .botMode:
+            BotModeCollaborationView()
         }
     }
 
@@ -415,7 +421,7 @@ struct SettingsView: View {
                 icon: "square.grid.2x2",
                 color: Palette.tintOrangeInk,
                 title: L10n.string("智能体工作台"),
-                status: "记忆 · 技能 · 工具集 · 委派 · 定时任务",
+                status: "记忆 · 技能 · 插件 · 终端 · 协作 · 端点",
                 route: .agentWorkspace
             )
         } header: {
@@ -540,9 +546,37 @@ struct SettingsView: View {
 
             Section {
                 navRow(icon: "wrench.and.screwdriver", color: Palette.tintOrangeInk, title: L10n.string("工具集与终端"), route: .agent(.toolsets))
+                statusNavRow(
+                    icon: "terminal.fill",
+                    color: Palette.tintGreenInk,
+                    title: L10n.string("宿主机实时终端"),
+                    status: "WebSocket PTY 交互式会话",
+                    route: .agent(.hostPTY)
+                )
                 navRow(icon: "clock.arrow.2.circlepath", color: Palette.tintSkyInk, title: L10n.string("定时任务"), route: .agent(.cron))
+                statusNavRow(
+                    icon: "person.3.sequence.fill",
+                    color: Palette.tintLavenderInk,
+                    title: L10n.string("Bot Mode 多体协作"),
+                    status: "房间邀请 · 能力发现 · 授权续期与撤销",
+                    route: .agent(.botMode)
+                )
             } header: {
-                sectionHeader("执行与自动化")
+                sectionHeader("执行、终端与协作")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            Section {
+                statusNavRow(
+                    icon: "point.3.connected.trianglepath.dotted",
+                    color: Palette.tintSkyInk,
+                    title: L10n.string("自定义模型端点与凭据池"),
+                    status: "OpenAI 兼容端点 · 多 Key 轮询池",
+                    route: .agent(.customEndpoints)
+                )
+            } header: {
+                sectionHeader("供应商与凭据池")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)

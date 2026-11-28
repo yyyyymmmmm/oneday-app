@@ -1940,3 +1940,243 @@ public struct EgressStatus: Decodable, Sendable {
         return text.contains("Listening: no") || text.contains("Process: (stopped)")
     }
 }
+
+// MARK: - POST /api/audio/transcribe（服务端录音转写回执）
+
+public struct AudioTranscribeReceipt: Decodable, Sendable {
+    public let ok: Bool
+    public let transcript: String
+    public let provider: String?
+
+    enum CodingKeys: String, CodingKey { case ok, transcript, provider }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try c.decodeIfPresent(Bool.self, forKey: .ok) ?? true
+        transcript = try c.decodeIfPresent(String.self, forKey: .transcript) ?? ""
+        provider = try c.decodeIfPresent(String.self, forKey: .provider)
+    }
+}
+
+// MARK: - 自定义模型端点与凭据池（Hermes v0.23.0 config_env.py / ops.py）
+
+public struct CustomModelEndpoint: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let baseURL: String
+    public let model: String
+    public let models: [String]
+    public let contextLength: Int?
+    public let isCurrent: Bool
+    public let hasAPIKey: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, model, models
+        case baseURL = "base_url"
+        case contextLength = "context_length"
+        case isCurrent = "is_current"
+        case hasAPIKey = "has_api_key"
+        case apiKey = "api_key"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
+        baseURL = try c.decodeIfPresent(String.self, forKey: .baseURL) ?? ""
+        model = try c.decodeIfPresent(String.self, forKey: .model) ?? ""
+        models = try c.decodeIfPresent([String].self, forKey: .models) ?? []
+        contextLength = try c.decodeIfPresent(Int.self, forKey: .contextLength)
+        isCurrent = try c.decodeIfPresent(Bool.self, forKey: .isCurrent) ?? false
+        if let flag = try c.decodeIfPresent(Bool.self, forKey: .hasAPIKey) {
+            hasAPIKey = flag
+        } else if let key = try c.decodeIfPresent(String.self, forKey: .apiKey) {
+            hasAPIKey = !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else {
+            hasAPIKey = false
+        }
+    }
+}
+
+public struct CustomEndpointsResponse: Decodable, Sendable {
+    public let endpoints: [CustomModelEndpoint]
+    public let currentProvider: String?
+    public let currentModel: String?
+
+    enum CodingKeys: String, CodingKey {
+        case endpoints
+        case currentProvider = "current_provider"
+        case currentModel = "current_model"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        endpoints = try c.decodeIfPresent([CustomModelEndpoint].self, forKey: .endpoints) ?? []
+        currentProvider = try c.decodeIfPresent(String.self, forKey: .currentProvider)
+        currentModel = try c.decodeIfPresent(String.self, forKey: .currentModel)
+    }
+}
+
+public struct CustomEndpointValidationResult: Decodable, Sendable {
+    public let ok: Bool
+    public let reachable: Bool
+    public let message: String
+    public let models: [String]
+    public let resolvedBaseURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok, reachable, message, models
+        case resolvedBaseURL = "resolved_base_url"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try c.decodeIfPresent(Bool.self, forKey: .ok) ?? false
+        reachable = try c.decodeIfPresent(Bool.self, forKey: .reachable) ?? false
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+        models = try c.decodeIfPresent([String].self, forKey: .models) ?? []
+        resolvedBaseURL = try c.decodeIfPresent(String.self, forKey: .resolvedBaseURL)
+    }
+}
+
+public struct CredentialPoolEntry: Decodable, Identifiable, Sendable {
+    public let index: Int
+    public let id: String
+    public let label: String
+    public let authType: String
+    public let source: String
+    public let priority: Int
+    public let lastStatus: String?
+    public let requestCount: Int
+    public let tokenPreview: String
+    public let hasRefresh: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case index, id, label, source, priority
+        case authType = "auth_type"
+        case lastStatus = "last_status"
+        case requestCount = "request_count"
+        case tokenPreview = "token_preview"
+        case hasRefresh = "has_refresh"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        index = try c.decodeIfPresent(Int.self, forKey: .index) ?? 1
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? String(index)
+        label = try c.decodeIfPresent(String.self, forKey: .label) ?? "Key #\(index)"
+        authType = try c.decodeIfPresent(String.self, forKey: .authType) ?? "api_key"
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? "manual"
+        priority = try c.decodeIfPresent(Int.self, forKey: .priority) ?? 0
+        lastStatus = try c.decodeIfPresent(String.self, forKey: .lastStatus)
+        requestCount = try c.decodeIfPresent(Int.self, forKey: .requestCount) ?? 0
+        tokenPreview = try c.decodeIfPresent(String.self, forKey: .tokenPreview) ?? ""
+        hasRefresh = try c.decodeIfPresent(Bool.self, forKey: .hasRefresh) ?? false
+    }
+}
+
+public struct CredentialPoolProviderGroup: Decodable, Identifiable, Sendable {
+    public var id: String { provider }
+    public let provider: String
+    public let entries: [CredentialPoolEntry]
+
+    enum CodingKeys: String, CodingKey { case provider, entries }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try c.decodeIfPresent(String.self, forKey: .provider) ?? ""
+        entries = try c.decodeIfPresent([CredentialPoolEntry].self, forKey: .entries) ?? []
+    }
+}
+
+public struct CredentialPoolResponse: Decodable, Sendable {
+    public let providers: [CredentialPoolProviderGroup]
+
+    enum CodingKeys: String, CodingKey { case providers }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        providers = try c.decodeIfPresent([CredentialPoolProviderGroup].self, forKey: .providers) ?? []
+    }
+}
+
+// MARK: - Bot Mode 多智能体房间协作与授权（Hermes v0.23.0 api_server_room_grants.py）
+
+public struct RoomMemberInvitationReceipt: Decodable, Sendable {
+    public let grant: String
+    public let targetProfile: String
+    public let expiresAt: Double
+    public let statusExpiresAt: Double
+    public let catalog: JSONValue?
+
+    enum CodingKeys: String, CodingKey {
+        case grant, catalog
+        case targetProfile = "target_profile"
+        case expiresAt = "expires_at"
+        case statusExpiresAt = "status_expires_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        grant = try c.decodeIfPresent(String.self, forKey: .grant) ?? ""
+        targetProfile = try c.decodeIfPresent(String.self, forKey: .targetProfile) ?? "default"
+        expiresAt = try c.decodeIfPresent(Double.self, forKey: .expiresAt) ?? 0
+        statusExpiresAt = try c.decodeIfPresent(Double.self, forKey: .statusExpiresAt) ?? 0
+        catalog = try c.decodeIfPresent(JSONValue.self, forKey: .catalog)
+    }
+}
+
+public struct RoomMemberCapabilitiesResponse: Decodable, Sendable {
+    public let roomID: String
+    public let memberID: String
+    public let targetProfile: String
+    public let authorityGatewayID: String?
+    public let catalog: JSONValue?
+
+    enum CodingKeys: String, CodingKey {
+        case catalog
+        case roomID = "room_id"
+        case memberID = "member_id"
+        case targetProfile = "target_profile"
+        case authorityGatewayID = "authority_gateway_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        roomID = try c.decodeIfPresent(String.self, forKey: .roomID) ?? ""
+        memberID = try c.decodeIfPresent(String.self, forKey: .memberID) ?? ""
+        targetProfile = try c.decodeIfPresent(String.self, forKey: .targetProfile) ?? "default"
+        authorityGatewayID = try c.decodeIfPresent(String.self, forKey: .authorityGatewayID)
+        catalog = try c.decodeIfPresent(JSONValue.self, forKey: .catalog)
+    }
+}
+
+public struct RoomGrantRefreshReceipt: Decodable, Sendable {
+    public let grant: String
+    public let expiresAt: Double
+    public let statusExpiresAt: Double
+
+    enum CodingKeys: String, CodingKey {
+        case grant
+        case expiresAt = "expires_at"
+        case statusExpiresAt = "status_expires_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        grant = try c.decodeIfPresent(String.self, forKey: .grant) ?? ""
+        expiresAt = try c.decodeIfPresent(Double.self, forKey: .expiresAt) ?? 0
+        statusExpiresAt = try c.decodeIfPresent(Double.self, forKey: .statusExpiresAt) ?? 0
+    }
+}
+
+public struct RoomGrantRevokeReceipt: Decodable, Sendable {
+    public let revoked: Bool
+
+    enum CodingKeys: String, CodingKey { case revoked }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        revoked = try c.decodeIfPresent(Bool.self, forKey: .revoked) ?? true
+    }
+}
