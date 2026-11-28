@@ -374,4 +374,3 @@ public enum CredentialFlowPhase: Equatable, Sendable {
         return phase
     }
 }
-}
