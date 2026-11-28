@@ -129,10 +129,17 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
         activeServerPlayTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let data = try await appState.performAdmin { client, config in
+                let response = try await appState.performAdmin { client, config in
                     try await client.speak(config: config, text: next)
                 }
                 guard !Task.isCancelled else { return }
+                // speak 出参是 SpeakResponse（data_url 内嵌
+                // base64），播放字节走 Core 既有 audioData
+                // 解码（与 SpeechPlayer 同源）；解不出按失
+                // 败抛入 catch 的系统语音兜底链
+                guard let data = response.audioData else {
+                    throw NSError(domain: "VoiceCall", code: -2)
+                }
                 let player = try AVAudioPlayer(data: data)
                 let delegate = LocalAVPlayerDelegate { [weak self] in
                     Task { @MainActor in
