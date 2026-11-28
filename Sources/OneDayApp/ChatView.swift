@@ -24,6 +24,8 @@ struct ChatView: View {
     @State var activeCloudTakeover: CloudComputerTarget?
     @State var showQuickProfilesSheet = false
     @State var showQuickConnectorsSheet = false
+    @State var showContextMeterSheet = false
+    @State var queuedFollowUpMessages: [String] = []
     @State var activeRunApproval: RunApprovalPrompt?
     @State var activeRunClarify: RunClarifyPrompt?
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
@@ -1139,6 +1141,19 @@ struct ChatView: View {
                     }
             }
         }
+        .sheet(isPresented: $showContextMeterSheet) {
+            ContextMeterSheet(
+                modelName: displayModelName,
+                entries: currentThread?.sortedEntries ?? []
+            ) { focusTopic in
+                if let focusTopic, !focusTopic.isEmpty {
+                    input = "/compress \(focusTopic)"
+                } else {
+                    input = "/compress"
+                }
+                send()
+            }
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -1711,6 +1726,12 @@ struct ChatView: View {
                 },
                 onAddVideo: {
                     afterAttachPanelDismiss { showVideoPicker = true }
+                },
+                onOpenConnectors: {
+                    afterAttachPanelDismiss { showQuickConnectorsSheet = true }
+                },
+                onOpenContextMeter: {
+                    afterAttachPanelDismiss { showContextMeterSheet = true }
                 }
             )
         }
@@ -1900,6 +1921,15 @@ struct ChatView: View {
                     await refreshEchoTraces()
                 }
                 syncTailIfIdle(force: true)
+                if !queuedFollowUpMessages.isEmpty {
+                    let nextMsg = queuedFollowUpMessages.removeFirst()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        guard !isStreaming else { return }
+                        input = nextMsg
+                        send()
+                    }
+                }
                 // 发送失败机制包（语义 4）：落定同沿
                 // 的 drain 删除——它是死循环的自激触
                 // 发源（落定失败→下降沿→drain 踢泵→
@@ -2128,6 +2158,9 @@ struct ChatView: View {
                         case "connectors":
                             input = ""
                             showQuickConnectorsSheet = true
+                        case "context":
+                            input = ""
+                            showContextMeterSheet = true
                         default:
                             input = item.insertText
                             composerFocusHandle.focusAtEnd()
@@ -2180,6 +2213,22 @@ struct ChatView: View {
                                 boxID: nil,
                                 liveURL: ""
                             )
+                        },
+                        queuedMessages: queuedFollowUpMessages,
+                        onQueueMessage: { text in
+                            queuedFollowUpMessages.append(text)
+                            Haptics.selection()
+                        },
+                        onPromoteQueuedToSteer: { idx in
+                            guard queuedFollowUpMessages.indices.contains(idx) else { return }
+                            let msg = queuedFollowUpMessages.remove(at: idx)
+                            if let activeRunID {
+                                steerActiveRun(runID: activeRunID, text: msg)
+                            }
+                        },
+                        onRemoveQueued: { idx in
+                            guard queuedFollowUpMessages.indices.contains(idx) else { return }
+                            queuedFollowUpMessages.remove(at: idx)
                         }
                     )
                 )

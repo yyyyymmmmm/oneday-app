@@ -411,6 +411,8 @@ struct ConnectorsView: View {
 
     private func mcpStatusSummary(server: MCPServerItem, toolCount: Int) -> String {
         var parts = [server.enabled ? "已启用" : "已停用"]
+        let policy = ToolApprovalPolicyStore.shared.tier(for: server.name)
+        parts.append(policy.shortBadge)
         if toolCount > 0 {
             parts.append("\(toolCount) 工具")
         }
@@ -600,6 +602,27 @@ private struct MCPServerDetailView: View {
                         }
                     ))
                     .disabled(facade.toggling.contains(currentServer.name))
+                }
+
+                Section {
+                    let policyStore = ToolApprovalPolicyStore.shared
+                    let currentTier = policyStore.tier(for: currentServer.name)
+                    Picker("工具调用审批策略", selection: Binding(
+                        get: { policyStore.tier(for: currentServer.name) },
+                        set: { newTier in
+                            Haptics.selection()
+                            policyStore.setTier(newTier, for: currentServer.name)
+                        }
+                    )) {
+                        ForEach(ToolApprovalTier.allCases) { tier in
+                            Text(tier.title).tag(tier)
+                        }
+                    }
+                    Text(currentTier.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                } header: {
+                    Text("读写审批策略档位")
                 }
 
                 if currentServer.url != nil && !currentServer.isPluginProvided {

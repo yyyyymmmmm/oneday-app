@@ -71,6 +71,10 @@ struct AttachmentPanelView: View {
     let onAddFile: () -> Void
     /// 「添加视频」（宿主收面板后开视频选图器）
     let onAddVideo: () -> Void
+    /// 「连接器与工具」（对话内 + 快捷按会话开关连接器）
+    var onOpenConnectors: (() -> Void)? = nil
+    /// 「上下文仪表盘」（实时查看 Token 占用与一键 /compress）
+    var onOpenContextMeter: (() -> Void)? = nil
 
     @State private var photoIDs: [String] = []
     @State private var thumbnails: [String: UIImage] = [:]
@@ -329,6 +333,20 @@ struct AttachmentPanelView: View {
                 .overlay(Palette.separator)
             actionRow(icon: "play.circle", title: "添加视频") {
                 onAddVideo()
+            }
+            if let onOpenConnectors {
+                Divider()
+                    .overlay(Palette.separator)
+                actionRow(icon: "cable.connector", title: "连接器与工具开关") {
+                    onOpenConnectors()
+                }
+            }
+            if let onOpenContextMeter {
+                Divider()
+                    .overlay(Palette.separator)
+                actionRow(icon: "gauge.with.dots.needle.67percent", title: "上下文占用与压缩") {
+                    onOpenContextMeter()
+                }
             }
         }
     }

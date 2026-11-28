@@ -18,9 +18,14 @@ struct ChatLiveRunDockView: View {
     let onRespondClarify: (RunClarifyPrompt, String) -> Void
     let onStop: () -> Void
     let onCloudTakeover: () -> Void
+    var queuedMessages: [String] = []
+    var onQueueMessage: ((String) -> Void)? = nil
+    var onPromoteQueuedToSteer: ((Int) -> Void)? = nil
+    var onRemoveQueued: ((Int) -> Void)? = nil
 
     @State private var showToolStream = false
     @State private var showSteerInput = false
+    @State private var showQueueList = true
     @State private var steerText = ""
     @State private var clarifyInput = ""
     @State private var pulse = false
@@ -117,10 +122,10 @@ struct ChatLiveRunDockView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // 中途插话纠偏输入栏
+            // 中途插话纠偏 / 排队追加输入栏
             if showSteerInput && canSteer && pendingApproval == nil && pendingClarify == nil {
                 HStack(spacing: OneDayMetrics.spacingS) {
-                    TextField("中途纠偏，例如：先只看最近 3 天日志…", text: $steerText)
+                    TextField("中途纠偏或排队下一句…", text: $steerText)
                         .font(.footnote)
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 10)
@@ -133,10 +138,25 @@ struct ChatLiveRunDockView: View {
                         .submitLabel(.send)
                         .onSubmit { submitSteer() }
 
+                    if let onQueueMessage {
+                        Button("排队") {
+                            let trimmed = steerText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            steerText = ""
+                            onQueueMessage(trimmed)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Palette.primaryTint, in: Capsule())
+                        .disabled(steerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
                     Button("插入") { submitSteer() }
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 11)
                         .padding(.vertical, 7)
                         .background(
                             steerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -146,6 +166,54 @@ struct ChatLiveRunDockView: View {
                         .disabled(steerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // 待发消息队列管理条（本轮完成后自动按序发送，或一键转为立即纠偏）
+            if !queuedMessages.isEmpty {
+                Divider().overlay(Palette.hairline)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label("待发队列（\(queuedMessages.count) 条，本轮结束自动发送）", systemImage: "text.badge.plus")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Button(showQueueList ? "收起" : "展开") {
+                            withAnimation(.snappy(duration: 0.2)) { showQueueList.toggle() }
+                        }
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Palette.primary)
+                    }
+                    if showQueueList {
+                        ForEach(Array(queuedMessages.enumerated()), id: \.offset) { idx, msg in
+                            HStack(spacing: 6) {
+                                Text("\(idx + 1). \(msg)")
+                                    .font(.caption)
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                if canSteer, let onPromoteQueuedToSteer {
+                                    Button("立即插话") { onPromoteQueuedToSteer(idx) }
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Palette.primary)
+                                }
+                                if let onRemoveQueued {
+                                    Button {
+                                        onRemoveQueued(idx)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(Palette.inkMuted)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+                .transition(.opacity)
             }
 
             // 展开的实时工具流（分身 / CLI / 云电脑原生卡片）
