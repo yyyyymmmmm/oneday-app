@@ -24,6 +24,8 @@ enum AgentRoute: Hashable {
     /// 设备与权限总览（0.34.0，本机连接器批一）：五件
     /// 数据源的授权状态＋调用开关汇总（设计档 §6.3）
     case devicePermissions
+    /// Agent Plugins 插件市场（Hermes v0.23.0 dashboard_ui.py）
+    case plugins
     // 审批规则路由已退役（§493，D3 改判 §244）：规
     // 则页迁中枢审核段、由中枢内层栈直推，不再经设
     // 置页 AgentRoute 点达

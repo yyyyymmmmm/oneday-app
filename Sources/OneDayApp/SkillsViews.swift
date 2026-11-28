@@ -11,6 +11,7 @@ struct SkillsView: View {
     @State private var isLoading = false
     @State private var notice: String?
     @State private var toggling: String?
+    @State private var showCreateSkill = false
 
     var body: some View {
         List {
@@ -106,6 +107,22 @@ struct SkillsView: View {
         .background(Palette.settingsBG)
         .navigationTitle("技能")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showCreateSkill = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("新建技能")
+            }
+        }
+        .sheet(isPresented: $showCreateSkill) {
+            CreateSkillSheet {
+                notice = "技能已创建。"
+                Task { await load() }
+            }
+        }
         .refreshable { await load() }
         .task { await load() }
     }

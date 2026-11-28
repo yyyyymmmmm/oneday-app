@@ -295,6 +295,8 @@ struct SettingsView: View {
             ConnectorsView()
         case .devicePermissions:
             DevicePermissionsView()
+        case .plugins:
+            AgentPluginsView()
         }
     }
 
@@ -528,9 +530,10 @@ struct SettingsView: View {
             Section {
                 navRow(icon: "memorychip", color: Palette.tintLavenderInk, title: L10n.string("记忆管理"), route: .agent(.memory))
                 navRow(icon: "puzzlepiece.extension", color: Palette.tintGreenInk, title: L10n.string("技能库"), route: .agent(.skills))
+                navRow(icon: "shippingbox.fill", color: Palette.tintLavenderInk, title: L10n.string("插件市场"), route: .agent(.plugins))
                 navRow(icon: "arrow.triangle.branch", color: Palette.tintSkyInk, title: L10n.string("委派路由"), route: .agent(.delegation))
             } header: {
-                sectionHeader("记忆、技能与协作")
+                sectionHeader("记忆、技能与扩展")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)

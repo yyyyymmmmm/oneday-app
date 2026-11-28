@@ -191,6 +191,8 @@ protocol HermesClientProtocol: Sendable {
     func toggleSkill(config: ServerConfig, name: String, enabled: Bool) async throws
     /// PUT /api/skills/lock {name, locked}
     func lockSkill(config: ServerConfig, name: String, locked: Bool) async throws
+    /// POST /api/skills {name, content, category?}（Hermes v0.23.0 新建技能）
+    func createSkill(config: ServerConfig, name: String, content: String, category: String?) async throws
 
     /// GET /api/skills/hub/sources（P10）——本部署实测
     /// 服务端抓注册表超时，调用方须容忍长耗时与失败
@@ -226,6 +228,8 @@ protocol HermesClientProtocol: Sendable {
     /// POST /api/cron/jobs/{id}/trigger（服务端同步等任务跑完，
     /// 官方桌面端为此单独放宽到 24h；App 侧放宽到 10 分钟）
     func triggerCronJob(config: ServerConfig, id: String) async throws
+    /// POST /api/cron/jobs/{id}/cancel（取消正在执行的定时任务）
+    func cancelCronJob(config: ServerConfig, id: String) async throws
     /// GET /api/cron/jobs/{id}/runs?limit=（{"runs": [会话同构行]}）
     func cronRuns(config: ServerConfig, id: String, limit: Int) async throws -> [ServerSession]
     /// GET /api/cron/blueprints（§388 H6；服务端单源目录，
@@ -463,6 +467,19 @@ protocol HermesClientProtocol: Sendable {
     func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot
     /// DELETE /api/mcp/oauth/flows/{flow_id}（取消进行中的 MCP OAuth 授权流）
     func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws
+
+    // MARK: - Agent Plugins 插件市场（Hermes v0.23.0 dashboard_ui.py）
+    func pluginsHub(config: ServerConfig) async throws -> [AgentPluginItem]
+    func pluginsCatalog(config: ServerConfig) async throws -> [AgentPluginCatalogEntry]
+    func installAgentPlugin(config: ServerConfig, identifier: String?, catalogName: String?, enable: Bool) async throws
+    func setAgentPluginEnabled(config: ServerConfig, name: String, enabled: Bool) async throws
+    func updateAgentPlugin(config: ServerConfig, name: String) async throws
+    func updateAllAgentPlugins(config: ServerConfig) async throws
+    func deleteAgentPlugin(config: ServerConfig, name: String) async throws
+    func pluginsAutoUpdate(config: ServerConfig) async throws -> PluginAutoUpdateState
+    func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState
+    /// GET /api/audio/voice-live/status
+    func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -1101,6 +1118,54 @@ extension HermesClientProtocol {
 
     func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("取消 MCP OAuth"), status: 501)
+    }
+
+    func createSkill(config: ServerConfig, name: String, content: String, category: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("新建技能"), status: 501)
+    }
+
+    func cancelCronJob(config: ServerConfig, id: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("取消定时任务"), status: 501)
+    }
+
+    func pluginsHub(config: ServerConfig) async throws -> [AgentPluginItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("插件中心"), status: 501)
+    }
+
+    func pluginsCatalog(config: ServerConfig) async throws -> [AgentPluginCatalogEntry] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("插件目录"), status: 501)
+    }
+
+    func installAgentPlugin(config: ServerConfig, identifier: String?, catalogName: String?, enable: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("安装插件"), status: 501)
+    }
+
+    func setAgentPluginEnabled(config: ServerConfig, name: String, enabled: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("插件开关"), status: 501)
+    }
+
+    func updateAgentPlugin(config: ServerConfig, name: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("更新插件"), status: 501)
+    }
+
+    func updateAllAgentPlugins(config: ServerConfig) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("全部更新插件"), status: 501)
+    }
+
+    func deleteAgentPlugin(config: ServerConfig, name: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("卸载插件"), status: 501)
+    }
+
+    func pluginsAutoUpdate(config: ServerConfig) async throws -> PluginAutoUpdateState {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("插件自动更新状态"), status: 501)
+    }
+
+    func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("插件自动更新设置"), status: 501)
+    }
+
+    func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("实时语音状态"), status: 501)
     }
 }
 

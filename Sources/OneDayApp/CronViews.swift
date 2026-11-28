@@ -462,6 +462,9 @@ struct CronJobDetailView: View {
                 Task { await trigger() }
             }
             .disabled(isTriggering)
+            actionRow(title: "取消当前运行", icon: "stop.circle") {
+                Task { await cancelRunning() }
+            }
             actionRow(title: "编辑", icon: "pencil.circle") {
                 showEdit = true
             }
@@ -657,6 +660,18 @@ struct CronJobDetailView: View {
             await reloadJob()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "触发失败，请稍后再试。"
+        }
+    }
+
+    private func cancelRunning() async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.cancelCronJob(config: config, id: current.id)
+            }
+            notice = "已发送取消运行指令。"
+            await reloadJob()
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "取消失败（当前可能没有在跑的实例）。"
         }
     }
 

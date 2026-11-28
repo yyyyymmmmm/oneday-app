@@ -123,6 +123,100 @@ extension HermesClient {
         )
     }
 
+    // MARK: - Agent Plugins 插件市场（Hermes v0.23.0 dashboard_ui.py）
+
+    private func pluginPath(name: String, suffix: String = "") -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "?#")
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+        return "/api/dashboard/agent-plugins/\(encoded)\(suffix)"
+    }
+
+    func pluginsHub(config: ServerConfig) async throws -> [AgentPluginItem] {
+        let response: AgentPluginsHubResponse = try await getJSON(
+            config: config, path: "/api/dashboard/plugins/hub",
+            endpoint: L10n.string("插件中心")
+        )
+        return response.plugins
+    }
+
+    func pluginsCatalog(config: ServerConfig) async throws -> [AgentPluginCatalogEntry] {
+        let response: AgentPluginCatalogResponse = try await getJSON(
+            config: config, path: "/api/dashboard/plugins/catalog",
+            endpoint: L10n.string("插件目录")
+        )
+        return response.entries
+    }
+
+    func installAgentPlugin(
+        config: ServerConfig, identifier: String?, catalogName: String?, enable: Bool
+    ) async throws {
+        var body: [String: JSONValue] = [
+            "identifier": .string(identifier ?? ""),
+            "enable": .bool(enable),
+        ]
+        if let catalogName, !catalogName.isEmpty {
+            body["catalog_name"] = .string(catalogName)
+        }
+        try await sendJSON(
+            config: config, path: "/api/dashboard/agent-plugins/install",
+            method: "POST", endpoint: L10n.string("安装插件"),
+            body: body, timeout: 120
+        )
+    }
+
+    func setAgentPluginEnabled(config: ServerConfig, name: String, enabled: Bool) async throws {
+        try await sendJSON(
+            config: config, path: pluginPath(name: name, suffix: enabled ? "/enable" : "/disable"),
+            method: "POST", endpoint: L10n.string("插件开关")
+        )
+    }
+
+    func updateAgentPlugin(config: ServerConfig, name: String) async throws {
+        try await sendJSON(
+            config: config, path: pluginPath(name: name, suffix: "/update"),
+            method: "POST", endpoint: L10n.string("更新插件"),
+            body: [:], timeout: 120
+        )
+    }
+
+    func updateAllAgentPlugins(config: ServerConfig) async throws {
+        try await sendJSON(
+            config: config, path: "/api/dashboard/agent-plugins/update-all",
+            method: "POST", endpoint: L10n.string("全部更新插件"),
+            timeout: 180
+        )
+    }
+
+    func deleteAgentPlugin(config: ServerConfig, name: String) async throws {
+        try await sendJSON(
+            config: config, path: pluginPath(name: name),
+            method: "DELETE", endpoint: L10n.string("卸载插件")
+        )
+    }
+
+    func pluginsAutoUpdate(config: ServerConfig) async throws -> PluginAutoUpdateState {
+        try await getJSON(
+            config: config, path: "/api/dashboard/plugins/auto-update",
+            endpoint: L10n.string("插件自动更新状态")
+        )
+    }
+
+    func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState {
+        try await sendJSONDecoding(
+            config: config, path: "/api/dashboard/plugins/auto-update",
+            method: "PUT", endpoint: L10n.string("插件自动更新设置"),
+            body: ["enabled": .bool(enabled)]
+        )
+    }
+
+    func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus {
+        try await getJSON(
+            config: config, path: "/api/audio/voice-live/status",
+            endpoint: L10n.string("实时语音状态")
+        )
+    }
+
     func computerUseStatus(
         config: ServerConfig
     ) async throws -> ComputerUseStatus {

@@ -1755,6 +1755,153 @@ public struct MCPOAuthFlowSnapshot: Decodable, Sendable, Equatable {
     }
 }
 
+// MARK: - Agent Plugins 插件市场（Hermes v0.23.0 dashboard_ui.py）
+
+public struct AgentPluginItem: Decodable, Sendable, Identifiable {
+    public let name: String
+    public let version: String?
+    public let description: String?
+    public let source: String?
+    public let enabled: Bool
+    public let updateAvailable: Bool
+    public let category: String?
+
+    public var id: String { name }
+
+    enum CodingKeys: String, CodingKey {
+        case name, version, description, source, enabled, status, category
+        case runtimeStatus = "runtime_status"
+        case updateAvailable = "update_available"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        version = try c.decodeIfPresent(String.self, forKey: .version)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
+        category = try c.decodeIfPresent(String.self, forKey: .category)
+        updateAvailable = try c.decodeIfPresent(Bool.self, forKey: .updateAvailable) ?? false
+        if let e = try c.decodeIfPresent(Bool.self, forKey: .enabled) {
+            enabled = e
+        } else {
+            let st = (try c.decodeIfPresent(String.self, forKey: .runtimeStatus))
+                ?? (try c.decodeIfPresent(String.self, forKey: .status))
+                ?? ""
+            enabled = st.lowercased() == "enabled" || st.lowercased() == "active"
+        }
+    }
+
+    public init(
+        name: String, version: String? = nil, description: String? = nil,
+        source: String? = nil, enabled: Bool = true,
+        updateAvailable: Bool = false, category: String? = nil
+    ) {
+        self.name = name
+        self.version = version
+        self.description = description
+        self.source = source
+        self.enabled = enabled
+        self.updateAvailable = updateAvailable
+        self.category = category
+    }
+}
+
+public struct AgentPluginsHubResponse: Decodable, Sendable {
+    public let plugins: [AgentPluginItem]
+
+    enum CodingKeys: String, CodingKey {
+        case plugins
+        case agentPlugins = "agent_plugins"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let list = try c.decodeIfPresent([AgentPluginItem].self, forKey: .plugins) {
+            plugins = list.filter { !$0.name.isEmpty }
+        } else if let list = try c.decodeIfPresent([AgentPluginItem].self, forKey: .agentPlugins) {
+            plugins = list.filter { !$0.name.isEmpty }
+        } else {
+            plugins = []
+        }
+    }
+}
+
+public struct AgentPluginCatalogEntry: Decodable, Sendable, Identifiable {
+    public let name: String
+    public let title: String?
+    public let description: String?
+    public let identifier: String?
+    public let category: String?
+    public let installed: Bool
+
+    public var id: String { name }
+
+    enum CodingKeys: String, CodingKey {
+        case name, title, description, identifier, category, installed, repo
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        identifier = (try c.decodeIfPresent(String.self, forKey: .identifier))
+            ?? (try c.decodeIfPresent(String.self, forKey: .repo))
+        category = try c.decodeIfPresent(String.self, forKey: .category)
+        installed = try c.decodeIfPresent(Bool.self, forKey: .installed) ?? false
+    }
+}
+
+public struct AgentPluginCatalogResponse: Decodable, Sendable {
+    public let entries: [AgentPluginCatalogEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case entries, plugins, catalog
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let arr = try? [AgentPluginCatalogEntry](from: decoder) {
+            entries = arr.filter { !$0.name.isEmpty }
+            return
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let list = (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .entries))
+            ?? (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .plugins))
+            ?? (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .catalog))
+            ?? []
+        entries = list.filter { !$0.name.isEmpty }
+    }
+}
+
+public struct PluginAutoUpdateState: Decodable, Sendable {
+    public let enabled: Bool
+
+    enum CodingKeys: String, CodingKey { case enabled }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+    }
+
+    public init(enabled: Bool) { self.enabled = enabled }
+}
+
+public struct VoiceLiveStatus: Decodable, Sendable {
+    public let mode: String?
+    public let available: Bool
+
+    enum CodingKeys: String, CodingKey { case mode, available, ready }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try c.decodeIfPresent(String.self, forKey: .mode)
+        available = (try c.decodeIfPresent(Bool.self, forKey: .available))
+            ?? (try c.decodeIfPresent(Bool.self, forKey: .ready))
+            ?? false
+    }
+}
+
 public struct ProfilesResponse: Decodable, Sendable {
     public let profiles: [ProfileItem]
 

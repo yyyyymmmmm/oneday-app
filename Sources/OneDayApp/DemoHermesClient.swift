@@ -340,6 +340,7 @@ struct DemoHermesClient: HermesClientProtocol {
     func updateSkillContent(config: ServerConfig, name: String, content: String) async throws { throw HermesError.demoLimitReached }
     func toggleSkill(config: ServerConfig, name: String, enabled: Bool) async throws { throw HermesError.demoLimitReached }
     func lockSkill(config: ServerConfig, name: String, locked: Bool) async throws { throw HermesError.demoLimitReached }
+    func createSkill(config: ServerConfig, name: String, content: String, category: String?) async throws { throw HermesError.demoLimitReached }
 
     // MARK: - 技能商店（P10，演示样本；写动作静默成功
     // 不落状态，沿本文件既定演示口径）
@@ -373,6 +374,7 @@ struct DemoHermesClient: HermesClientProtocol {
     func pauseCronJob(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
     func resumeCronJob(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
     func triggerCronJob(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
+    func cancelCronJob(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
 
     func cronRuns(config: ServerConfig, id: String, limit: Int) async throws -> [ServerSession] { throw HermesError.demoLimitReached }
     func cronBlueprints(config: ServerConfig) async throws -> [CronBlueprint] { throw HermesError.demoLimitReached }
@@ -699,6 +701,16 @@ struct DemoHermesClient: HermesClientProtocol {
     func startMCPOAuthFlow(config: ServerConfig, name: String) async throws -> MCPOAuthFlowSnapshot { throw HermesError.demoLimitReached }
     func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot { throw HermesError.demoLimitReached }
     func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws { throw HermesError.demoLimitReached }
+    func pluginsHub(config: ServerConfig) async throws -> [AgentPluginItem] { throw HermesError.demoLimitReached }
+    func pluginsCatalog(config: ServerConfig) async throws -> [AgentPluginCatalogEntry] { throw HermesError.demoLimitReached }
+    func installAgentPlugin(config: ServerConfig, identifier: String?, catalogName: String?, enable: Bool) async throws { throw HermesError.demoLimitReached }
+    func setAgentPluginEnabled(config: ServerConfig, name: String, enabled: Bool) async throws { throw HermesError.demoLimitReached }
+    func updateAgentPlugin(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
+    func updateAllAgentPlugins(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
+    func deleteAgentPlugin(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
+    func pluginsAutoUpdate(config: ServerConfig) async throws -> PluginAutoUpdateState { throw HermesError.demoLimitReached }
+    func setPluginsAutoUpdate(config: ServerConfig, enabled: Bool) async throws -> PluginAutoUpdateState { throw HermesError.demoLimitReached }
+    func voiceLiveStatus(config: ServerConfig) async throws -> VoiceLiveStatus { throw HermesError.demoLimitReached }
 
     // MARK: - 配置与密钥
 

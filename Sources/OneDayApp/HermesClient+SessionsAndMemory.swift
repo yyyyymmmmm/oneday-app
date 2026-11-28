@@ -117,6 +117,20 @@ extension HermesClient {
         )
     }
 
+    func createSkill(config: ServerConfig, name: String, content: String, category: String?) async throws {
+        var body: [String: JSONValue] = [
+            "name": .string(name),
+            "content": .string(content),
+        ]
+        if let category, !category.isEmpty {
+            body["category"] = .string(category)
+        }
+        try await sendJSON(
+            config: config, path: "/api/skills", method: "POST",
+            endpoint: L10n.string("新建技能"), body: body
+        )
+    }
+
     // MARK: - 技能商店（P10）
 
     /// hub 三读的长超时：服务端要抓外部注册表，本部署
@@ -240,6 +254,13 @@ extension HermesClient {
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)/trigger", method: "POST",
             endpoint: L10n.string("定时任务触发"), timeout: 600
+        )
+    }
+
+    func cancelCronJob(config: ServerConfig, id: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/cron/jobs/\(id)/cancel", method: "POST",
+            endpoint: L10n.string("取消定时任务")
         )
     }
 
