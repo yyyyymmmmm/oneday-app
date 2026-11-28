@@ -26,6 +26,8 @@ struct ChatView: View {
     @State var showQuickConnectorsSheet = false
     @State var showContextMeterSheet = false
     @State var showReasoningEffortSheet = false
+    @State var mentionRosterProfiles: [ProfileSummary] = []
+    @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
     @State var activeRunApproval: RunApprovalPrompt?
     @State var activeRunClarify: RunClarifyPrompt?
@@ -1024,6 +1026,7 @@ struct ChatView: View {
         }
         .task {
             await appState.refreshModelCatalog()
+            await refreshMentionRosterIfNeeded()
         }
         // §237 P1：待发暂存清扫——条目已删除的暂存目
         // 录随聊天页首启清掉，防只进不出积压；仍在
@@ -1122,7 +1125,9 @@ struct ChatView: View {
                 }
             )
         }
-        .sheet(isPresented: $showQuickProfilesSheet) {
+        .sheet(isPresented: $showQuickProfilesSheet, onDismiss: {
+            Task { await refreshMentionRosterIfNeeded(force: true) }
+        }) {
             NavigationStack {
                 ProfilesView()
                     .toolbar {
@@ -2162,34 +2167,53 @@ struct ChatView: View {
                     )
                 )
                 : nil,
-            slashCommandPaletteVisible: !HermesSlashCommand.matching(for: input).isEmpty,
+            slashCommandPaletteVisible: !HermesSlashCommand.matching(for: input).isEmpty
+                || ChatMentionQuery.activeQuery(in: input) != nil,
             slashCommandPaletteView: {
                 let matched = HermesSlashCommand.matching(for: input)
-                guard !matched.isEmpty else { return nil }
-                return AnyView(
-                    ChatSlashCommandPaletteView(commands: matched) { item in
-                        switch item.id {
-                        case "branch":
-                            input = ""
-                            forkCurrentSession()
-                        case "profiles":
-                            input = ""
-                            showQuickProfilesSheet = true
-                        case "connectors":
-                            input = ""
-                            showQuickConnectorsSheet = true
-                        case "context":
-                            input = ""
-                            showContextMeterSheet = true
-                        case "reasoning":
-                            input = ""
-                            showReasoningEffortSheet = true
-                        default:
-                            input = item.insertText
-                            composerFocusHandle.focusAtEnd()
+                if !matched.isEmpty {
+                    return AnyView(
+                        ChatSlashCommandPaletteView(commands: matched) { item in
+                            switch item.id {
+                            case "branch":
+                                input = ""
+                                forkCurrentSession()
+                            case "profiles":
+                                input = ""
+                                showQuickProfilesSheet = true
+                            case "connectors":
+                                input = ""
+                                showQuickConnectorsSheet = true
+                            case "context":
+                                input = ""
+                                showContextMeterSheet = true
+                            case "reasoning":
+                                input = ""
+                                showReasoningEffortSheet = true
+                            default:
+                                input = item.insertText
+                                composerFocusHandle.focusAtEnd()
+                            }
                         }
-                    }
-                )
+                    )
+                }
+                if let mention = ChatMentionQuery.activeQuery(in: input) {
+                    return AnyView(
+                        ChatMentionPaletteView(
+                            query: mention.keyword,
+                            profiles: mentionRosterProfiles,
+                            isLoading: isLoadingMentionRoster,
+                            onSelect: { token in
+                                input = ChatMentionQuery.applyingMention(token, to: input)
+                                composerFocusHandle.focusAtEnd()
+                            },
+                            onManageProfiles: {
+                                showQuickProfilesSheet = true
+                            }
+                        )
+                    )
+                }
+                return nil
             }(),
             liveRunDockVisible: isStreaming || activeRunThreadID != nil,
             liveRunDockView: {
@@ -10668,8 +10692,12 @@ struct ComposerBarLayout: Layout {
         // 上下文组装走共用出口 outgoingContext（组装
         // 口径注在该函数；基础止血包起失败重发同走它，
         // 两路不许分叉）
+        let outgoingText = ChatMentionQuery.enrichedOutgoingPrompt(
+            for: text,
+            knownProfiles: mentionRosterProfiles
+        )
         let context = outgoingContext(
-            of: thread, tailEntry: newEntry, text: text, quote: quote,
+            of: thread, tailEntry: newEntry, text: outgoingText, quote: quote,
             sourceQuote: combinedSourceQuote
         )
         // 文件真发送（0.36.29，契约实测冻结后开放）：
@@ -10678,10 +10706,22 @@ struct ComposerBarLayout: Layout {
         // @file 引用（见 launchTurn 内）；原「尚未开
         // 放」notice 随本版退役
         launchTurn(
-            thread: thread, userEntry: newEntry, text: text,
+            thread: thread, userEntry: newEntry, text: outgoingText,
             filePayloads: filePayloads, presetFilePaths: [],
             seedSnapshot: seedSnapshot, context: context
         )
+    }
+
+    /// 静默拉取常驻专家分身花名册，供对话内 `@` 召唤浮层与 `@全员` 编排使用
+    func refreshMentionRosterIfNeeded(force: Bool = false) async {
+        guard !isLoadingMentionRoster else { return }
+        if !force && !mentionRosterProfiles.isEmpty { return }
+        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        isLoadingMentionRoster = true
+        defer { isLoadingMentionRoster = false }
+        if let response = try? await appState.client.profiles(config: config, apiKey: apiKey) {
+            mentionRosterProfiles = response.profiles
+        }
     }
 
     /// 出站上下文组装（send 与失败重发共用出口）：
