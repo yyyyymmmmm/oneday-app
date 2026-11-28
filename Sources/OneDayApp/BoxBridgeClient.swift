@@ -139,6 +139,61 @@ final class BoxBridgeClient: @unchecked Sendable {
         return nil
     }
 
+    /// 实时流鉴权票据结果（box_view_token MCP 工具返回）
+    struct ViewTokenResult: Sendable, Equatable {
+        let url: URL?
+        let rawText: String?
+    }
+
+    /// 获取带鉴权票据的实时桌面流 URL（补齐原 box_bridge.py:326 的 box_view_token）
+    func viewToken(config: ServerConfig) async throws -> ViewTokenResult {
+        let client = try await getClient()
+        try await client.ensureRunning()
+        let result = try await client.callTool(
+            name: "box_view_token",
+            arguments: [:],
+            timeout: 30
+        )
+        if result.isError == true {
+            throw BoxBridgeError.failed(Self.humanToolErrorText(result))
+        }
+        if let structured = mcpStructured(result) {
+            let candidates = [
+                structured["view_url"] as? String,
+                structured["url"] as? String,
+                structured["live_url"] as? String,
+                structured["stream_url"] as? String,
+            ].compactMap { $0 }.filter { !$0.isEmpty }
+            for raw in candidates {
+                if let url = URL(string: raw) {
+                    return ViewTokenResult(url: url, rawText: raw)
+                }
+            }
+            if let token = structured["token"] as? String,
+               !token.isEmpty,
+               let base = (structured["base_url"] as? String ?? structured["view_url"] as? String),
+               var comps = URLComponents(string: base) {
+                var items = comps.queryItems ?? []
+                items.append(URLQueryItem(name: "token", value: token))
+                comps.queryItems = items
+                if let url = comps.url {
+                    return ViewTokenResult(url: url, rawText: url.absoluteString)
+                }
+            }
+        }
+        let texts = mcpTexts(result)
+        let joined = texts.joined(separator: "\n")
+        if let regex = try? NSRegularExpression(pattern: #"https?://[^\s"'<>]+"#),
+           let match = regex.firstMatch(in: joined, range: NSRange(joined.startIndex..., in: joined)),
+           let range = Range(match.range, in: joined) {
+            let raw = String(joined[range])
+            if let url = URL(string: raw) {
+                return ViewTokenResult(url: url, rawText: raw)
+            }
+        }
+        return ViewTokenResult(url: nil, rawText: joined.isEmpty ? nil : joined)
+    }
+
     func screenshot(config: ServerConfig) async throws -> BoxScreenshot {
         let client = try await getClient()
 

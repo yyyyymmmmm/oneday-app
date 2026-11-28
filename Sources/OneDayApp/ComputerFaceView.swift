@@ -331,6 +331,7 @@ struct CloudComputerTakeoverSheet: View {
     let target: CloudComputerTarget
     @State var store: BoxBridgeStore
     let onHandBackToAI: (() -> Void)?
+    let onHandBackWithContext: ((String) -> Void)?
 
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -345,22 +346,34 @@ struct CloudComputerTakeoverSheet: View {
     @State private var isLandscape = false
     @State private var zoomScale: CGFloat = 1.0
     @State private var lastZoomScale: CGFloat = 1.0
+    @State private var panOffset: CGSize = .zero
+    @State private var lastPanOffset: CGSize = .zero
+    @State private var isRightClickMode = false
     @State private var urlInput = ""
     @State private var textInput = ""
     @State private var showKeyboardBar = false
     @State private var webViewReloadToken = UUID()
+    @State private var webViewLoading = false
+    @State private var webViewError: String?
+    @State private var handingBack = false
+    @State private var clipboardFeedback: String?
 
     init(
         target: CloudComputerTarget,
         store: BoxBridgeStore? = nil,
-        onHandBackToAI: (() -> Void)? = nil
+        onHandBackToAI: (() -> Void)? = nil,
+        onHandBackWithContext: ((String) -> Void)? = nil
     ) {
         self.target = target
         _store = State(initialValue: store ?? BoxBridgeStore())
         self.onHandBackToAI = onHandBackToAI
+        self.onHandBackWithContext = onHandBackWithContext
     }
 
     private var resolvedLiveURL: URL? {
+        if let tokenized = store.liveStreamURL {
+            return tokenized
+        }
         if !target.liveURL.isEmpty, let u = URL(string: target.liveURL) {
             return u
         }
@@ -375,14 +388,14 @@ struct CloudComputerTakeoverSheet: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
                 topHUD
-                if mode == .liveStream, let url = resolvedLiveURL {
-                    LiveStreamWebView(url: url, reloadToken: webViewReloadToken)
-                        .ignoresSafeArea(edges: .bottom)
+                if mode == .liveStream {
+                    liveStreamSurface
                 } else {
                     directControlSurface
                 }
             }
         }
+        .interactiveDismissDisabled(true)
         .statusBarHidden(isLandscape)
         .onAppear {
             store.takeover = true
@@ -397,11 +410,110 @@ struct CloudComputerTakeoverSheet: View {
         }
         .task {
             await store.refreshStatus(appState: appState)
+            await store.refreshLiveStreamURL(
+                appState: appState,
+                fallbackRawURL: target.liveURL
+            )
             if resolvedLiveURL == nil {
                 mode = .directControl
             }
             if mode == .directControl || store.screenshot == nil {
                 await store.refreshScreenshot(appState: appState)
+            }
+        }
+    }
+
+    // MARK: 实时流画布（带票据加载态、错误兜底与一键切免登直控）
+
+    @ViewBuilder
+    private var liveStreamSurface: some View {
+        ZStack {
+            if let url = resolvedLiveURL {
+                LiveStreamWebView(
+                    url: url,
+                    reloadToken: webViewReloadToken,
+                    isLoading: $webViewLoading,
+                    errorMessage: $webViewError
+                )
+                .ignoresSafeArea(edges: .bottom)
+            } else if store.liveStreamLoading {
+                VStack(spacing: 12) {
+                    ProgressView().tint(.white)
+                    Text("正在获取实时桌面票据…")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            } else {
+                VStack(spacing: 14) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text(store.liveStreamError ?? "当前未获取到实时流地址")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    HStack(spacing: 12) {
+                        Button("重试获取") {
+                            Task {
+                                await store.refreshLiveStreamURL(
+                                    appState: appState,
+                                    fallbackRawURL: target.liveURL
+                                )
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        Button("切到免登直控") {
+                            mode = .directControl
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+
+            if webViewLoading {
+                VStack {
+                    HStack(spacing: 6) {
+                        ProgressView().tint(.white).controlSize(.small)
+                        Text("正在加载实时画面…")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.72), in: Capsule())
+                    .padding(.top, 12)
+                    Spacer()
+                }
+            }
+
+            if let webViewError {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 10) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .foregroundStyle(Palette.warning)
+                        Text(webViewError)
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                        Spacer(minLength: 4)
+                        Button("免登直控") {
+                            self.webViewError = nil
+                            mode = .directControl
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Palette.primary, in: Capsule())
+                    }
+                    .padding(12)
+                    .background(Color(white: 0.14).opacity(0.95), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 14)
+                }
             }
         }
     }
@@ -439,7 +551,14 @@ struct CloudComputerTakeoverSheet: View {
 
             if mode == .liveStream {
                 Button {
-                    webViewReloadToken = UUID()
+                    webViewError = nil
+                    Task {
+                        await store.refreshLiveStreamURL(
+                            appState: appState,
+                            fallbackRawURL: target.liveURL
+                        )
+                        webViewReloadToken = UUID()
+                    }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .semibold))
@@ -465,9 +584,13 @@ struct CloudComputerTakeoverSheet: View {
                 handBack()
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption.weight(.bold))
-                    Text("交还给 AI")
+                    if handingBack {
+                        ProgressView().tint(.white).controlSize(.mini)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    Text(handingBack ? "交还中" : "交还给 AI")
                         .font(.caption.weight(.semibold))
                 }
                 .foregroundStyle(.white)
@@ -475,13 +598,14 @@ struct CloudComputerTakeoverSheet: View {
                 .padding(.vertical, 7)
                 .background(Palette.success, in: Capsule())
             }
+            .disabled(handingBack)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.black.opacity(0.88))
     }
 
-    // MARK: 免登直控面（支持缩放、单击/双击/长按右键、滚轮、快捷键、输入文字）
+    // MARK: 免登直控面（支持缩放/平移精准坐标映射、单击/双击/右键模式、滚轮、剪贴板粘贴、组合快捷键）
 
     private var directControlSurface: some View {
         VStack(spacing: 0) {
@@ -494,17 +618,7 @@ struct CloudComputerTakeoverSheet: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: proxy.size.width, height: proxy.size.height)
-                            .scaleEffect(zoomScale)
                             .contentShape(Rectangle())
-                            .gesture(
-                                MagnificationGesture()
-                                    .onChanged { value in
-                                        zoomScale = min(max(lastZoomScale * value, 1.0), 3.5)
-                                    }
-                                    .onEnded { _ in
-                                        lastZoomScale = zoomScale
-                                    }
-                            )
                             .simultaneousGesture(
                                 SpatialTapGesture(count: 2).onEnded { value in
                                     performTap(at: value.location, in: proxy.size, doubleClick: true)
@@ -515,7 +629,38 @@ struct CloudComputerTakeoverSheet: View {
                                     performTap(at: value.location, in: proxy.size, doubleClick: false)
                                 }
                             )
+                            .scaleEffect(zoomScale)
+                            .offset(panOffset)
+                            .gesture(
+                                MagnificationGesture()
+                                    .onChanged { value in
+                                        zoomScale = min(max(lastZoomScale * value, 1.0), 3.5)
+                                        if zoomScale <= 1.02 {
+                                            panOffset = .zero
+                                            lastPanOffset = .zero
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        lastZoomScale = zoomScale
+                                    }
+                            )
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 12)
+                                    .onChanged { value in
+                                        guard zoomScale > 1.05 else { return }
+                                        let maxX = proxy.size.width * (zoomScale - 1) / 2
+                                        let maxY = proxy.size.height * (zoomScale - 1) / 2
+                                        panOffset = CGSize(
+                                            width: min(max(lastPanOffset.width + value.translation.width, -maxX), maxX),
+                                            height: min(max(lastPanOffset.height + value.translation.height, -maxY), maxY)
+                                        )
+                                    }
+                                    .onEnded { _ in
+                                        lastPanOffset = panOffset
+                                    }
+                            )
                     }
+                    .clipped()
                 } else {
                     VStack(spacing: 12) {
                         if store.screenshotLoading {
@@ -549,6 +694,18 @@ struct CloudComputerTakeoverSheet: View {
                         .padding(.top, 10)
                         Spacer()
                     }
+                } else if let clipboardFeedback {
+                    VStack {
+                        Text(clipboardFeedback)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.72), in: Capsule())
+                            .padding(.top, 10)
+                        Spacer()
+                    }
+                    .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -596,10 +753,25 @@ struct CloudComputerTakeoverSheet: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    dockButton(showKeyboardBar ? "收起输入" : "输入/网址", icon: "keyboard") {
+                    dockButton(
+                        showKeyboardBar ? "收起输入" : "输入/网址",
+                        icon: "keyboard",
+                        active: showKeyboardBar
+                    ) {
                         withAnimation(.snappy(duration: 0.2)) {
                             showKeyboardBar.toggle()
                         }
+                    }
+                    dockButton("粘贴剪贴板", icon: "doc.on.clipboard") {
+                        pasteClipboard()
+                    }
+                    dockButton(
+                        isRightClickMode ? "右键中" : "右键",
+                        icon: "computermouse.fill",
+                        active: isRightClickMode
+                    ) {
+                        Haptics.selection()
+                        isRightClickMode.toggle()
                     }
                     dockButton("刷新", icon: "arrow.clockwise") {
                         Task { await store.refreshScreenshot(appState: appState) }
@@ -622,10 +794,23 @@ struct CloudComputerTakeoverSheet: View {
                     dockButton("Esc", icon: "escape") {
                         Task { await store.perform(appState: appState, .key("Escape")) }
                     }
+                    dockButton("Ctrl+A", icon: "selection.pin.in.out") {
+                        Task { await store.perform(appState: appState, .key("Control+a")) }
+                    }
+                    dockButton("Ctrl+C", icon: "doc.on.doc") {
+                        Task { await store.perform(appState: appState, .key("Control+c")) }
+                    }
+                    dockButton("Ctrl+V", icon: "clipboard") {
+                        Task { await store.perform(appState: appState, .key("Control+v")) }
+                    }
                     if zoomScale > 1.05 {
                         dockButton("重置缩放", icon: "arrow.down.right.and.arrow.up.left") {
-                            zoomScale = 1.0
-                            lastZoomScale = 1.0
+                            withAnimation(.snappy(duration: 0.2)) {
+                                zoomScale = 1.0
+                                lastZoomScale = 1.0
+                                panOffset = .zero
+                                lastPanOffset = .zero
+                            }
                         }
                     }
                 }
@@ -636,7 +821,12 @@ struct CloudComputerTakeoverSheet: View {
         .background(Color(white: 0.12))
     }
 
-    private func dockButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func dockButton(
+        _ title: String,
+        icon: String,
+        active: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
@@ -647,9 +837,36 @@ struct CloudComputerTakeoverSheet: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color.white.opacity(0.14), in: Capsule())
+            .background(
+                active ? Palette.primary : Color.white.opacity(0.14),
+                in: Capsule()
+            )
         }
         .disabled(store.acting)
+    }
+
+    private func pasteClipboard() {
+        guard let clip = UIPasteboard.general.string, !clip.isEmpty else {
+            showTransientFeedback("手机剪贴板为空")
+            return
+        }
+        Haptics.impact(.light)
+        showTransientFeedback("已发送到云电脑")
+        Task { await store.perform(appState: appState, .type(clip)) }
+    }
+
+    private func showTransientFeedback(_ text: String) {
+        withAnimation(.snappy(duration: 0.2)) {
+            clipboardFeedback = text
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            if clipboardFeedback == text {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    clipboardFeedback = nil
+                }
+            }
+        }
     }
 
     private func sendTypedText() {
@@ -666,11 +883,19 @@ struct CloudComputerTakeoverSheet: View {
             viewPoint: point, container: size, image: imageSize
         ) else { return }
         Haptics.impact(.light)
+        let useRightClick = isRightClickMode && !doubleClick
+        if useRightClick {
+            isRightClickMode = false
+        }
         Task {
-            await store.perform(
-                appState: appState,
-                doubleClick ? .doubleClick(x: pixel.x, y: pixel.y) : .click(x: pixel.x, y: pixel.y)
-            )
+            let req: BoxActRequest = if useRightClick {
+                .rightClick(x: pixel.x, y: pixel.y)
+            } else if doubleClick {
+                .doubleClick(x: pixel.x, y: pixel.y)
+            } else {
+                .click(x: pixel.x, y: pixel.y)
+            }
+            await store.perform(appState: appState, req)
         }
     }
 
@@ -696,36 +921,53 @@ struct CloudComputerTakeoverSheet: View {
     }
 
     private func handBack() {
-        store.takeover = false
-        appState.boxTakeoverActive = false
-        if isLandscape {
-            setOrientation(.portrait)
-        }
-        dismiss()
-        if let onHandBackToAI {
+        guard !handingBack else { return }
+        handingBack = true
+        Task { @MainActor in
+            let summary = await store.prepareHandbackSummary(appState: appState)
+            store.takeover = false
+            appState.boxTakeoverActive = false
+            if isLandscape {
+                setOrientation(.portrait)
+            }
+            handingBack = false
+            dismiss()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                onHandBackToAI()
+                if let onHandBackWithContext {
+                    onHandBackWithContext(summary)
+                } else {
+                    onHandBackToAI?()
+                }
             }
         }
     }
 }
 
-/// 持久 Cookie 的实时流 WKWebView：首次登录一次云电脑厂商账号后自动保持登录态，
-/// 支持 60fps 实时拖动、滚轮、键盘直输。
+/// 持久 Cookie 的实时流 WKWebView：
+/// - 支持 `WKUIDelegate` 站内承接 OAuth / `target="_blank"` 弹窗（解决厂商登录页点不动）；
+/// - 支持 `WKNavigationDelegate` 回报加载态与失败原因（不再静默黑屏）。
 private struct LiveStreamWebView: UIViewRepresentable {
     let url: URL
     let reloadToken: UUID
+    @Binding var isLoading: Bool
+    @Binding var errorMessage: String?
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isLoading: $isLoading, errorMessage: $errorMessage)
+    }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
         let webView = WKWebView(frame: .zero, configuration: config)
+        webView.uiDelegate = context.coordinator
+        webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
+        webView.allowsBackForwardNavigationGestures = false
         context.coordinator.lastToken = reloadToken
         context.coordinator.lastURL = url
         webView.load(URLRequest(url: url))
@@ -740,8 +982,67 @@ private struct LiveStreamWebView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
+        @Binding var isLoading: Bool
+        @Binding var errorMessage: String?
         var lastToken: UUID?
         var lastURL: URL?
+
+        init(isLoading: Binding<Bool>, errorMessage: Binding<String?>) {
+            _isLoading = isLoading
+            _errorMessage = errorMessage
+        }
+
+        // 承接 target="_blank" 或 OAuth 弹窗，直接在当前 WebView 打开避免静默失败
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            if navigationAction.targetFrame == nil, let reqURL = navigationAction.request.url {
+                webView.load(URLRequest(url: reqURL))
+            }
+            return nil
+        }
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.isLoading = true
+                self.errorMessage = nil
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.isLoading = false
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.errorMessage = "实时流加载失败，可切到「免登直控」直接操作。"
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.errorMessage = "实时流连接中断，可重试或切到「免登直控」。"
+            }
+        }
     }
 }

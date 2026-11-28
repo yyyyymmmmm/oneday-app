@@ -1109,8 +1109,8 @@ struct ChatView: View {
         .fullScreenCover(item: $activeCloudTakeover) { target in
             CloudComputerTakeoverSheet(
                 target: target,
-                onHandBackToAI: {
-                    input = "我已完成接管操作，请继续"
+                onHandBackWithContext: { summary in
+                    input = summary
                     send()
                 }
             )

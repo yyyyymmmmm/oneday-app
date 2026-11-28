@@ -26,6 +26,10 @@ final class BoxBridgeStore {
     private(set) var acting = false
     /// 接管动作/导航的最近一次失败（人话，视图行内露）
     private(set) var actNote: String?
+    /// 带鉴权票据的实时流地址（由 box_view_token 现取，避免 WKWebView 撞登录墙）
+    private(set) var liveStreamURL: URL?
+    private(set) var liveStreamLoading = false
+    private(set) var liveStreamError: String?
 
     private let client = BoxBridgeClient()
     private var statusInFlight = false
@@ -33,6 +37,62 @@ final class BoxBridgeStore {
     var status: BoxBridgeStatus? {
         if case .ready(let status) = hubState { return status }
         return nil
+    }
+
+    // MARK: - 实时流票据与交还上下文
+
+    /// 拉取带鉴权票据的实时桌面流地址；若厂商未返回票据则回落到可用 viewUrl
+    func refreshLiveStreamURL(appState: AppState, fallbackRawURL: String? = nil) async {
+        guard !liveStreamLoading else { return }
+        if appState.isDemo {
+            if let raw = fallbackRawURL, let u = URL(string: raw) {
+                liveStreamURL = u
+            }
+            return
+        }
+        guard let config = appState.config else {
+            if let raw = fallbackRawURL ?? status?.viewUrl, let u = URL(string: raw) {
+                liveStreamURL = u
+            }
+            return
+        }
+        liveStreamLoading = true
+        liveStreamError = nil
+        defer { liveStreamLoading = false }
+        do {
+            let tokenResult = try await client.viewToken(config: config)
+            if let url = tokenResult.url {
+                liveStreamURL = url
+                return
+            }
+        } catch let error as BoxBridgeError {
+            if case .failed(let msg) = error {
+                liveStreamError = msg
+            }
+        } catch {
+            liveStreamError = L10n.string("实时流票据获取失败，已尝试使用默认地址。")
+        }
+        let fallback = [fallbackRawURL, status?.viewUrl]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+        if let fallback, let u = URL(string: fallback) {
+            liveStreamURL = u
+        }
+    }
+
+    /// 交还给 AI 前刷新最新桌面状态与截图，拼出结构化交还摘要让智能体知道用户做了什么
+    func prepareHandbackSummary(appState: AppState) async -> String {
+        await refreshStatus(appState: appState)
+        if status?.isRunning == true {
+            await refreshScreenshot(appState: appState)
+        }
+        if let page = status?.page ?? status?.lastKnownPage,
+           (!page.titleText.isEmpty || !page.url.isEmpty) {
+            let titlePart = page.titleText.isEmpty ? "当前页面" : page.titleText
+            let urlPart = page.url.isEmpty ? "" : " (\(page.url))"
+            return "我已完成云电脑接管操作，请继续。\n当前页面：\(titlePart)\(urlPart)"
+        }
+        return "我已完成云电脑接管操作，请继续。"
     }
 
     // MARK: - 状态
