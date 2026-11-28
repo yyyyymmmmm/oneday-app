@@ -19,6 +19,9 @@ struct ToolsetsSettingsView: View {
     @State private var store = ToolsetsStore()
     @State private var selectedName: String?
     @State private var configuringBackend: TerminalBackend?
+    @State private var toolSearchEnabled = true
+    @State private var toolSearchLazyThreshold = 25
+    @State private var pinCoreTools = true
 
     var body: some View {
         List {
@@ -32,6 +35,7 @@ struct ToolsetsSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.load(appState: appState)
+            await loadToolSearchConfig()
         }
         .refreshable {
             await store.load(appState: appState)
@@ -124,7 +128,69 @@ struct ToolsetsSettingsView: View {
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)
         }
+        toolSearchSection
         backendsSection
+    }
+
+    private var toolSearchSection: some View {
+        Section {
+            Toggle(isOn: $toolSearchEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("按需工具发现（Tool Search）")
+                        .font(.rowTitleL)
+                    Text("工具较多时按语义动态检索加载，减少上下文 Token 占用")
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .onChange(of: toolSearchEnabled) { _, val in
+                Task { await saveToolSearchConfig(key: "tools.tool_search.enabled", value: .bool(val)) }
+            }
+
+            if toolSearchEnabled {
+                Picker("懒加载触发阈值", selection: $toolSearchLazyThreshold) {
+                    Text("超过 15 个工具").tag(15)
+                    Text("超过 25 个工具").tag(25)
+                    Text("超过 40 个工具").tag(40)
+                    Text("超过 60 个工具").tag(60)
+                }
+                .onChange(of: toolSearchLazyThreshold) { _, val in
+                    Task { await saveToolSearchConfig(key: "tools.tool_search.lazy_threshold", value: .int(val)) }
+                }
+
+                Toggle(isOn: $pinCoreTools) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("常驻核心工具集")
+                            .font(.rowTitleL)
+                        Text("保留文件/终端/记忆工具常驻，其余 MCP 工具按需懒加载")
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .onChange(of: pinCoreTools) { _, val in
+                    Task { await saveToolSearchConfig(key: "tools.tool_search.pin_core_tools", value: .bool(val)) }
+                }
+            }
+        } header: {
+            SettingsSectionHeader("动态工具搜索与懒加载")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    private func loadToolSearchConfig() async {
+        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        if let raw = try? await appState.client.rawConfig(config: config, apiKey: apiKey),
+           let ts = raw["tools"]?.objectValue?["tool_search"]?.objectValue {
+            if let e = ts["enabled"]?.boolValue { toolSearchEnabled = e }
+            if let t = ts["lazy_threshold"]?.intValue { toolSearchLazyThreshold = t }
+            if let p = ts["pin_core_tools"]?.boolValue { pinCoreTools = p }
+        }
+    }
+
+    private func saveToolSearchConfig(key: String, value: JSONValue) async {
+        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        _ = try? await appState.client.updateConfig(config: config, apiKey: apiKey, values: [key: value])
     }
 
     private func toolsetRow(_ row: ToolsetRow) -> some View {

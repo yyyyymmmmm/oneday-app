@@ -234,6 +234,10 @@ struct SettingsView: View {
                     AISettingsAuditView()
                 case .securityGuardrails:
                     SecurityGuardrailsView()
+                case .acpEditorBridge:
+                    ACPEditorApprovalView()
+                case .externalSessionImport:
+                    ExternalSessionImportView()
                 case .healthCheck:
                     HealthCheckView()
                 case .connectionSelfCheck:
@@ -613,6 +617,13 @@ struct SettingsView: View {
                     status: "变更 Diff 审阅 · 提交推送 · 分支与工作树",
                     route: .agent(.gitWorkbench)
                 )
+                statusNavRow(
+                    icon: "laptopcomputer.and.iphone",
+                    color: Palette.tintSkyInk,
+                    title: L10n.string("ACP 编辑器直连与审批"),
+                    status: "手机远程批复桌面 IDE 代码修改",
+                    route: .acpEditorBridge
+                )
             } header: {
                 sectionHeader("供应商、本地模型与开发工作台")
             }
@@ -656,6 +667,13 @@ struct SettingsView: View {
                 )
                 navRow(icon: "key", title: L10n.string("环境变量"), route: .envVars)
                 navRow(icon: "link", title: L10n.string("主会话"), route: .mainSession)
+                statusNavRow(
+                    icon: "square.and.arrow.down.on.square.fill",
+                    color: Palette.tintLavenderInk,
+                    title: L10n.string("外部会话导入"),
+                    status: "导入 Claude / Codex / ChatGPT 对话记录",
+                    route: .externalSessionImport
+                )
                 navRow(icon: "person.badge.key", title: L10n.string("平台用户配对"), route: .pairingManagement)
             } header: {
                 sectionHeader("服务端与运维")

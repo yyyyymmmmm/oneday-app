@@ -377,6 +377,27 @@ struct NotificationsView: View {
 
     private var notificationList: some View {
         List {
+            Section {
+                NavigationLink {
+                    ACPEditorApprovalView()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        SettingsRowIcon(symbol: "laptopcomputer.and.iphone", color: .blue)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("ACP 桌面编辑器远程审批")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Text("实时批复 VS Code / Cursor / Zed 推送的修改请求")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(Palette.surface)
+            }
+
             ForEach(Array(groups.enumerated()), id: \.element.id) {
                 index, group in
                 Section {

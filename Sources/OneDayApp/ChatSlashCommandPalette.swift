@@ -119,6 +119,15 @@ struct HermesSlashCommand: Identifiable, Equatable {
             category: .session
         ),
         HermesSlashCommand(
+            id: "preview",
+            command: "/preview",
+            insertText: "",
+            title: "交互预览与画布批注",
+            subtitle: "打开 WKWebView 预览窗，支持引导游览与落点批注",
+            symbol: "rectangle.and.pencil.and.ellipsis",
+            category: .mode
+        ),
+        HermesSlashCommand(
             id: "profiles",
             command: "/profiles",
             insertText: "",

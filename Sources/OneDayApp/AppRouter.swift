@@ -94,6 +94,10 @@ enum SettingsRoute: Hashable {
     case aiSettingsAudit
     /// 安全护栏与风控策略中心（Smart 风险审批 / 命令黑名单 / 网站策略 / OSV 扫描）
     case securityGuardrails
+    /// ACP 编辑器直连协议与移动端远程审批（#13）
+    case acpEditorBridge
+    /// 外部会话导入（Claude / Codex / ChatGPT / JSONL，#21）
+    case externalSessionImport
     /// 连接自检面（H13，台账 33，DESIGN §357）：客
     /// 户端只读探活驻留面，落设置根服务器段（Core
     /// 目录 connectionSelfCheck 条目直达）

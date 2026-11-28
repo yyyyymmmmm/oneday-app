@@ -29,6 +29,7 @@ struct ChatView: View {
     @State var showCheckpointHistorySheet = false
     @State var showSessionExportSheet = false
     @State var showSkillBundlesSheet = false
+    @State var showInteractivePreviewSheet = false
     @State var mentionRosterProfiles: [ProfileSummary] = []
     @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
@@ -1200,6 +1201,12 @@ struct ChatView: View {
                 send()
             }
         }
+        .sheet(isPresented: $showInteractivePreviewSheet) {
+            InteractivePreviewAnnotationSheet(targets: []) { feedback in
+                input = feedback
+                send()
+            }
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -2223,6 +2230,9 @@ struct ChatView: View {
                             case "bundle":
                                 input = ""
                                 showSkillBundlesSheet = true
+                            case "preview":
+                                input = ""
+                                showInteractivePreviewSheet = true
                             default:
                                 input = item.insertText
                                 composerFocusHandle.focusAtEnd()

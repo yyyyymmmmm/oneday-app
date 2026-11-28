@@ -15,6 +15,7 @@ struct ConnectorsView: View {
     @State private var query = ""
     @State private var detailTarget: DetailTarget?
     @State private var showAddCustomMCPSheet = false
+    @State private var activeEnterprisePreset: EnterpriseEcosystemPreset?
 
     private enum DetailTarget: Identifiable {
         case device(DeviceSourceID)
@@ -125,6 +126,9 @@ struct ConnectorsView: View {
                 if trimmedQuery.isEmpty || !filteredServers.isEmpty {
                     mcpSection
                 }
+                if trimmedQuery.isEmpty {
+                    enterpriseEcosystemSection
+                }
                 if trimmedQuery.isEmpty || !filteredCatalogEntries.isEmpty {
                     catalogSection
                 }
@@ -156,6 +160,13 @@ struct ConnectorsView: View {
         .sheet(isPresented: $showAddCustomMCPSheet) {
             AddCustomMCPServerSheet(
                 existingNames: facade.servers.map(\.name),
+                facade: facade,
+                appState: appState
+            )
+        }
+        .sheet(item: $activeEnterprisePreset) { preset in
+            EnterpriseConnectorWizardSheet(
+                preset: preset,
                 facade: facade,
                 appState: appState
             )
@@ -436,6 +447,62 @@ struct ConnectorsView: View {
             parts.append(transport.uppercased())
         }
         return parts.joined(separator: " · ")
+    }
+
+    // MARK: - 企业协同生态直连向导（飞书 / Microsoft 365 Graph / Discord）
+
+    @ViewBuilder
+    private var enterpriseEcosystemSection: some View {
+        Section {
+            ForEach(EnterpriseEcosystemPreset.all) { preset in
+                let installed = facade.servers.contains { $0.name == preset.serverName }
+                Button {
+                    Haptics.selection()
+                    activeEnterprisePreset = preset
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        connectorTile(
+                            symbol: preset.symbol,
+                            tint: preset.tint,
+                            ink: preset.ink
+                        )
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                            Text(preset.title)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Text(preset.subtitle)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(2)
+                        }
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        Text(installed ? "已接入" : "向导接入")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(installed ? Palette.successText : Palette.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(installed ? Palette.tintGreen : Palette.primaryTint, in: Capsule())
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+                .alignmentGuide(.listRowSeparatorLeading) { _ in
+                    36 + OneDayMetrics.spacingSM
+                }
+            }
+        } header: {
+            Text("企业协同生态（飞书 / M365 / Discord）")
+                .font(.sectionLabel)
+                .foregroundStyle(Palette.inkSecondary)
+                .textCase(nil)
+        } footer: {
+            Text("点击即可通过向导填写 App ID / Tenant / Bot Token 一键挂载对应生态工具。")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
     }
 
     // MARK: - 可安装的 MCP 目录（服务端官方目录单源）
