@@ -3115,33 +3115,64 @@ extension ChatView {
     /// 由订阅/对账链等终态落定、部分产物按 transcr-
     /// ipt 呈现；提交窗口内则取消本地提交任务（账本
     /// 已留停止意图，下次对账执行真停止）
+    /// 大厂级 0ms 即时停止生成（ChatGPT / Claude / 豆包标准三层刹停）：
+    /// 1. 立即触感反馈 + 取消本地 SSE 流与提交泵任务（不再苦等服务端响应）；
+    /// 2. 立即把已流式吐出的半截正文定格落盘（绝不丢已生成的字）并恢复输入框空闲态；
+    /// 3. 后台并发通知服务端 `stopRun` 真正终止远端推理与工具执行，节省 Token。
     func requestRunStop() {
         guard isStreaming || activeRunThreadID != nil || sendTask != nil else { return }
-        if runMachine.phase == .submitting {
-            sendTask?.cancel()
-            // §451：提交窗已迁提交泵——同点取消当前
-            // 线程的泵任务（泵内 performSubmit 的取
-            // 消支路记账本停止意图、静默收尾）
-            if let threadID = activeRunThreadID
-                ?? currentThreadID {
-                submitPumpTasks[threadID]?.cancel()
-            }
-            return
-        }
+        Haptics.impact(.light)
+
+        let targetThreadID = activeRunThreadID ?? currentThreadID
+        let partialContent = (streamingText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. 标记停止意图并取出服务端 runID（在清理 UI 态前读取）
         runMachine.apply(.stopRequested)
-        guard let threadID = activeRunThreadID,
-              var entry = appState.runLedger.entry(
-                  forThreadID: threadID
-              ) else { return }
-        entry.stopRequested = true
-        appState.runLedger.upsert(entry)
-        guard let runID = entry.runID,
-              let config = appState.config,
-              let apiKey = appState.apiKey else { return }
-        Task {
-            try? await appState.client.stopRun(
-                config: config, apiKey: apiKey, runID: runID
-            )
+        var serverRunID: String?
+        if let threadID = targetThreadID,
+           var entry = appState.runLedger.entry(forThreadID: threadID) {
+            entry.stopRequested = true
+            serverRunID = entry.runID
+            appState.runLedger.upsert(entry)
+        }
+
+        // 2. 立即取消本地在飞任务与提交泵（所有阶段统一即时生效）
+        sendTask?.cancel()
+        sendTask = nil
+        if let threadID = targetThreadID {
+            submitPumpTasks[threadID]?.cancel()
+            submitPumpTasks[threadID] = nil
+        }
+
+        // 3. 若已有流式半截正文且尚未落盘，立刻定格保存为助手条目（保留用户已看到的半截内容）
+        if !partialContent.isEmpty,
+           let thread = currentThread,
+           thread.id == targetThreadID {
+            let lastAssistant = thread.sortedEntries.last(where: { $0.role == "assistant" && $0.toolCard == nil })
+            if lastAssistant?.content.trimmingCharacters(in: .whitespacesAndNewlines) != partialContent {
+                let stoppedEntry = ChatEntry(
+                    role: "assistant",
+                    content: partialContent,
+                    thread: thread
+                )
+                modelContext.insert(stoppedEntry)
+                try? modelContext.save()
+            }
+        }
+
+        // 4. 0ms 恢复前端空闲态（按钮立刻切回可用、隐藏加载动画）
+        finishRunPresentation(failed: false)
+        showNotice(L10n.string("已停止生成"), tier: .brief)
+
+        // 5. 后台异步通知服务端真终止（即使弱网/超时也不卡死界面）
+        if let runID = serverRunID,
+           let config = appState.config,
+           let apiKey = appState.apiKey {
+            Task.detached {
+                try? await appState.client.stopRun(
+                    config: config, apiKey: apiKey, runID: runID
+                )
+            }
         }
     }
 
