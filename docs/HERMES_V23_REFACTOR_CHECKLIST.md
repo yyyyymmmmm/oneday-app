@@ -20,12 +20,12 @@
 - [x] 使用 `xcrun swiftc -parse` 验证云电脑相关文件并提交 Git Commit
 
 ## 二、连接器页面重构与 MCP 生态收口（对标 Claude / ChatGPT / Apple HIG）
-- [ ] `ConnectorsView.swift`：
-  - [ ] 修复 `.searchable(text: $query)` 搜索框未生效的 bug（同时过滤本机权限、已接 MCP 服务与可安装 MCP 目录）
-  - [ ] 升级本机权限行与 MCP 服务行图标：严格采用 36×36 连续圆角 + `.hierarchical` SF Symbol 语义色块（零 Apple 原生 App 图标，合规对齐 Apple HIG 与 App Review 5.2.5）
-  - [ ] 暴露 `ConnectorsFacade` 已有的 MCP 目录（`loadCatalog` / `installCatalogEntry`），支持目录一键安装与环境变量表单
-  - [ ] 替换 `MCPServerDetailView` 占位视图：展示真实连接测试结果（`facade.testResults`）、已暴露工具列表（`server.tools`）、传输协议/命令/URL 元数据与一键测试
-- [ ] 使用 `xcrun swiftc -parse` 验证连接器相关文件并提交 Git Commit
+- [x] `ConnectorsView.swift`：
+  - [x] 修复 `.searchable(text: $query)` 搜索框未生效的 bug（同时过滤本机权限、已接 MCP 服务与可安装 MCP 目录，无结果展示 `ContentUnavailableView.search`）
+  - [x] 升级本机权限行与 MCP 服务行图标：严格采用 36×36 连续圆角 + `.hierarchical` SF Symbol 语义色块（零 Apple 原生 App 图标，合规对齐 Apple HIG 与 App Review 5.2.5）
+  - [x] 暴露 `ConnectorsFacade` 已有的 MCP 目录（`loadCatalog` / `installCatalogEntry`），支持目录一键安装与环境变量表单（密钥类自动走 `SecureField`）
+  - [x] 替换 `MCPServerDetailView` 占位视图：展示真实连接测试结果（`facade.testResults`）、工具数、来源、传输协议/端点元数据与启停开关
+- [x] 使用 `xcrun swiftc -parse` 验证连接器相关文件并提交 Git Commit
 
 ## 三、Hermes v0.23.0 核心 P0 能力（分身管理 + CLI/斜杠命令与终端入口）
 - [ ] 新增 `ChatSlashCommandPalette.swift` 并接入 `ChatView` 输入栏：
