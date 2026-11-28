@@ -232,6 +232,8 @@ struct SettingsView: View {
                     advancedDiagnosticsView
                 case .aiSettingsAudit:
                     AISettingsAuditView()
+                case .securityGuardrails:
+                    SecurityGuardrailsView()
                 case .healthCheck:
                     HealthCheckView()
                 case .connectionSelfCheck:
@@ -464,6 +466,13 @@ struct SettingsView: View {
             if appState.phase == .connected {
                 navRow(icon: "lock.shield", color: Palette.tintGreenInk, title: L10n.string("密码与安全凭证"), route: .vault)
             }
+            statusNavRow(
+                icon: "shield.checkered",
+                color: Palette.tintGreenInk,
+                title: L10n.string("安全护栏与风控"),
+                status: "Smart 审批 · 命令黑名单 · OSV 扫描",
+                route: .securityGuardrails
+            )
             navRow(icon: "chart.bar", color: Palette.tintOrangeInk, title: L10n.string("用量统计"), route: .usage)
         } header: {
             sectionHeader("服务器与安全")

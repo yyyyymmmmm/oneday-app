@@ -103,7 +103,7 @@ enum ChatMentionQuery {
                 rosterDesc = "已召集全部常驻专家分身（\(names)）并行分工"
             }
             return """
-            [多体协同指令：@全员｜\(rosterDesc)。请使用 delegate_task 并行拆解，每个分身各抒己见并标注角色署名，最后由你汇总为一份可执行结论。]
+            [多体协同指令：@全员｜\(rosterDesc)。请使用 delegate_task 并行拆解，并在最终回复中严格按以下结构输出：每位分身独立一段，以 `### @分身名` 作为小标题署名陈述观点；最后以 `### 综合结论` 作为小标题由你给出统一可执行结论。]
             \(rawText)
             """
         }
@@ -115,7 +115,7 @@ enum ChatMentionQuery {
             return "@\(profile.name)"
         }.joined(separator: "、")
         return """
-        [分身定向指令：用户点名召唤 \(targetDesc)。请优先按该分身专长（必要时通过 delegate_task）处理并明确署名汇报。]
+        [分身定向指令：用户点名召唤 \(targetDesc)。请优先按该分身专长（必要时通过 delegate_task）处理，并在回复首行以 `### @分身名` 署名汇报。]
         \(rawText)
         """
     }

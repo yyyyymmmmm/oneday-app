@@ -23,6 +23,7 @@ struct ChatLiveRunDockView: View {
     var onPromoteQueuedToSteer: ((Int) -> Void)? = nil
     var onRemoveQueued: ((Int) -> Void)? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showToolStream = false
     @State private var showSteerInput = false
     @State private var showQueueList = true
@@ -32,6 +33,39 @@ struct ChatLiveRunDockView: View {
 
     private var activeToolCount: Int {
         liveToolCards.filter { $0.result == nil }.count
+    }
+
+    private struct SpecialistCapsuleItem: Identifiable {
+        let id: String
+        let name: String
+        let isRunning: Bool
+        let isFailed: Bool
+    }
+
+    private var parallelSpecialistCapsules: [SpecialistCapsuleItem] {
+        var items: [SpecialistCapsuleItem] = []
+        for card in liveToolCards {
+            guard let delegation = SubagentDelegationParser.parse(from: card) else { continue }
+            for (idx, task) in delegation.tasks.enumerated() {
+                let label = (task.profile?.isEmpty == false) ? task.profile! : "分身 \(idx + 1)"
+                items.append(SpecialistCapsuleItem(
+                    id: "\(card.id)-\(idx)-\(label)",
+                    name: label,
+                    isRunning: delegation.state == .running,
+                    isFailed: delegation.state == .failed
+                ))
+            }
+        }
+        return items
+    }
+
+    private var latestTodoItems: [TodoChecklistItem] {
+        for card in liveToolCards.reversed() {
+            if let items = TodoChecklistParser.parse(from: card), !items.isEmpty {
+                return items
+            }
+        }
+        return []
     }
 
     var body: some View {
@@ -108,6 +142,76 @@ struct ChatLiveRunDockView: View {
                 }
                 .buttonStyle(.odPressable)
                 .accessibilityLabel("停止当前任务")
+            }
+
+            // 并行干活态：紧凑专家分身状态胶囊条 + 进行中 Todo 进度胶囊（P1 #28）
+            if !parallelSpecialistCapsules.isEmpty || !latestTodoItems.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        if !latestTodoItems.isEmpty {
+                            let done = latestTodoItems.filter { $0.status == .completed }.count
+                            let activeTitle = latestTodoItems.first(where: { $0.status == .inProgress })?.content
+                            Button {
+                                withAnimation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion)) {
+                                    showToolStream.toggle()
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: done == latestTodoItems.count ? "checkmark.circle.fill" : "checklist")
+                                        .font(.caption2)
+                                        .foregroundStyle(done == latestTodoItems.count ? Palette.success : Palette.primary)
+                                    Text("清单 \(done)/\(latestTodoItems.count)")
+                                        .font(.caption2.monospacedDigit().weight(.semibold))
+                                        .foregroundStyle(Palette.ink)
+                                    if let activeTitle, !activeTitle.isEmpty {
+                                        Text("· \(activeTitle)")
+                                            .font(.caption2)
+                                            .foregroundStyle(Palette.inkSecondary)
+                                            .lineLimit(1)
+                                            .frame(maxWidth: 140, alignment: .leading)
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Palette.primaryTint, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        ForEach(parallelSpecialistCapsules) { item in
+                            Button {
+                                withAnimation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion)) {
+                                    showToolStream = true
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if item.isRunning {
+                                        ProgressView().controlSize(.mini)
+                                    } else {
+                                        Image(systemName: item.isFailed ? "xmark.circle.fill" : "checkmark.circle.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(item.isFailed ? Palette.danger : Palette.success)
+                                    }
+                                    Text(item.name)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Palette.ink)
+                                        .lineLimit(1)
+                                    Text(item.isRunning ? "执行中" : (item.isFailed ? "异常" : "已完成"))
+                                        .font(.caption2)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Palette.pageBG, in: Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Palette.hairline, lineWidth: 0.75)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .transition(.opacity)
             }
 
             // 运行中实时审批卡片（POST /v1/runs/{id}/approval）
@@ -375,7 +479,9 @@ struct ChatLiveRunDockView: View {
 
     @ViewBuilder
     private func liveCardRow(_ card: ToolCard) -> some View {
-        if let subagent = SubagentDelegationParser.parse(from: card) {
+        if let todoItems = TodoChecklistParser.parse(from: card), !todoItems.isEmpty {
+            TodoChecklistCardView(items: todoItems)
+        } else if let subagent = SubagentDelegationParser.parse(from: card) {
             SubagentDelegationCardView(card: subagent)
         } else if let terminal = TerminalExecutionParser.parse(from: card) {
             TerminalExecutionCardView(card: terminal)

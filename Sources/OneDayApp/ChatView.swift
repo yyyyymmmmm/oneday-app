@@ -6114,32 +6114,67 @@ struct ChatView: View {
                         && deliverySplit.deliveryIDs.isEmpty
                         && scans.cloudComputer.targets.isEmpty
                         && wholePathRef == nil) {
-                    assistantBubble(menuEntry: entry) {
-                        // §152：选区回报接行级记账（选
-                        // 字期间关本行右滑引用）
-                        // §335：产物段串注入——命中段
-                        // 直贴产物串（与量测同源）、未
-                        // 命中段走 §168 拼装回落
-                        MarkdownText(
-                            displayText,
-                            onSelectionChange: { active in
-                                noteTextSelection(
-                                    entryID: entry.id, active: active
+                    let specialistLayout = ChatSpecialistReplyParser.parse(
+                        markdown: displayText,
+                        inferredSingleProfile: inferredSingleSpecialistProfile(for: entry)
+                    )
+                    switch specialistLayout {
+                    case .plain:
+                        assistantBubble(menuEntry: entry) {
+                            MarkdownText(
+                                displayText,
+                                onSelectionChange: { active in
+                                    noteTextSelection(
+                                        entryID: entry.id, active: active
+                                    )
+                                },
+                                segmentProducts:
+                                    entrySegmentProducts(entry),
+                                allowsDirectSelection: false,
+                                searchHighlightQuery:
+                                    findHighlightQuery(for: entry.id),
+                                searchIsCurrentMatch:
+                                    entry.id == findController.session.currentMatchID
+                            )
+                        }
+                    case .singleSpecialist(let name, let model, let bodyText):
+                        VStack(alignment: .leading, spacing: 6) {
+                            ChatSpecialistEyebrowView(name: name, model: model)
+                            assistantBubble(menuEntry: entry) {
+                                MarkdownText(
+                                    bodyText,
+                                    onSelectionChange: { active in
+                                        noteTextSelection(
+                                            entryID: entry.id, active: active
+                                        )
+                                    },
+                                    allowsDirectSelection: false,
+                                    searchHighlightQuery:
+                                        findHighlightQuery(for: entry.id),
+                                    searchIsCurrentMatch:
+                                        entry.id == findController.session.currentMatchID
                                 )
-                            },
-                            // 正文双击选词交给 UITextView，长按归消息菜单。
-                            segmentProducts:
-                                entrySegmentProducts(entry),
-                            allowsDirectSelection: false,
-                            // §503：查找着色（命中行正
-                            // 文命中词加底；非命中行 nil）
-                            // 2026-11-27：两档强调——当前
-                            // 命中强背景、其他命中弱背景
-                            searchHighlightQuery:
-                                findHighlightQuery(for: entry.id),
-                            searchIsCurrentMatch:
-                                entry.id == findController.session.currentMatchID
-                        )
+                            }
+                        }
+                    case .multiSpecialist(let specialists, let synthesis):
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                            ChatSpecialistPerspectivesDeckView(specialists: specialists)
+                            assistantBubble(menuEntry: entry) {
+                                MarkdownText(
+                                    synthesis,
+                                    onSelectionChange: { active in
+                                        noteTextSelection(
+                                            entryID: entry.id, active: active
+                                        )
+                                    },
+                                    allowsDirectSelection: false,
+                                    searchHighlightQuery:
+                                        findHighlightQuery(for: entry.id),
+                                    searchIsCurrentMatch:
+                                        entry.id == findController.session.currentMatchID
+                                )
+                            }
+                        }
                     }
                 }
                 // 0.8.0（P1）：正文里的服务端文件路径出
@@ -10722,6 +10757,29 @@ struct ComposerBarLayout: Layout {
         if let response = try? await appState.client.profiles(config: config, apiKey: apiKey) {
             mentionRosterProfiles = response.profiles
         }
+    }
+
+    /// 推断本条助手回复对应的单分身署名（当紧邻的上一条用户消息明确点名 1 位常驻分身且未 `@全员` 时）
+    func inferredSingleSpecialistProfile(for entry: ChatEntry) -> ProfileSummary? {
+        guard !mentionRosterProfiles.isEmpty,
+              let entries = currentThread?.sortedEntries,
+              let idx = entries.firstIndex(where: { $0.id == entry.id }),
+              idx > 0
+        else { return nil }
+        for cursor in stride(from: idx - 1, through: 0, by: -1) {
+            let candidate = entries[cursor]
+            if candidate.role == "user" {
+                let resolved = ChatMentionQuery.resolveTargets(
+                    in: candidate.content,
+                    knownProfiles: mentionRosterProfiles
+                )
+                if !resolved.mentionsAll && resolved.matchedProfiles.count == 1 {
+                    return resolved.matchedProfiles[0]
+                }
+                return nil
+            }
+        }
+        return nil
     }
 
     /// 出站上下文组装（send 与失败重发共用出口）：

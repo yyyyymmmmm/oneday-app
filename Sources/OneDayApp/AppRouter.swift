@@ -92,6 +92,8 @@ enum SettingsRoute: Hashable {
     case advancedDiagnostics
     /// AI 设置变更审计与一键撤销（对接 /v1/settings/events & /v1/settings/revoke）
     case aiSettingsAudit
+    /// 安全护栏与风控策略中心（Smart 风险审批 / 命令黑名单 / 网站策略 / OSV 扫描）
+    case securityGuardrails
     /// 连接自检面（H13，台账 33，DESIGN §357）：客
     /// 户端只读探活驻留面，落设置根服务器段（Core
     /// 目录 connectionSelfCheck 条目直达）

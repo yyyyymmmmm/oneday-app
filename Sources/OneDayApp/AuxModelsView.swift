@@ -16,7 +16,16 @@ struct AuxModelsView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
+        let specifiedCount = store.auxAssignments.values.filter { !$0.isFollow }.count
         List {
+            SettingsHeroCard(
+                symbol: "slider.horizontal.3",
+                tint: Palette.tintSkyInk,
+                title: "辅助任务模型",
+                subtitle: "为上下文压缩、多模态视觉、对话标题、安全审查等 19 项后台子任务独立指定专用模型。",
+                statusText: specifiedCount == 0 ? "全部跟随主模型" : "已指定 \(specifiedCount) 项",
+                statusTone: specifiedCount == 0 ? .neutral : .healthy
+            )
             let sections = AuxSlotCatalog.sections(
                 assignments: store.auxAssignments,
                 activePresetUsesMoA: store.activePresetUsesMoA
