@@ -254,7 +254,6 @@ struct GatewayView: View {
                     SettingsRowIcon(symbol: "trash", color: .red)
                     Text("清除认证信息")
                         .font(.rowTitleL)
-                        .foregroundStyle(Palette.danger)
                     Spacer()
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
