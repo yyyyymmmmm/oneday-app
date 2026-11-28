@@ -1002,7 +1002,19 @@ extension HermesClient {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        request.httpBody = try encoder.encode(["text": text])
+        var payload: [String: JSONValue] = ["text": .string(text)]
+        let prefs = UserDefaults.standard
+        if let provider = prefs.string(forKey: "voice.selectedProvider.v1"), !provider.isEmpty {
+            payload["provider"] = .string(provider)
+        }
+        if let voice = prefs.string(forKey: "voice.selectedVoice.v1"), !voice.isEmpty {
+            payload["voice"] = .string(voice)
+        }
+        let speed = prefs.double(forKey: "voice.selectedSpeed.v1")
+        if speed >= 0.5 && speed <= 2.0 {
+            payload["speed"] = .number(speed)
+        }
+        request.httpBody = try encoder.encode(payload)
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
             let kind = SpeakFailureKind.classify(

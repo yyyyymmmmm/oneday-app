@@ -1895,8 +1895,14 @@ extension ChatView {
                 // 0.36.10：思考首达记位（事件序编排）
                 noteLiveOrder(.reasoning)
                 // §409 步 A/E：思考增量只入累积器
-                // （落盘源头），不再发布快照
                 reasoningPublishGate.offer(text)
+                let compactThought = text
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !compactThought.isEmpty {
+                    let preview = String(compactThought.suffix(36))
+                    appState.liveActivityPhrase = "思考中 · \(preview)"
+                }
             case .toolStarted(let id, let name, let preview):
                 // 第 93 条：工具开始＝服务端段边界——
                 // 先封当前正文段再落卡，卡后的新段增量

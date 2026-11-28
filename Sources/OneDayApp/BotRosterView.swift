@@ -18,6 +18,7 @@ struct BotRosterView: View {
     @State private var searchText = ""
     @State private var errorMessage: String?
     @State private var noticeMessage: String?
+    @State private var showCreateBotSheet = false
 
     private var filteredProfiles: [ProfileItem] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -86,12 +87,28 @@ struct BotRosterView: View {
             .listRowInsets(OneDayMetrics.settingsRowInsets)
 
             Section {
-                NavigationLink(value: SettingsRoute.profiles) {
+                Button {
+                    showCreateBotSheet = true
+                } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         SettingsRowIcon(symbol: "plus.circle.fill", color: Palette.primary)
-                        Text("新建或编辑专家分身")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("新建专家分身")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.primary)
+                            Text("可同时绑定定时巡检，实现后台常驻干活")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+                NavigationLink(value: SettingsRoute.profiles) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        SettingsRowIcon(symbol: "slider.horizontal.3", color: Palette.tintSkyInk)
+                        Text("全部档案与导入导出")
                             .font(.rowTitleL)
-                            .foregroundStyle(Palette.primary)
+                            .foregroundStyle(Palette.ink)
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
@@ -118,6 +135,25 @@ struct BotRosterView: View {
         .searchable(text: $searchText, prompt: Text("搜索分身名称或模型"))
         .navigationTitle("专家分身花名册")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showCreateBotSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("新建专家分身")
+            }
+        }
+        .sheet(isPresented: $showCreateBotSheet) {
+            CreateSpecialistBotSheet(
+                existingNames: profiles.map(\.name),
+                onCreated: { newName in
+                    noticeMessage = "已创建专家分身「\(newName)」，现在可在聊天中 @\(newName) 随时召唤。"
+                    Task { await loadRoster() }
+                }
+            )
+        }
         .refreshable { await loadRoster() }
         .task { await loadRoster() }
     }
@@ -234,6 +270,128 @@ struct BotRosterView: View {
             dismiss()
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "唤醒分身失败：\(error.localizedDescription)"
+            Haptics.error()
+        }
+    }
+}
+
+private struct CreateSpecialistBotSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let existingNames: [String]
+    let onCreated: (String) -> Void
+
+    @State private var name = ""
+    @State private var cloneFrom = ""
+    @State private var enableAlwaysOnCron = false
+    @State private var cronSchedule = "0 */2 * * *"
+    @State private var cronPrompt = "检查近期重点事项与未处理消息，有重要更新立即汇总提醒我。"
+    @State private var isCreating = false
+    @State private var errorMessage: String?
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSubmit: Bool {
+        !trimmedName.isEmpty && !existingNames.contains(trimmedName) && !isCreating
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("基础信息") {
+                    TextField("分身名称（如：代码架构师 / 调研专家）", text: $name)
+                        .autocorrectionDisabled()
+                    if !existingNames.isEmpty {
+                        Picker("克隆已有配置（可选）", selection: $cloneFrom) {
+                            Text("全新空白分身").tag("")
+                            ForEach(existingNames, id: \.self) { item in
+                                Text(item).tag(item)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Toggle(isOn: $enableAlwaysOnCron) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("开启后台常驻巡检（定时唤醒）")
+                                .font(.rowTitleL)
+                            Text("按设定频率自动唤醒分身执行巡检并推送结果，实现长期在线体验")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                    if enableAlwaysOnCron {
+                        TextField("Cron 表达式（如 0 */2 * * *）", text: $cronSchedule)
+                            .font(.metaMonospaced)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                        TextField("后台常驻巡检任务指令", text: $cronPrompt, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
+                } header: {
+                    Text("常驻活跃设置")
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.danger)
+                    }
+                }
+            }
+            .navigationTitle("新建专家分身")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isCreating ? "创建中…" : "创建") {
+                        Task { await create() }
+                    }
+                    .disabled(!canSubmit)
+                }
+            }
+        }
+    }
+
+    private func create() async {
+        isCreating = true
+        errorMessage = nil
+        defer { isCreating = false }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.createProfile(
+                    config: config,
+                    name: trimmedName,
+                    cloneFrom: cloneFrom.isEmpty ? nil : cloneFrom
+                )
+            }
+            if enableAlwaysOnCron {
+                let prompt = cronPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                let sched = cronSchedule.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !prompt.isEmpty && !sched.isEmpty {
+                    _ = try? await appState.performAdmin { client, config in
+                        try await client.createCronJob(
+                            config: config,
+                            name: "\(trimmedName)·常驻巡检",
+                            prompt: "[分身:\(trimmedName)] \(prompt)",
+                            schedule: sched,
+                            deliver: nil
+                        )
+                    }
+                }
+            }
+            Haptics.success()
+            onCreated(trimmedName)
+            dismiss()
+        } catch {
+            errorMessage = (error as? HermesError)?.userMessage ?? "创建失败：\(error.localizedDescription)"
             Haptics.error()
         }
     }

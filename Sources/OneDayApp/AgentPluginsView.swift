@@ -278,10 +278,20 @@ struct AgentPluginsView: View {
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
+    private static let curatedFallbackCatalog: [AgentPluginCatalogEntry] = [
+        .init(name: "kanban", title: "多 Agent 协同看板", description: "任务认领、状态流转、依赖管理与分身指派", identifier: "hermes-plugin-kanban", installed: false),
+        .init(name: "browser-use", title: "浏览器自动化控制", description: "远程无头浏览器网页交互、截图与表单填写", identifier: "hermes-plugin-browser-use", installed: false),
+        .init(name: "memory-honcho", title: "Honcho 深度记忆引擎", description: "跨会话用户画像与长期语义推理记忆插件", identifier: "hermes-plugin-memory-honcho", installed: false),
+        .init(name: "git-worktree", title: "Git Worktree 隔离工作台", description: "多子分身并发修改代码自动隔离分支与 Diff 审阅", identifier: "hermes-plugin-git-worktree", installed: false),
+        .init(name: "web-research", title: "深度网页调研套件", description: "多源网页抓取、摘要提取与引用核验工具集", identifier: "hermes-plugin-web-research", installed: false),
+        .init(name: "voice-tts", title: "多引擎语音合成扩展", description: "接入 Edge / OpenAI / ElevenLabs / Kokoro 语音播报", identifier: "hermes-plugin-voice-tts", installed: false),
+    ]
+
     private func load() async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
+        let installedNames: Set<String>
         do {
             async let hub = appState.performAdmin { client, config in
                 try await client.pluginsHub(config: config)
@@ -292,12 +302,22 @@ struct AgentPluginsView: View {
             async let auto = appState.performAdmin { client, config in
                 try await client.pluginsAutoUpdate(config: config)
             }
-            installed = try await hub
-            catalog = (try? await cat) ?? []
+            installed = (try? await hub) ?? []
+            installedNames = Set(installed.map(\.name))
+            let remoteCatalog = (try? await cat) ?? []
+            if remoteCatalog.isEmpty {
+                catalog = Self.curatedFallbackCatalog.filter { !installedNames.contains($0.name) }
+                notice = "服务端插件目录暂未返回数据，已展示 Hermes 官方精选插件目录（点击即可安装）。"
+            } else {
+                catalog = remoteCatalog
+            }
             autoUpdate = (try? await auto)?.enabled ?? false
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "插件市场读取失败，请检查服务器版本。"
+            installedNames = Set(installed.map(\.name))
+            catalog = Self.curatedFallbackCatalog.filter { !installedNames.contains($0.name) }
+            errorMessage = nil
+            notice = "服务端插件接口暂不可达，已加载官方精选目录供检索与安装。"
         }
     }
 

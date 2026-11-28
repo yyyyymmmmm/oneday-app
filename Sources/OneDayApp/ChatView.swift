@@ -34,6 +34,7 @@ struct ChatView: View {
     @State var showSessionExportSheet = false
     @State var showSkillBundlesSheet = false
     @State var showInteractivePreviewSheet = false
+    @State var showVoiceCallSheet = false
     @State var mentionRosterProfiles: [ProfileItem] = []
     @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
@@ -1211,6 +1212,22 @@ struct ChatView: View {
                 send()
             }
         }
+        .fullScreenCover(isPresented: $showVoiceCallSheet) {
+            VoiceCallSheetView(
+                agentName: appState.agentDisplayName,
+                agentAvatar: appState.agentAvatarImage,
+                isAssistantStreaming: isStreaming,
+                activityPhrase: assistantActivityStatus,
+                latestAssistantReply: currentThread?.sortedEntries.last(where: { $0.role == "assistant" && $0.toolCard == nil && !$0.content.isEmpty })?.content ?? "",
+                onSendMessage: { spoken in
+                    input = spoken
+                    send()
+                },
+                onStopGeneration: {
+                    requestRunStop()
+                }
+            )
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -1981,6 +1998,18 @@ struct ChatView: View {
                     await refreshEchoTraces()
                 }
                 syncTailIfIdle(force: true)
+                if !showVoiceCallSheet,
+                   (UserDefaults.standard.bool(forKey: VoiceSpeechPreferences.autoReadKey)
+                    || UserDefaults.standard.bool(forKey: "voice.fullDuplexEnabled.v1")),
+                   let latestReply = currentThread?.sortedEntries.last(where: {
+                       $0.role == "assistant" && $0.toolCard == nil && !$0.content.isEmpty
+                   }) {
+                    SpeechPlayer.shared.toggle(
+                        entryID: latestReply.id,
+                        content: latestReply.content,
+                        appState: appState
+                    )
+                }
                 if !queuedFollowUpMessages.isEmpty {
                     let nextMsg = queuedFollowUpMessages.removeFirst()
                     Task { @MainActor in
@@ -2414,6 +2443,9 @@ struct ChatView: View {
         // 写 input（落稿后即普通草稿、可改可发）；
         // 预备页选键盘听写时聚焦输入框
         dictation.onTextChange = { text, _ in
+            if !text.isEmpty, case .playing = SpeechPlayer.shared.machine.state {
+                SpeechPlayer.shared.stop()
+            }
             input = text
         }
         // 0.36.17：听写发送钮——控制器保证先落稿
