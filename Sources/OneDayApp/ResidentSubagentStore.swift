@@ -160,7 +160,8 @@ final class ResidentSubagentStore: ObservableObject {
 // MARK: - 命令解析器（支持 `/spawn`、`/close` 及中文自然关闭指令）
 
 enum ResidentSubagentCommand: Equatable {
-    case spawn(name: String, roleSummary: String)
+    /// `passThroughToModel == true` 表示自然语言开分身：先立刻把常驻分身上线进群，同时继续把原话发给 AI 让分身打招呼
+    case spawn(name: String, roleSummary: String, passThroughToModel: Bool)
     case closeNamed(String)
     case closeAll
 
@@ -175,7 +176,7 @@ enum ResidentSubagentCommand: Equatable {
             let parts = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
             let name = String(parts[0]).replacingOccurrences(of: "@", with: "")
             let role = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : "常驻协作分身"
-            return .spawn(name: name, roleSummary: role)
+            return .spawn(name: name, roleSummary: role, passThroughToModel: false)
         }
 
         // 2. `/close ...`
@@ -193,22 +194,49 @@ enum ResidentSubagentCommand: Equatable {
         }
 
         // 3. 自然中文关闭命令（仅在当前房间确有常驻分身且整句是简短关闭指令时拦截）
-        guard !activeAgents.isEmpty, trimmed.count <= 24 else { return nil }
-        let allClosePhrases = ["关闭所有分身", "关闭全部分身", "结束所有分身", "解散全部分身", "关闭常驻分身"]
-        if allClosePhrases.contains(trimmed) {
-            return .closeAll
-        }
-        for prefix in ["关闭分身", "结束分身", "下线分身", "关闭@", "关闭 @", "结束@", "结束 @"] {
-            if trimmed.hasPrefix(prefix) {
-                let target = String(trimmed.dropFirst(prefix.count))
-                    .replacingOccurrences(of: "@", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !target.isEmpty {
-                    return .closeNamed(target)
+        if !activeAgents.isEmpty && trimmed.count <= 24 {
+            let allClosePhrases = ["关闭所有分身", "关闭全部分身", "结束所有分身", "解散全部分身", "关闭常驻分身"]
+            if allClosePhrases.contains(trimmed) {
+                return .closeAll
+            }
+            for prefix in ["关闭分身", "结束分身", "下线分身", "关闭@", "关闭 @", "结束@", "结束 @"] {
+                if trimmed.hasPrefix(prefix) {
+                    let target = String(trimmed.dropFirst(prefix.count))
+                        .replacingOccurrences(of: "@", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !target.isEmpty {
+                        return .closeNamed(target)
+                    }
                 }
             }
         }
+
+        // 4. 自然中文「开分身」指令（例如：“帮我开一个编码分身”、“开个研究分身”、“开启分身”）
+        //    立即在房间上线常驻分身胶囊，同时透传给主 AI 让分身在对话中正式报到
+        if trimmed.count <= 40,
+           trimmed.range(of: #"(帮我|给我|请|麻烦)?(开|开启|创建|新建|拉|叫)(一?个)?.*分身"#, options: .regularExpression) != nil,
+           !trimmed.contains("关闭"), !trimmed.contains("结束"), !trimmed.contains("删") {
+            let inferredName = extractNaturalSubagentName(from: trimmed)
+            return .spawn(
+                name: inferredName,
+                roleSummary: "由对话指令开启的常驻协作分身",
+                passThroughToModel: true
+            )
+        }
         return nil
+    }
+
+    private static func extractNaturalSubagentName(from text: String) -> String {
+        let keywords: [(String, String)] = [
+            ("编码", "编码分身"), ("代码", "编码分身"), ("开发", "开发分身"), ("架构", "架构分身"),
+            ("研究", "研究分身"), ("调研", "调研分身"), ("分析", "分析分身"),
+            ("产品", "产品分身"), ("设计", "设计分身"), ("写作", "写作分身"), ("文案", "文案分身"),
+            ("运维", "运维分身"), ("测试", "测试分身"), ("金融", "金融分身"), ("日程", "日程分身"),
+        ]
+        for (kw, name) in keywords where text.contains(kw) {
+            return name
+        }
+        return "专属分身"
     }
 }
 

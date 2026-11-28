@@ -1246,6 +1246,7 @@ struct ChatView: View {
                 agentAvatar: appState.agentAvatarImage,
                 isAssistantStreaming: isStreaming,
                 activityPhrase: assistantActivityStatus,
+                streamingAssistantText: streamingText ?? "",
                 latestAssistantReply: currentThread?.sortedEntries.last(where: { $0.role == "assistant" && $0.toolCard == nil && !$0.content.isEmpty })?.content ?? "",
                 onSendMessage: { spoken in
                     input = spoken
@@ -2345,9 +2346,11 @@ struct ChatView: View {
                 }
                 return nil
             }(),
-            liveRunDockVisible: isStreaming || activeRunThreadID != nil,
+            liveRunDockVisible: (isStreaming || activeRunThreadID != nil)
+                && (!liveToolCards.isEmpty || activeRunApproval != nil || activeRunClarify != nil),
             liveRunDockView: {
-                guard isStreaming || activeRunThreadID != nil else { return nil }
+                guard (isStreaming || activeRunThreadID != nil),
+                      (!liveToolCards.isEmpty || activeRunApproval != nil || activeRunClarify != nil) else { return nil }
                 let activeRunID = (activeRunThreadID ?? currentThread?.id)
                     .flatMap { appState.runLedger.entry(forThreadID: $0)?.runID }
                 let phrase = appState.liveActivityPhrase
@@ -10747,7 +10750,7 @@ struct ComposerBarLayout: Layout {
                activeAgents: residentSubagents.activeAgents(in: thread.id.uuidString)
            ) {
             switch command {
-            case .spawn(let name, let roleSummary):
+            case .spawn(let name, let roleSummary, let passThroughToModel):
                 let agent = residentSubagents.enlist(
                     name: name,
                     roleSummary: roleSummary,
@@ -10755,6 +10758,7 @@ struct ComposerBarLayout: Layout {
                 )
                 Haptics.success()
                 showNotice("常驻分身 @\(agent.name) 已上线，随时可 @ 派活或点卡片 × 关闭")
+                if !passThroughToModel { return }
             case .closeNamed(let target):
                 if let removed = residentSubagents.dismiss(named: target, in: thread.id.uuidString) {
                     Haptics.light()
@@ -10762,12 +10766,13 @@ struct ComposerBarLayout: Layout {
                 } else {
                     showNotice("当前对话未找到名为「\(target)」的常驻分身")
                 }
+                return
             case .closeAll:
                 let count = residentSubagents.dismissAll(in: thread.id.uuidString)
                 Haptics.light()
                 showNotice(count > 0 ? "已关闭本对话全部 \(count) 位常驻分身" : "当前对话没有在线常驻分身")
+                return
             }
-            return
         }
         // 服务端 2.6.0 运行中纠偏（POST /v1/runs/{id}/steer）：
         // 当前会话正在流式执行且无附件/非编辑态时，直接向在飞 run
