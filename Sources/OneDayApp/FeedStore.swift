@@ -302,7 +302,10 @@ final class FeedStore {
     /// §1.9），回执到达整帖替换对账；失败恢复原帖＋
     /// 落轻提醒（likeNotice），不许再 try? 静默吞。
     /// 在飞期同帖连点忽略（防两次相反写竞态）
-    func toggleLiked(appState: AppState, post: BridgeFeedPost) async {
+    func toggleLiked(
+        appState: AppState, post: BridgeFeedPost,
+        onOptimisticChange: (Bool) -> Void
+    ) async {
         // FA-2（§239）：种子帖没有桥行，点赞回写短路
         // ——不许拿本地 id 去打桥（行面本地态由视图层管）
         guard !FeedSeedPosts.isSeed(post.id),
@@ -316,6 +319,7 @@ final class FeedStore {
             postID: post.id, liked: target,
             at: Date().timeIntervalSince1970
         )
+        onOptimisticChange(target)
         do {
             let settled = try await client.setFeedPostLiked(
                 config: config, id: post.id, liked: target

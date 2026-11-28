@@ -176,7 +176,7 @@ final class ChatNativeFollowSourceTests: XCTestCase {
         )
     }
 
-    func testItemLayoutOffBottomKeepsVisiblePosition() {
+    func testItemLayoutOffBottomKeepsVisiblePosition() throws {
         assemble()
         apply(rows(30))
         drain(1.2)
@@ -184,22 +184,16 @@ final class ChatNativeFollowSourceTests: XCTestCase {
         drain(0.5)
         let cv = controller.collectionView
         // 视口上方行变高：可见内容位置不得跳（保位）
-        let anchorBefore = cv.indexPathsForVisibleItems
-            .map(\.section).min() ?? 0
-        let attrsBefore = cv.layoutAttributesForItem(
-            at: IndexPath(item: 0, section: anchorBefore)
-        )
-        let shownBefore = (attrsBefore?.frame.minY ?? 0)
-            - cv.contentOffset.y
+        let anchor = try XCTUnwrap(cv.indexPathsForVisibleItems.sorted().first)
+        XCTAssertNotEqual(anchor, IndexPath(item: 0, section: 0))
+        let attrsBefore = try XCTUnwrap(cv.layoutAttributesForItem(at: anchor))
+        let shownBefore = attrsBefore.frame.minY - cv.contentOffset.y
         var changed = rows(30)
         changed[0] = row(0, height: 160)
         apply(changed)
         drain(0.8)
-        let attrsAfter = cv.layoutAttributesForItem(
-            at: IndexPath(item: 0, section: anchorBefore)
-        )
-        let shownAfter = (attrsAfter?.frame.minY ?? 0)
-            - cv.contentOffset.y
+        let attrsAfter = try XCTUnwrap(cv.layoutAttributesForItem(at: anchor))
+        let shownAfter = attrsAfter.frame.minY - cv.contentOffset.y
         XCTAssertEqual(
             shownAfter, shownBefore, accuracy: 2,
             "离底时上方行高变须保可见位置（偏移随增高补偿）"

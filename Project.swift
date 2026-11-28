@@ -258,6 +258,12 @@ let project = Project(
             runAction: .runAction(executable: "OneDayApp")
         ),
         .scheme(
+            name: "OneDayCore",
+            shared: true,
+            buildAction: .buildAction(targets: ["OneDayCore"]),
+            testAction: .targets(["OneDayCoreTests"])
+        ),
+        .scheme(
             name: "OneDayMac",
             shared: true,
             buildAction: .buildAction(targets: ["OneDayMac"]),

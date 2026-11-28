@@ -731,17 +731,11 @@ struct FeedView: View {
             // 失败恢复原状＋轻提醒；行面只加一钮，
             // 不新增 why/edition 字样（守 §126 行面栈
             // 与 rev2 §1.9 冻结契约）
-            Button {
-                Task { await store.toggleLiked(appState: appState, post: post) }
-            } label: {
-                Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                    .font(.footnote)
-                    .foregroundStyle(
-                        post.isLiked ? Palette.primary : Palette.inkSecondary
-                    )
+            FeedLikeButton(isLiked: post.isLiked) { onOptimisticChange in
+                await store.toggleLiked(
+                    appState: appState, post: post, onOptimisticChange: onOptimisticChange
+                )
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(post.isLiked ? "取消点赞" : "点赞")
             Button {
                 discuss(post)
             } label: {
@@ -1861,5 +1855,69 @@ extension FeedPostKind {
         case .seed: return Palette.tintGreenInk
         case .unknown: return Palette.primary
         }
+    }
+}
+
+private struct FeedLikeButton: View {
+    let isLiked: Bool
+    let toggle: @MainActor (@escaping (Bool) -> Void) async -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var burst = 0
+
+    private struct Motion {
+        var scale: CGFloat = 1
+        var particles: CGFloat = 0
+    }
+
+    var body: some View {
+        let particleTint = Palette.primary
+        Button {
+            Task { @MainActor in
+                await toggle { liked in
+                    if liked && !reduceMotion { burst += 1 }
+                }
+            }
+        } label: {
+            Image(systemName: isLiked ? "heart.fill" : "heart")
+                .font(.footnote)
+                .foregroundStyle(isLiked ? Palette.primary : Palette.inkSecondary)
+                .keyframeAnimator(initialValue: Motion(), trigger: burst) { heart, motion in
+                    heart.scaleEffect(reduceMotion ? 1 : motion.scale)
+                        .overlay {
+                            if isLiked, !reduceMotion, motion.particles > 0, motion.particles < 1 {
+                                Self.particleRing(progress: motion.particles, tint: particleTint)
+                            }
+                        }
+                } keyframes: { _ in
+                    KeyframeTrack(\.scale) {
+                        LinearKeyframe(0.82, duration: 0.07)
+                        SpringKeyframe(1.18, duration: 0.14)
+                        SpringKeyframe(1, duration: 0.22)
+                    }
+                    KeyframeTrack(\.particles) {
+                        LinearKeyframe(0, duration: 0.07)
+                        LinearKeyframe(1, duration: 0.30)
+                    }
+                }
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel(isLiked ? "取消点赞" : "点赞")
+    }
+
+    private nonisolated static func particleRing(progress: CGFloat, tint: Color) -> some View {
+        ZStack {
+            ForEach(0..<8) { index in
+                let angle = Double(index) * .pi / 4
+                let radius = 9 + 13 * progress
+                Circle()
+                    .fill(tint)
+                    .frame(width: index.isMultiple(of: 2) ? 3 : 2)
+                    .opacity(Double(1 - progress))
+                    .offset(x: cos(angle) * radius, y: sin(angle) * radius)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

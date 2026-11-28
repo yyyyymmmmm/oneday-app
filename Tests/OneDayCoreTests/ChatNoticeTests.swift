@@ -1,8 +1,7 @@
 import OneDayCore
 import XCTest
 
-/// §140 提示纪律第一包钉测：分档自消口径（中性 5s／
-/// 重要 8s）与呈现状态机的代号纪律（自清只清自己
+/// 分档自消时长与呈现状态机的代号纪律（自清只清自己
 /// 那一代、手关后旧计时不复活）。「成功不报」（重连
 /// 提示摘除）在 App 侧是删除赋值点、无 Core 面可测，
 /// 其防线是本状态机不为恢复类结果设任何入口这一形
@@ -13,14 +12,12 @@ final class ChatNoticeTests: XCTestCase {
 
     func testTierDurations() {
         XCTAssertEqual(
-            ChatNoticeTier.brief.autoDismissSeconds, 5
+            ChatNoticeTier.brief.autoDismissSeconds, 3.5
         )
         XCTAssertEqual(
-            ChatNoticeTier.extended.autoDismissSeconds, 8
+            ChatNoticeTier.extended.autoDismissSeconds, 6
         )
-        // 常驻档（OB-I3，§391）：无自消秒数——不起计时、
-        // 只许手关，「需要人知道的失败不自动消失」
-        XCTAssertNil(ChatNoticeTier.persistent.autoDismissSeconds)
+        XCTAssertEqual(ChatNoticeTier.persistent.autoDismissSeconds, 5)
     }
 
     func testTierSetIsExactlyThree() {

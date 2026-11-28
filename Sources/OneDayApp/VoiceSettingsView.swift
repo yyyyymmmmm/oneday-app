@@ -59,6 +59,7 @@ struct VoiceSettingsView: View {
                             .foregroundStyle(Palette.ink)
                     }
                 }
+                .toggleStyle(AutoReadToggleStyle())
                 .tint(Palette.primary)
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
 
@@ -282,6 +283,49 @@ struct VoiceSettingsView: View {
             saveNotice = (error as? HermesError)?.userMessage ?? "保存失败：\(error.localizedDescription)"
             isError = true
             Haptics.error()
+        }
+    }
+}
+
+private struct AutoReadToggleStyle: ToggleStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        if reduceMotion {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+        } else {
+            Button {
+                configuration.isOn.toggle()
+            } label: {
+                HStack {
+                    configuration.label
+                    Spacer()
+                    Capsule()
+                        .fill(configuration.isOn ? Palette.primary : Palette.fillPrimary)
+                        .frame(width: 51, height: 31)
+                        .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 27, height: 27)
+                                .keyframeAnimator(initialValue: CGFloat(1), trigger: configuration.isOn) { thumb, stretch in
+                                    thumb.scaleEffect(x: stretch, y: 1 - (stretch - 1) / 2)
+                                } keyframes: { _ in
+                                    LinearKeyframe(1.18, duration: 0.09)
+                                    SpringKeyframe(1, duration: 0.22)
+                                }
+                                .padding(.horizontal, 2)
+                        }
+                        .animation(MotionTokens.microSpring, value: configuration.isOn)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityRepresentation {
+                Toggle(isOn: configuration.$isOn) { configuration.label }
+                    .toggleStyle(.switch)
+            }
         }
     }
 }

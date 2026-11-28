@@ -52,12 +52,10 @@ final class LibraryOrderingTests: XCTestCase {
 
     func testSortByTitleUsesDisplayTitle() {
         let sorted = LibraryOrdering.sorted(
-            [entry(name: "报告.docx"), entry(name: "alpha.pdf")],
+            [entry(name: "Report 10.docx"), entry(name: "Report 2.pdf")],
             by: .title, openedAt: [:]
         )
-        XCTAssertEqual(
-            sorted.map(\.name), ["alpha.pdf", "报告.docx"]
-        )
+        XCTAssertEqual(sorted.map(\.name), ["Report 2.pdf", "Report 10.docx"])
     }
 
     // MARK: 最近判定与分组

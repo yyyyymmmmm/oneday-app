@@ -8654,14 +8654,7 @@ struct ComposerBarLayout: Layout {
         // symbolEffect（0.3.0 口径不变）
         let isStopDisc = trailingState == .stop
         return Button {
-            if isStopDisc {
-                // 0.31.0：停止＝runs 真取消（requestRun-
-                // Stop 发服务端 stop），不再是旧通道的
-                // 本地断流假取消
-                requestRunStop()
-            } else {
-                send()
-            }
+            trailingState.activateDisc(onSend: send, onStop: requestRunStop)
         } label: {
             Image(systemName: isStopDisc ? "stop.fill" : "arrow.up")
                 .font(.system(size: isStopDisc ? FrameworkIcon.miniGlyphSize : FrameworkIcon.smallGlyphSize, weight: .bold))

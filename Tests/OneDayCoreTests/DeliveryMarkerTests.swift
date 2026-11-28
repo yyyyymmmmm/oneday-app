@@ -157,7 +157,6 @@ final class DeliveryMarkerTests: XCTestCase {
             "[[deliver:a6fc654739fd597ff861aa]]",
             "[[deliver:\(trialID)]",
             "[deliver:\(trialID)]",
-            "[[deliver:\(trialID)]]尾巴",
         ] {
             let split = DeliveryMarker.split(in: line)
             XCTAssertEqual(split.deliveryIDs, [], line)
@@ -165,12 +164,16 @@ final class DeliveryMarkerTests: XCTestCase {
         }
     }
 
-    /// 行内嵌写（前后有字）：不算独立成行、不摘
-    func testInlineMarkerStaysText() {
-        let source = "文件在这里 [[deliver:\(docID)]] 请查收。"
-        let split = DeliveryMarker.split(in: source)
-        XCTAssertEqual(split.deliveryIDs, [])
-        XCTAssertEqual(split.text, source)
+    func testInlineMarkerPreservesSurroundingText() {
+        let split = DeliveryMarker.split(
+            in: "文件在这里 [[deliver:\(docID)]] 请查收。"
+        )
+        XCTAssertEqual(split.deliveryIDs, [docID])
+        XCTAssertEqual(split.text, "文件在这里  请查收。")
+
+        let followedByText = DeliveryMarker.split(in: "[[deliver:\(trialID)]]尾巴")
+        XCTAssertEqual(followedByText.deliveryIDs, [trialID])
+        XCTAssertEqual(followedByText.text, "尾巴")
     }
 
     /// 代码围栏内是字面量：不摘；围栏外的照摘

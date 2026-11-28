@@ -32,6 +32,36 @@ final class ChatGestureNativeSurfaceTests: XCTestCase {
 
     // MARK: - 用例
 
+    func testComposerKeepsOneHittableActionAsDraftChanges() {
+        let app = launchDemoApp()
+        openSeededThread(in: app)
+
+        let microphone = app.buttons["语音输入"]
+        let send = app.buttons["发送"]
+        let stop = app.buttons["停止生成"]
+        XCTAssertTrue(microphone.waitForExistence(timeout: 10))
+        XCTAssertTrue(microphone.isHittable)
+        XCTAssertFalse(send.exists)
+        XCTAssertFalse(stop.exists)
+
+        let placeholder = app.staticTexts["发消息…"]
+        XCTAssertTrue(placeholder.waitForExistence(timeout: 10))
+        let frame = placeholder.frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+        app.typeText("x")
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.isHittable)
+        XCTAssertFalse(microphone.exists)
+        XCTAssertFalse(stop.exists)
+
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
+        XCTAssertTrue(microphone.waitForExistence(timeout: 5))
+        XCTAssertTrue(microphone.isHittable)
+        XCTAssertFalse(send.exists)
+        XCTAssertFalse(stop.exists)
+    }
+
     /// 长按正文归消息操作菜单（含反应浮排），双击正文归系统选词与编辑菜单。
     func testLongPressOnTextShowsRowMenu() throws {
         let app = launchDemoApp()

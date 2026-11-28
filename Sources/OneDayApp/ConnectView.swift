@@ -72,6 +72,7 @@ struct ConnectView: View {
     /// 跑一轮只读自检，逐项看卡在哪一层
     @State private var showSelfCheck = false
     @State private var isConnecting = false
+    @State private var connectionConfirmed = false
     @State private var appeared = false
 
     private var canSubmit: Bool {
@@ -107,12 +108,10 @@ struct ConnectView: View {
         .onAppear {
             if DemoMode.current == .connectPage {
                 // 演示态预填全是占位假串、不含真实凭据
+                username = "admin"
                 password = "demo-password"
                 apiKey = "demo-api-key"
-            }
-            // 回显已存账号：优先从 config 读（restore 已恢复）；
-            // 未连接时直接读 Keychain 存量（用户断开后重登）
-            if let stored = appState.config?.username
+            } else if let stored = appState.config?.username
                 ?? KeychainStore.read(account: CredentialKey.username),
                !stored.isEmpty {
                 username = stored
@@ -222,6 +221,7 @@ struct ConnectView: View {
 
             VStack(spacing: OneDayMetrics.spacingS) {
                 Button("连接我的服务器") { page = .login }
+                    .accessibilityIdentifier("connect.existingServer")
                     .buttonStyle(.odPrimary)
 
                 Button {
@@ -295,6 +295,7 @@ struct ConnectView: View {
     private var loginPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             backButton("欢迎") { page = .welcome }
+                .disabled(isConnecting)
             Text("连接你的服务器")
                 .font(.largeTitle.weight(.bold))
                 .foregroundStyle(Palette.ink)
@@ -310,8 +311,12 @@ struct ConnectView: View {
                 Text("扫码").tag(LoginMode.scan)
             }
             .pickerStyle(.segmented)
+            .disabled(isConnecting)
             .padding(.top, OneDayMetrics.spacingL)
-            .onChange(of: mode) { _, _ in formError = nil }
+            .onChange(of: mode) { _, _ in
+                formError = nil
+                failure = nil
+            }
 
             Group {
                 if mode == .password {
@@ -322,6 +327,7 @@ struct ConnectView: View {
                     scanFields
                 }
             }
+            .disabled(isConnecting)
             .padding(.top, OneDayMetrics.spacingL)
 
             if mode == .password {
@@ -337,20 +343,60 @@ struct ConnectView: View {
             }
 
             if mode != .scan {
-                Button(mode == .password ? "验证并连接" : "测试并连接") {
-                    submit()
+                connectionButton
+                    .padding(.top, OneDayMetrics.spacingXL)
+                if isConnecting, !connectionConfirmed {
+                    stepsList.padding(.top, OneDayMetrics.spacingM)
                 }
-                .buttonStyle(.odPrimary)
-                .disabled(!canSubmit)
-                .padding(.top, OneDayMetrics.spacingXL)
+                if failure != nil, !isConnecting {
+                    Button("查看连接自检") { showSelfCheck = true }
+                        .padding(.top, OneDayMetrics.spacingM)
+                }
             }
 
             Button("需要帮助？") { helpReturn = .login; page = .help }
+                .disabled(isConnecting)
                 .font(.callout)
                 .foregroundStyle(Palette.primary)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: OneDayMetrics.minTapTarget)
         }
+    }
+
+    private var connectionButton: some View {
+        let title = mode == .password ? "验证并连接" : "测试并连接"
+        let height = OneDayMetrics.primaryButtonHeight
+        return Button(action: submit) {
+            GeometryReader { geometry in
+                ZStack {
+                    Capsule()
+                        .fill(Palette.primarySaturated.opacity(canSubmit || isConnecting ? 1 : 0.35))
+                        .frame(width: isConnecting && !reduceMotion ? height : geometry.size.width)
+                    if connectionConfirmed {
+                        Image(systemName: "checkmark")
+                            .font(.body.weight(.semibold))
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    } else if isConnecting {
+                        ProgressView().tint(.white)
+                            .transition(.opacity)
+                    } else {
+                        Text(L10n.string(title))
+                            .font(.body.weight(.semibold))
+                            .transition(.opacity)
+                    }
+                }
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .animation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion), value: isConnecting)
+                .animation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion), value: connectionConfirmed)
+            }
+            .frame(height: height)
+        }
+        .buttonStyle(.odPressable)
+        .disabled(!canSubmit)
+        .accessibilityIdentifier("connect.submit")
+        .accessibilityLabel(L10n.string(connectionConfirmed ? "连接成功" : isConnecting ? "正在连接" : title))
     }
 
     // 地址/秘密字段走共用件（台账 198 收敛 S3：
@@ -934,7 +980,10 @@ struct ConnectView: View {
     // MARK: - 提交（四步真检查）
 
     private func submit() {
+        guard !isConnecting else { return }
+        let submittedFromLogin = page == .login && mode != .scan
         formError = nil
+        connectionConfirmed = false
         failure = nil
         // 第一步：地址格式——本地归一化，未过不发请求、
         // 不进连接中面（表单层报错，与旧口径一致）
@@ -946,7 +995,7 @@ struct ConnectView: View {
             return
         }
         stepStates = [.addressFormat: .done]
-        page = .connecting
+        if !submittedFromLogin { page = .connecting }
         isConnecting = true
         Task {
             defer { isConnecting = false }
@@ -979,21 +1028,28 @@ struct ConnectView: View {
                     stepStates[step] = .done
                 }
                 serviceInfo = info
-                page = .success
+                connectionConfirmed = true
                 Haptics.success()
+                if submittedFromLogin, !reduceMotion {
+                    try? await Task.sleep(for: .milliseconds(240))
+                }
+                page = .success
             } catch let failureError as OnboardingFailure {
                 if let current {
                     stepStates[current] = .failed
                 }
                 failure = failureError
+                if submittedFromLogin { formError = failureError.advice() }
                 Haptics.error()
             } catch {
                 if let current {
                     stepStates[current] = .failed
                 }
-                failure = OnboardingFailure(
+                let unexpectedFailure = OnboardingFailure(
                     step: current ?? .serviceInfo, kind: .other
                 )
+                failure = unexpectedFailure
+                if submittedFromLogin { formError = unexpectedFailure.advice() }
                 Haptics.error()
             }
         }

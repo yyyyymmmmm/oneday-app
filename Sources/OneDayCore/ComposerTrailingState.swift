@@ -35,6 +35,15 @@ public enum ComposerTrailingState: Equatable, CaseIterable {
         return .mic
     }
 
+    /// 派发同一圆盘按钮在当前状态下的动作。
+    public func activateDisc(onSend: () -> Void, onStop: () -> Void) {
+        switch self {
+        case .send: onSend()
+        case .stop: onStop()
+        case .mic: break
+        }
+    }
+
     /// 是否为圆盘键形态（发送/停止共用同一颗圆
     /// 盘键，内部符号以 symbolEffect 形变切换；
     /// 麦克风是裸符号、无圆盘）

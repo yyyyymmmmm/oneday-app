@@ -1342,7 +1342,7 @@ public enum FileRefDetector {
                 inFence.toggle()
                 continue
             }
-            if inFence { continue }
+            if inFence || MediaMarker.markerPath(in: trimmed) != nil { continue }
             // 独立成行：整行恰一条路径（复用 §129
             // 成牌口的整行判据，含下载根校验）
             let standalone = detectStandaloneAnchored(in: line)

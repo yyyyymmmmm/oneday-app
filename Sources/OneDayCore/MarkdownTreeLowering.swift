@@ -44,10 +44,20 @@ enum MarkdownTreeParsing {
         // 含 ~~ 的块不种（删除线分段口径只在原文
         // 路完备，见 inlineRuns 注）
         let seedBox = RunSeedBox()
+        let reuseRepeatedBlocks = content.utf8.count >= 4_096
+        var loweredBySource: [BlockSourceKey: [MarkdownBlock]] = [:]
         for child in document.children {
-            let lowered = lowerBlock(
-                child, sourceLines: sourceLines, seeds: seedBox
-            )
+            let lowered: [MarkdownBlock]
+            if reuseRepeatedBlocks, let key = fullLineSource(of: child, sourceLines: sourceLines) {
+                if let cached = loweredBySource[key] {
+                    lowered = cached
+                } else {
+                    lowered = lowerBlock(child, sourceLines: sourceLines, seeds: seedBox)
+                    loweredBySource[key] = lowered
+                }
+            } else {
+                lowered = lowerBlock(child, sourceLines: sourceLines, seeds: seedBox)
+            }
             let isHTML = child is HTMLBlock
             var didFold = false
             if let first = lowered.first,
@@ -78,9 +88,7 @@ enum MarkdownTreeParsing {
             }
         }
         for entry in seedBox.entries {
-            MarkdownParseMemos.runs.seed(
-                entry.runs, for: entry.key
-            )
+            MarkdownParseMemos.runs.seed(entry.runs, for: entry.key)
         }
         return mergeAdjacentLists(result)
     }
@@ -615,11 +623,11 @@ enum MarkdownTreeParsing {
                 }
             }
         }
+        let columnAlignments = table.columnAlignments
         let alignments: [MarkdownTableAlignment] =
             header.indices.map { index in
-                guard index < table.columnAlignments.count,
-                      let alignment =
-                        table.columnAlignments[index]
+                guard columnAlignments.indices.contains(index),
+                      let alignment = columnAlignments[index]
                 else { return .left }
                 switch alignment {
                 case .left: return .left
@@ -732,9 +740,11 @@ enum MarkdownTreeParsing {
     ) -> String {
         // 快退（性能）：无任一特殊字符的纯文本（绝
         // 大多数节点）原样返回，免逐字数组化
-        guard text.contains(where: {
-            $0 == "\\" || $0 == "`" || $0 == "["
-                || $0 == "<" || $0 == "*" || $0 == "_"
+        guard text.utf8.contains(where: { byte in
+            switch byte {
+            case 92, 96, 91, 60, 42, 95: return true // \, `, [, <, *, _
+            default: return false
+            }
         }) else { return text }
         let characters = Array(text)
         var output = ""
@@ -1030,29 +1040,27 @@ enum MarkdownTreeParsing {
     )
 
     /// 链接候选预检：见 appendTextWithAutolinks 注
-    private static func hasLinkCandidate(
-        _ text: String
-    ) -> Bool {
-        if text.contains("://") || text.contains("www.")
-            || text.contains("@") {
-            return true
-        }
-        // 「.」两侧皆字词字符（域名形）：在 UTF-8
-        // 视图上零分配扫（前后字节皆 ASCII 字词字
-        // 符即成立，多字节字符字节 ≥0x80 自动落选
-        // ——域名标签本就只由 ASCII 组成，口径等价）
-        let bytes = text.utf8
+    private static func hasLinkCandidate(_ text: String) -> Bool {
         var previous: UInt8 = 0
-        var iterator = bytes.makeIterator()
+        var consecutiveW = 0
+        var iterator = text.utf8.makeIterator()
         while let byte = iterator.next() {
-            if byte == 0x2E,
-               previous.isASCIIWordByte {
+            switch byte {
+            case 64: // @
+                return true
+            case 58: // ://
                 var lookahead = iterator
-                if let next = lookahead.next(),
-                   next.isASCIIWordByte {
+                if lookahead.next() == 47, lookahead.next() == 47 { return true }
+            case 46: // www. or a period between ASCII word bytes
+                if consecutiveW >= 3 { return true }
+                var lookahead = iterator
+                if previous.isASCIIWordByte, lookahead.next()?.isASCIIWordByte == true {
                     return true
                 }
+            default:
+                break
             }
+            consecutiveW = byte == 119 ? consecutiveW + 1 : 0
             previous = byte
         }
         return false
@@ -1253,6 +1261,29 @@ enum MarkdownTreeParsing {
         _ code: String
     ) -> String {
         code.hasSuffix("\n") ? String(code.dropLast()) : code
+    }
+
+    /// Reuse lowering within one document, where reference definitions are shared.
+    /// Cache only complete top-level lines, so partial source ranges cannot collide.
+    private struct BlockSourceKey: Hashable {
+        let nodeType: ObjectIdentifier
+        let lines: ArraySlice<String>
+    }
+
+    private static func fullLineSource(
+        of markup: Markup, sourceLines: [String]
+    ) -> BlockSourceKey? {
+        guard let range = markup.range, range.lowerBound.column == 1 else { return nil }
+        let first = range.lowerBound.line - 1
+        let last = range.upperBound.line - 1
+        guard sourceLines.indices.contains(first), sourceLines.indices.contains(last),
+              first <= last, range.upperBound.column == sourceLines[last].utf8.count + 1
+        else { return nil }
+
+        return BlockSourceKey(
+            nodeType: ObjectIdentifier(type(of: markup)),
+            lines: sourceLines[first...last]
+        )
     }
 
     /// 节点源文（HTMLBlock 等不暴露原文的节点靠源

@@ -504,16 +504,13 @@ final class SmokeGateUITests: XCTestCase {
             "-odDemoConnect", "-AppleLanguages", "(zh-Hans)",
         ]
         app.launch()
-        let start = app.buttons["连接已有服务器"]
+        let start = app.buttons["connect.existingServer"]
         XCTAssertTrue(
             start.waitForExistence(timeout: 25),
             "连接页欢迎面首帧应渲染（分叉主路钮在场）"
         )
         start.tap()
-        let connect = app.buttons.matching(NSPredicate(
-            format: "label IN %@",
-            ["测试并连接", "验证并连接"]
-        )).firstMatch
+        let connect = app.buttons["connect.submit"]
         XCTAssertTrue(
             connect.waitForExistence(timeout: 12),
             "登录面应渲染出连接钮（表单真装配）"

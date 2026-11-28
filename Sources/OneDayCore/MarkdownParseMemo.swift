@@ -23,12 +23,24 @@ import Foundation
 /// 言）。@unchecked Sendable 的依据：全部可变状态
 /// 只在 NSLock 内读写；compute 在锁外执行（避免持
 /// 锁做贵活），并发下同键偶发重复计算结果恒等、无
-/// 害。recency 用数组维护 LRU 序，命中时一次线性
-/// 搬移——容量上限 1024 条，成本远低于一次解析
+/// 害。字典定位节点，链表维护访问顺序，命中和淘汰都为 O(1)。
 public final class ParseMemoBox<Value>: @unchecked Sendable {
     private let lock = NSLock()
-    private var values: [String: Value] = [:]
-    private var recency: [String] = []
+    private final class Entry {
+        let key: String
+        let value: Value
+        weak var older: Entry?
+        var newer: Entry?
+
+        init(key: String, value: Value) {
+            self.key = key
+            self.value = value
+        }
+    }
+
+    private var entries: [String: Entry] = [:]
+    private var oldest: Entry?
+    private var newest: Entry?
     private let capacity: Int
     private var hitTotal = 0
     private var missTotal = 0
@@ -45,27 +57,22 @@ public final class ParseMemoBox<Value>: @unchecked Sendable {
     public func seed(_ value: Value, for key: String) {
         lock.lock()
         defer { lock.unlock() }
-        guard values[key] == nil else { return }
-        values[key] = value
-        recency.append(key)
-        while values.count > capacity, let oldest = recency.first {
-            recency.removeFirst()
-            values[oldest] = nil
-        }
+        guard entries[key] == nil else { return }
+        insert(value, for: key)
     }
 
     public func value(
         for key: String, compute: () -> Value
     ) -> Value {
         lock.lock()
-        if let cached = values[key] {
+        if let entry = entries[key] {
             hitTotal += 1
-            if let index = recency.firstIndex(of: key) {
-                recency.remove(at: index)
-                recency.append(key)
+            if newest !== entry {
+                unlink(entry)
+                append(entry)
             }
             lock.unlock()
-            return cached
+            return entry.value
         }
         missTotal += 1
         lock.unlock()
@@ -73,17 +80,47 @@ public final class ParseMemoBox<Value>: @unchecked Sendable {
         let computed = compute()
 
         lock.lock()
-        if values[key] == nil {
-            values[key] = computed
-            recency.append(key)
-            while values.count > capacity, let oldest = recency.first {
-                recency.removeFirst()
-                values[oldest] = nil
-            }
+        defer { lock.unlock() }
+        if let entry = entries[key] {
+            return entry.value
         }
-        let result = values[key] ?? computed
-        lock.unlock()
-        return result
+        insert(computed, for: key)
+        return computed
+    }
+
+    private func insert(_ value: Value, for key: String) {
+        let entry = Entry(key: key, value: value)
+        entries[key] = entry
+        append(entry)
+        if entries.count > capacity, let oldest {
+            unlink(oldest)
+            entries.removeValue(forKey: oldest.key)
+        }
+    }
+
+    private func unlink(_ entry: Entry) {
+        if let older = entry.older {
+            older.newer = entry.newer
+        } else {
+            oldest = entry.newer
+        }
+        if let newer = entry.newer {
+            newer.older = entry.older
+        } else {
+            newest = entry.older
+        }
+        entry.older = nil
+        entry.newer = nil
+    }
+
+    private func append(_ entry: Entry) {
+        if let newest {
+            newest.newer = entry
+            entry.older = newest
+        } else {
+            oldest = entry
+        }
+        newest = entry
     }
 
     public func metrics() -> (hits: Int, misses: Int) {
@@ -102,13 +139,14 @@ public final class ParseMemoBox<Value>: @unchecked Sendable {
     public var count: Int {
         lock.lock()
         defer { lock.unlock() }
-        return values.count
+        return entries.count
     }
 
     public func removeAll() {
         lock.lock()
-        values.removeAll()
-        recency.removeAll()
+        entries.removeAll()
+        oldest = nil
+        newest = nil
         lock.unlock()
     }
 }

@@ -211,7 +211,7 @@ final class BasicsStopgapTests: XCTestCase {
     /// 幂等键由发送侧每轮新铸、账本只存凭据——重发
     /// 走 driveRun 时新铸一键，服务端按会话尾条语义
     /// 不会落两份（App 侧 launchTurn 前置闸见上测）
-    func testLedgerUpsertKeepsOneEntryPerThread() {
+    func testLedgerUpsertKeepsOneEntryPerMessageAndPreservesSubmissionOrder() {
         let first = RunLedgerEntry(
             threadID: "t", sessionID: "s", runID: nil,
             idempotencyKey: "k1", userEntryID: "e1",
@@ -222,11 +222,16 @@ final class BasicsStopgapTests: XCTestCase {
             idempotencyKey: "k2", userEntryID: "e2",
             submittedAt: Date()
         )
-        let ledger = RunLedger.upsert(
-            RunLedger.upsert([], first), second
+        let acceptedFirst = RunLedgerEntry(
+            threadID: "t", sessionID: "s", runID: "r1",
+            idempotencyKey: "k1", userEntryID: "e1",
+            submittedAt: first.submittedAt
         )
-        XCTAssertEqual(ledger.count, 1)
-        XCTAssertEqual(ledger.first?.idempotencyKey, "k2")
+        let ledger = RunLedger.upsert(RunLedger.upsert([], first), second)
+        let accepted = RunLedger.upsert(ledger, acceptedFirst)
+        XCTAssertEqual(accepted.map(\.userEntryID), ["e1", "e2"])
+        XCTAssertEqual(accepted.map(\.runID), ["r1", "r2"])
+        XCTAssertEqual(accepted.map(\.idempotencyKey), ["k1", "k2"])
     }
 
     // MARK: - P4 · 待发附件线程分格
