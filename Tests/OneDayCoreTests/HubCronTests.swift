@@ -226,7 +226,13 @@ final class HubCronTests: XCTestCase {
     func testCronTranslatorFallback() {
         // 复杂表达式译不出
         XCTAssertNil(CronTranslator.translate("*/5 9-17 * * 1-5"))
-        // 步进 + 范围组合
-        XCTAssertNil(CronTranslator.translate("0-30/5 * * * *"))
+        XCTAssertNil(CronTranslator.translate("@reboot"))
+    }
+
+    func testCronTranslatorMinuteStepRange() {
+        XCTAssertEqual(
+            CronTranslator.translate("0-30/5 * * * *"),
+            "每小时 0-30 分每 5 分钟一次"
+        )
     }
 }

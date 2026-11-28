@@ -106,6 +106,20 @@ jobs:
             -only-testing:OneDayUITests \
             2>&1 | tee ui-test-full.log
 
+      - name: Markdown performance (Release)
+        if: ${{ !cancelled() && steps.simulator-build.outcome == 'success' }}
+        run: |
+          xcodebuild test \
+            -workspace OneDay.xcworkspace \
+            -scheme OneDayCore \
+            -configuration Release \
+            -destination "$IOS_TEST_DESTINATION" \
+            -derivedDataPath build/test-dd \
+            -parallel-testing-enabled NO \
+            -only-testing:OneDayCoreTests/MarkdownEngineDifferentialTests/testPerformanceGate \
+            ENABLE_TESTABILITY=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee markdown-performance.log
+
       - name: Upload build and test logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -116,6 +130,7 @@ jobs:
             test-build.log
             test-full.log
             ui-test-full.log
+            markdown-performance.log
           if-no-files-found: ignore
           retention-days: 7
 

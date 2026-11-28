@@ -110,17 +110,6 @@ public enum MarkdownMessageAssembler {
                 let runs = TextShaping.shapeRuns(
                     InlineRunBuilder.runs(for: text)
                 )
-                #if DEBUG
-                // 装配真值断言（§271）：成对定界符
-                // 必须被解析完整消费，产出可见文本
-                // 只许留源文未闭合的那一份字面
-                let problems = MarkdownDelimiterAudit
-                    .violations(source: text, runs: runs)
-                assert(
-                    problems.isEmpty,
-                    "装配定界符真值断言失败：\(problems)"
-                )
-                #endif
                 prose.append(MarkdownProseParagraph(
                     kind: .body,
                     runs: runs

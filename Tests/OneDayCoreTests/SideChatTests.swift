@@ -90,31 +90,18 @@ final class SideChatTests: XCTestCase {
         XCTAssertFalse(SideChatArchive.isArchived(serverSessionID: "s8", archivedKeys: keys))
     }
 
-    // MARK: 回告只入主线
+    // MARK: 通知交给顶栏铃铛，聊天流不再重复显示
 
-    private func notification(_ id: String, read: Bool) -> OverviewNotification {
-        OverviewNotification(id: id, kind: "write_gate_decision", title: "t", body: "b", createdAt: "", read: read)
-    }
-
-    func testReportCardsEmptyOffMainThread() {
-        let cards = ReportCardPolicy.cards(
-            notifications: [notification("1", read: false)], isMainThread: false
+    func testNotificationsStayOutOfMainAndSideChat() {
+        let unread = OverviewNotification(
+            id: "1", kind: "write_gate_decision",
+            title: "t", body: "b", createdAt: "", read: false
         )
-        XCTAssertTrue(cards.isEmpty)
-    }
-
-    func testReportCardsOnlyUnreadOnMainThread() {
-        let cards = ReportCardPolicy.cards(
-            notifications: [notification("1", read: true), notification("2", read: false)],
-            isMainThread: true
-        )
-        XCTAssertEqual(cards.map(\.id), ["2"])
-    }
-
-    func testReportCardsRespectLimitAndOrder() {
-        let items = (1...5).map { notification("\($0)", read: false) }
-        let cards = ReportCardPolicy.cards(notifications: items, isMainThread: true, limit: 3)
-        XCTAssertEqual(cards.map(\.id), ["1", "2", "3"])
+        for isMainThread in [true, false] {
+            XCTAssertTrue(
+                ReportCardPolicy.cards(notifications: [unread], isMainThread: isMainThread).isEmpty
+            )
+        }
     }
 
     // MARK: 建会话回执解码

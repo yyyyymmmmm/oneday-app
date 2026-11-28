@@ -77,7 +77,7 @@ public enum MediaMarker {
     /// 恰好是 `MEDIA:` / `MEDIA：` / `![...](path)`
     /// ＋一条无空白的绝对路径，扩展名是图片、且在下载根内；
     /// 任一不过回 nil（整行按原文保留）
-    private static func markerPath(in trimmedLine: String) -> String? {
+    static func markerPath(in trimmedLine: String) -> String? {
         var rawPath: String?
         if trimmedLine.hasPrefix(prefix) {
             rawPath = String(trimmedLine.dropFirst(prefix.count))

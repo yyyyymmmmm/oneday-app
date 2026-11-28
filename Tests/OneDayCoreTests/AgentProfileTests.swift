@@ -116,12 +116,15 @@ final class AgentProfileTests: XCTestCase {
         let ids = AgentAvatarPreset.all.map(\.id)
         XCTAssertEqual(Set(ids).count, ids.count, "预置 id 不许重复")
         XCTAssertTrue(ids.contains(AgentAvatarPreset.defaultID))
+        let characterIDs: Set<String> = [
+            "blob-blue", "cat-violet", "bear-amber", "bot-cyan",
+            "sprout-green", "star-pink", "blob-coral", "bot-slate",
+        ]
+        XCTAssertEqual(Set(AgentAvatarPreset.all.filter(\.isCharacter).map(\.id)), characterIDs)
         for preset in AgentAvatarPreset.all {
-            // 每款必须二选一有图源：资产或符号
-            XCTAssertTrue(
-                (preset.assetName == nil) != (preset.symbolName == nil),
-                "预置 \(preset.id) 的图源必须恰有其一"
-            )
+            if !characterIDs.contains(preset.id) {
+                XCTAssertNotEqual(preset.assetName == nil, preset.symbolName == nil)
+            }
             XCTAssertFalse(preset.displayName.isEmpty)
         }
     }

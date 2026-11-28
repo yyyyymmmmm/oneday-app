@@ -203,9 +203,9 @@ extension ChatView {
             HStack(alignment: .top, spacing: 0) {
                 drawerButton
                 Spacer(minLength: OneDayMetrics.spacingS)
-                // 右侧两按钮收进同一胶囊（2026-11-27）
+                // 右侧两按钮收进同一胶囊（语音电话 + 通知铃铛）
                 HStack(spacing: 4) {
-                    findButton
+                    voiceCallButton
                     bellButton
                 }
                 .padding(.horizontal, 4)
@@ -243,17 +243,18 @@ extension ChatView {
         .accessibilityIdentifier("drawer.open")
     }
 
-    /// 查找钮（总表 150／§500；2026-11-27 改版）：会话内查找的直达入口
-    var findButton: some View {
+    /// 语音电话钮（取代原顶栏搜索钮，直达全双工语音通话面；对话内查找仍可通过头像胶囊菜单进入）
+    var voiceCallButton: some View {
         Button {
-            findController.open()
+            Haptics.selection()
+            showVoiceCallSheet = true
         } label: {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: "phone.fill")
                 .font(.system(
                     size: HeaderButtonSpec.glyphPointSize,
                     weight: .regular
                 ))
-                .foregroundStyle(Palette.ink)
+                .foregroundStyle(Palette.primary)
                 .frame(
                     width: HeaderButtonSpec.diameter,
                     height: HeaderButtonSpec.diameter
@@ -266,8 +267,8 @@ extension ChatView {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .accessibilityLabel("在对话中查找")
-        .accessibilityIdentifier("topbar.find")
+        .accessibilityLabel("语音电话")
+        .accessibilityIdentifier("topbar.voiceCall")
     }
 
     /// 右钮：铃铛＋角标（角标＝未读通知＋待审批，总览桥聚合；2026-11-27 改版）

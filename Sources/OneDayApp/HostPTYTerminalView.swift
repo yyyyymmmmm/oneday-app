@@ -543,19 +543,56 @@ struct HostPTYTerminalView: View {
         connectionState = .connecting
         statusBanner = nil
 
-        var request = URLRequest(url: wsURL)
-        request.timeoutInterval = 30
-        if let apiKey = appState.apiKey, !apiKey.isEmpty {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
-
-        let task = OneDayNetworkTransport.shared.standardSession.webSocketTask(with: request)
-        socketTask = task
-        task.resume()
-        connectionState = .connected
-
         receiveTask = Task {
-            await listenLoop(task: task)
+            // 先通过 performAdmin 预热 9119 Dashboard 会话 Cookie，避免 /api/pty 因缺少 Cookie 握手被拒
+            _ = try? await appState.performAdmin { client, cfg in
+                try await client.status(config: cfg)
+            }
+            guard !Task.isCancelled else { return }
+
+            var request = URLRequest(url: wsURL)
+            request.timeoutInterval = 30
+            if let apiKey = appState.apiKey, !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+            let httpBase = config.endpoint("/api/pty")
+            if let cookies = OneDayNetworkTransport.shared.standardSession.configuration.httpCookieStorage?.cookies(for: httpBase),
+               !cookies.isEmpty {
+                for (k, v) in HTTPCookie.requestHeaderFields(with: cookies) {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            } else if let sharedCookies = HTTPCookieStorage.shared.cookies(for: httpBase),
+                      !sharedCookies.isEmpty {
+                for (k, v) in HTTPCookie.requestHeaderFields(with: sharedCookies) {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            }
+
+            let task = OneDayNetworkTransport.shared.standardSession.webSocketTask(with: request)
+            await MainActor.run {
+                socketTask = task
+            }
+            task.resume()
+
+            // 发送一次 ping 确认握手真正建立，避免假显示「已连接」
+            let handshakeOK: Bool = await withCheckedContinuation { cont in
+                task.sendPing { error in
+                    cont.resume(returning: error == nil)
+                }
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if handshakeOK {
+                    connectionState = .connected
+                    statusBanner = nil
+                } else {
+                    connectionState = .failed("握手被拒绝")
+                    statusBanner = "WS /api/pty 握手失败：请确认服务器 Nginx 已开启 WebSocket Upgrade 透传，且 Hermes Dashboard (9119) 正在运行。"
+                }
+            }
+            if handshakeOK {
+                await listenLoop(task: task)
+            }
         }
     }
 

@@ -126,45 +126,53 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
 
     /// 全链（parse＋装配 segments，含 runs 与整形）
     /// 中位耗时：新核不劣于旧核 110%（施工图放行
-    /// 口径）。每轮清备忘后整语料跑一遍、取 5 轮
+    /// 口径）。每轮清备忘后整语料跑一遍、取 7 轮
     /// 中位；备忘稳态两代同为查表、不列门。
-    /// 性能语料剔除 edge-tilde-fence 一篇（双臂同
-    /// 剔）：旧核在该篇上装配断言必崩（~~~ 围栏被
-    /// 旧分段层当删除线吞、与审计口径冲突——旧核
-    /// 既有缺陷，探针逐篇实证，见签收表五·补），
-    /// 旧核全链根本跑不完、无中位可比；该篇的块
-    /// 级差分覆盖不变。剔后 128 篇仍 ≥100
-    func testPerformanceGate() {
+    /// 延用既有性能语料以便对照。edge-tilde-fence
+    /// 仍由块级差分测试覆盖。
+    func testPerformanceGate() throws {
+        #if DEBUG
+        throw XCTSkip("Markdown timing is measured with the Release optimizer")
+        #else
         let perfCorpus = Self.blockCorpus.filter {
             $0.id != "edge-tilde-fence"
         }
-        let reps = 5
-        func medianChainTime(legacy: Bool) -> Double {
-            var times: [Double] = []
-            for _ in 0..<reps {
-                MarkdownParseMemos.blocks.removeAll()
-                MarkdownParseMemos.runs.removeAll()
-                let start = CFAbsoluteTimeGetCurrent()
-                withEngine(legacy: legacy) {
-                    for entry in perfCorpus {
-                        _ = MarkdownMessageAssembler.segments(
-                            for: entry.source
-                        )
-                    }
+        let reps = 7
+        func chainTime(legacy: Bool) -> TimeInterval {
+            MarkdownParseMemos.blocks.removeAll()
+            MarkdownParseMemos.runs.removeAll()
+            let start = CFAbsoluteTimeGetCurrent()
+            withEngine(legacy: legacy) {
+                for entry in perfCorpus {
+                    _ = MarkdownMessageAssembler.segments(for: entry.source)
                 }
-                times.append(CFAbsoluteTimeGetCurrent() - start)
             }
-            return times.sorted()[reps / 2]
+            return CFAbsoluteTimeGetCurrent() - start
         }
-        let legacyMedian = medianChainTime(legacy: true)
-        let currentMedian = medianChainTime(legacy: false)
+
+        // Warm shared framework setup, then alternate order to reduce drift.
+        _ = chainTime(legacy: true)
+        _ = chainTime(legacy: false)
+        var legacyTimes: [TimeInterval] = []
+        var currentTimes: [TimeInterval] = []
+        for index in 0..<reps {
+            if index.isMultiple(of: 2) {
+                legacyTimes.append(chainTime(legacy: true))
+                currentTimes.append(chainTime(legacy: false))
+            } else {
+                currentTimes.append(chainTime(legacy: false))
+                legacyTimes.append(chainTime(legacy: true))
+            }
+        }
+        let legacyMedian = legacyTimes.sorted()[reps / 2]
+        let currentMedian = currentTimes.sorted()[reps / 2]
         print(
             "§417 性能门：旧核中位 \(legacyMedian)s、"
                 + "新核中位 \(currentMedian)s、比值 "
                 + "\(currentMedian / legacyMedian)"
         )
         attachReport(
-            "# §417 性能门（全链中位，语料 \(perfCorpus.count) 篇×5 轮）\n"
+            "# §417 性能门（全链中位，语料 \(perfCorpus.count) 篇×\(reps) 轮）\n"
                 + "旧核 \(legacyMedian)s\n新核 \(currentMedian)s\n"
                 + "比值 \(currentMedian / legacyMedian)（门限 1.10）\n",
             name: "mdswap-perf.txt"
@@ -173,6 +181,7 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
             currentMedian, legacyMedian * 1.10,
             "新核全链中位劣于旧核 110%：旧 \(legacyMedian)s 新 \(currentMedian)s"
         )
+        #endif
     }
 
     // MARK: - 产物规范形描述

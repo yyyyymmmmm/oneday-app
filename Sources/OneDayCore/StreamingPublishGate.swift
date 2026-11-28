@@ -39,10 +39,10 @@ public struct StreamingPublishGate: Equatable {
     /// - 积压超过 10 词（或 ~60 字符）自动 skip 追平，长回复绝不拖尾
     /// - 首拍直发，首字延迟 ≤1 拍；非追加形态自动重置
     public static let charThreshold = 60
-    public static let intervalThreshold: TimeInterval = 0.032
-    public static let minInterval: TimeInterval = 0.032
-    public static let maxStep = 24
-    private static let backlogSkipThreshold = 64
+    public static let intervalThreshold: TimeInterval = 0.020
+    public static let minInterval: TimeInterval = 0.020
+    public static let maxStep = 36
+    private static let backlogSkipThreshold = 48
 
     /// 当前已发布快照（呈现侧唯一读口）
     public private(set) var publishedText = ""

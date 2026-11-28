@@ -34,6 +34,7 @@ struct ChatView: View {
     @State var showSessionExportSheet = false
     @State var showSkillBundlesSheet = false
     @State var showInteractivePreviewSheet = false
+    @State var showVoiceCallSheet = false
     @State var mentionRosterProfiles: [ProfileItem] = []
     @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
@@ -1224,6 +1225,22 @@ struct ChatView: View {
                 send()
             }
         }
+        .fullScreenCover(isPresented: $showVoiceCallSheet) {
+            VoiceCallSheetView(
+                agentName: appState.agentDisplayName,
+                agentAvatar: appState.agentAvatarImage,
+                isAssistantStreaming: isStreaming,
+                activityPhrase: assistantActivityStatus,
+                latestAssistantReply: currentThread?.sortedEntries.last(where: { $0.role == "assistant" && $0.toolCard == nil && !$0.content.isEmpty })?.content ?? "",
+                onSendMessage: { spoken in
+                    input = spoken
+                    send()
+                },
+                onStopGeneration: {
+                    requestRunStop()
+                }
+            )
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -1994,6 +2011,18 @@ struct ChatView: View {
                     await refreshEchoTraces()
                 }
                 syncTailIfIdle(force: true)
+                if !showVoiceCallSheet,
+                   (UserDefaults.standard.bool(forKey: VoiceSpeechPreferences.autoReadKey)
+                    || UserDefaults.standard.bool(forKey: "voice.fullDuplexEnabled.v1")),
+                   let latestReply = currentThread?.sortedEntries.last(where: {
+                       $0.role == "assistant" && $0.toolCard == nil && !$0.content.isEmpty
+                   }) {
+                    SpeechPlayer.shared.toggle(
+                        entryID: latestReply.id,
+                        content: latestReply.content,
+                        appState: appState
+                    )
+                }
                 if !queuedFollowUpMessages.isEmpty {
                     let nextMsg = queuedFollowUpMessages.removeFirst()
                     Task { @MainActor in
@@ -2427,6 +2456,9 @@ struct ChatView: View {
         // 写 input（落稿后即普通草稿、可改可发）；
         // 预备页选键盘听写时聚焦输入框
         dictation.onTextChange = { text, _ in
+            if !text.isEmpty, case .playing = SpeechPlayer.shared.machine.state {
+                SpeechPlayer.shared.stop()
+            }
             input = text
         }
         // 0.36.17：听写发送钮——控制器保证先落稿
@@ -3358,7 +3390,7 @@ struct ChatView: View {
                 // 视口的临界行就地量测给确定高
                 heightIsProvisional: !feedIsExact,
                 makeContextMenuData: menuEnabled ? { actionSheetData(for: entry) } : nil,
-                contextMenuAlignsTrailing: entry.role == "user",
+                contextMenuAlignsTrailing: entry.role == "user" && !AsyncDelegationCallbackParser.isSystemCallback(entry.content),
                 makeView: {
                     AnyView(
                         entryRowContent(
@@ -5620,6 +5652,9 @@ struct ChatView: View {
             } else {
                 EmptyView()
             }
+        } else if entry.role == "user",
+                  let delegationCallback = AsyncDelegationCallbackParser.parse(from: entry.content) {
+            AsyncDelegationResultCardView(data: delegationCallback)
         } else if entry.role == "user" {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
@@ -6865,7 +6900,7 @@ struct ChatView: View {
             entryID: entry.id,
             data: actionSheetData(for: entry),
             sourceFrame: frame,
-            alignsTrailing: entry.role == "user"
+            alignsTrailing: entry.role == "user" && !AsyncDelegationCallbackParser.isSystemCallback(entry.content)
         )
     }
 
@@ -8667,14 +8702,7 @@ struct ComposerBarLayout: Layout {
         // symbolEffect（0.3.0 口径不变）
         let isStopDisc = trailingState == .stop
         return Button {
-            if isStopDisc {
-                // 0.31.0：停止＝runs 真取消（requestRun-
-                // Stop 发服务端 stop），不再是旧通道的
-                // 本地断流假取消
-                requestRunStop()
-            } else {
-                send()
-            }
+            trailingState.activateDisc(onSend: send, onStop: requestRunStop)
         } label: {
             Image(systemName: isStopDisc ? "stop.fill" : "arrow.up")
                 .font(.system(size: isStopDisc ? FrameworkIcon.miniGlyphSize : FrameworkIcon.smallGlyphSize, weight: .bold))

@@ -1905,14 +1905,22 @@ extension ChatView {
                 // 0.36.10：思考首达记位（事件序编排）
                 noteLiveOrder(.reasoning)
                 // §409 步 A/E：思考增量只入累积器
-                // （落盘源头），不再发布快照
                 reasoningPublishGate.offer(text)
-                // 机制还原（2.22.1/268）：思考期同样
-                // 是 run 在干活——短语置「正在思考」
+                // 机制还原（2.22.1/268）＋v23 合并裁决：
+                // 思考期同为 run 在干活——栈空且非审批/
+                // 澄清等待时置短语；词面取 v23 的思考
+                // 内容预览（尾 36 字），无内容回落
+                // 「正在思考」
+                let compactThought = text
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 if liveToolStack.isEmpty,
                    activeRunApproval == nil,
                    activeRunClarify == nil {
-                    appState.liveActivityPhrase = "正在思考"
+                    appState.liveActivityPhrase =
+                        compactThought.isEmpty
+                        ? "正在思考"
+                        : "思考中 · \(String(compactThought.suffix(36)))"
                 }
             case .toolStarted(let id, let name, let preview):
                 // 第 93 条：工具开始＝服务端段边界——

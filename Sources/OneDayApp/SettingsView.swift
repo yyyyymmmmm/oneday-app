@@ -450,13 +450,6 @@ struct SettingsView: View {
     private var serverAndSecuritySection: some View {
         Section {
             navRow(icon: "server.rack", color: Palette.tintSkyInk, title: L10n.string("当前服务器"), route: .serverDetail)
-            statusNavRow(
-                icon: "key.radiowaves.forward",
-                color: Palette.tintLavenderInk,
-                title: L10n.string("登录会话与票据"),
-                status: appState.shortLivedTokenActive ? "短时票据已启用" : "点击启用或管理设备",
-                route: .authSessions
-            )
             navRow(icon: "qrcode", color: Palette.tintSkyInk, title: L10n.string("添加设备"), route: .addDevice)
             if pendingPairingCount > 0 {
                 statusNavRow(
@@ -675,6 +668,13 @@ struct SettingsView: View {
                     route: .externalSessionImport
                 )
                 navRow(icon: "person.badge.key", title: L10n.string("平台用户配对"), route: .pairingManagement)
+                statusNavRow(
+                    icon: "key.radiowaves.forward",
+                    color: Palette.tintLavenderInk,
+                    title: L10n.string("登录会话与票据"),
+                    status: appState.shortLivedTokenActive ? "短时票据自动续期中" : "默认密码鉴权已打通",
+                    route: .authSessions
+                )
             } header: {
                 sectionHeader("服务端与运维")
             }

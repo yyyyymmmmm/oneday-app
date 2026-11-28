@@ -975,6 +975,37 @@ final class ChatRootViewController: UIViewController,
     /// §325.2：布局参数变更的失效记账（apply 只记
     /// 账、落定拍 pass 外合并施工，见 apply 注）
     private var pendingLayoutInvalidation = false
+    private var pendingHeightAnchor: (key: String, offset: CGFloat)?
+
+    private func rememberPositionBeforeHeightChange() {
+        guard pendingHeightAnchor == nil, !userInteracting && !userBrowsing,
+              !landingIntent, !keyboardPinIntent, focusTargetID == nil,
+              currentDistance() > Self.atBottomTolerance else { return }
+
+        let visibleTop = collectionView.contentOffset.y + collectionView.contentInset.top
+        let visibleItems = collectionView.indexPathsForVisibleItems.sorted()
+        for indexPath in visibleItems {
+            guard let key = dataSource.itemIdentifier(for: indexPath),
+                  let frame = collectionView.layoutAttributesForItem(at: indexPath)?.frame,
+                  frame.maxY > visibleTop else { continue }
+            pendingHeightAnchor = (key, frame.minY - visibleTop)
+            break
+        }
+    }
+
+    private func restorePositionAfterHeightChange() {
+        guard let anchor = pendingHeightAnchor else { return }
+        pendingHeightAnchor = nil
+        guard !userInteracting && !userBrowsing, focusTargetID == nil,
+              let indexPath = dataSource.indexPath(for: anchor.key),
+              let frame = collectionView.layoutAttributesForItem(at: indexPath)?.frame else { return }
+        let inset = collectionView.contentInset.top
+        let offset = min(max(frame.minY - anchor.offset - inset, -inset), maxOffsetY())
+        if abs(collectionView.contentOffset.y - offset) > 0.5 {
+            collectionView.contentOffset.y = offset
+        }
+    }
+
     /// §325.2：滚动期被冻结的落定拍记账（滚动结束
     /// 回调合并落写时消费）
     private var settleDeferredDuringScroll = false
@@ -2718,6 +2749,7 @@ final class ChatRootViewController: UIViewController,
         layoutBox.heightByKey = ledger
         layoutBox.rowOrder = newRows.map(\.key)
         if heightsChanged {
+            rememberPositionBeforeHeightChange()
             pendingLayoutInvalidation = true
         }
         return heightsChanged
@@ -3206,6 +3238,7 @@ final class ChatRootViewController: UIViewController,
                 )
         }
         if heightsChanged {
+            rememberPositionBeforeHeightChange()
             pendingLayoutInvalidation = true
         }
         // §413：三账落写先行于快照编辑——与旧路
@@ -3740,11 +3773,19 @@ final class ChatRootViewController: UIViewController,
         }
         view.layoutIfNeeded()
         collectionView.layoutIfNeeded()
+        let previousBottomInset = collectionView.contentInset.bottom
+        let previousDistance = collectionView.contentSize.height
+            - collectionView.contentOffset.y - collectionView.bounds.height
+            + previousBottomInset
         measureBottomSpace()
         reconcileInsets()
+        let shouldFollowComposer = collectionView.bounds.height > 0
+            && previousDistance <= Self.atBottomTolerance
+            && abs(previousBottomInset - collectionView.contentInset.bottom) > 0.5
         var didRestoreAnchor = false
         if let anchor = pendingAnchor {
             pendingAnchor = nil
+            pendingHeightAnchor = nil
             executeRestore(anchor)
             didRestoreAnchor = true
         } else if landingIntent && !userInteracting {
@@ -3802,9 +3843,12 @@ final class ChatRootViewController: UIViewController,
         // 级不变）。事务中逐拍重钉＝末行恒贴舱顶、
         // 不被动画中的舱盖住/压扁（用户视频 f011
         // 的缝状卡即无钉时舱滑过尾行所致）
-        if keyboardPinIntent, !userInteracting,
-           !didRestoreAnchor {
+        if !didRestoreAnchor, !userInteracting, !userBrowsing,
+           focusTargetID == nil, keyboardPinIntent || shouldFollowComposer {
+            pendingHeightAnchor = nil
             pinToBottom()
+        } else if !pendingLayoutInvalidation {
+            restorePositionAfterHeightChange()
         }
         stepSearchFocus()
         layoutArrow()
@@ -4119,6 +4163,7 @@ final class ChatRootViewController: UIViewController,
     ) {
         // 用户接管：落点意图即消（H6 的意图边界）
         userInteracting = true
+        pendingHeightAnchor = nil
         // §335：浏览态置真（与 userInteracting 同
         // 点位；减速开始前的空窗由本态覆盖）
         userBrowsing = true
@@ -4200,6 +4245,7 @@ final class ChatRootViewController: UIViewController,
     // MARK: 命令口（句柄转发目标，与 gen3 容器同名同义）
 
     func scrollToBottom(animated: Bool) {
+        pendingHeightAnchor = nil
         landingIntent = true
         landingIntentSince = CACurrentMediaTime()
         landingSettleContentSize = nil
@@ -4263,6 +4309,7 @@ final class ChatRootViewController: UIViewController,
     /// 再把读者钉回底部。目标不在行集即无声落空
     /// （会话照常开在原落点）
     func focusEntry(_ id: UUID) {
+        pendingHeightAnchor = nil
         guard rows.contains(where: { $0.entryID == id })
         else { return }
         landingIntent = false
@@ -4315,6 +4362,7 @@ final class ChatRootViewController: UIViewController,
     }
 
     func restore(_ anchor: ChatListAnchor) {
+        pendingHeightAnchor = nil
         // 布局未就绪（零宽/无行）时先记账，落定拍
         // 在行集与布局落定后执行（与 ChatView 恢复
         // 链的等拍口径同义）

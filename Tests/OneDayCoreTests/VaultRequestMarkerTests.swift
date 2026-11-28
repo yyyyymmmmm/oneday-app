@@ -6,19 +6,19 @@ final class VaultRequestMarkerTests: XCTestCase {
     // MARK: - 形态校验
 
     func testIsValidID_Valid() {
-        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_abcdefghijklmnopqrstuv"))
-        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_ABCDEFGHIJKLMNOPQRSTUV"))
-        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_0123456789_-ABCDEFGH"))
-        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_aB1_-aB1_-aB1_-aB1_-ab"))
+        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_abcdefghijklmnopqrstuvwx"))
+        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_ABCDEFGHIJKLMNOPQRSTUVWX"))
+        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_0123456789_-ABCDEFGHIJKL"))
+        XCTAssertTrue(VaultRequestMarker.isValidID("vreq_aB1_-aB1_-aB1_-aB1_-abcd"))
     }
 
     func testIsValidID_Invalid() {
         XCTAssertFalse(VaultRequestMarker.isValidID("vreq_short"))
-        XCTAssertFalse(VaultRequestMarker.isValidID("vreq_toolongabcdefghijklmnopq"))
-        XCTAssertFalse(VaultRequestMarker.isValidID("dlv_abcdefghijklmnopqrstuv"))
+        XCTAssertFalse(VaultRequestMarker.isValidID("vreq_toolongabcdefghijklmnopqr"))
+        XCTAssertFalse(VaultRequestMarker.isValidID("dlv_abcdefghijklmnopqrstuvwx"))
         XCTAssertFalse(VaultRequestMarker.isValidID("vreq_"))
-        XCTAssertFalse(VaultRequestMarker.isValidID("abcdefghijklmnopqrstuvwxyz"))
-        XCTAssertFalse(VaultRequestMarker.isValidID("vreq_abc@efghijklmnopqrstuv"))
+        XCTAssertFalse(VaultRequestMarker.isValidID("abcdefghijklmnopqrstuvwxwxyz"))
+        XCTAssertFalse(VaultRequestMarker.isValidID("vreq_abc@efghijklmnopqrstuvwx"))
     }
 
     // MARK: - 整行标记摘除
@@ -26,12 +26,12 @@ final class VaultRequestMarkerTests: XCTestCase {
     func testSplit_SingleMarker() {
         let input = """
         Some text before.
-        [[vreq:vreq_abc123XYZ_-0123456789]]
+        [[vreq:vreq_abc123XYZ_-0123456789ABC]]
         Some text after.
         """
         let result = VaultRequestMarker.split(in: input)
-        XCTAssertEqual(result.text, "Some text before.\n\nSome text after.")
-        XCTAssertEqual(result.requestIDs, ["vreq_abc123XYZ_-0123456789"])
+        XCTAssertEqual(result.text, "Some text before.\nSome text after.")
+        XCTAssertEqual(result.requestIDs, ["vreq_abc123XYZ_-0123456789ABC"])
     }
 
     func testSplit_MultipleMarkers() {
@@ -55,12 +55,12 @@ final class VaultRequestMarkerTests: XCTestCase {
         XCTAssertTrue(result.text.isEmpty)
     }
 
-    // MARK: - 行内嵌不摘
+    // MARK: - 行内摘除
 
-    func testSplit_InlineNotExtracted() {
-        let input = "Text [[vreq:vreq_abc123XYZ_-0123456789]] more text"
+    func testSplit_InlineMarkerPreservesSurroundingText() {
+        let input = "Text [[vreq:vreq_abc123XYZ_-0123456789ABC]] more text"
         let result = VaultRequestMarker.split(in: input)
-        XCTAssertEqual(result.requestIDs, ["vreq_abc123XYZ_-0123456789"])
+        XCTAssertEqual(result.requestIDs, ["vreq_abc123XYZ_-0123456789ABC"])
         XCTAssertEqual(result.text, "Text  more text")
     }
 
@@ -70,7 +70,7 @@ final class VaultRequestMarkerTests: XCTestCase {
         let input = """
         Before fence
         ```
-        [[vreq:vreq_abc123XYZ_-0123456789]]
+        [[vreq:vreq_abc123XYZ_-0123456789ABC]]
         ```
         After fence
         """
@@ -105,7 +105,7 @@ final class VaultRequestMarkerTests: XCTestCase {
     func testSplit_CollapseBlankLines() {
         let input = """
         Line 1
-        [[vreq:vreq_abc123XYZ_-0123456789]]
+        [[vreq:vreq_abc123XYZ_-0123456789ABC]]
 
 
         Line 2
@@ -117,10 +117,10 @@ final class VaultRequestMarkerTests: XCTestCase {
     // MARK: - markerText
 
     func testMarkerText() {
-        let id = "vreq_abc123XYZ_-0123456789"
+        let id = "vreq_abc123XYZ_-0123456789ABC"
         XCTAssertEqual(
             VaultRequestMarker.markerText(for: id),
-            "[[vreq:vreq_abc123XYZ_-0123456789]]"
+            "[[vreq:vreq_abc123XYZ_-0123456789ABC]]"
         )
     }
 }

@@ -356,15 +356,10 @@ public enum CronTranslator {
     /// 翻译 cron 表达式为人话，失败返回 nil（调用方兜底）
     public static func translate(_ expression: String) -> String? {
         let normalized = normalize(expression)
-        guard let fields = parseFields(normalized) else { return nil }
-
-        // 别名展开后重新解析
         if let alias = expandAlias(normalized) {
             return translate(alias)
         }
-
-        // 只接受 5 段式（6 段式兜底）
-        guard fields.count == 5 else { return nil }
+        guard let fields = parseFields(normalized) else { return nil }
 
         let (minute, hour, dom, month, dow) =
             (fields[0], fields[1], fields[2], fields[3], fields[4])

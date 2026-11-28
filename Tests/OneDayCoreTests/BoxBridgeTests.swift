@@ -217,8 +217,8 @@ final class BoxBridgeTests: XCTestCase {
         XCTAssertEqual(
             BoxBridgeHubState.loading.statusLine, "正在读取云电脑状态…"
         )
-        // 桥未连接独立一态：不许说成电脑离线/未运行
-        XCTAssertEqual(BoxBridgeHubState.bridgeUnavailable.statusLine, "还没连上")
+        XCTAssertEqual(BoxBridgeHubState.notConfigured.statusLine, "还没在 Hermes 里配置云电脑")
+        XCTAssertEqual(BoxBridgeHubState.bridgeUnavailable.statusLine, "钥匙被拒，请重新配置凭据")
         XCTAssertEqual(BoxBridgeHubState.failed.statusLine, "云电脑状态没读出来，可能是网络或服务暂时没响应")
         let running = BoxBridgeStatus(state: "running")
         XCTAssertEqual(

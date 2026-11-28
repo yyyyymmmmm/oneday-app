@@ -59,6 +59,7 @@ struct VoiceSettingsView: View {
                             .foregroundStyle(Palette.ink)
                     }
                 }
+                .toggleStyle(AutoReadToggleStyle())
                 .tint(Palette.primary)
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
 
@@ -175,6 +176,25 @@ struct VoiceSettingsView: View {
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 }
                 .disabled(isSaving)
+
+                Button {
+                    persistLocalVoicePrefs()
+                    Haptics.selection()
+                    speechPlayer.toggle(
+                        entryID: UUID(),
+                        content: "你好，这是 OneDay 语音引擎试听。当前音色为 \(voiceName)。",
+                        appState: appState
+                    )
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label("立即试听当前音色", systemImage: "play.circle.fill")
+                            .font(.rowTitleL.weight(.medium))
+                            .foregroundStyle(Palette.tintGreenInk)
+                        Spacer()
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
             } header: {
                 SettingsSectionHeader("10 引擎音色配置")
             } footer: {
@@ -252,6 +272,15 @@ struct VoiceSettingsView: View {
                 sttEngine = stt
             }
         }
+        persistLocalVoicePrefs()
+    }
+
+    private func persistLocalVoicePrefs() {
+        let prefs = UserDefaults.standard
+        prefs.set(selectedEngine, forKey: "voice.selectedProvider.v1")
+        prefs.set(voiceName.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "voice.selectedVoice.v1")
+        prefs.set((speechRate * 100).rounded() / 100, forKey: "voice.selectedSpeed.v1")
+        prefs.set(fullDuplexEnabled, forKey: "voice.fullDuplexEnabled.v1")
     }
 
     private func saveVoiceConfig() async {
@@ -260,6 +289,7 @@ struct VoiceSettingsView: View {
         saveNotice = nil
         isError = false
         defer { isSaving = false }
+        persistLocalVoicePrefs()
 
         let ttsPatch: [String: JSONValue] = [
             "provider": .string(selectedEngine),
@@ -272,16 +302,63 @@ struct VoiceSettingsView: View {
             "stt_engine": .string(sttEngine),
         ]
         do {
-            try await appState.applyDashboardConfig(["tts": .object(ttsPatch), "voice": .object(voicePatch)]
-            )
-            saveNotice = "语音与全双工配置已同步至服务端。"
+            try await appState.applyDashboardConfig(["tts": .object(ttsPatch), "voice": .object(voicePatch)])
+            await speechPlayer.refreshAvailability(appState: appState, force: true)
+            let actual = speechPlayer.lastProvider ?? ""
+            if !actual.isEmpty && actual.lowercased() != selectedEngine.lowercased() {
+                saveNotice = "配置已保存，但服务端当前实际生效引擎为 \(providerText)（如未生效，请检查环境变量中是否已配置 \(selectedEngine) 的 API Key）。"
+            } else {
+                saveNotice = "语音与全双工配置已同步，点上方「立即试听当前音色」即可验证效果。"
+            }
             isError = false
             Haptics.success()
-            await speechPlayer.refreshAvailability(appState: appState, force: true)
         } catch {
             saveNotice = (error as? HermesError)?.userMessage ?? "保存失败：\(error.localizedDescription)"
             isError = true
             Haptics.error()
+        }
+    }
+}
+
+private struct AutoReadToggleStyle: ToggleStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        if reduceMotion {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+        } else {
+            Button {
+                configuration.isOn.toggle()
+            } label: {
+                HStack {
+                    configuration.label
+                    Spacer()
+                    Capsule()
+                        .fill(configuration.isOn ? Palette.primary : Palette.fillPrimary)
+                        .frame(width: 51, height: 31)
+                        .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 27, height: 27)
+                                .keyframeAnimator(initialValue: CGFloat(1), trigger: configuration.isOn) { thumb, stretch in
+                                    thumb.scaleEffect(x: stretch, y: 1 - (stretch - 1) / 2)
+                                } keyframes: { _ in
+                                    LinearKeyframe(1.18, duration: 0.09)
+                                    SpringKeyframe(1, duration: 0.22)
+                                }
+                                .padding(.horizontal, 2)
+                        }
+                        .animation(MotionTokens.microSpring, value: configuration.isOn)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityRepresentation {
+                Toggle(isOn: configuration.$isOn) { configuration.label }
+                    .toggleStyle(.switch)
+            }
         }
     }
 }
