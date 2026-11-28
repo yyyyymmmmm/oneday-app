@@ -198,29 +198,41 @@ struct SessionStatsBlock: View {
     }
 }
 
-/// 钩子只读页（H13 对账，DESIGN §390）：本体 config 的
-/// hooks 是唯一真源（伴生没有钩子模块，不存在双轨）。
-/// 钩子＝在某个事件点自动跑一条 shell 命令，增删要过
-/// 命令同意名单——那是服务器运维动作，手机上只看不改
+/// 运维钩子管理页（Wave 8 升级为完整增删闭环）：
+/// 对接 `GET/POST/DELETE /api/ops/hooks`，支持查看已配事件钩子、
+/// 新增命令钩子（自动写入同意白名单）与左滑删除撤销授权。
 struct OpsHooksView: View {
     @Environment(AppState.self) private var appState
     @State private var store = ServerInternalsStore()
+    @State private var showAddSheet = false
+    @State private var mutationError: String?
 
     private var ops: ServerInternalsOperations { .live(appState: appState) }
 
     var body: some View {
         List {
-            Section {
-                Text("钩子是在会话开始、工具调用前后等时刻自动执行的命令，写在服务器的配置里。这里只查看：增删钩子等于在服务器上登记要跑的命令，需要在电脑上确认同意名单，手机上不开放。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
+            SettingsHeroCard(
+                symbol: "bolt.horizontal.circle.fill",
+                tint: Palette.tintOrangeInk,
+                title: "运维事件钩子",
+                subtitle: "在会话开始、工具调用前后等事件点自动执行 Shell 命令，支持一键新增与左滑移除。",
+                statusText: store.hooks.map { "\($0.hooks.count) 条钩子" },
+                statusTone: .healthy
+            )
+
+            if let mutationError {
+                Section {
+                    Label(mutationError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.danger)
+                }
+                .listRowBackground(Palette.surface)
             }
-            .listRowBackground(Color.clear)
 
             if let page = store.hooks {
                 Section {
                     if page.hooks.isEmpty {
-                        Text("服务器上没有配钩子。")
+                        Text("服务器上还没有配置事件钩子，点击右上角 + 添加。")
                             .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                     }
@@ -228,16 +240,12 @@ struct OpsHooksView: View {
                         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             HStack(spacing: OneDayMetrics.spacingS) {
                                 Text(hook.event)
-                                    .font(.body)
+                                    .font(.body.weight(.medium))
                                     .foregroundStyle(Palette.ink)
                                 if !hook.allowed {
-                                    Text("未获准")
-                                        .font(.caption)
-                                        .foregroundStyle(Palette.danger)
+                                    SettingsStatusPill(text: "未获准", tone: .error)
                                 } else if !hook.executable {
-                                    Text("命令不在")
-                                        .font(.caption)
-                                        .foregroundStyle(Palette.danger)
+                                    SettingsStatusPill(text: "命令不在", tone: .warning)
                                 }
                             }
                             if !hook.matcher.isEmpty {
@@ -249,18 +257,28 @@ struct OpsHooksView: View {
                                 .font(.footnote.monospaced())
                                 .foregroundStyle(Palette.inkSecondary)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                Task { await deleteHook(hook) }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
                     }
                 } header: {
-                    Text("已配的钩子")
+                    SettingsSectionHeader("已配的钩子（左滑删除）")
                 }
+                .listRowBackground(Palette.surface)
+
                 if !page.validEvents.isEmpty {
                     Section {
                         Text(page.validEvents.joined(separator: "、"))
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     } header: {
-                        Text("可用的事件点")
+                        SettingsSectionHeader("可用的事件点")
                     }
+                    .listRowBackground(Palette.surface)
                 }
             } else if store.hooksFailed {
                 Section {
@@ -282,9 +300,133 @@ struct OpsHooksView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("钩子")
+        .navigationTitle("运维钩子")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("新增钩子")
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddOpsHookSheet(validEvents: store.hooks?.validEvents ?? []) {
+                await store.loadHooks(ops: ops)
+            }
+        }
         .task { await store.loadHooks(ops: ops) }
         .refreshable { await store.loadHooks(ops: ops) }
+    }
+
+    private func deleteHook(_ hook: OpsHookItem) async {
+        mutationError = nil
+        do {
+            try await appState.performAdmin { config in
+                try await appState.client.deleteOpsHook(
+                    config: config, event: hook.event, command: hook.command
+                )
+            }
+            Haptics.success()
+            await store.loadHooks(ops: ops)
+        } catch {
+            mutationError = error.localizedDescription
+        }
+    }
+}
+
+private struct AddOpsHookSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let validEvents: [String]
+    let onSaved: () async -> Void
+
+    @State private var event = "session_start"
+    @State private var command = ""
+    @State private var matcher = ""
+    @State private var approve = true
+    @State private var saving = false
+    @State private var errorText: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("钩子触发配置") {
+                    TextField("事件名（如 session_start / pre_tool_call）", text: $event)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !validEvents.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(validEvents.prefix(8), id: \.self) { candidate in
+                                    Button(candidate) {
+                                        event = candidate
+                                        Haptics.selection()
+                                    }
+                                    .font(.caption2.monospaced())
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                        }
+                    }
+                    TextField("Shell 命令（如 echo ok）", text: $command)
+                        .font(.callout.monospaced())
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("工具匹配器 Matcher（可选）", text: $matcher)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Toggle("同时写入服务端同意白名单（立即生效）", isOn: $approve)
+                }
+
+                if let errorText {
+                    Section {
+                        Text(errorText).font(.footnote).foregroundStyle(Palette.danger)
+                    }
+                }
+            }
+            .navigationTitle("新增运维钩子")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "保存中…" : "保存") {
+                        Task { await save() }
+                    }
+                    .disabled(
+                        event.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || saving
+                    )
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        saving = true
+        errorText = nil
+        defer { saving = false }
+        do {
+            try await appState.performAdmin { config in
+                try await appState.client.createOpsHook(
+                    config: config,
+                    event: event.trimmingCharacters(in: .whitespacesAndNewlines),
+                    command: command.trimmingCharacters(in: .whitespacesAndNewlines),
+                    matcher: matcher.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : matcher.trimmingCharacters(in: .whitespacesAndNewlines),
+                    approve: approve
+                )
+            }
+            Haptics.success()
+            await onSaved()
+            dismiss()
+        } catch {
+            errorText = error.localizedDescription
+        }
     }
 }

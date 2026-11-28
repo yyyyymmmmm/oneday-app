@@ -724,6 +724,32 @@ struct DemoHermesClient: HermesClientProtocol {
     func roomMemberCapabilities(config: ServerConfig, grantToken: String) async throws -> RoomMemberCapabilitiesResponse { throw HermesError.demoLimitReached }
     func refreshRoomGrant(config: ServerConfig, grantToken: String, ttlSeconds: Int) async throws -> RoomGrantRefreshReceipt { throw HermesError.demoLimitReached }
     func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt { throw HermesError.demoLimitReached }
+    func gitStatus(config: ServerConfig, path: String) async throws -> GitRepoStatus { throw HermesError.demoLimitReached }
+    func gitWorktrees(config: ServerConfig, path: String) async throws -> [GitWorktreeItem] { throw HermesError.demoLimitReached }
+    func gitBranches(config: ServerConfig, path: String) async throws -> [GitBranchItem] { throw HermesError.demoLimitReached }
+    func gitReviewList(config: ServerConfig, path: String, scope: String) async throws -> [GitReviewFileItem] { throw HermesError.demoLimitReached }
+    func gitReviewDiff(config: ServerConfig, path: String, file: String, staged: Bool) async throws -> String { throw HermesError.demoLimitReached }
+    func gitStageFile(config: ServerConfig, path: String, file: String?) async throws { throw HermesError.demoLimitReached }
+    func gitUnstageFile(config: ServerConfig, path: String, file: String?) async throws { throw HermesError.demoLimitReached }
+    func gitRevertFile(config: ServerConfig, path: String, file: String) async throws { throw HermesError.demoLimitReached }
+    func gitCommit(config: ServerConfig, path: String, message: String, push: Bool) async throws { throw HermesError.demoLimitReached }
+    func gitPush(config: ServerConfig, path: String) async throws { throw HermesError.demoLimitReached }
+    func gitSwitchBranch(config: ServerConfig, path: String, branch: String) async throws { throw HermesError.demoLimitReached }
+    func gitAddWorktree(config: ServerConfig, path: String, name: String?, branch: String?) async throws { throw HermesError.demoLimitReached }
+    func gitRemoveWorktree(config: ServerConfig, path: String, worktreePath: String, force: Bool) async throws { throw HermesError.demoLimitReached }
+    func localModelsStatus(config: ServerConfig) async throws -> LocalModelsStatusResponse { throw HermesError.demoLimitReached }
+    func localModelsHardware(config: ServerConfig) async throws -> LocalModelsHardwareResponse { throw HermesError.demoLimitReached }
+    func localModelsCatalog(config: ServerConfig) async throws -> [LocalModelCatalogEntry] { throw HermesError.demoLimitReached }
+    func downloadLocalModel(config: ServerConfig, modelID: String) async throws { throw HermesError.demoLimitReached }
+    func activateLocalModel(config: ServerConfig, modelID: String) async throws { throw HermesError.demoLimitReached }
+    func ejectLocalModel(config: ServerConfig, modelID: String?) async throws { throw HermesError.demoLimitReached }
+    func deleteLocalModel(config: ServerConfig, modelID: String) async throws { throw HermesError.demoLimitReached }
+    func localModelsServerAction(config: ServerConfig, action: String) async throws { throw HermesError.demoLimitReached }
+    func testMessagingPlatform(config: ServerConfig, platform: String) async throws -> MessagingPlatformTestResult { throw HermesError.demoLimitReached }
+    func createOpsHook(config: ServerConfig, event: String, command: String, matcher: String?, approve: Bool) async throws { throw HermesError.demoLimitReached }
+    func deleteOpsHook(config: ServerConfig, event: String, command: String) async throws { throw HermesError.demoLimitReached }
+    func downloadOpsBackup(config: ServerConfig, archive: String) async throws -> Data { throw HermesError.demoLimitReached }
+    func pruneOpsCheckpoints(config: ServerConfig) async throws -> OpsCheckpointsPruneReceipt { throw HermesError.demoLimitReached }
 
     // MARK: - 配置与密钥
 

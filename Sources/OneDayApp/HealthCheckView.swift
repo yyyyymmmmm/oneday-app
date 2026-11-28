@@ -23,6 +23,11 @@ struct HealthCheckView: View {
     @State private var summaryStore = HealthSummaryStore.shared
     @State private var archiveStore = ArchiveStore()
     @State private var backupRecordStore = BackupRecordStore.shared
+    @State private var downloadingBackup = false
+    @State private var downloadedBackupURL: URL?
+    @State private var pruningCheckpoints = false
+    @State private var showPruneConfirm = false
+    @State private var opsFeedback: String?
 
     private var heroTone: SettingsStatusTone {
         if store.isRunning { return .neutral }
@@ -493,11 +498,55 @@ struct HealthCheckView: View {
 
     // MARK: - 存档段（H1-b）
 
+    private var latestBackupArchiveName: String? {
+        archiveStore.backupRun?.archiveName
+            ?? backupRecordStore.record(for: appState.config?.baseString)?.archiveName
+    }
+
     private var archiveSection: some View {
         Section {
             readinessRow
             backupStatusRow
             backupButtonRow
+            if let archive = latestBackupArchiveName, !archive.isEmpty {
+                if let url = downloadedBackupURL {
+                    ShareLink(item: url) {
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(Palette.primary)
+                            Text("导出已下载的备份包")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.primary)
+                            Spacer()
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    }
+                } else {
+                    Button {
+                        Task { await downloadBackupArchive(archive) }
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            if downloadingBackup {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.down.doc")
+                                    .foregroundStyle(Palette.primary)
+                            }
+                            Text(downloadingBackup ? "正在下载备份包…" : "下载最近备份包 (.zip)")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.primary)
+                            Spacer()
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    }
+                    .disabled(downloadingBackup)
+                }
+            }
+            if let opsFeedback {
+                Text(opsFeedback)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
         } header: {
             sectionHeader("存档")
         }
@@ -725,6 +774,30 @@ struct HealthCheckView: View {
                         )
                         .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
+                        Button(role: .destructive) {
+                            showPruneConfirm = true
+                        } label: {
+                            HStack(spacing: OneDayMetrics.spacingS) {
+                                if pruningCheckpoints {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "trash")
+                                }
+                                Text(pruningCheckpoints ? "正在清理检查点…" : "清理过期检查点")
+                                    .font(.rowTitleL)
+                                Spacer()
+                            }
+                            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                        }
+                        .disabled(pruningCheckpoints)
+                        .alert("确认清理检查点？", isPresented: $showPruneConfirm) {
+                            Button("取消", role: .cancel) {}
+                            Button("立即清理", role: .destructive) {
+                                Task { await pruneCheckpoints() }
+                            }
+                        } message: {
+                            Text("将调用服务端清理过期文件检查点以释放磁盘空间。")
+                        }
                     }
                 }
             case .idle, .running:
@@ -900,6 +973,43 @@ struct HealthCheckView: View {
         case .critical, .high: return Palette.danger
         case .moderate: return Palette.warning
         case .low: return Palette.inkSecondary
+        }
+    }
+
+    private func downloadBackupArchive(_ archive: String) async {
+        downloadingBackup = true
+        opsFeedback = nil
+        defer { downloadingBackup = false }
+        do {
+            let data = try await appState.performAdmin { config in
+                try await appState.client.downloadOpsBackup(config: config, archive: archive)
+            }
+            let fileName = (archive as NSString).lastPathComponent
+            let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                fileName.isEmpty ? "hermes-backup.zip" : fileName
+            )
+            try data.write(to: tmpURL, options: .atomic)
+            downloadedBackupURL = tmpURL
+            Haptics.success()
+            opsFeedback = "备份包已下载（\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))），可点击上方导出。"
+        } catch {
+            opsFeedback = "下载失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func pruneCheckpoints() async {
+        pruningCheckpoints = true
+        opsFeedback = nil
+        defer { pruningCheckpoints = false }
+        do {
+            let receipt = try await appState.performAdmin { config in
+                try await appState.client.pruneOpsCheckpoints(config: config)
+            }
+            Haptics.success()
+            opsFeedback = receipt.message
+            await archiveStore.loadCheckpoints(appState: appState)
+        } catch {
+            opsFeedback = "清理失败：\(error.localizedDescription)"
         }
     }
 

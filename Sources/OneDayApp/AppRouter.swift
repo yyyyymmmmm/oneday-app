@@ -32,6 +32,10 @@ enum AgentRoute: Hashable {
     case customEndpoints
     /// Bot Mode 多智能体房间协作与授权管理（Hermes v0.23.0）
     case botMode
+    /// Git & Worktree 评审工作台（Hermes v0.23.0 git.py）
+    case gitWorkbench
+    /// 本地模型管理器（Hermes v0.23.0 local_models.py）
+    case localModels
     // 审批规则路由已退役（§493，D3 改判 §244）：规
     // 则页迁中枢审核段、由中枢内层栈直推，不再经设
     // 置页 AgentRoute 点达

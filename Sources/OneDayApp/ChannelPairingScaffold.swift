@@ -62,6 +62,9 @@ struct ChannelPairingStatusSection: View {
     var onShowList: () -> Void
 
     @Environment(AppState.self) private var appState
+    @State private var testingPlatform = false
+    @State private var testResult: MessagingPlatformTestResult?
+    @State private var testError: String?
 
     private var status: ChannelPlatformStatus? {
         store.status(for: channel.id)
@@ -94,10 +97,61 @@ struct ChannelPairingStatusSection: View {
             } else if let status {
                 statusBand(status)
                     .listRowBackground(Palette.surface)
+                platformTestRow
+                    .listRowBackground(Palette.surface)
             }
         }
         .task(id: phase == .applying) {
             await pollWhileApplying()
+        }
+    }
+
+    private var platformTestRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                Task { await runPlatformTest() }
+            } label: {
+                HStack(spacing: 8) {
+                    if testingPlatform {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                    }
+                    Text(testingPlatform ? "正在测试平台连通性…" : "一键测试平台连通性")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+            .disabled(testingPlatform)
+
+            if let result = testResult {
+                Label(
+                    result.message.isEmpty ? (result.ok ? "平台连接正常" : "平台未就绪") : result.message,
+                    systemImage: result.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.captionText)
+                .foregroundStyle(result.ok ? Palette.successText : Palette.warningText)
+            } else if let testError {
+                Label(testError, systemImage: "xmark.octagon.fill")
+                    .font(.captionText)
+                    .foregroundStyle(Palette.danger)
+            }
+        }
+    }
+
+    private func runPlatformTest() async {
+        testingPlatform = true
+        testResult = nil
+        testError = nil
+        defer { testingPlatform = false }
+
+        do {
+            let result = try await appState.performAdmin { config in
+                try await appState.client.testMessagingPlatform(config: config, platform: channel.id)
+            }
+            testResult = result
+            if result.ok { Haptics.success() }
+        } catch {
+            testError = error.localizedDescription
         }
     }
 

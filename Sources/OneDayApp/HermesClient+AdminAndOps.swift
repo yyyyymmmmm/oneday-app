@@ -411,6 +411,277 @@ extension HermesClient {
         )
     }
 
+    // MARK: - Wave 8: Git & Worktree 评审工作台（Hermes v0.23.0 git.py）
+
+    func gitStatus(config: ServerConfig, path: String) async throws -> GitRepoStatus {
+        try await getJSON(
+            config: config, path: "/api/git/status",
+            endpoint: L10n.string("Git 状态"),
+            query: [URLQueryItem(name: "path", value: path)]
+        )
+    }
+
+    func gitWorktrees(config: ServerConfig, path: String) async throws -> [GitWorktreeItem] {
+        let resp: GitWorktreesResponse = try await getJSON(
+            config: config, path: "/api/git/worktrees",
+            endpoint: L10n.string("Git Worktrees"),
+            query: [URLQueryItem(name: "path", value: path)]
+        )
+        return resp.worktrees
+    }
+
+    func gitBranches(config: ServerConfig, path: String) async throws -> [GitBranchItem] {
+        let resp: GitBranchesResponse = try await getJSON(
+            config: config, path: "/api/git/branches",
+            endpoint: L10n.string("Git 分支"),
+            query: [URLQueryItem(name: "path", value: path)]
+        )
+        return resp.branches
+    }
+
+    func gitReviewList(
+        config: ServerConfig, path: String, scope: String
+    ) async throws -> [GitReviewFileItem] {
+        let resp: GitReviewListResponse = try await getJSON(
+            config: config, path: "/api/git/review/list",
+            endpoint: L10n.string("Git 变更列表"),
+            query: [
+                URLQueryItem(name: "path", value: path),
+                URLQueryItem(name: "scope", value: scope),
+            ]
+        )
+        return resp.files
+    }
+
+    func gitReviewDiff(
+        config: ServerConfig, path: String, file: String, staged: Bool
+    ) async throws -> String {
+        let resp: GitDiffResponse = try await getJSON(
+            config: config, path: "/api/git/review/diff",
+            endpoint: L10n.string("Git Diff"),
+            query: [
+                URLQueryItem(name: "path", value: path),
+                URLQueryItem(name: "file", value: file),
+                URLQueryItem(name: "staged", value: staged ? "true" : "false"),
+            ]
+        )
+        return resp.diff
+    }
+
+    func gitStageFile(config: ServerConfig, path: String, file: String?) async throws {
+        var body: [String: JSONValue] = ["path": .string(path)]
+        if let file { body["file"] = .string(file) }
+        try await sendJSON(
+            config: config, path: "/api/git/review/stage",
+            method: "POST", endpoint: L10n.string("Git 暂存"), body: body
+        )
+    }
+
+    func gitUnstageFile(config: ServerConfig, path: String, file: String?) async throws {
+        var body: [String: JSONValue] = ["path": .string(path)]
+        if let file { body["file"] = .string(file) }
+        try await sendJSON(
+            config: config, path: "/api/git/review/unstage",
+            method: "POST", endpoint: L10n.string("Git 取消暂存"), body: body
+        )
+    }
+
+    func gitRevertFile(config: ServerConfig, path: String, file: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/git/review/revert",
+            method: "POST", endpoint: L10n.string("Git 还原文件"),
+            body: ["path": .string(path), "file": .string(file)]
+        )
+    }
+
+    func gitCommit(
+        config: ServerConfig, path: String, message: String, push: Bool
+    ) async throws {
+        try await sendJSON(
+            config: config, path: "/api/git/review/commit",
+            method: "POST", endpoint: L10n.string("Git 提交"),
+            body: ["path": .string(path), "message": .string(message), "push": .bool(push)]
+        )
+    }
+
+    func gitPush(config: ServerConfig, path: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/git/review/push",
+            method: "POST", endpoint: L10n.string("Git 推送"),
+            body: ["path": .string(path)]
+        )
+    }
+
+    func gitSwitchBranch(config: ServerConfig, path: String, branch: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/git/branch/switch",
+            method: "POST", endpoint: L10n.string("Git 切换分支"),
+            body: ["path": .string(path), "branch": .string(branch)]
+        )
+    }
+
+    func gitAddWorktree(
+        config: ServerConfig, path: String, name: String?, branch: String?
+    ) async throws {
+        var body: [String: JSONValue] = ["path": .string(path)]
+        if let name, !name.isEmpty { body["name"] = .string(name) }
+        if let branch, !branch.isEmpty { body["branch"] = .string(branch) }
+        try await sendJSON(
+            config: config, path: "/api/git/worktree/add",
+            method: "POST", endpoint: L10n.string("新增 Worktree"), body: body
+        )
+    }
+
+    func gitRemoveWorktree(
+        config: ServerConfig, path: String, worktreePath: String, force: Bool
+    ) async throws {
+        try await sendJSON(
+            config: config, path: "/api/git/worktree/remove",
+            method: "POST", endpoint: L10n.string("移除 Worktree"),
+            body: [
+                "path": .string(path),
+                "worktreePath": .string(worktreePath),
+                "force": .bool(force),
+            ]
+        )
+    }
+
+    // MARK: - Wave 8: 本地模型管理器（Hermes v0.23.0 local_models.py）
+
+    func localModelsStatus(config: ServerConfig) async throws -> LocalModelsStatusResponse {
+        try await getJSON(
+            config: config, path: "/api/local-models/status",
+            endpoint: L10n.string("本地模型状态")
+        )
+    }
+
+    func localModelsHardware(config: ServerConfig) async throws -> LocalModelsHardwareResponse {
+        try await getJSON(
+            config: config, path: "/api/local-models/hardware",
+            endpoint: L10n.string("本地模型硬件")
+        )
+    }
+
+    func localModelsCatalog(config: ServerConfig) async throws -> [LocalModelCatalogEntry] {
+        let resp: LocalModelsCatalogResponse = try await getJSON(
+            config: config, path: "/api/local-models/catalog",
+            endpoint: L10n.string("本地模型目录")
+        )
+        return resp.models
+    }
+
+    func downloadLocalModel(config: ServerConfig, modelID: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/local-models/download",
+            method: "POST", endpoint: L10n.string("下载本地模型"),
+            body: ["model_id": .string(modelID)]
+        )
+    }
+
+    func activateLocalModel(config: ServerConfig, modelID: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/local-models/activate",
+            method: "POST", endpoint: L10n.string("启用本地模型"),
+            body: ["model_id": .string(modelID)],
+            timeout: 120
+        )
+    }
+
+    func ejectLocalModel(config: ServerConfig, modelID: String?) async throws {
+        var body: [String: JSONValue] = [:]
+        if let modelID, !modelID.isEmpty { body["model_id"] = .string(modelID) }
+        try await sendJSON(
+            config: config, path: "/api/local-models/eject",
+            method: "POST", endpoint: L10n.string("卸载本地模型"), body: body
+        )
+    }
+
+    func deleteLocalModel(config: ServerConfig, modelID: String) async throws {
+        let encoded = encodedPathSegment(modelID)
+        try await sendJSON(
+            config: config, path: "/api/local-models/models/\(encoded)",
+            method: "DELETE", endpoint: L10n.string("删除本地模型")
+        )
+    }
+
+    func localModelsServerAction(config: ServerConfig, action: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/local-models/server",
+            method: "POST", endpoint: L10n.string("本地模型服务控制"),
+            body: ["action": .string(action)],
+            timeout: 60
+        )
+    }
+
+    // MARK: - Wave 8: 消息平台连通性测试与运维高级操作
+
+    func testMessagingPlatform(
+        config: ServerConfig, platform: String
+    ) async throws -> MessagingPlatformTestResult {
+        let encoded = encodedPathSegment(platform)
+        return try await sendJSONDecoding(
+            config: config, path: "/api/messaging/platforms/\(encoded)/test",
+            method: "POST", endpoint: L10n.string("频道连通性测试"),
+            body: [:]
+        )
+    }
+
+    func createOpsHook(
+        config: ServerConfig, event: String, command: String,
+        matcher: String?, approve: Bool
+    ) async throws {
+        var body: [String: JSONValue] = [
+            "event": .string(event),
+            "command": .string(command),
+            "approve": .bool(approve),
+        ]
+        if let matcher, !matcher.isEmpty { body["matcher"] = .string(matcher) }
+        try await sendJSON(
+            config: config, path: "/api/ops/hooks",
+            method: "POST", endpoint: L10n.string("新增运维钩子"),
+            body: body
+        )
+    }
+
+    func deleteOpsHook(
+        config: ServerConfig, event: String, command: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: "/api/ops/hooks",
+            method: "DELETE", endpoint: L10n.string("删除运维钩子"),
+            body: ["event": .string(event), "command": .string(command)]
+        )
+    }
+
+    func downloadOpsBackup(config: ServerConfig, archive: String) async throws -> Data {
+        let request = URLRequest(
+            url: url(
+                config: config, path: "/api/ops/backup/download",
+                query: [URLQueryItem(name: "archive", value: archive)]
+            )
+        )
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.fromHTTPResponse(
+                endpoint: L10n.string("下载备份包"),
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
+        return data
+    }
+
+    func pruneOpsCheckpoints(
+        config: ServerConfig
+    ) async throws -> OpsCheckpointsPruneReceipt {
+        try await sendJSONDecoding(
+            config: config, path: "/api/ops/checkpoints/prune",
+            method: "POST", endpoint: L10n.string("清理检查点"),
+            body: [:]
+        )
+    }
+
     func computerUseStatus(
         config: ServerConfig
     ) async throws -> ComputerUseStatus {

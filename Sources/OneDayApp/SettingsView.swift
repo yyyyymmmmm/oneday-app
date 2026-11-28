@@ -303,6 +303,10 @@ struct SettingsView: View {
             CustomEndpointsAndPoolView()
         case .botMode:
             BotModeCollaborationView()
+        case .gitWorkbench:
+            GitWorktreeWorkbenchView()
+        case .localModels:
+            LocalModelsManagerView()
         }
     }
 
@@ -575,8 +579,22 @@ struct SettingsView: View {
                     status: "OpenAI 兼容端点 · 多 Key 轮询池",
                     route: .agent(.customEndpoints)
                 )
+                statusNavRow(
+                    icon: "cpu.fill",
+                    color: Palette.tintLavenderInk,
+                    title: L10n.string("本地模型管理"),
+                    status: "显存预算 · 离线模型下载与启停",
+                    route: .agent(.localModels)
+                )
+                statusNavRow(
+                    icon: "arrow.triangle.pull",
+                    color: Palette.tintSkyInk,
+                    title: L10n.string("Git 与 Worktree 工作台"),
+                    status: "变更 Diff 审阅 · 提交推送 · 分支与工作树",
+                    route: .agent(.gitWorkbench)
+                )
             } header: {
-                sectionHeader("供应商与凭据池")
+                sectionHeader("供应商、本地模型与开发工作台")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(OneDayMetrics.settingsRowInsets)

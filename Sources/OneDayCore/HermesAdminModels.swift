@@ -2180,3 +2180,317 @@ public struct RoomGrantRevokeReceipt: Decodable, Sendable {
         revoked = try c.decodeIfPresent(Bool.self, forKey: .revoked) ?? true
     }
 }
+
+// MARK: - Wave 8: Git & Worktree 评审工作台（Hermes v0.23.0 git.py）
+
+public struct GitRepoStatus: Decodable, Sendable {
+    public let isRepo: Bool
+    public let branch: String
+    public let ahead: Int
+    public let behind: Int
+    public let dirtyCount: Int
+    public let stagedCount: Int
+    public let rootPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case branch, ahead, behind
+        case isRepo = "is_repo"
+        case isGitRepo = "isRepo"
+        case dirtyCount = "dirty_count"
+        case dirty = "dirty"
+        case stagedCount = "staged_count"
+        case rootPath = "root"
+        case topLevel = "top_level"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        isRepo = (try c.decodeIfPresent(Bool.self, forKey: .isRepo))
+            ?? (try c.decodeIfPresent(Bool.self, forKey: .isGitRepo))
+            ?? true
+        branch = try c.decodeIfPresent(String.self, forKey: .branch) ?? ""
+        ahead = try c.decodeIfPresent(Int.self, forKey: .ahead) ?? 0
+        behind = try c.decodeIfPresent(Int.self, forKey: .behind) ?? 0
+        dirtyCount = (try c.decodeIfPresent(Int.self, forKey: .dirtyCount))
+            ?? ((try c.decodeIfPresent(Bool.self, forKey: .dirty)) == true ? 1 : 0)
+        stagedCount = try c.decodeIfPresent(Int.self, forKey: .stagedCount) ?? 0
+        rootPath = (try c.decodeIfPresent(String.self, forKey: .rootPath))
+            ?? (try c.decodeIfPresent(String.self, forKey: .topLevel))
+            ?? ""
+    }
+}
+
+public struct GitWorktreeItem: Decodable, Identifiable, Sendable {
+    public var id: String { path }
+    public let path: String
+    public let branch: String
+    public let head: String
+    public let isMain: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case path, branch, head
+        case isMain = "is_main"
+        case isMainCamel = "isMain"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
+        branch = try c.decodeIfPresent(String.self, forKey: .branch) ?? ""
+        head = try c.decodeIfPresent(String.self, forKey: .head) ?? ""
+        isMain = (try c.decodeIfPresent(Bool.self, forKey: .isMain))
+            ?? (try c.decodeIfPresent(Bool.self, forKey: .isMainCamel))
+            ?? false
+    }
+}
+
+public struct GitWorktreesResponse: Decodable, Sendable {
+    public let worktrees: [GitWorktreeItem]
+    enum CodingKeys: String, CodingKey { case worktrees }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        worktrees = try c.decodeIfPresent([GitWorktreeItem].self, forKey: .worktrees) ?? []
+    }
+}
+
+public struct GitBranchItem: Decodable, Identifiable, Sendable {
+    public var id: String { name }
+    public let name: String
+    public let isCurrent: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case isCurrent = "current"
+        case isCurrentSnake = "is_current"
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let raw = try? decoder.singleValueContainer().decode(String.self) {
+            name = raw
+            isCurrent = false
+            return
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        isCurrent = (try c.decodeIfPresent(Bool.self, forKey: .isCurrent))
+            ?? (try c.decodeIfPresent(Bool.self, forKey: .isCurrentSnake))
+            ?? false
+    }
+}
+
+public struct GitBranchesResponse: Decodable, Sendable {
+    public let branches: [GitBranchItem]
+    enum CodingKeys: String, CodingKey { case branches }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        branches = try c.decodeIfPresent([GitBranchItem].self, forKey: .branches) ?? []
+    }
+}
+
+public struct GitReviewFileItem: Decodable, Identifiable, Sendable {
+    public var id: String { "\(path)::\(staged)" }
+    public let path: String
+    public let status: String
+    public let staged: Bool
+    public let additions: Int
+    public let deletions: Int
+
+    enum CodingKeys: String, CodingKey {
+        case path, file, status, staged, additions, deletions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = (try c.decodeIfPresent(String.self, forKey: .path))
+            ?? (try c.decodeIfPresent(String.self, forKey: .file))
+            ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "M"
+        staged = try c.decodeIfPresent(Bool.self, forKey: .staged) ?? false
+        additions = try c.decodeIfPresent(Int.self, forKey: .additions) ?? 0
+        deletions = try c.decodeIfPresent(Int.self, forKey: .deletions) ?? 0
+    }
+}
+
+public struct GitReviewListResponse: Decodable, Sendable {
+    public let files: [GitReviewFileItem]
+    enum CodingKeys: String, CodingKey { case files }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        files = try c.decodeIfPresent([GitReviewFileItem].self, forKey: .files) ?? []
+    }
+}
+
+public struct GitDiffResponse: Decodable, Sendable {
+    public let diff: String
+    enum CodingKeys: String, CodingKey { case diff, patch, content }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        diff = (try c.decodeIfPresent(String.self, forKey: .diff))
+            ?? (try c.decodeIfPresent(String.self, forKey: .patch))
+            ?? (try c.decodeIfPresent(String.self, forKey: .content))
+            ?? ""
+    }
+}
+
+// MARK: - Wave 8: 本地模型管理器（Hermes v0.23.0 local_models.py）
+
+public struct LocalModelStagedItem: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let sizeBytes: Int64
+    public let quant: String?
+    public let isActive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, quant
+        case sizeBytes = "size_bytes"
+        case size = "size"
+        case isActive = "active"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
+        sizeBytes = (try c.decodeIfPresent(Int64.self, forKey: .sizeBytes))
+            ?? (try c.decodeIfPresent(Int64.self, forKey: .size))
+            ?? 0
+        quant = try c.decodeIfPresent(String.self, forKey: .quant)
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
+    }
+}
+
+public struct LocalModelsStatusResponse: Decodable, Sendable {
+    public let enabled: Bool
+    public let runtimeInstalled: Bool
+    public let runtimeBackend: String?
+    public let serverRunning: Bool
+    public let serverBaseURL: String?
+    public let activeModelID: String?
+    public let models: [LocalModelStagedItem]
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, models
+        case runtimeInstalled = "runtime_installed"
+        case runtimeBackend = "runtime_backend"
+        case serverRunning = "server_running"
+        case serverBaseURL = "server_base_url"
+        case activeModelID = "active_model_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        runtimeInstalled = try c.decodeIfPresent(Bool.self, forKey: .runtimeInstalled) ?? false
+        runtimeBackend = try c.decodeIfPresent(String.self, forKey: .runtimeBackend)
+        serverRunning = try c.decodeIfPresent(Bool.self, forKey: .serverRunning) ?? false
+        serverBaseURL = try c.decodeIfPresent(String.self, forKey: .serverBaseURL)
+        activeModelID = try c.decodeIfPresent(String.self, forKey: .activeModelID)
+        models = try c.decodeIfPresent([LocalModelStagedItem].self, forKey: .models) ?? []
+    }
+}
+
+public struct LocalModelsHardwareResponse: Decodable, Sendable {
+    public let uma: Bool
+    public let vramLabel: String
+    public let ramTotalBytes: Int64
+    public let ramAvailableBytes: Int64
+    public let gpuName: String?
+    public let gpuUtilPercent: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case uma
+        case vramLabel = "vram_label"
+        case ramTotalBytes = "ram_total_bytes"
+        case ramAvailableBytes = "ram_available_bytes"
+        case gpuName = "gpu_name"
+        case gpuUtilPercent = "gpu_util_percent"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uma = try c.decodeIfPresent(Bool.self, forKey: .uma) ?? false
+        vramLabel = try c.decodeIfPresent(String.self, forKey: .vramLabel) ?? "—"
+        ramTotalBytes = try c.decodeIfPresent(Int64.self, forKey: .ramTotalBytes) ?? 0
+        ramAvailableBytes = try c.decodeIfPresent(Int64.self, forKey: .ramAvailableBytes) ?? 0
+        gpuName = try c.decodeIfPresent(String.self, forKey: .gpuName)
+        gpuUtilPercent = try c.decodeIfPresent(Double.self, forKey: .gpuUtilPercent)
+    }
+}
+
+public struct LocalModelCatalogEntry: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let summary: String
+    public let sizeLabel: String?
+    public let fits: Bool
+    public let installed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, summary, description, fits, installed
+        case sizeLabel = "size_label"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
+        summary = (try c.decodeIfPresent(String.self, forKey: .summary))
+            ?? (try c.decodeIfPresent(String.self, forKey: .description))
+            ?? ""
+        sizeLabel = try c.decodeIfPresent(String.self, forKey: .sizeLabel)
+        fits = try c.decodeIfPresent(Bool.self, forKey: .fits) ?? true
+        installed = try c.decodeIfPresent(Bool.self, forKey: .installed) ?? false
+    }
+}
+
+public struct LocalModelsCatalogResponse: Decodable, Sendable {
+    public let models: [LocalModelCatalogEntry]
+    enum CodingKeys: String, CodingKey { case models, entries, catalog }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        models = (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .models))
+            ?? (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .entries))
+            ?? (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .catalog))
+            ?? []
+    }
+}
+
+// MARK: - Wave 8: 消息平台连通性测试与运维 Checkpoints 清理
+
+public struct MessagingPlatformTestResult: Decodable, Sendable {
+    public let ok: Bool
+    public let state: String
+    public let message: String
+
+    enum CodingKeys: String, CodingKey { case ok, state, message }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try c.decodeIfPresent(Bool.self, forKey: .ok) ?? false
+        state = try c.decodeIfPresent(String.self, forKey: .state) ?? ""
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+    }
+}
+
+public struct OpsCheckpointsPruneReceipt: Decodable, Sendable {
+    public let prunedCount: Int
+    public let freedBytes: Int64
+    public let message: String
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case prunedCount = "pruned"
+        case removedCount = "removed"
+        case freedBytes = "freed_bytes"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        prunedCount = (try c.decodeIfPresent(Int.self, forKey: .prunedCount))
+            ?? (try c.decodeIfPresent(Int.self, forKey: .removedCount))
+            ?? 0
+        freedBytes = try c.decodeIfPresent(Int64.self, forKey: .freedBytes) ?? 0
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? "已完成清理"
+    }
+}

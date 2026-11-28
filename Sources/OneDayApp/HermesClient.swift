@@ -499,6 +499,38 @@ protocol HermesClientProtocol: Sendable {
     func refreshRoomGrant(config: ServerConfig, grantToken: String, ttlSeconds: Int) async throws -> RoomGrantRefreshReceipt
     func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt
 
+    // MARK: - Wave 8: Git & Worktree 评审工作台（Hermes v0.23.0 git.py）
+    func gitStatus(config: ServerConfig, path: String) async throws -> GitRepoStatus
+    func gitWorktrees(config: ServerConfig, path: String) async throws -> [GitWorktreeItem]
+    func gitBranches(config: ServerConfig, path: String) async throws -> [GitBranchItem]
+    func gitReviewList(config: ServerConfig, path: String, scope: String) async throws -> [GitReviewFileItem]
+    func gitReviewDiff(config: ServerConfig, path: String, file: String, staged: Bool) async throws -> String
+    func gitStageFile(config: ServerConfig, path: String, file: String?) async throws
+    func gitUnstageFile(config: ServerConfig, path: String, file: String?) async throws
+    func gitRevertFile(config: ServerConfig, path: String, file: String) async throws
+    func gitCommit(config: ServerConfig, path: String, message: String, push: Bool) async throws
+    func gitPush(config: ServerConfig, path: String) async throws
+    func gitSwitchBranch(config: ServerConfig, path: String, branch: String) async throws
+    func gitAddWorktree(config: ServerConfig, path: String, name: String?, branch: String?) async throws
+    func gitRemoveWorktree(config: ServerConfig, path: String, worktreePath: String, force: Bool) async throws
+
+    // MARK: - Wave 8: 本地模型管理器（Hermes v0.23.0 local_models.py）
+    func localModelsStatus(config: ServerConfig) async throws -> LocalModelsStatusResponse
+    func localModelsHardware(config: ServerConfig) async throws -> LocalModelsHardwareResponse
+    func localModelsCatalog(config: ServerConfig) async throws -> [LocalModelCatalogEntry]
+    func downloadLocalModel(config: ServerConfig, modelID: String) async throws
+    func activateLocalModel(config: ServerConfig, modelID: String) async throws
+    func ejectLocalModel(config: ServerConfig, modelID: String?) async throws
+    func deleteLocalModel(config: ServerConfig, modelID: String) async throws
+    func localModelsServerAction(config: ServerConfig, action: String) async throws
+
+    // MARK: - Wave 8: 消息平台连通性测试与运维高级操作
+    func testMessagingPlatform(config: ServerConfig, platform: String) async throws -> MessagingPlatformTestResult
+    func createOpsHook(config: ServerConfig, event: String, command: String, matcher: String?, approve: Bool) async throws
+    func deleteOpsHook(config: ServerConfig, event: String, command: String) async throws
+    func downloadOpsBackup(config: ServerConfig, archive: String) async throws -> Data
+    func pruneOpsCheckpoints(config: ServerConfig) async throws -> OpsCheckpointsPruneReceipt
+
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
     /// PUT /api/config {config}（全量写回，调用方负责先读后改）
@@ -1236,6 +1268,85 @@ extension HermesClientProtocol {
 
     func revokeRoomGrant(config: ServerConfig, grantToken: String) async throws -> RoomGrantRevokeReceipt {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("撤销房间授权"), status: 501)
+    }
+
+    func gitStatus(config: ServerConfig, path: String) async throws -> GitRepoStatus {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 状态"), status: 501)
+    }
+    func gitWorktrees(config: ServerConfig, path: String) async throws -> [GitWorktreeItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git Worktrees"), status: 501)
+    }
+    func gitBranches(config: ServerConfig, path: String) async throws -> [GitBranchItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 分支"), status: 501)
+    }
+    func gitReviewList(config: ServerConfig, path: String, scope: String) async throws -> [GitReviewFileItem] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 变更列表"), status: 501)
+    }
+    func gitReviewDiff(config: ServerConfig, path: String, file: String, staged: Bool) async throws -> String {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git Diff"), status: 501)
+    }
+    func gitStageFile(config: ServerConfig, path: String, file: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 暂存"), status: 501)
+    }
+    func gitUnstageFile(config: ServerConfig, path: String, file: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 取消暂存"), status: 501)
+    }
+    func gitRevertFile(config: ServerConfig, path: String, file: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 还原文件"), status: 501)
+    }
+    func gitCommit(config: ServerConfig, path: String, message: String, push: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 提交"), status: 501)
+    }
+    func gitPush(config: ServerConfig, path: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 推送"), status: 501)
+    }
+    func gitSwitchBranch(config: ServerConfig, path: String, branch: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("Git 切换分支"), status: 501)
+    }
+    func gitAddWorktree(config: ServerConfig, path: String, name: String?, branch: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("新增 Worktree"), status: 501)
+    }
+    func gitRemoveWorktree(config: ServerConfig, path: String, worktreePath: String, force: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("移除 Worktree"), status: 501)
+    }
+    func localModelsStatus(config: ServerConfig) async throws -> LocalModelsStatusResponse {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("本地模型状态"), status: 501)
+    }
+    func localModelsHardware(config: ServerConfig) async throws -> LocalModelsHardwareResponse {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("本地模型硬件"), status: 501)
+    }
+    func localModelsCatalog(config: ServerConfig) async throws -> [LocalModelCatalogEntry] {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("本地模型目录"), status: 501)
+    }
+    func downloadLocalModel(config: ServerConfig, modelID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("下载本地模型"), status: 501)
+    }
+    func activateLocalModel(config: ServerConfig, modelID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("启用本地模型"), status: 501)
+    }
+    func ejectLocalModel(config: ServerConfig, modelID: String?) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("卸载本地模型"), status: 501)
+    }
+    func deleteLocalModel(config: ServerConfig, modelID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("删除本地模型"), status: 501)
+    }
+    func localModelsServerAction(config: ServerConfig, action: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("本地模型服务控制"), status: 501)
+    }
+    func testMessagingPlatform(config: ServerConfig, platform: String) async throws -> MessagingPlatformTestResult {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("频道连通性测试"), status: 501)
+    }
+    func createOpsHook(config: ServerConfig, event: String, command: String, matcher: String?, approve: Bool) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("新增运维钩子"), status: 501)
+    }
+    func deleteOpsHook(config: ServerConfig, event: String, command: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("删除运维钩子"), status: 501)
+    }
+    func downloadOpsBackup(config: ServerConfig, archive: String) async throws -> Data {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("下载备份包"), status: 501)
+    }
+    func pruneOpsCheckpoints(config: ServerConfig) async throws -> OpsCheckpointsPruneReceipt {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("清理检查点"), status: 501)
     }
 }
 
