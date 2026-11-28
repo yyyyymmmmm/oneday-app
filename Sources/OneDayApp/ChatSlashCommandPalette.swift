@@ -20,6 +20,24 @@ struct HermesSlashCommand: Identifiable, Equatable {
 
     static let catalog: [HermesSlashCommand] = [
         HermesSlashCommand(
+            id: "spawn",
+            command: "/spawn",
+            insertText: "/spawn ",
+            title: "开启常驻分身",
+            subtitle: "创建常驻本对话的分身，可随时 @ 派活与共享上下文",
+            symbol: "person.badge.plus",
+            category: .mode
+        ),
+        HermesSlashCommand(
+            id: "close",
+            command: "/close",
+            insertText: "/close ",
+            title: "关闭常驻分身",
+            subtitle: "输入 /close @分身名 或 /close all 关闭常驻分身",
+            symbol: "person.crop.circle.badge.xmark",
+            category: .mode
+        ),
+        HermesSlashCommand(
             id: "compress",
             command: "/compress",
             insertText: "/compress",

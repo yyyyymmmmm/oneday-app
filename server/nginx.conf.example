@@ -45,6 +45,8 @@ server
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 600s;
         proxy_buffering off;
+        gzip off;
+        chunked_transfer_encoding on;
     }
 
     location = /health
@@ -83,7 +85,7 @@ server
         proxy_read_timeout 60s;
     }
 
-    # Hermes Dashboard
+    # Hermes Dashboard (includes /api/pty WebSocket & /api/audio/speak)
     location /
     {
         proxy_pass http://127.0.0.1:9119;
@@ -95,7 +97,9 @@ server
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
         proxy_buffering off;
+        gzip off;
     }
 
     access_log /www/wwwlogs/hermes.example.com.log;

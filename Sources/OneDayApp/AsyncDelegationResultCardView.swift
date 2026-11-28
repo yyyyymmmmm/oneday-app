@@ -175,8 +175,10 @@ enum AsyncDelegationCallbackParser {
 
 struct AsyncDelegationResultCardView: View {
     let data: AsyncDelegationCallbackData
+    var onPinAsResident: (() -> Void)? = nil
     @State private var isExpanded = false
     @State private var copied = false
+    @State private var pinned = false
 
     private var previewText: String {
         if !data.cleanedBody.isEmpty {
@@ -187,7 +189,7 @@ struct AsyncDelegationResultCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            // 顶部标题与完成态胶囊
+            // 顶部标题与完成态胶囊（归属 AI 侧协同汇报，绝不冒充用户消息）
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: data.kind.iconName)
                     .font(.system(size: 14, weight: .semibold))
@@ -201,7 +203,7 @@ struct AsyncDelegationResultCardView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Palette.ink)
                     if let dispatched = data.dispatchedAt, !dispatched.isEmpty {
-                        Text("派出时间：\(dispatched)")
+                        Text("AI 侧后台分身回报 · \(dispatched)")
                             .font(.caption2)
                             .foregroundStyle(Palette.inkTertiary)
                             .lineLimit(1)
@@ -250,7 +252,7 @@ struct AsyncDelegationResultCardView: View {
                     .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
-            // 展开/收起操作栏
+            // 展开/收起 + 一键常驻进群操作栏
             HStack(spacing: 12) {
                 Button {
                     withAnimation(.snappy(duration: 0.2)) {
@@ -267,6 +269,24 @@ struct AsyncDelegationResultCardView: View {
                     }
                 }
                 .buttonStyle(.plain)
+
+                if let onPinAsResident {
+                    Button {
+                        onPinAsResident()
+                        withAnimation(.snappy(duration: 0.15)) {
+                            pinned = true
+                        }
+                    } label: {
+                        Label(
+                            pinned ? "已常驻本对话" : "设为常驻分身",
+                            systemImage: pinned ? "checkmark.circle.fill" : "pin.fill"
+                        )
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(pinned ? Palette.successText : Palette.tintLavenderInk)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(pinned)
+                }
 
                 Spacer()
 
