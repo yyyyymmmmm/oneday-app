@@ -668,6 +668,18 @@ struct CloudComputerTakeoverSheet: View {
                             Text("正在连接云电脑画面…")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.75))
+                        } else if store.screenshotFailed && store.hubState == .bridgeUnavailable {
+                            // 缺钥匙明示＋入口
+                            Image(systemName: "key.slash")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.white.opacity(0.6))
+                            Text("还没填云电脑钥匙")
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(.white.opacity(0.9))
+                            NavigationLink(destination: CloudComputerListView()) {
+                                Text("前往配置")
+                            }
+                            .buttonStyle(.borderedProminent)
                         } else {
                             Image(systemName: "desktopcomputer")
                                 .font(.system(size: 36))
