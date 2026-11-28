@@ -537,21 +537,29 @@ struct SettingsView: View {
         .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    /// 二级收口页：Hermes 智能体全能力工作台（渐进披露，彻底避免设置根页乱堆）
+    /// 二级收口页：Hermes 智能体全能力工作台（明示每项能力的当前可用状态，绝不让用户盲猜）
     private var agentWorkspaceView: some View {
-        List {
+        let connected = (appState.phase == .connected)
+        let coreStatus = connected ? "已连通 · 可用" : "未连接服务器"
+        let serverFeatureStatus = connected ? "需服务端开启对应模块" : "未连接服务器"
+        let advancedStatus = connected ? "进阶能力 · 需对应环境" : "未连接服务器"
+        return List {
             SettingsHeroCard(
                 symbol: "square.grid.2x2.fill",
                 tint: Palette.tintOrangeInk,
                 title: "智能体工作台",
-                subtitle: "统一管理 Hermes 的长期记忆、技能库、工具集、多智能体委派与定时自动化。"
+                subtitle: connected
+                    ? "绿色标注项已连通可直接使用；其余项依赖服务器额外插件或外部环境，点开会提示具体缺少的配置。"
+                    : "当前尚未连接 Hermes 服务器，请先在「当前服务器」完成连接。",
+                statusText: connected ? "服务器在线" : "未连接",
+                statusTone: connected ? .healthy : .error
             )
 
             Section {
-                navRow(icon: "memorychip", color: Palette.tintLavenderInk, title: L10n.string("记忆管理"), route: .agent(.memory))
-                navRow(icon: "puzzlepiece.extension", color: Palette.tintGreenInk, title: L10n.string("技能库"), route: .agent(.skills))
-                navRow(icon: "shippingbox.fill", color: Palette.tintLavenderInk, title: L10n.string("插件市场"), route: .agent(.plugins))
-                navRow(icon: "arrow.triangle.branch", color: Palette.tintSkyInk, title: L10n.string("委派路由"), route: .agent(.delegation))
+                statusNavRow(icon: "memorychip", color: Palette.tintLavenderInk, title: L10n.string("记忆管理"), status: coreStatus, route: .agent(.memory))
+                statusNavRow(icon: "puzzlepiece.extension", color: Palette.tintGreenInk, title: L10n.string("技能库"), status: coreStatus, route: .agent(.skills))
+                statusNavRow(icon: "shippingbox.fill", color: Palette.tintLavenderInk, title: L10n.string("插件市场"), status: serverFeatureStatus, route: .agent(.plugins))
+                statusNavRow(icon: "arrow.triangle.branch", color: Palette.tintSkyInk, title: L10n.string("委派路由"), status: coreStatus, route: .agent(.delegation))
             } header: {
                 sectionHeader("记忆、技能与扩展")
             }
@@ -559,27 +567,27 @@ struct SettingsView: View {
             .listRowInsets(OneDayMetrics.settingsRowInsets)
 
             Section {
-                navRow(icon: "wrench.and.screwdriver", color: Palette.tintOrangeInk, title: L10n.string("工具集与终端"), route: .agent(.toolsets))
+                statusNavRow(icon: "wrench.and.screwdriver", color: Palette.tintOrangeInk, title: L10n.string("工具集与终端"), status: coreStatus, route: .agent(.toolsets))
                 statusNavRow(
                     icon: "terminal.fill",
                     color: Palette.tintGreenInk,
                     title: L10n.string("宿主机实时终端"),
-                    status: "WebSocket PTY 交互式会话",
+                    status: connected ? "需服务端放行 WebSocket PTY" : "未连接服务器",
                     route: .agent(.hostPTY)
                 )
-                navRow(icon: "clock.arrow.2.circlepath", color: Palette.tintSkyInk, title: L10n.string("定时任务"), route: .agent(.cron))
+                statusNavRow(icon: "clock.arrow.2.circlepath", color: Palette.tintSkyInk, title: L10n.string("定时任务"), status: coreStatus, route: .agent(.cron))
                 statusNavRow(
                     icon: "person.2.badge.gearshape.fill",
                     color: Palette.tintLavenderInk,
                     title: L10n.string("专家分身花名册"),
-                    status: "常驻专家分身 · 独立模型与一键唤醒",
+                    status: coreStatus,
                     route: .agent(.botRoster)
                 )
                 statusNavRow(
                     icon: "person.3.sequence.fill",
                     color: Palette.tintLavenderInk,
                     title: L10n.string("Bot Mode 多体协作"),
-                    status: "房间邀请 · 能力发现 · 授权续期与撤销",
+                    status: serverFeatureStatus,
                     route: .agent(.botMode)
                 )
             } header: {
@@ -593,28 +601,28 @@ struct SettingsView: View {
                     icon: "point.3.connected.trianglepath.dotted",
                     color: Palette.tintSkyInk,
                     title: L10n.string("自定义模型端点与凭据池"),
-                    status: "OpenAI 兼容端点 · 多 Key 轮询池",
+                    status: advancedStatus,
                     route: .agent(.customEndpoints)
                 )
                 statusNavRow(
                     icon: "cpu.fill",
                     color: Palette.tintLavenderInk,
                     title: L10n.string("本地模型管理"),
-                    status: "显存预算 · 离线模型下载与启停",
+                    status: connected ? "需宿主机安装 Ollama" : "未连接服务器",
                     route: .agent(.localModels)
                 )
                 statusNavRow(
                     icon: "arrow.triangle.pull",
                     color: Palette.tintSkyInk,
                     title: L10n.string("Git 与 Worktree 工作台"),
-                    status: "变更 Diff 审阅 · 提交推送 · 分支与工作树",
+                    status: advancedStatus,
                     route: .agent(.gitWorkbench)
                 )
                 statusNavRow(
                     icon: "laptopcomputer.and.iphone",
                     color: Palette.tintSkyInk,
                     title: L10n.string("ACP 编辑器直连与审批"),
-                    status: "手机远程批复桌面 IDE 代码修改",
+                    status: connected ? "需桌面 IDE 开启 ACP 桥" : "未连接服务器",
                     route: .acpEditorBridge
                 )
             } header: {

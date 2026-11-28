@@ -249,12 +249,12 @@ extension ChatView {
             Haptics.selection()
             showVoiceCallSheet = true
         } label: {
-            Image(systemName: "phone.fill")
+            Image(systemName: "phone")
                 .font(.system(
                     size: HeaderButtonSpec.glyphPointSize,
                     weight: .regular
                 ))
-                .foregroundStyle(Palette.primary)
+                .foregroundStyle(Palette.ink)
                 .frame(
                     width: HeaderButtonSpec.diameter,
                     height: HeaderButtonSpec.diameter
