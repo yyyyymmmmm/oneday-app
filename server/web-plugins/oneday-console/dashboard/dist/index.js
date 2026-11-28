@@ -396,7 +396,32 @@
         encodeURIComponent(rowId));
     },
     fetchVoiceConfig: function () { return dashJson("GET", "/api/audio/voice-config"); },
-    speak: function (text) { return dashJson("POST", "/api/audio/speak", { text: text }); }
+    speak: function (text) { return dashJson("POST", "/api/audio/speak", { text: text }); },
+    // ---- v1.0.0: unified admin console faces (profiles / soul / skills / plugins) ----
+    fetchProfiles: function () { return dashJson("GET", "/api/profiles"); },
+    createProfile: function (body) { return dashJson("POST", "/api/profiles", body); },
+    activateProfile: function (name) {
+      return dashJson("POST", "/api/profiles/" + encodeURIComponent(name) + "/activate", {});
+    },
+    deleteProfile: function (name) {
+      return dashJson("DELETE", "/api/profiles/" + encodeURIComponent(name));
+    },
+    fetchSoul: function () { return dashJson("GET", "/api/soul"); },
+    saveSoul: function (content) { return dashJson("PUT", "/api/soul", { content: content }); },
+    fetchSkills: function () { return dashJson("GET", "/api/skills"); },
+    searchSkillHub: function (q) {
+      return dashJson("GET", "/api/skills/hub/search?q=" + encodeURIComponent(q || ""));
+    },
+    installSkillHub: function (identifier) {
+      return dashJson("POST", "/api/skills/hub/install", { identifier: identifier });
+    },
+    uninstallSkillHub: function (name) {
+      return dashJson("POST", "/api/skills/hub/uninstall", { name: name });
+    },
+    fetchPlugins: function () { return dashJson("GET", "/api/plugins"); },
+    togglePlugin: function (name, enabled) {
+      return dashJson("PUT", "/api/plugins/" + encodeURIComponent(name) + "/enabled", { enabled: enabled });
+    }
   };
   window.__ONEDAY_CONSOLE_CORE__ = Core;
 
@@ -4020,78 +4045,641 @@
     return faceShell("诊断", "连接自检＋崩溃报告＋待批提醒三块收尾件：自检只读探活、崩溃报告只读呈现、提醒只在本页打开期间工作。", crash, crashLoad, parts);
   }
 
-  // ---------------- page ----------------
-  var NAV_ITEMS = [
-    { id: "odc-face-approvals", label: "批准" },
-    { id: "odc-face-entries", label: "凭据库" },
-    { id: "odc-face-requests", label: "凭据请求" },
-    { id: "odc-face-feed", label: "动态" },
-    { id: "odc-face-ideas", label: "想法" },
-    { id: "odc-face-goals", label: "目标" },
-    { id: "odc-face-hub", label: "枢纽" },
-    { id: "odc-face-audit", label: "审计" },
-    { id: "odc-face-grants", label: "规矩" },
-    { id: "odc-face-cron", label: "定时任务" },
-    { id: "odc-face-memory", label: "记忆" },
-    { id: "odc-face-files", label: "文件库" },
-    { id: "odc-face-monitors", label: "监控" },
-    { id: "odc-face-connectors", label: "连接器" },
-    { id: "odc-face-delegation", label: "委派" },
-    { id: "odc-face-toolsets", label: "工具集" },
-    { id: "odc-face-reactions", label: "反应" },
-    { id: "odc-face-speech", label: "播报" },
-    { id: "odc-face-dictation", label: "听写" },
-    { id: "odc-face-identity", label: "身份" },
-    { id: "odc-face-devices", label: "设备" },
-    { id: "odc-face-computer", label: "电脑" },
-    { id: "odc-face-settings", label: "设置" },
-    { id: "odc-face-search", label: "搜索" },
-    { id: "odc-face-diag", label: "诊断" }
+  // ---------------- v1.0.0 Flagship Faces: Overview / Agents & Prompts / Skills & Plugins ----------------
+
+  function OverviewFace(props) {
+    var onNavigate = props && props.onNavigate ? props.onNavigate : function () {};
+    var st = React.useState({ phase: "loading", data: null, error: null });
+    var state = st[0], setState = st[1];
+
+    function load() {
+      setState({ phase: "loading", data: state.data, error: null });
+      Promise.all([
+        Core.fetchHealth().catch(function () { return null; }),
+        Core.fetchApprovals().catch(function () { return null; }),
+        Core.fetchVaultRequests("pending").catch(function () { return null; }),
+        Core.fetchLedgerSummary().catch(function () { return null; }),
+        Core.fetchJobs().catch(function () { return null; }),
+        Core.fetchProfiles().catch(function () { return null; })
+      ]).then(function (res) {
+        var health = res[0];
+        var approvals = res[1];
+        var vaultReqs = res[2];
+        var ledger = res[3];
+        var jobs = res[4];
+        var profiles = res[5];
+        var pendingApprovals = (approvals && Array.isArray(approvals.pending)) ? approvals.pending.length
+          : (approvals && Array.isArray(approvals.data)) ? approvals.data.length : 0;
+        var pendingVault = (vaultReqs && Array.isArray(vaultReqs.requests)) ? vaultReqs.requests.length
+          : (vaultReqs && Array.isArray(vaultReqs.data)) ? vaultReqs.data.length : 0;
+        var jobList = Array.isArray(jobs) ? jobs : ((jobs && (jobs.jobs || jobs.data)) || []);
+        var profileList = Array.isArray(profiles) ? profiles : ((profiles && (profiles.profiles || profiles.data)) || []);
+        var summary = (ledger && (ledger.summary || ledger)) || {};
+        var payload = {
+          healthy: !!(health && (health.status === "ok" || health.ok === true)),
+          healthDetail: health && (health.version || health.status) ? String(health.version || health.status) : "未探测到",
+          pendingApprovals: pendingApprovals,
+          pendingVault: pendingVault,
+          runningTasks: Number(summary.running || summary.in_progress || 0),
+          completedToday: Number(summary.completed_today || summary.completed || 0),
+          failedToday: Number(summary.failed_today || summary.failed || 0),
+          jobs: jobList,
+          profiles: profileList
+        };
+        setState({ phase: "ready", data: payload, error: null });
+        if (props && props.onPulse) props.onPulse(payload);
+      }).catch(function (err) {
+        setState({ phase: "error", data: null, error: String(err && err.message || err) });
+      });
+    }
+
+    React.useEffect(function () { load(); }, []);
+
+    var d = state.data;
+    var parts = [];
+    if (d) {
+      var totalPending = d.pendingApprovals + d.pendingVault;
+      parts.push(h("div", { key: "kpis", className: "odc-kpi-grid" },
+        h("button", {
+          type: "button",
+          className: "odc-kpi-card " + (d.healthy ? "odc-kpi-accent-ok" : "odc-kpi-accent-danger"),
+          onClick: function () { onNavigate("odc-face-diag"); }
+        },
+          h("span", { className: "odc-kpi-label" }, "网关运行态"),
+          h("span", { className: "odc-kpi-value" }, d.healthy ? "在线" : "异常"),
+          h("span", { className: "odc-kpi-sub" }, "版本 / 状态：" + d.healthDetail)),
+        h("button", {
+          type: "button",
+          className: "odc-kpi-card " + (totalPending > 0 ? "odc-kpi-accent-danger" : "odc-kpi-accent-ok"),
+          onClick: function () { onNavigate(d.pendingApprovals > 0 ? "odc-face-approvals" : "odc-face-requests"); }
+        },
+          h("span", { className: "odc-kpi-label" }, "待你审批"),
+          h("span", { className: "odc-kpi-value" }, String(totalPending)),
+          h("span", { className: "odc-kpi-sub" }, "操作批准 " + d.pendingApprovals + " · 凭据请求 " + d.pendingVault)),
+        h("button", {
+          type: "button",
+          className: "odc-kpi-card odc-kpi-accent-primary",
+          onClick: function () { onNavigate("odc-face-hub"); }
+        },
+          h("span", { className: "odc-kpi-label" }, "任务台账"),
+          h("span", { className: "odc-kpi-value" }, String(d.runningTasks)),
+          h("span", { className: "odc-kpi-sub" }, "进行中 · 今日完成 " + d.completedToday + " / 失败 " + d.failedToday)),
+        h("button", {
+          type: "button",
+          className: "odc-kpi-card",
+          onClick: function () { onNavigate("odc-face-cron"); }
+        },
+          h("span", { className: "odc-kpi-label" }, "定时任务排期"),
+          h("span", { className: "odc-kpi-value" }, String(d.jobs.length)),
+          h("span", { className: "odc-kpi-sub" }, "查看时间表与运行状态")),
+        h("button", {
+          type: "button",
+          className: "odc-kpi-card",
+          onClick: function () { onNavigate("odc-face-agents"); }
+        },
+          h("span", { className: "odc-kpi-label" }, "专家分身档案"),
+          h("span", { className: "odc-kpi-value" }, String(d.profiles.length)),
+          h("span", { className: "odc-kpi-sub" }, "管理分身、模型与系统提示词"))
+      ));
+
+      parts.push(h("p", { key: "qh", className: "odc-summary-head" }, "高频管理入口"));
+      parts.push(h("div", { key: "qg", className: "odc-quick-grid" },
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-agents"); } },
+          h("span", { className: "odc-quick-title" }, "分身与提示词中心"),
+          h("span", { className: "odc-quick-desc" }, "新建/切换专家分身，在线编辑主助手 Soul 与系统提示词")),
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-ideas"); } },
+          h("span", { className: "odc-quick-title" }, "点子生成与内容池"),
+          h("span", { className: "odc-quick-desc" }, "查看自动生成的灵感点子、状态流转与关联目标")),
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-cron"); } },
+          h("span", { className: "odc-quick-title" }, "定时任务排期表"),
+          h("span", { className: "odc-quick-desc" }, "核查每个定时任务几点跑、最近状态与关联项目")),
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-skills"); } },
+          h("span", { className: "odc-quick-title" }, "技能与插件治理"),
+          h("span", { className: "odc-quick-desc" }, "检索 Skills Hub、管理已装技能与插件启停状态")),
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-delegation"); } },
+          h("span", { className: "odc-quick-title" }, "多模型委托路由"),
+          h("span", { className: "odc-quick-desc" }, "配置不同分身与子任务使用的后端与模型映射")),
+        h("button", { type: "button", className: "odc-quick-card", onClick: function () { onNavigate("odc-face-diag"); } },
+          h("span", { className: "odc-quick-title" }, "六探针一键自检"),
+          h("span", { className: "odc-quick-desc" }, "排查网关、能力位、凭据链、崩溃报告与浏览器提醒"))
+      ));
+
+      if (d.jobs.length) {
+        parts.push(h("p", { key: "jh", className: "odc-summary-head" }, "定时任务排期快照（前 5 项）"));
+        parts.push(h("ul", { key: "jl", className: "odc-list" }, d.jobs.slice(0, 5).map(function (j, idx) {
+          var title = j.name || j.title || j.id || ("任务 " + (idx + 1));
+          var sched = j.schedule_human || j.schedule || j.cron || "未标排期";
+          var status = j.enabled === false ? "已暂停" : (j.last_status || "运行中");
+          return h("li", { key: "ovj-" + idx, className: "odc-row" },
+            h("span", { className: "odc-row-title" }, title),
+            h("span", { className: "odc-row-meta" }, sched),
+            h("span", { className: "odc-st " + (j.enabled === false ? "odc-st-pending" : "odc-st-done") }, status));
+        })));
+      }
+    }
+
+    return faceShell(
+      "总览指挥台",
+      "全局运行态实时汇总（全部直采服务端真源接口，无假数据）：一眼看清网关健康、待审批、任务进度、定时排期与专家分身。",
+      state,
+      load,
+      parts
+    );
+  }
+
+  function AgentsPromptsFace() {
+    var st = React.useState({ phase: "loading", data: null, error: null });
+    var state = st[0], setState = st[1];
+    var formSt = React.useState({ name: "", model: "", provider: "", description: "" });
+    var form = formSt[0], setForm = formSt[1];
+    var soulSt = React.useState("");
+    var soulText = soulSt[0], setSoulText = soulSt[1];
+    var busySt = React.useState(false);
+    var busy = busySt[0], setBusy = busySt[1];
+    var msgSt = React.useState(null);
+    var msg = msgSt[0], setMsg = msgSt[1];
+
+    function load() {
+      setState({ phase: "loading", data: state.data, error: null });
+      Promise.all([
+        Core.fetchProfiles().catch(function () { return []; }),
+        Core.fetchSoul().catch(function () { return null; })
+      ]).then(function (res) {
+        var rawProfiles = res[0];
+        var list = Array.isArray(rawProfiles) ? rawProfiles : ((rawProfiles && (rawProfiles.profiles || rawProfiles.data)) || []);
+        var soulObj = res[1];
+        var content = "";
+        if (typeof soulObj === "string") content = soulObj;
+        else if (soulObj && typeof soulObj.content === "string") content = soulObj.content;
+        else if (soulObj && typeof soulObj.soul === "string") content = soulObj.soul;
+        setSoulText(content);
+        setState({ phase: "ready", data: { profiles: list, hasSoulApi: soulObj !== null }, error: null });
+      }).catch(function (err) {
+        setState({ phase: "error", data: null, error: String(err && err.message || err) });
+      });
+    }
+
+    React.useEffect(function () { load(); }, []);
+
+    function handleCreate(ev) {
+      ev.preventDefault();
+      var name = (form.name || "").trim();
+      if (!name) return;
+      setBusy(true);
+      setMsg(null);
+      Core.createProfile({
+        name: name,
+        model: (form.model || "").trim() || undefined,
+        provider: (form.provider || "").trim() || undefined,
+        description: (form.description || "").trim() || undefined
+      }).then(function () {
+        setForm({ name: "", model: "", provider: "", description: "" });
+        setMsg("已创建专家分身「" + name + "」，iOS 端敲 @ 即可同步使用。");
+        load();
+      }).catch(function (err) {
+        setMsg("创建失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleActivate(name) {
+      setBusy(true);
+      setMsg(null);
+      Core.activateProfile(name).then(function () {
+        setMsg("已将「" + name + "」设为当前激活分身档案。");
+        load();
+      }).catch(function (err) {
+        setMsg("切换失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleDelete(name) {
+      if (!window.confirm("确认删除分身档案「" + name + "」？")) return;
+      setBusy(true);
+      setMsg(null);
+      Core.deleteProfile(name).then(function () {
+        setMsg("已删除分身档案「" + name + "」。");
+        load();
+      }).catch(function (err) {
+        setMsg("删除失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleSaveSoul() {
+      setBusy(true);
+      setMsg(null);
+      Core.saveSoul(soulText).then(function () {
+        setMsg("系统提示词（SOUL.md）已保存并同步服务端。");
+      }).catch(function (err) {
+        setMsg("保存提示词失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    var parts = [];
+    if (msg) {
+      parts.push(h("div", { key: "msg", className: "odc-toast" },
+        h("span", null, msg),
+        h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-text", onClick: function () { setMsg(null); } }, "关闭")));
+    }
+
+    if (state.data) {
+      var profiles = state.data.profiles || [];
+      parts.push(h("div", { key: "split", className: "odc-split-grid" },
+        h("div", { key: "col-p" },
+          h("p", { className: "odc-summary-head" }, "专家分身档案（" + profiles.length + "）"),
+          profiles.length ? h("ul", { className: "odc-list" }, profiles.map(function (p, i) {
+            var pname = p.name || ("profile-" + i);
+            var active = !!(p.is_active || p.isActive || p.active);
+            return h("li", { key: pname, className: "odc-row odc-row-card" },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" } },
+                h("span", { className: "odc-row-title" }, "@" + pname),
+                h("span", { className: "odc-st " + (active ? "odc-st-done" : "") }, active ? "当前激活" : "待命")),
+              h("span", { className: "odc-row-meta" }, [p.model || "默认模型", p.provider || "", p.description || ""].filter(Boolean).join(" · ")),
+              h("div", { className: "odc-actions" },
+                !active ? h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-primary", disabled: busy, onClick: function () { handleActivate(pname); } }, "设为激活") : null,
+                !(p.is_default || p.isDefault) ? h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-text", disabled: busy, onClick: function () { handleDelete(pname); } }, "删除") : null));
+          })) : h("p", { className: "odc-empty" }, "暂无自定义分身档案，可在下方一键创建。"),
+          h("p", { className: "odc-summary-head" }, "新建专家分身"),
+          h("form", { className: "odc-form", onSubmit: handleCreate },
+            h("label", { className: "odc-field" }, "分身名称（如：编码架构师 / 深度研究员）",
+              h("input", { value: form.name, onChange: function (e) { setForm(Object.assign({}, form, { name: e.target.value })); }, placeholder: "必填，例如 code-architect" })),
+            h("label", { className: "odc-field" }, "指定模型（可选）",
+              h("input", { value: form.model, onChange: function (e) { setForm(Object.assign({}, form, { model: e.target.value })); }, placeholder: "留空跟随默认模型，如 claude-sonnet-4" })),
+            h("label", { className: "odc-field" }, "职责说明（可选）",
+              h("input", { value: form.description, onChange: function (e) { setForm(Object.assign({}, form, { description: e.target.value })); }, placeholder: "例如：负责代码重构与架构把关" })),
+            h("div", { className: "odc-actions" },
+              h("button", { type: "submit", className: "odc-btn odc-btn-primary", disabled: busy || !form.name.trim() }, busy ? "提交中…" : "创建专家分身")))
+        ),
+        h("div", { key: "col-s" },
+          h("p", { className: "odc-summary-head" }, "主助手提示词配置（SOUL.md）"),
+          h("textarea", {
+            className: "odc-prompt-editor",
+            value: soulText,
+            onChange: function (e) { setSoulText(e.target.value); },
+            placeholder: "在此配置主助手人格、回复规范、工作原则与偏好……"
+          }),
+          h("div", { className: "odc-actions", style: { marginTop: "10px", justifyContent: "space-between" } },
+            h("span", { className: "odc-row-meta" }, "当前字数：" + soulText.length + " 字符"),
+            h("button", { type: "button", className: "odc-btn odc-btn-primary", disabled: busy, onClick: handleSaveSoul }, busy ? "保存中…" : "保存提示词"))
+        )
+      ));
+    }
+
+    return faceShell(
+      "分身与提示词中心",
+      "统一管理 Hermes 专家分身档案（/api/profiles）与主助手系统提示词（/api/soul），修改后立即与 iOS 端 @分身 协同同步。",
+      state,
+      load,
+      parts
+    );
+  }
+
+  function SkillsPluginsFace() {
+    var st = React.useState({ phase: "loading", data: null, error: null });
+    var state = st[0], setState = st[1];
+    var qSt = React.useState("");
+    var q = qSt[0], setQ = qSt[1];
+    var hubSt = React.useState([]);
+    var hubResults = hubSt[0], setHubResults = hubSt[1];
+    var busySt = React.useState(false);
+    var busy = busySt[0], setBusy = busySt[1];
+    var msgSt = React.useState(null);
+    var msg = msgSt[0], setMsg = msgSt[1];
+
+    function load() {
+      setState({ phase: "loading", data: state.data, error: null });
+      Promise.all([
+        Core.fetchSkills().catch(function () { return []; }),
+        Core.fetchPlugins().catch(function () { return []; })
+      ]).then(function (res) {
+        var sk = Array.isArray(res[0]) ? res[0] : ((res[0] && (res[0].skills || res[0].data)) || []);
+        var pl = Array.isArray(res[1]) ? res[1] : ((res[1] && (res[1].plugins || res[1].data)) || []);
+        setState({ phase: "ready", data: { skills: sk, plugins: pl }, error: null });
+      }).catch(function (err) {
+        setState({ phase: "error", data: null, error: String(err && err.message || err) });
+      });
+    }
+
+    React.useEffect(function () { load(); }, []);
+
+    function handleSearchHub(ev) {
+      ev.preventDefault();
+      setBusy(true);
+      setMsg(null);
+      Core.searchSkillHub(q).then(function (res) {
+        var list = Array.isArray(res) ? res : ((res && (res.skills || res.results || res.data)) || []);
+        setHubResults(list);
+        if (!list.length) setMsg("远程技能库未返回匹配项（请确认服务器可访问外部 Registry 或更换关键词）。");
+      }).catch(function (err) {
+        setMsg("搜索远程技能库失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleInstallSkill(identifier) {
+      setBusy(true);
+      setMsg(null);
+      Core.installSkillHub(identifier).then(function () {
+        setMsg("已提交技能「" + identifier + "」安装并刷新清单。");
+        load();
+      }).catch(function (err) {
+        setMsg("安装失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleUninstallSkill(name) {
+      setBusy(true);
+      setMsg(null);
+      Core.uninstallSkillHub(name).then(function () {
+        setMsg("已卸载技能「" + name + "」。");
+        load();
+      }).catch(function (err) {
+        setMsg("卸载失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    function handleTogglePlugin(name, enabled) {
+      setBusy(true);
+      setMsg(null);
+      Core.togglePlugin(name, enabled).then(function () {
+        setMsg("插件「" + name + "」已" + (enabled ? "启用" : "停用") + "。");
+        load();
+      }).catch(function (err) {
+        setMsg("切换插件失败：" + String(err && err.message || err));
+      }).finally(function () { setBusy(false); });
+    }
+
+    var parts = [];
+    if (msg) {
+      parts.push(h("div", { key: "sp-msg", className: "odc-toast" },
+        h("span", null, msg),
+        h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-text", onClick: function () { setMsg(null); } }, "关闭")));
+    }
+
+    parts.push(h("form", { key: "hub-f", className: "odc-actions", onSubmit: handleSearchHub, style: { marginBottom: "10px" } },
+      h("input", { className: "odc-search-input", value: q, onChange: function (e) { setQ(e.target.value); }, placeholder: "搜索远程 Skills Hub（如 pdf、browser、git）" }),
+      h("button", { type: "submit", className: "odc-btn odc-btn-primary", disabled: busy }, busy ? "检索中…" : "搜索商店")));
+
+    if (hubResults.length) {
+      parts.push(h("p", { key: "hr-h", className: "odc-summary-head" }, "远程技能检索结果（" + hubResults.length + "）"));
+      parts.push(h("ul", { key: "hr-l", className: "odc-list" }, hubResults.slice(0, 12).map(function (s, idx) {
+        var id = s.identifier || s.name || ("skill-" + idx);
+        return h("li", { key: id, className: "odc-row" },
+          h("div", null,
+            h("div", { className: "odc-row-title" }, s.name || id),
+            s.description ? h("div", { className: "odc-row-meta" }, s.description) : null),
+          h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-primary", disabled: busy, onClick: function () { handleInstallSkill(id); } }, "安装"));
+      })));
+    }
+
+    if (state.data) {
+      var skills = state.data.skills || [];
+      var plugins = state.data.plugins || [];
+      parts.push(h("div", { key: "sp-grid", className: "odc-split-grid" },
+        h("div", { key: "sp-sk" },
+          h("p", { className: "odc-summary-head" }, "已安装技能（" + skills.length + "）"),
+          skills.length ? h("ul", { className: "odc-list" }, skills.map(function (s, idx) {
+            var sname = s.name || ("skill-" + idx);
+            return h("li", { key: sname, className: "odc-row" },
+              h("div", null,
+                h("div", { className: "odc-row-title" }, sname),
+                s.description ? h("div", { className: "odc-row-meta" }, s.description) : null),
+              h("button", { type: "button", className: "odc-btn odc-btn-small odc-btn-text", disabled: busy, onClick: function () { handleUninstallSkill(sname); } }, "卸载"));
+          })) : h("p", { className: "odc-empty" }, "暂无已安装技能。")),
+        h("div", { key: "sp-pl" },
+          h("p", { className: "odc-summary-head" }, "已安装插件（" + plugins.length + "）"),
+          plugins.length ? h("ul", { className: "odc-list" }, plugins.map(function (p, idx) {
+            var pname = p.name || ("plugin-" + idx);
+            var enabled = p.enabled !== false;
+            return h("li", { key: pname, className: "odc-row" },
+              h("div", null,
+                h("div", { className: "odc-row-title" }, pname),
+                p.description ? h("div", { className: "odc-row-meta" }, p.description) : null),
+              h("button", {
+                type: "button",
+                className: "odc-btn odc-btn-small " + (enabled ? "" : "odc-btn-primary"),
+                disabled: busy,
+                onClick: function () { handleTogglePlugin(pname, !enabled); }
+              }, enabled ? "停用" : "启用"));
+          })) : h("p", { className: "odc-empty" }, "暂无已安装插件。"))
+      ));
+    }
+
+    return faceShell(
+      "技能与插件治理",
+      "服务端统一检索 Skills Hub、安装/卸载技能包并管理 Agent 插件启停。",
+      state,
+      load,
+      parts
+    );
+  }
+
+  // ---------------- Flagship Two-Column Admin Console Shell ----------------
+  var NAV_GROUPS = [
+    {
+      group: "指挥总览",
+      items: [
+        { id: "odc-face-overview", label: "总览指挥台", badgeKey: null },
+        { id: "odc-face-approvals", label: "审批待办", badgeKey: "pendingApprovals" },
+        { id: "odc-face-requests", label: "凭据请求", badgeKey: "pendingVault" },
+        { id: "odc-face-entries", label: "凭据库", badgeKey: null }
+      ]
+    },
+    {
+      group: "智能体与提示词",
+      items: [
+        { id: "odc-face-agents", label: "分身与提示词", badgeKey: "profilesCount" },
+        { id: "odc-face-delegation", label: "委托路由", badgeKey: null },
+        { id: "odc-face-skills", label: "技能与插件", badgeKey: null },
+        { id: "odc-face-toolsets", label: "工具集开关", badgeKey: null },
+        { id: "odc-face-identity", label: "身份与形象", badgeKey: null }
+      ]
+    },
+    {
+      group: "点子与内容流水线",
+      items: [
+        { id: "odc-face-ideas", label: "点子生成池", badgeKey: null },
+        { id: "odc-face-feed", label: "动态与流水", badgeKey: null },
+        { id: "odc-face-goals", label: "目标管理", badgeKey: null },
+        { id: "odc-face-memory", label: "记忆与图谱", badgeKey: null },
+        { id: "odc-face-files", label: "文件交付库", badgeKey: null }
+      ]
+    },
+    {
+      group: "自动化与排期",
+      items: [
+        { id: "odc-face-cron", label: "定时任务排期", badgeKey: "jobsCount" },
+        { id: "odc-face-hub", label: "枢纽工作台账", badgeKey: null },
+        { id: "odc-face-monitors", label: "变化监测", badgeKey: null }
+      ]
+    },
+    {
+      group: "设备与语音生态",
+      items: [
+        { id: "odc-face-connectors", label: "MCP 连接器", badgeKey: null },
+        { id: "odc-face-computer", label: "云电脑状态", badgeKey: null },
+        { id: "odc-face-devices", label: "设备与会话", badgeKey: null },
+        { id: "odc-face-speech", label: "语音播报", badgeKey: null },
+        { id: "odc-face-dictation", label: "语音听写", badgeKey: null },
+        { id: "odc-face-reactions", label: "消息反应", badgeKey: null }
+      ]
+    },
+    {
+      group: "安全审计与系统",
+      items: [
+        { id: "odc-face-audit", label: "写闸审计", badgeKey: null },
+        { id: "odc-face-grants", label: "常驻授权规矩", badgeKey: null },
+        { id: "odc-face-settings", label: "结构化设置", badgeKey: null },
+        { id: "odc-face-search", label: "跨面搜索", badgeKey: null },
+        { id: "odc-face-diag", label: "诊断与自检", badgeKey: null }
+      ]
+    }
   ];
 
-  function scrollToFace(id) {
-    var el = document.getElementById(id);
-    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  var ALL_NAV_ITEMS = [];
+  NAV_GROUPS.forEach(function (g) {
+    g.items.forEach(function (it) {
+      ALL_NAV_ITEMS.push({ id: it.id, label: it.label, group: g.group, badgeKey: it.badgeKey });
+    });
+  });
+
+  function renderFaceById(id, onNavigate, onPulse) {
+    switch (id) {
+      case "odc-face-overview": return h(OverviewFace, { onNavigate: onNavigate, onPulse: onPulse });
+      case "odc-face-agents": return h(AgentsPromptsFace, null);
+      case "odc-face-skills": return h(SkillsPluginsFace, null);
+      case "odc-face-approvals": return h(ApprovalsFace, null);
+      case "odc-face-entries": return h(VaultEntriesFace, null);
+      case "odc-face-requests": return h(VaultRequestsFace, null);
+      case "odc-face-feed": return h(FeedFace, null);
+      case "odc-face-ideas": return h(IdeasFace, null);
+      case "odc-face-goals": return h(GoalsFace, null);
+      case "odc-face-hub": return h(HubFace, null);
+      case "odc-face-audit": return h(AuditFace, null);
+      case "odc-face-grants": return h(GrantsFace, null);
+      case "odc-face-cron": return h(CronFace, null);
+      case "odc-face-memory": return h(MemoryFace, null);
+      case "odc-face-files": return h(FilesFace, null);
+      case "odc-face-monitors": return h(MonitorsFace, null);
+      case "odc-face-connectors": return h(ConnectorsFace, null);
+      case "odc-face-delegation": return h(DelegationFace, null);
+      case "odc-face-toolsets": return h(ToolsetsFace, null);
+      case "odc-face-reactions": return h(ReactionsFace, null);
+      case "odc-face-speech": return h(SpeechFace, null);
+      case "odc-face-dictation": return h(DictationFace, null);
+      case "odc-face-identity": return h(IdentityFace, null);
+      case "odc-face-devices": return h(DevicesFace, null);
+      case "odc-face-computer": return h(ComputerFace, null);
+      case "odc-face-settings": return h(SettingsFace, null);
+      case "odc-face-search": return h(SearchFace, null);
+      case "odc-face-diag": return h(DiagFace, null);
+      default: return h(OverviewFace, { onNavigate: onNavigate, onPulse: onPulse });
+    }
   }
 
   function OneDayConsolePage() {
-    return h("div", { className: "odc-root" },
-      h("div", { key: "head", className: "odc-head" },
-        h("h2", null, "OneDay 控制台"),
-        h("p", { className: "odc-sub" },
-          "棒 6：批准＋凭据（棒 1）＋动态/想法/目标（棒 2）＋枢纽台账/审计、授权管理、定时任务（棒 3）＋记忆、文件库、监控、连接器、委派（棒 4）＋工具集、消息反应、语音播报、听写、身份、设备、电脑、结构化设置、全局搜索（棒 5）＋诊断（自检/崩溃报告/待批提醒）与图片大图查看（棒 6 收尾）。凭据流与 App 同构——dashboard 会话 cookie → reveal 换钥（只存 sessionStorage）→ Bearer 调现行网关接口；dashboard 自家面（学习图谱、连接器、委派、文件预览、会话消息、语音）走同源会话 cookie；各面与 App 同一数据源。")),
-      h("div", { key: "w-appr", id: "odc-face-approvals", className: "odc-anchor" }, h(ApprovalsFace, null)),
-      h("div", { key: "w-entries", id: "odc-face-entries", className: "odc-anchor" }, h(VaultEntriesFace, null)),
-      h("div", { key: "w-reqs", id: "odc-face-requests", className: "odc-anchor" }, h(VaultRequestsFace, null)),
-      h("div", { key: "w-feed", id: "odc-face-feed", className: "odc-anchor" }, h(FeedFace, null)),
-      h("div", { key: "w-ideas", id: "odc-face-ideas", className: "odc-anchor" }, h(IdeasFace, null)),
-      h("div", { key: "w-goals", id: "odc-face-goals", className: "odc-anchor" }, h(GoalsFace, null)),
-      h("div", { key: "w-hub", id: "odc-face-hub", className: "odc-anchor" }, h(HubFace, null)),
-      h("div", { key: "w-audit", id: "odc-face-audit", className: "odc-anchor" }, h(AuditFace, null)),
-      h("div", { key: "w-grants", id: "odc-face-grants", className: "odc-anchor" }, h(GrantsFace, null)),
-      h("div", { key: "w-cron", id: "odc-face-cron", className: "odc-anchor" }, h(CronFace, null)),
-      h("div", { key: "w-memory", id: "odc-face-memory", className: "odc-anchor" }, h(MemoryFace, null)),
-      h("div", { key: "w-files", id: "odc-face-files", className: "odc-anchor" }, h(FilesFace, null)),
-      h("div", { key: "w-monitors", id: "odc-face-monitors", className: "odc-anchor" }, h(MonitorsFace, null)),
-      h("div", { key: "w-connectors", id: "odc-face-connectors", className: "odc-anchor" }, h(ConnectorsFace, null)),
-      h("div", { key: "w-delegation", id: "odc-face-delegation", className: "odc-anchor" }, h(DelegationFace, null)),
-      h("div", { key: "w-toolsets", id: "odc-face-toolsets", className: "odc-anchor" }, h(ToolsetsFace, null)),
-      h("div", { key: "w-reactions", id: "odc-face-reactions", className: "odc-anchor" }, h(ReactionsFace, null)),
-      h("div", { key: "w-speech", id: "odc-face-speech", className: "odc-anchor" }, h(SpeechFace, null)),
-      h("div", { key: "w-dictation", id: "odc-face-dictation", className: "odc-anchor" }, h(DictationFace, null)),
-      h("div", { key: "w-identity", id: "odc-face-identity", className: "odc-anchor" }, h(IdentityFace, null)),
-      h("div", { key: "w-devices", id: "odc-face-devices", className: "odc-anchor" }, h(DevicesFace, null)),
-      h("div", { key: "w-computer", id: "odc-face-computer", className: "odc-anchor" }, h(ComputerFace, null)),
-      h("div", { key: "w-settings", id: "odc-face-settings", className: "odc-anchor" }, h(SettingsFace, null)),
-      h("div", { key: "w-search", id: "odc-face-search", className: "odc-anchor" }, h(SearchFace, null)),
-      h("div", { key: "w-diag", id: "odc-face-diag", className: "odc-anchor" }, h(DiagFace, null)),
-      h("nav", { key: "faces", className: "odc-faces", "aria-label": "功能面导航" },
-        NAV_ITEMS.map(function (n) {
+    var activeSt = React.useState("odc-face-overview");
+    var activeId = activeSt[0], setActiveId = activeSt[1];
+    var filterSt = React.useState("");
+    var filter = filterSt[0], setFilter = filterSt[1];
+    var modeSt = React.useState("focus");
+    var viewMode = modeSt[0], setViewMode = modeSt[1];
+    var pulseSt = React.useState({ healthy: null, pendingApprovals: 0, pendingVault: 0, jobsCount: 0, profilesCount: 0 });
+    var pulse = pulseSt[0], setPulse = pulseSt[1];
+    var filterInputRef = React.useRef(null);
+
+    React.useEffect(function () {
+      function onKeyDown(ev) {
+        if ((ev.metaKey || ev.ctrlKey) && (ev.key === "k" || ev.key === "K")) {
+          ev.preventDefault();
+          if (filterInputRef.current) filterInputRef.current.focus();
+        }
+      }
+      window.addEventListener("keydown", onKeyDown);
+      return function () { window.removeEventListener("keydown", onKeyDown); };
+    }, []);
+
+    function handlePulse(payload) {
+      if (!payload) return;
+      setPulse({
+        healthy: payload.healthy,
+        pendingApprovals: payload.pendingApprovals || 0,
+        pendingVault: payload.pendingVault || 0,
+        jobsCount: (payload.jobs && payload.jobs.length) || 0,
+        profilesCount: (payload.profiles && payload.profiles.length) || 0
+      });
+    }
+
+    function navigateTo(id) {
+      setActiveId(id);
+      if (viewMode === "all") {
+        setTimeout(function () {
+          var el = document.getElementById(id);
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 20);
+      } else {
+        try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
+      }
+    }
+
+    var currentMeta = ALL_NAV_ITEMS.filter(function (x) { return x.id === activeId; })[0] || ALL_NAV_ITEMS[0];
+    var q = (filter || "").trim().toLowerCase();
+
+    var sidebarGroups = NAV_GROUPS.map(function (g) {
+      var items = q ? g.items.filter(function (it) {
+        return it.label.toLowerCase().indexOf(q) >= 0 || g.group.toLowerCase().indexOf(q) >= 0;
+      }) : g.items;
+      if (!items.length) return null;
+      return h("div", { key: g.group, className: "odc-nav-group" },
+        h("div", { className: "odc-nav-group-label" }, g.group),
+        items.map(function (it) {
+          var isAct = viewMode === "focus" && activeId === it.id;
+          var badgeVal = it.badgeKey ? pulse[it.badgeKey] : 0;
+          var isAlert = it.badgeKey === "pendingApprovals" || it.badgeKey === "pendingVault";
           return h("button", {
-            key: n.id, className: "odc-face odc-face-nav", type: "button",
-            onClick: function () { scrollToFace(n.id); }
-          }, n.label);
-        })));
+            key: it.id,
+            type: "button",
+            className: "odc-nav-item" + (isAct ? " odc-nav-item-active" : ""),
+            onClick: function () { navigateTo(it.id); }
+          },
+            h("span", null, it.label),
+            badgeVal > 0 ? h("span", { className: "odc-nav-badge" + (isAlert ? "" : " odc-nav-badge-muted") }, String(badgeVal)) : null);
+        }));
+    }).filter(Boolean);
+
+    var healthDotCls = "odc-health-dot" + (pulse.healthy === true ? " odc-health-dot-ok" : (pulse.healthy === false ? " odc-health-dot-bad" : ""));
+    var healthText = pulse.healthy === true ? "网关正常" : (pulse.healthy === false ? "网关异常" : "状态同步中");
+
+    return h("div", { className: "odc-shell" },
+      h("aside", { className: "odc-sidebar", "aria-label": "OneDay 后台导航" },
+        h("div", { className: "odc-brand" },
+          h("span", { className: "odc-brand-title" }, "OneDay 控制台"),
+          h("span", { className: "odc-brand-ver" }, "v1.0")),
+        h("input", {
+          ref: filterInputRef,
+          className: "odc-nav-filter",
+          value: filter,
+          onChange: function (e) { setFilter(e.target.value); },
+          placeholder: "筛选功能面… (⌘K)"
+        }),
+        sidebarGroups),
+      h("main", { className: "odc-main" },
+        h("header", { className: "odc-topbar" },
+          h("div", { className: "odc-topbar-left" },
+            h("span", { className: "odc-topbar-crumb" }, "OneDay 服务端管理台 / " + currentMeta.group),
+            h("h2", { className: "odc-topbar-title" }, viewMode === "all" ? "全部功能面（全览模式）" : currentMeta.label)),
+          h("div", { className: "odc-topbar-right" },
+            h("span", { className: "odc-health-pill" },
+              h("span", { className: healthDotCls }),
+              healthText),
+            h("button", {
+              type: "button",
+              className: "odc-btn odc-btn-small" + (viewMode === "focus" ? " odc-btn-primary" : ""),
+              onClick: function () { setViewMode(viewMode === "focus" ? "all" : "focus"); }
+            }, viewMode === "focus" ? "切换全览" : "切回聚焦"))),
+        viewMode === "focus"
+          ? h("div", { key: activeId, id: activeId, className: "odc-anchor" }, renderFaceById(activeId, navigateTo, handlePulse))
+          : ALL_NAV_ITEMS.map(function (n) {
+              return h("div", { key: n.id, id: n.id, className: "odc-anchor" }, renderFaceById(n.id, navigateTo, handlePulse));
+            })));
   }
 
   window.__HERMES_PLUGINS__.register("oneday-console", OneDayConsolePage);

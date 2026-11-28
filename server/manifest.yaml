@@ -795,12 +795,12 @@ components:
       discovery: dashboard 官方插件机制 user 源（<HERMES_HOME>/plugins/*/dashboard/manifest.json）；user 源须 config.yaml 的 plugins.enabled 含 oneday-console 才挂载（install 3f 文本级幂等确保、改前备份）
       files:
         - path: dashboard/manifest.json
-          sha256: 0fa2e935534c307fdf6d8fa521be5d797385c123dcdddb1d4f6f944f6658af09
+          sha256: d095af9e5ed65e9cda10e48c27010a56b9a1352e8133931d51cb2ae647d209b8
         - path: dashboard/dist/index.js
-          sha256: 395279bf0352021d12d07b96ca469b568003036180a7a974bc3fa2b118d066c3
+          sha256: 5701d77c6ff8e26412d1376d130265ce5e6deb3b0ad2a72e2d4fe126a1b77178
         - path: dashboard/dist/style.css
-          sha256: 9d6c08c2e537794141de6f41672124c8ef9c71960804b8ae5095b43e975a3887
-      provides: [web-console-tab, web-approvals-read, web-approvals-decide, web-vault-read, web-vault-requests, web-activity-feed, web-feed-posts, web-ideas, web-goals, web-hub-ledger, web-hub-audit, web-grants-manage, web-cron, web-memory, web-files, web-monitors, web-connectors, web-delegation, web-toolsets, web-reactions, web-speech, web-dictation, web-identity, web-devices, web-computer, web-settings, web-search, web-diagnostics, web-crash-reports, web-image-viewer, web-approval-notify]
+          sha256: febea643cd3b123135ebfb743cca951536f950620c62bbd2f5ddfcb162392334
+      provides: [web-console-tab, web-overview-deck, web-agents-prompts, web-skills-plugins, web-approvals-read, web-approvals-decide, web-vault-read, web-vault-requests, web-activity-feed, web-feed-posts, web-ideas, web-goals, web-hub-ledger, web-hub-audit, web-grants-manage, web-cron, web-memory, web-files, web-monitors, web-connectors, web-delegation, web-toolsets, web-reactions, web-speech, web-dictation, web-identity, web-devices, web-computer, web-settings, web-search, web-diagnostics, web-crash-reports, web-image-viewer, web-approval-notify]
       summary: 网页端 OneDay 控制台（大活12，包 2.12.0 棒 0 地基）：dashboard 原生标签页（/oneday，after:analytics），凭据流与 App 同构——页面以 dashboard 会话 cookie 调 POST /api/env/reveal 换 API_SERVER_KEY（只存 sessionStorage、关页即失）、Bearer 调现行网关接口，零新后端、无 plugin_api 后端（has_api=false）；逻辑核与形态壳分离（同源 fetch 现行接口），路线 B（同域 /oneday/ SPA）兜底时只换壳不换芯。棒 0 只交地基：标签页在位＋待批真数据一条走通（GET /v1/approvals）。棒 1（0.2.0，包 2.13.0）落地批准裁决面＋凭据库只读面＋凭据请求待办面；棒 2（0.3.0，包 2.14.0）落地动态（任务流水＋动态帖）/想法/目标三面，底部棒次标改真导航锚点；棒 3（0.4.0，包 2.15.0）落地枢纽工作台账/审计、授权管理全量面（销 #13 与棒 1 借项）、定时任务用户可见面，底部导航十面锚点齐、枢纽标转真按钮。棒 4（0.5.0，包 2.16.0）落地管理五面：记忆（分层/洞察/学习图谱节点编辑）、文件库（交付物库＋预览＋本机置顶与打开历史）、监控（监测全套动作）、连接器（MCP 已装开关/测试＋目录安装）、委派（后端切换/模型路线/档案路线，密钥脱敏预览口径同 App），底部导航十五面锚点齐。棒 5（0.6.0，包 2.17.0）落地 P2 九面：工具集（启停）、消息反应（详情面呈现＋自有反应可写）、语音播报（面内合成播放）、听写（浏览器 Web Speech 起步、服务端转写遗留明示）、身份（名称/头像只读）、设备（状态聚合）、电脑（状态聚合＋链接聚合）、结构化设置（只读呈现）、全局搜索（纯前端跨面聚合），底部导航二十四面锚点齐；差集 #19 引用回复经核查不可行（xterm 终端面约束＋无自有发送面），只交核查结论、未销账·遗留。形态口径：差集 #14 选项卡、#2 聊天凭据请求卡记「功能对齐、形态差异」——dashboard 聊天为 xterm 终端面无法内嵌卡片，两件以独立待办面落地（功能不缺、形态留痕）。修复（0.6.1，包 2.17.1，队列 130）：身份面头像廊按 kind 分路——preset 条目本地渲染预置格（presetId 渐变色与符号同 App 目录口径），image 条目保留 Bearer blob 拉取、失败落「图片加载失败」态；工具集面标题行补同源口径注记（enabled 启停数与 configured 配置数分开标明，三数同源当场算出）。棒 6（0.7.0，包 2.18.0）收尾：新增诊断面（连接自检六探针＋崩溃报告只读＋待批浏览器提醒页内轮询形态）与图片大图查看（动态/文件预览/头像），底部导航二十五面锚点齐；未单列小件 9 件与反向 8 件逐件盘点结论见 web-plugins/oneday-console/BAR6-INVENTORY.md，抗升级检查单见同目录 UPGRADE-CHECKLIST.md（隔离副本演练实证）。
 
 capabilities_registry: CAPABILITIES.md
