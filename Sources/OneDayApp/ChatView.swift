@@ -3377,7 +3377,7 @@ struct ChatView: View {
                 // 视口的临界行就地量测给确定高
                 heightIsProvisional: !feedIsExact,
                 makeContextMenuData: menuEnabled ? { actionSheetData(for: entry) } : nil,
-                contextMenuAlignsTrailing: entry.role == "user",
+                contextMenuAlignsTrailing: entry.role == "user" && !AsyncDelegationCallbackParser.isSystemCallback(entry.content),
                 makeView: {
                     AnyView(
                         entryRowContent(
@@ -5639,6 +5639,9 @@ struct ChatView: View {
             } else {
                 EmptyView()
             }
+        } else if entry.role == "user",
+                  let delegationCallback = AsyncDelegationCallbackParser.parse(from: entry.content) {
+            AsyncDelegationResultCardView(data: delegationCallback)
         } else if entry.role == "user" {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
@@ -6884,7 +6887,7 @@ struct ChatView: View {
             entryID: entry.id,
             data: actionSheetData(for: entry),
             sourceFrame: frame,
-            alignsTrailing: entry.role == "user"
+            alignsTrailing: entry.role == "user" && !AsyncDelegationCallbackParser.isSystemCallback(entry.content)
         )
     }
 
