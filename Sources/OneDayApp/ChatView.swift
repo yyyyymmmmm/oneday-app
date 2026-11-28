@@ -1010,6 +1010,16 @@ struct ChatView: View {
         .task {
             await startDemoStreamIfNeeded()
         }
+        // 机制还原（2.22.1/268）：状况口独立轮询——
+        // 服务端状况是本体实时投影，别处 run 随时起
+        // 落，不许再搭总览快照的车（快照不变就永远
+        // 旧值）；本页在场期间 15 秒一拉，离场自停
+        .task {
+            while !Task.isCancelled {
+                await appState.refreshAgentStatus()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
         // §232：乐观删除启动续跑——盘上待删队列逐
         // 条重演隐藏并重跑后台删除（进程被杀/重启
         // 的兜底；已落定条经回查自然收口，续跑失败

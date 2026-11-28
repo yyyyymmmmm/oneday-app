@@ -1887,6 +1887,16 @@ extension ChatView {
                     // 配器全文喂发布门、到拍出快照
                     streamAssembler.offer(delta)
                     offerStreamPublish()
+                    // 机制还原（2.22.1/268）：短语是
+                    // run 级的、不是工具瞬时的——正文
+                    // 在流就是「正在回复」，不许因工具
+                    // 栈空而消失（审批/澄清等待自有短
+                    // 语、不覆盖）
+                    if liveToolStack.isEmpty,
+                       activeRunApproval == nil,
+                       activeRunClarify == nil {
+                        appState.liveActivityPhrase = "正在回复"
+                    }
                 }
             case .reasoningPreview(let text):
                 if reasoningStartedAt == nil {
@@ -1897,6 +1907,13 @@ extension ChatView {
                 // §409 步 A/E：思考增量只入累积器
                 // （落盘源头），不再发布快照
                 reasoningPublishGate.offer(text)
+                // 机制还原（2.22.1/268）：思考期同样
+                // 是 run 在干活——短语置「正在思考」
+                if liveToolStack.isEmpty,
+                   activeRunApproval == nil,
+                   activeRunClarify == nil {
+                    appState.liveActivityPhrase = "正在思考"
+                }
             case .toolStarted(let id, let name, let preview):
                 // 第 93 条：工具开始＝服务端段边界——
                 // 先封当前正文段再落卡，卡后的新段增量
@@ -1924,8 +1941,16 @@ extension ChatView {
                     failed: failed
                 )
                 liveToolStack.removeAll { $0.id == id }
-                appState.liveActivityPhrase =
-                    liveToolStack.last?.phrase
+                // 机制还原（2.22.1/268）：工具完成
+                // 不等于 run 结束——栈空时落「正在
+                // 处理」续命到下一个事件，短语只在
+                // 终态/流结束时才清（治间隙空白）
+                if let top = liveToolStack.last {
+                    appState.liveActivityPhrase = top.phrase
+                } else if activeRunApproval == nil,
+                          activeRunClarify == nil {
+                    appState.liveActivityPhrase = "正在处理"
+                }
             case .approvalRequest(let prompt):
                 activeRunApproval = prompt
                 appState.liveActivityPhrase = "等待你确认高危操作"

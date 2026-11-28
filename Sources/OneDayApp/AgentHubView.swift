@@ -263,6 +263,9 @@ struct AgentHubView: View {
         }
         .task {
             hubStore.onApprovalChanged = onApprovalChanged
+            // 机制还原（2.22.1/268）：进中枢先拉一次
+            // 本体实时状况——顶栏胶囊与聊天页同源
+            await appState.refreshAgentStatus()
             refreshSegmentInputs()
             // 阶段 1：首屏必需数据并发先行
             async let initial: Void = hubStore.loadInitial()
