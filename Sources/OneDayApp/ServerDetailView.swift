@@ -41,6 +41,15 @@ struct ServerDetailView: View {
                 statusTone: heroTone
             )
 
+            MultiGatewaySection { newAddress, newKey in
+                serverText = newAddress
+                apiKeyText = newKey
+                hasRetested = true
+                retestFailed = false
+                saveFailed = false
+                saveResult = "已热切换至 \(newAddress)"
+            }
+
             Section {
                 ServerAddressFieldRow(text: $serverText)
                 ServerSecretFieldRow(

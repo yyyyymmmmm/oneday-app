@@ -413,6 +413,10 @@ struct ConnectorsView: View {
         var parts = [server.enabled ? "已启用" : "已停用"]
         let policy = ToolApprovalPolicyStore.shared.tier(for: server.name)
         parts.append(policy.shortBadge)
+        let budget = MCPBudgetStore.shared.budget(for: server.name)
+        if budget.isPaidService {
+            parts.append(String(format: "付费 $%.2f/次", budget.estimatedPricePerCallUSD))
+        }
         if toolCount > 0 {
             parts.append("\(toolCount) 工具")
         }
@@ -624,6 +628,8 @@ private struct MCPServerDetailView: View {
                 } header: {
                     Text("读写审批策略档位")
                 }
+
+                MCPBudgetPolicySection(serverName: currentServer.name)
 
                 if currentServer.url != nil && !currentServer.isPluginProvided {
                     Section("OAuth 2.1 授权") {

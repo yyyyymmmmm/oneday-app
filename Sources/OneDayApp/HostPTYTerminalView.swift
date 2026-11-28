@@ -3,12 +3,31 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 宿主机实时 PTY 终端（Hermes v0.23.0 `WS /api/pty`）：
-/// 直连 Hermes 宿主机 POSIX PTY WebSocket，支持实时交互式 CLI、
-/// 快捷控制键（Ctrl+C / Tab / Esc / Clear）、断线重连与清屏。
+/// 宿主机进程快照条目（用于后台进程注册表与控制面板）
+struct HostProcessEntry: Identifiable, Equatable {
+    let pid: Int
+    let cpu: String
+    let mem: String
+    let elapsed: String
+    let command: String
+
+    var id: Int { pid }
+}
+
+/// 宿主机实时 PTY 终端与后台进程注册表（Hermes v0.23.0 `WS /api/pty` + Process Registry）：
+/// 顶部 Segmented 切换：
+/// 1. 实时终端：直连 Hermes 宿主机 POSIX PTY WebSocket，支持交互式 CLI、快捷控制键与断线重连；
+/// 2. 后台进程：实时拉取宿主机运行中进程列表，支持新建后台任务、查看输出与一键发送 SIGTERM / SIGKILL。
 struct HostPTYTerminalView: View {
     @Environment(AppState.self) private var appState
 
+    private enum Mode: String, CaseIterable, Identifiable {
+        case terminal = "实时终端"
+        case processes = "后台进程"
+        var id: String { rawValue }
+    }
+
+    @State private var mode: Mode = .terminal
     @State private var outputBuffer = ""
     @State private var commandInput = ""
     @State private var connectionState: PTYConnectionState = .disconnected
@@ -16,6 +35,19 @@ struct HostPTYTerminalView: View {
     @State private var socketTask: URLSessionWebSocketTask?
     @State private var receiveTask: Task<Void, Never>?
     @State private var startFresh = false
+
+    // 后台进程注册表状态
+    @State private var processes: [HostProcessEntry] = []
+    @State private var processSearch = ""
+    @State private var isRefreshingProcesses = false
+    @State private var capturingProcessList = false
+    @State private var processCaptureBuffer = ""
+    @State private var showLaunchBgSheet = false
+    @State private var newBgCommand = ""
+    @State private var processNotice: String?
+
+    private static let psStartMarker = "__ONEDAY_PS_BEGIN__"
+    private static let psEndMarker = "__ONEDAY_PS_END__"
 
     private enum PTYConnectionState: Equatable {
         case disconnected
@@ -42,36 +74,66 @@ struct HostPTYTerminalView: View {
         }
     }
 
+    private var filteredProcesses: [HostProcessEntry] {
+        let q = processSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return processes }
+        return processes.filter {
+            $0.command.lowercased().contains(q) || String($0.pid).contains(q)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            headerBar
-            terminalCanvas
-            quickKeyBar
-            inputComposer
+            modeBar
+            if mode == .terminal {
+                headerBar
+                terminalCanvas
+                quickKeyBar
+                inputComposer
+            } else {
+                processRegistryPanel
+            }
         }
-        .background(Color(red: 0.08, green: 0.09, blue: 0.11))
-        .navigationTitle("宿主机实时终端")
+        .background(mode == .terminal ? Color(red: 0.08, green: 0.09, blue: 0.11) : Palette.settingsBG)
+        .navigationTitle(mode == .terminal ? "宿主机实时终端" : "后台进程注册表")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    outputBuffer = ""
-                    Haptics.selection()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .accessibilityLabel("清空终端输出")
-
-                Button {
-                    if connectionState == .connected {
-                        disconnect()
-                    } else {
-                        connect()
+                if mode == .terminal {
+                    Button {
+                        outputBuffer = ""
+                        Haptics.selection()
+                    } label: {
+                        Image(systemName: "trash")
                     }
-                } label: {
-                    Image(systemName: connectionState == .connected ? "bolt.slash.fill" : "bolt.fill")
+                    .accessibilityLabel("清空终端输出")
+
+                    Button {
+                        if connectionState == .connected {
+                            disconnect()
+                        } else {
+                            connect()
+                        }
+                    } label: {
+                        Image(systemName: connectionState == .connected ? "bolt.slash.fill" : "bolt.fill")
+                    }
+                    .accessibilityLabel(connectionState == .connected ? "断开终端" : "重连终端")
+                } else {
+                    Button {
+                        refreshProcesses()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("刷新进程列表")
+
+                    Button {
+                        newBgCommand = ""
+                        showLaunchBgSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("启动后台任务")
                 }
-                .accessibilityLabel(connectionState == .connected ? "断开终端" : "重连终端")
             }
         }
         .onAppear {
@@ -82,7 +144,258 @@ struct HostPTYTerminalView: View {
         .onDisappear {
             disconnect()
         }
+        .onChange(of: mode) { _, newMode in
+            if newMode == .processes && processes.isEmpty && connectionState == .connected {
+                refreshProcesses()
+            }
+        }
+        .sheet(isPresented: $showLaunchBgSheet) {
+            NavigationStack {
+                Form {
+                    Section("在宿主机后台启动任务") {
+                        TextField("例如：python3 -m http.server 8080", text: $newBgCommand)
+                            .font(.body.monospaced())
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    Section {
+                        Text("任务将通过 `nohup ... > /tmp/oneday_bg.log 2>&1 &` 在宿主机后台持续运行，可在进程列表中随时停止或查看日志。")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                .navigationTitle("新建后台进程")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showLaunchBgSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("启动") {
+                            let cmd = newBgCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !cmd.isEmpty else { return }
+                            sendRaw("nohup \(cmd) > /tmp/oneday_bg.log 2>&1 & echo $!\r")
+                            processNotice = "已下发后台任务：\(cmd)"
+                            Haptics.success()
+                            showLaunchBgSheet = false
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(600))
+                                refreshProcesses()
+                            }
+                        }
+                        .disabled(newBgCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
     }
+
+    private var modeBar: some View {
+        Picker("视图模式", selection: $mode) {
+            ForEach(Mode.allCases) { item in
+                Text(item.rawValue).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(mode == .terminal ? Color.black.opacity(0.45) : Palette.settingsBG)
+    }
+
+    // MARK: - 后台进程注册表与控制面板
+
+    private var processRegistryPanel: some View {
+        List {
+            SettingsHeroCard(
+                symbol: "cpu",
+                tint: Palette.tintSkyInk,
+                title: "后台进程注册表",
+                subtitle: "监控 Hermes 宿主机活跃进程，支持一键发送 SIGTERM 优雅停止或 SIGKILL 强制终止。",
+                statusText: connectionState == .connected ? "\(processes.count) 个活跃进程" : connectionState.label,
+                statusTone: connectionState.tone
+            )
+
+            if let processNotice {
+                Section {
+                    Text(processNotice)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.successText)
+                }
+                .listRowBackground(Palette.surface)
+            }
+
+            Section {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Palette.inkSecondary)
+                    TextField("按 PID 或命令筛选进程…", text: $processSearch)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+            }
+            .listRowBackground(Palette.surface)
+
+            Section {
+                if isRefreshingProcesses && processes.isEmpty {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        ProgressView()
+                        Text("正在采样宿主机进程表…")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                } else if filteredProcesses.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(connectionState == .connected ? "暂无进程快照" : "终端未连接")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text("点击右上角刷新按钮，通过宿主机 PTY 实时拉取前 25 个活跃进程。")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .padding(.vertical, 6)
+                } else {
+                    ForEach(filteredProcesses) { proc in
+                        processRow(proc)
+                    }
+                }
+            } header: {
+                SettingsSectionHeader("运行中进程 (CPU 排序)")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            Section {
+                Button {
+                    mode = .terminal
+                    sendRaw("tail -n 40 /tmp/oneday_bg.log\r")
+                    Haptics.selection()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        SettingsRowIcon(symbol: "doc.text.magnifyingglass", color: Palette.tintSkyInk)
+                        Text("在终端查看后台任务日志 (/tmp/oneday_bg.log)")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+            } header: {
+                SettingsSectionHeader("快捷观测")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func processRow(_ proc: HostProcessEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("PID \(proc.pid)")
+                    .font(.caption.monospaced().weight(.semibold))
+                    .foregroundStyle(Palette.tintSkyInk)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Palette.tintSky, in: Capsule())
+
+                Text("CPU \(proc.cpu)% · MEM \(proc.mem)% · \(proc.elapsed)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+            }
+
+            Text(proc.command)
+                .font(.footnote.monospaced())
+                .foregroundStyle(Palette.ink)
+                .lineLimit(2)
+
+            HStack(spacing: 10) {
+                Button("SIGTERM 停止") {
+                    sendSignal(pid: proc.pid, signal: "TERM")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+
+                Button("SIGKILL 强杀", role: .destructive) {
+                    sendSignal(pid: proc.pid, signal: "KILL")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func refreshProcesses() {
+        guard connectionState == .connected else {
+            connect()
+            return
+        }
+        isRefreshingProcesses = true
+        capturingProcessList = true
+        processCaptureBuffer = ""
+        let cmd = "echo \(Self.psStartMarker); ps -eo pid=,pcpu=,pmem=,etime=,args= | sort -k2 -nr | head -n 25; echo \(Self.psEndMarker)\r"
+        sendRaw(cmd)
+        Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            if capturingProcessList {
+                capturingProcessList = false
+                isRefreshingProcesses = false
+                parseCapturedProcesses()
+            }
+        }
+    }
+
+    private func sendSignal(pid: Int, signal: String) {
+        sendRaw("kill -\(signal) \(pid)\r")
+        processNotice = "已向 PID \(pid) 发送 SIG\(signal)。"
+        Haptics.selection()
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            refreshProcesses()
+        }
+    }
+
+    private func parseCapturedProcesses() {
+        guard let startRange = processCaptureBuffer.range(of: Self.psStartMarker) else { return }
+        let afterStart = processCaptureBuffer[startRange.upperBound...]
+        let body: Substring
+        if let endRange = afterStart.range(of: Self.psEndMarker) {
+            body = afterStart[..<endRange.lowerBound]
+        } else {
+            body = afterStart
+        }
+
+        var parsed: [HostProcessEntry] = []
+        for rawLine in body.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            let parts = line.split(maxSplits: 4, omittingEmptySubsequences: true, whereSeparator: { $0.isWhitespace })
+            guard parts.count >= 5, let pid = Int(parts[0]) else { continue }
+            let cmd = String(parts[4])
+            if cmd.contains(Self.psStartMarker) || cmd.contains("ps -eo pid=") { continue }
+            parsed.append(
+                HostProcessEntry(
+                    pid: pid,
+                    cpu: String(parts[1]),
+                    mem: String(parts[2]),
+                    elapsed: String(parts[3]),
+                    command: cmd
+                )
+            )
+        }
+        if !parsed.isEmpty {
+            processes = parsed
+        }
+    }
+
+    // MARK: - 实时 PTY 终端视图
 
     private var headerBar: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
@@ -308,9 +621,16 @@ struct HostPTYTerminalView: View {
     }
 
     private func appendOutput(_ raw: String) {
-        // 过滤控制 JSON 帧（如 {"type":"resume","id":...}）并清理常见 ANSI 颜色转义序列
         if raw.hasPrefix("{\"type\":\"resume\"") { return }
         let cleaned = stripANSI(raw)
+        if capturingProcessList {
+            processCaptureBuffer.append(cleaned)
+            if processCaptureBuffer.contains(Self.psEndMarker) {
+                capturingProcessList = false
+                isRefreshingProcesses = false
+                parseCapturedProcesses()
+            }
+        }
         outputBuffer.append(cleaned)
         if outputBuffer.count > 24_000 {
             outputBuffer = String(outputBuffer.suffix(20_000))

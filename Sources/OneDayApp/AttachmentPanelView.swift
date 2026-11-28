@@ -75,6 +75,8 @@ struct AttachmentPanelView: View {
     var onOpenConnectors: (() -> Void)? = nil
     /// 「上下文仪表盘」（实时查看 Token 占用与一键 /compress）
     var onOpenContextMeter: (() -> Void)? = nil
+    /// 「推理强度与 Fast 档位」（逐模型推理深度与低延迟快速通道）
+    var onOpenReasoningEffort: (() -> Void)? = nil
 
     @State private var photoIDs: [String] = []
     @State private var thumbnails: [String: UIImage] = [:]
@@ -346,6 +348,13 @@ struct AttachmentPanelView: View {
                     .overlay(Palette.separator)
                 actionRow(icon: "gauge.with.dots.needle.67percent", title: "上下文占用与压缩") {
                     onOpenContextMeter()
+                }
+            }
+            if let onOpenReasoningEffort {
+                Divider()
+                    .overlay(Palette.separator)
+                actionRow(icon: "brain.head.profile", title: "推理强度与 Fast 档位") {
+                    onOpenReasoningEffort()
                 }
             }
         }

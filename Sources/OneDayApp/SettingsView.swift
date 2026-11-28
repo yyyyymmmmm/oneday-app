@@ -307,6 +307,8 @@ struct SettingsView: View {
             GitWorktreeWorkbenchView()
         case .localModels:
             LocalModelsManagerView()
+        case .botRoster:
+            BotRosterView()
         }
     }
 
@@ -558,6 +560,13 @@ struct SettingsView: View {
                     route: .agent(.hostPTY)
                 )
                 navRow(icon: "clock.arrow.2.circlepath", color: Palette.tintSkyInk, title: L10n.string("定时任务"), route: .agent(.cron))
+                statusNavRow(
+                    icon: "person.2.badge.gearshape.fill",
+                    color: Palette.tintLavenderInk,
+                    title: L10n.string("专家分身花名册"),
+                    status: "常驻专家分身 · 独立模型与一键唤醒",
+                    route: .agent(.botRoster)
+                )
                 statusNavRow(
                     icon: "person.3.sequence.fill",
                     color: Palette.tintLavenderInk,

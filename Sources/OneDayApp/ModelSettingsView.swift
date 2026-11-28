@@ -239,6 +239,24 @@ struct ModelSettingsView: View {
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
+
+            let activeModelName = store.defaultAssignment?.model ?? store.currentModel ?? "default"
+            NavigationLink {
+                ReasoningEffortSheet(modelName: activeModelName)
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "brain.head.profile", color: Palette.tintLavenderInk)
+                    Text("推理强度与 Fast 档位")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(ReasoningEffortStore.shared.summaryBadge(for: activeModelName))
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
         } header: {
             SettingsSectionHeader("默认")
         } footer: {

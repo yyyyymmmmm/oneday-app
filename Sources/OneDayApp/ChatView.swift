@@ -25,6 +25,7 @@ struct ChatView: View {
     @State var showQuickProfilesSheet = false
     @State var showQuickConnectorsSheet = false
     @State var showContextMeterSheet = false
+    @State var showReasoningEffortSheet = false
     @State var queuedFollowUpMessages: [String] = []
     @State var activeRunApproval: RunApprovalPrompt?
     @State var activeRunClarify: RunClarifyPrompt?
@@ -1154,6 +1155,22 @@ struct ChatView: View {
                 send()
             }
         }
+        .sheet(isPresented: $showReasoningEffortSheet) {
+            NavigationStack {
+                ReasoningEffortSheet(
+                    modelName: displayModelName,
+                    onApplySlashCommand: { cmd in
+                        input = cmd
+                        send()
+                    }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("完成") { showReasoningEffortSheet = false }
+                    }
+                }
+            }
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -1732,6 +1749,9 @@ struct ChatView: View {
                 },
                 onOpenContextMeter: {
                     afterAttachPanelDismiss { showContextMeterSheet = true }
+                },
+                onOpenReasoningEffort: {
+                    afterAttachPanelDismiss { showReasoningEffortSheet = true }
                 }
             )
         }
@@ -2161,6 +2181,9 @@ struct ChatView: View {
                         case "context":
                             input = ""
                             showContextMeterSheet = true
+                        case "reasoning":
+                            input = ""
+                            showReasoningEffortSheet = true
                         default:
                             input = item.insertText
                             composerFocusHandle.focusAtEnd()
