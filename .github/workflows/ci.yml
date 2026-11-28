@@ -5,11 +5,20 @@ on:
     branches: [main, "rel-*", "feat/*", "refactor/*"]
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-guard-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   symbol-motion-and-server:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

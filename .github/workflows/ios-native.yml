@@ -9,23 +9,31 @@ on:
       - "App/**"
       - "Project.swift"
       - "Tuist.swift"
+      - "Tuist/**"
       - "Scripts/ci/**"
       - ".github/workflows/ios-native.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "Sources/**"
-      - "Tests/**"
-      - "App/**"
-      - "Project.swift"
-      - "Tuist.swift"
-      - "Scripts/ci/**"
-      - ".github/workflows/ios-native.yml"
+  merge_group:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-native-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-native:
     runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      IOS_TEST_DESTINATION: platform=iOS Simulator,name=iPhone 17,OS=26.5
     steps:
       - uses: actions/checkout@v4
 
@@ -37,11 +45,16 @@ jobs:
           python3 Scripts/ci/check_symbol_motion.py --selftest
           python3 Scripts/ci/check_symbol_motion.py
 
-      - name: Show Xcode
-        run: xcodebuild -version
-
       - name: Install Tuist
-        run: brew install tuist
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          tool_versions: |
+            tuist 4.218.2
+
+      - name: Verify build tools
+        run: |
+          xcodebuild -version
+          tuist version
 
       - name: Install Tuist dependencies
         run: tuist install
@@ -51,7 +64,6 @@ jobs:
 
       - name: Build (no codesign)
         run: |
-          set -o pipefail
           xcodebuild build \
             -workspace OneDay.xcworkspace \
             -scheme OneDayApp \
@@ -59,20 +71,52 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/dd \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            | tee build-full.log
-          grep -E "error:|BUILD" build-full.log | head -60 || true
+            2>&1 | tee build-full.log
 
-      - name: Unit tests (OneDayCore)
+      - name: Build simulator test targets
+        id: simulator-build
         run: |
-          set -o pipefail
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -workspace OneDay.xcworkspace \
             -scheme OneDayApp \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -only-testing:OneDayCoreTests -only-testing:OneDayAppTests -only-testing:OneDayUITests \
+            -destination "$IOS_TEST_DESTINATION" \
+            -derivedDataPath build/test-dd \
             CODE_SIGNING_ALLOWED=NO \
-            | tee test-full.log
-          grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
+            2>&1 | tee test-build.log
+
+      - name: Core and app tests
+        run: |
+          xcodebuild test-without-building \
+            -workspace OneDay.xcworkspace \
+            -scheme OneDayApp \
+            -destination "$IOS_TEST_DESTINATION" \
+            -derivedDataPath build/test-dd \
+            -only-testing:OneDayCoreTests -only-testing:OneDayAppTests \
+            2>&1 | tee test-full.log
+
+      - name: UI tests
+        if: ${{ !cancelled() && steps.simulator-build.outcome == 'success' }}
+        run: |
+          xcodebuild test-without-building \
+            -workspace OneDay.xcworkspace \
+            -scheme OneDayApp \
+            -destination "$IOS_TEST_DESTINATION" \
+            -derivedDataPath build/test-dd \
+            -only-testing:OneDayUITests \
+            2>&1 | tee ui-test-full.log
+
+      - name: Upload build and test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-and-test-logs
+          path: |
+            build-full.log
+            test-build.log
+            test-full.log
+            ui-test-full.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       # §241（大厂九项③拍板，DiagnosticReports 常驻化带隐私门）：
       # 只收崩溃元数据——.ips 原文不出 runner，提取脚本走字段
@@ -100,20 +144,14 @@ jobs:
           retention-days: 7
 
       - name: Package unsigned IPA
-        if: ${{ !cancelled() }}
         run: |
-          set -euo pipefail
-          APP=$(find build/dd/Build/Products -name "OneDay*.app" -type d | head -1)
-          test -n "$APP"
-          BIN=$(basename "$APP" .app)
-          test -x "$APP/$BIN"
-          echo "APP=$APP BIN=$BIN"
-          rm -rf Payload && mkdir Payload
-          cp -R "$APP" Payload/
-          zip -qry oneday-unsigned.ipa Payload
+          app=build/dd/Build/Products/Release-iphoneos/OneDayApp.app
+          test -x "$app/OneDayApp"
+          mkdir -p build/package/Payload
+          cp -R "$app" build/package/Payload/
+          (cd build/package && zip -qry ../../oneday-unsigned.ipa Payload)
 
       - name: Upload IPA
-        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: oneday-unsigned-ipa
