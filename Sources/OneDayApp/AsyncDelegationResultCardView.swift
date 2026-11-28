@@ -1,12 +1,19 @@
-import SwiftUI
 import OneDayCore
+import OneDayDesign
+import SwiftUI
 
-// MARK: - Hermes 后台分身异步回调报文解析器（拦截误标为 user 的系统回报）
+// MARK: - 单个分身的独立结构化汇报
 
-/// Hermes v0.23.0 在异步分身（`delegate_task`）完成后，会以 `role: "user"`
-/// 向会话注入 `[ASYNC DELEGATION BATCH COMPLETE — deleg_xxx]` 等内部回调报文。
-/// 本解析器在渲染层将其识别并结构化为中性「后台分身回报卡」，避免以绿色用户气泡
-/// 暴露原始英文系统提示词。
+struct SubagentIndividualReport: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let summary: String
+    let markdownBody: String
+}
+
+// MARK: - Hermes 后台分身异步回调报文解析器（拦截误标为 user 的系统回报 + 拆分单分身独立汇报）
+
 struct AsyncDelegationCallbackData: Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         case asyncDelegation
@@ -46,10 +53,10 @@ struct AsyncDelegationCallbackData: Equatable, Sendable {
     let dispatchedAt: String?
     let modelName: String?
     let duration: String?
-    /// 去除 Hermes 英文系统样板后的分身正文汇报（可直接阅读）
     let cleanedBody: String
-    /// 原始完整回调文本（供调试或复制）
     let rawContent: String
+    /// 按单个分身拆分后的独立汇报列表，支持逐个点击展开完整 Markdown 渲染
+    let individualReports: [SubagentIndividualReport]
 }
 
 enum AsyncDelegationCallbackParser {
@@ -63,7 +70,6 @@ enum AsyncDelegationCallbackParser {
         ("[SCHEDULED TASK RESULT", .scheduledJob)
     ]
 
-    /// 高性能 O(1) 前缀快速判定，避免列表滚动时做正则开销
     static func isSystemCallback(_ content: String) -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("[") else { return false }
@@ -71,7 +77,6 @@ enum AsyncDelegationCallbackParser {
         return supportedPrefixes.contains { upperHead.hasPrefix($0.prefix) }
     }
 
-    /// 供侧边栏摘要或引用预览使用的中文友好短文案
     static func friendlyPreview(for content: String) -> String? {
         guard let data = parse(from: content) else { return nil }
         var parts = [data.kind.title]
@@ -92,7 +97,6 @@ enum AsyncDelegationCallbackParser {
             return nil
         }
 
-        // 1. 解析首行方括号内的 Batch ID（例如 [ASYNC DELEGATION BATCH COMPLETE — deleg_fe3ff772]）
         var batchID: String?
         if let closeBracket = trimmed.firstIndex(of: "]") {
             let header = String(trimmed[trimmed.index(after: trimmed.startIndex)..<closeBracket])
@@ -107,14 +111,12 @@ enum AsyncDelegationCallbackParser {
             }
         }
 
-        // 2. 提取子分身数量（例如 "1 subagent(s)"）
         var subagentCount: Int?
         if let match = trimmed.range(of: #"(\d+)\s+subagent"#, options: [.regularExpression, .caseInsensitive]) {
             let digits = trimmed[match].components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
             subagentCount = Int(digits)
         }
 
-        // 3. 逐行扫描结构化元数据，并剥离 Hermes 英文系统提示样板
         let lines = trimmed.components(separatedBy: .newlines)
         var dispatchedAt: String?
         var modelName: String?
@@ -158,6 +160,12 @@ enum AsyncDelegationCallbackParser {
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let reports = splitIndividualReports(
+            from: cleanedBody.isEmpty ? trimmed : cleanedBody,
+            fallbackCount: subagentCount ?? 1,
+            modelName: modelName
+        )
+
         return AsyncDelegationCallbackData(
             kind: matched.kind,
             batchID: batchID,
@@ -166,30 +174,150 @@ enum AsyncDelegationCallbackParser {
             modelName: modelName,
             duration: duration,
             cleanedBody: cleanedBody,
-            rawContent: trimmed
+            rawContent: trimmed,
+            individualReports: reports
         )
+    }
+
+    /// 识别 Hermes 批次回报里的多子分身分段（如 `--- Subagent 1: ... ---`、`### Subagent 1`、`### @分身名`、`Task 1:`）
+    /// 将每个分身拆成独立汇报条目，让用户可以逐个点击查看完整渲染好的 Markdown。
+    private static func splitIndividualReports(
+        from body: String,
+        fallbackCount: Int,
+        modelName: String?
+    ) -> [SubagentIndividualReport] {
+        let lines = body.components(separatedBy: .newlines)
+        var sections: [(title: String, lines: [String])] = []
+        var currentTitle: String?
+        var currentLines: [String] = []
+
+        let headerPattern = #"^(?:#{1,3}\s*|---\s*|===\s*)(?:Subagent|Task|分身|@\S+)\s*[#0-9：:\-—]*.*$"#
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.range(of: headerPattern, options: [.regularExpression, .caseInsensitive]) != nil {
+                if let title = currentTitle {
+                    sections.append((title, currentLines))
+                } else if !currentLines.joined().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    sections.append(("分身 1 汇报", currentLines))
+                }
+                let cleanTitle = trimmed
+                    .replacingOccurrences(of: #"^[#\-=\s]+|[\-=\s]+$"#, with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                currentTitle = cleanTitle.isEmpty ? "分身 \(sections.count + 1)" : cleanTitle
+                currentLines = []
+            } else {
+                currentLines.append(line)
+            }
+        }
+
+        if let title = currentTitle {
+            sections.append((title, currentLines))
+        }
+
+        if sections.isEmpty {
+            let summaryLine = firstMeaningfulLine(in: body)
+            return [
+                SubagentIndividualReport(
+                    id: "subagent-0",
+                    title: fallbackCount > 1 ? "分身汇总汇报" : "专属分身汇报",
+                    subtitle: modelName,
+                    summary: summaryLine,
+                    markdownBody: body
+                )
+            ]
+        }
+
+        return sections.enumerated().map { idx, sec in
+            let md = sec.lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            let finalMD = md.isEmpty ? body : md
+            return SubagentIndividualReport(
+                id: "subagent-\(idx)",
+                title: sec.title,
+                subtitle: modelName,
+                summary: firstMeaningfulLine(in: finalMD),
+                markdownBody: finalMD
+            )
+        }
+    }
+
+    private static func firstMeaningfulLine(in markdown: String) -> String {
+        for raw in markdown.components(separatedBy: .newlines) {
+            let line = raw
+                .replacingOccurrences(of: #"[#*`>_]"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.count >= 4 {
+                return line
+            }
+        }
+        return "点按查看完整渲染汇报"
     }
 }
 
-// MARK: - 对话内「后台分身异步回报卡」（中性系统卡片，对齐 SubagentDelegationCardView）
+// MARK: - 独立分身完整 Markdown 渲染详情弹窗（消除列表行高跳动与大段空白，渲染标题/列表/代码块）
+
+struct SubagentReportReaderSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    let subtitle: String?
+    let markdownContent: String
+    @State private var copied = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    MarkdownText(markdownContent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.vertical, 14)
+            }
+            .background(Palette.chatSurface)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        #if canImport(UIKit)
+                        UIPasteboard.general.string = markdownContent
+                        #endif
+                        Haptics.selection()
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            copied = false
+                        }
+                    } label: {
+                        Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
+                            .font(.subheadline)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - 对话内「后台分身异步回报卡」（单分身独立行 + 点击弹出完整 Markdown 渲染 Sheet，零空白零重叠）
 
 struct AsyncDelegationResultCardView: View {
     let data: AsyncDelegationCallbackData
     var onPinAsResident: (() -> Void)? = nil
-    @State private var isExpanded = false
-    @State private var copied = false
+    @State private var activeReport: SubagentIndividualReport?
     @State private var pinned = false
-
-    private var previewText: String {
-        if !data.cleanedBody.isEmpty {
-            return data.cleanedBody
-        }
-        return "分身已完成后台执行并将结果同步至当前对话。"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            // 顶部标题与完成态胶囊（归属 AI 侧协同汇报，绝不冒充用户消息）
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: data.kind.iconName)
                     .font(.system(size: 14, weight: .semibold))
@@ -202,8 +330,8 @@ struct AsyncDelegationResultCardView: View {
                     Text(data.kind.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Palette.ink)
-                    if let dispatched = data.dispatchedAt, !dispatched.isEmpty {
-                        Text("AI 侧后台分身回报 · \(dispatched)")
+                    if let meta = compactMetaLine {
+                        Text(meta)
                             .font(.caption2)
                             .foregroundStyle(Palette.inkTertiary)
                             .lineLimit(1)
@@ -220,57 +348,46 @@ struct AsyncDelegationResultCardView: View {
                     .background(Palette.tintGreen, in: Capsule())
             }
 
-            // 结构化元数据胶囊行（分身数 / 模型 / 耗时 / Batch ID）
-            if hasMetadataChips {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        if let count = data.subagentCount, count > 0 {
-                            chip(text: "\(count) 个分身", fg: Palette.tintLavenderInk, bg: Palette.tintLavender)
+            // 每个分身独立成行，点按直接弹出完整渲染好的 Markdown 汇报 Sheet
+            VStack(spacing: 6) {
+                ForEach(data.individualReports) { report in
+                    Button {
+                        Haptics.selection()
+                        activeReport = report
+                    } label: {
+                        HStack(alignment: .center, spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .font(.caption)
+                                .foregroundStyle(Palette.tintLavenderInk)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(report.title)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                Text(report.summary)
+                                    .font(.caption2)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(2)
+                            }
+                            Spacer(minLength: 4)
+                            HStack(spacing: 2) {
+                                Text("查看")
+                                    .font(.caption2.weight(.medium))
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                            .foregroundStyle(Palette.primary)
                         }
-                        if let model = data.modelName, !model.isEmpty {
-                            chip(text: model, fg: Palette.tintSkyInk, bg: Palette.tintSky)
-                        }
-                        if let duration = data.duration, !duration.isEmpty {
-                            chip(text: "耗时 \(duration)", fg: Palette.inkSecondary, bg: Palette.fillTertiary)
-                        }
-                        if let batchID = data.batchID, !batchID.isEmpty {
-                            chip(text: batchID, fg: Palette.inkTertiary, bg: Palette.fillTertiary)
-                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
             }
 
-            // 折叠态简洁摘要（仅展示清洗后的有效正文）
-            if !isExpanded {
-                Text(previewText)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-
-            // 展开/收起 + 一键常驻进群操作栏
-            HStack(spacing: 12) {
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(isExpanded ? "收起完整回报" : "查看完整回报")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Palette.primary)
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Palette.primary)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                if let onPinAsResident {
+            if let onPinAsResident {
+                HStack {
                     Button {
                         onPinAsResident()
                         withAnimation(.snappy(duration: 0.15)) {
@@ -286,40 +403,8 @@ struct AsyncDelegationResultCardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(pinned)
+                    Spacer()
                 }
-
-                Spacer()
-
-                if isExpanded {
-                    Button {
-                        #if canImport(UIKit)
-                        UIPasteboard.general.string = data.cleanedBody.isEmpty ? data.rawContent : data.cleanedBody
-                        #endif
-                        withAnimation(.snappy(duration: 0.15)) {
-                            copied = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            copied = false
-                        }
-                    } label: {
-                        Label(copied ? "已复制" : "复制正文", systemImage: copied ? "checkmark" : "doc.on.doc")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(copied ? Palette.successText : Palette.inkSecondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            // 展开后的完整汇报正文
-            if isExpanded {
-                Text(data.cleanedBody.isEmpty ? data.rawContent : data.cleanedBody)
-                    .font(.caption)
-                    .foregroundStyle(Palette.ink)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
         }
         .padding(OneDayMetrics.spacingSM)
@@ -331,19 +416,20 @@ struct AsyncDelegationResultCardView: View {
             RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
                 .strokeBorder(Palette.hairline, lineWidth: 0.75)
         }
+        .sheet(item: $activeReport) { report in
+            SubagentReportReaderSheet(
+                title: report.title,
+                subtitle: compactMetaLine,
+                markdownContent: report.markdownBody
+            )
+        }
     }
 
-    private var hasMetadataChips: Bool {
-        data.subagentCount != nil || data.modelName != nil || data.duration != nil || data.batchID != nil
-    }
-
-    private func chip(text: String, fg: Color, bg: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(fg)
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(bg, in: Capsule())
+    private var compactMetaLine: String? {
+        var parts: [String] = []
+        if let count = data.subagentCount, count > 0 { parts.append("\(count) 个分身") }
+        if let model = data.modelName, !model.isEmpty { parts.append(model) }
+        if let duration = data.duration, !duration.isEmpty { parts.append("耗时 \(duration)") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

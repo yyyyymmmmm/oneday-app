@@ -3363,8 +3363,8 @@ struct ChatView: View {
             ) {
             feedHeight = precomputed
         } else if !resolved.isExact, isRichInlineCard {
-            // 兜底给足结构化分身/工具卡初始高度，杜绝 36pt 矮帧导致卡片与下一条气泡重叠
-            feedHeight = max(feedHeight, 220)
+            // 卡片本体保持紧凑固定高（详情走独立 Sheet），兜底高度与紧凑态对齐，避免底部大段空白
+            feedHeight = max(feedHeight, 136)
         }
         // 行描述备忘戳：构建输入全量（量测键含修订
         // 基段摘要＋facet 摘要＋环境指纹；落定高；

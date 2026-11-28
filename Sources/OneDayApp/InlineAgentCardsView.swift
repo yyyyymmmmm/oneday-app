@@ -257,32 +257,20 @@ struct SubagentDelegationCardView: View {
 
             if let output = card.output, !output.isEmpty {
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        isOutputExpanded.toggle()
-                    }
+                    Haptics.selection()
+                    isOutputExpanded = true
                 } label: {
                     HStack(spacing: 4) {
-                        Text(isOutputExpanded ? "收起分身汇报" : "查看分身汇报")
+                        Text("查看分身完整汇报")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Palette.primary)
-                        Image(systemName: isOutputExpanded ? "chevron.up" : "chevron.down")
+                        Image(systemName: "chevron.right")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(Palette.primary)
                         Spacer()
                     }
                 }
                 .buttonStyle(.plain)
-
-                if isOutputExpanded {
-                    Text(output)
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
             }
         }
         .padding(OneDayMetrics.spacingSM)
@@ -293,6 +281,13 @@ struct SubagentDelegationCardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
                 .strokeBorder(Palette.hairline, lineWidth: 0.75)
+        }
+        .sheet(isPresented: $isOutputExpanded) {
+            SubagentReportReaderSheet(
+                title: headerTitle,
+                subtitle: card.tasks.map(\.goal).joined(separator: " / "),
+                markdownContent: card.output ?? ""
+            )
         }
     }
 }
