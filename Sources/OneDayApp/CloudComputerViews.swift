@@ -331,13 +331,14 @@ struct CloudComputerDetailView: View {
 
                 if connection.provider == "reverse_node",
                    let pairing = store.latestPairings[connectionID] {
+                    let resolvedCommand = Self.resolveServerPlaceholder(in: pairing.recommendedCommand, baseURL: appState.config?.baseURL)
                     Section {
-                        Text(pairing.recommendedCommand)
+                        Text(resolvedCommand)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
                         Button {
-                            UIPasteboard.general.string = pairing.recommendedCommand
+                            UIPasteboard.general.string = resolvedCommand
                             Haptics.success()
                             copiedCommand = true
                             Task {
@@ -641,9 +642,15 @@ struct CloudComputerDetailView: View {
                 liveURL: status.viewUrl ?? ""
             ))
         case .notConfigured:
-            store.notice = L10n.string(
-                "还没在 Hermes 里配置云电脑，请先在本页填写凭据。"
-            )
+            if connection.isActive {
+                store.notice = L10n.string(
+                    "Hermes 服务端云电脑已在线（AI 可正常使用）；本机尚未同步云电脑密钥，请点下方「更换凭据」同步一次即可开启实时预览与接管。"
+                )
+            } else {
+                store.notice = L10n.string(
+                    "还没在 Hermes 里配置云电脑，请先在本页填写凭据。"
+                )
+            }
         case .bridgeUnavailable:
             store.notice = L10n.string(
                 "云电脑钥匙被拒，请在本页重新填写凭据。"
@@ -651,6 +658,18 @@ struct CloudComputerDetailView: View {
         case .failed, .loading:
             store.notice = L10n.string("云电脑状态没读出来，请稍后再试。")
         }
+    }
+
+    static func resolveServerPlaceholder(in command: String, baseURL: String?) -> String {
+        guard let rawBase = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines), !rawBase.isEmpty else {
+            return command
+        }
+        let cleanBase = rawBase.hasSuffix("/") ? String(rawBase.dropLast()) : rawBase
+        let hostOnly = URL(string: cleanBase)?.host ?? cleanBase
+        return command
+            .replacingOccurrences(of: "https://<你的服务器域名>", with: cleanBase)
+            .replacingOccurrences(of: "http://<你的服务器域名>", with: cleanBase)
+            .replacingOccurrences(of: "<你的服务器域名>", with: hostOnly)
     }
 
     private func authLabel(_ auth: String) -> String {
@@ -1089,15 +1108,16 @@ struct AddComputerView: View {
                 } else if let created {
                     if created.provider == "reverse_node",
                        let pairing = store.latestPairings[created.id] {
+                        let resolvedCommand = CloudComputerDetailView.resolveServerPlaceholder(in: pairing.recommendedCommand, baseURL: appState.config?.baseURL)
                         Section {
                             Text("「\(created.name)」已创建。复制下方命令到目标机器终端运行即可自动上线：")
                                 .font(.callout)
                                 .foregroundStyle(Palette.inkSecondary)
-                            Text(pairing.recommendedCommand)
+                            Text(resolvedCommand)
                                 .font(.system(.caption, design: .monospaced))
                                 .textSelection(.enabled)
                             Button {
-                                UIPasteboard.general.string = pairing.recommendedCommand
+                                UIPasteboard.general.string = resolvedCommand
                                 Haptics.success()
                                 copiedPairing = true
                             } label: {

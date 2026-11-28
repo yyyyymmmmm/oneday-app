@@ -104,7 +104,7 @@ final class CompanionFrontClient: @unchecked Sendable {
     }
 
     /// 获取连接凭据（2.21.0 新端点）：GET /v1/front/connections/{id}/credential
-    /// 返回明文凭据供 App 镜像显示与编辑；无连接 404，未鉴权 401
+    /// 使用全路径（不叠加 /api/companion 前缀），统一走 Hermes 单一 Bearer 鉴权通道。
     func fetchCredential(
         config: ServerConfig, id: String
     ) async throws -> BoxCredentialPayload {
@@ -113,10 +113,17 @@ final class CompanionFrontClient: @unchecked Sendable {
             let provider: String
             let credential: BoxCredentialPayload
         }
-        let response: Response = try await get(
-            config: config, path: "/v1/front/connections/\(id)/credential",
-            endpoint: L10n.string("读取凭据")
+        let request = try base.makeRequest(
+            config: config,
+            fullPath: "/v1/front/connections/\(id)/credential",
+            method: "GET"
         )
+        let (data, http) = try await base.performRaw(request)
+        if http.statusCode == 404 || http.statusCode == 405 {
+            throw OneDayBridgeError.recordGone
+        }
+        try checkStatus(http, data: data, endpoint: L10n.string("读取凭据"))
+        let response = try decoder.decode(Response.self, from: data)
         return response.credential
     }
 

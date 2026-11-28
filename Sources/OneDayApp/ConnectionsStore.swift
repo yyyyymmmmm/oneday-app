@@ -30,14 +30,27 @@ final class ConnectionsStore {
         connections.filter(\.isCloudComputer)
     }
 
-    /// 拉取云电脑凭据镜像（Hermes 单一真源）
+    /// 拉取云电脑凭据镜像（Hermes 单一真源），并自动同步到本机 box.mcp.key，
+    /// 实现「登录一次 Hermes，云电脑预览与接管自动免密打通」
     func fetchBoxCredential(id: String, appState: AppState) async {
         guard !loadingCredential, let config = appState.config else { return }
         loadingCredential = true
         defer { loadingCredential = false }
         do {
-            boxCredentialMirror = try await client.fetchCredential(config: config, id: id)
+            let mirror = try await client.fetchCredential(config: config, id: id)
+            boxCredentialMirror = mirror
             credentialError = nil
+            let cleanKey = mirror.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleanKey.isEmpty {
+                KeychainStore.save(cleanKey, account: "box.mcp.key")
+                if let mcpUrl = mirror.mcpUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !mcpUrl.isEmpty {
+                    UserDefaults.standard.set(mcpUrl, forKey: "box.mcp.url")
+                }
+            }
+        } catch OneDayBridgeError.recordGone {
+            // 旧版服务端尚未开放 GET /v1/front/connections/{id}/credential 时不误报“登录凭据被拒绝”
+            credentialError = L10n.string("当前服务端暂未开放凭据回读接口（云电脑状态如已生效可正常使用；如需本机预览请点下方更换凭据同步一次）。")
+            boxCredentialMirror = nil
         } catch let error as OneDayBridgeError {
             credentialError = error.userFacingText
             boxCredentialMirror = nil
