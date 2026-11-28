@@ -259,7 +259,7 @@ struct ResidentSubagentBarView: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 13))
-                                .foregroundStyle(Palette.inkTertiary)
+                                .foregroundStyle(Palette.inkMuted)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("关闭分身 \(agent.name)")
