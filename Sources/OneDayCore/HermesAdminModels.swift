@@ -1785,8 +1785,8 @@ public struct AgentPluginItem: Decodable, Sendable, Identifiable {
         if let e = try c.decodeIfPresent(Bool.self, forKey: .enabled) {
             enabled = e
         } else {
-            let st = (try c.decodeIfPresent(String.self, forKey: .runtimeStatus))
-                ?? (try c.decodeIfPresent(String.self, forKey: .status))
+            let st = try c.decodeIfPresent(String.self, forKey: .runtimeStatus)
+                ?? c.decodeIfPresent(String.self, forKey: .status)
                 ?? ""
             enabled = st.lowercased() == "enabled" || st.lowercased() == "active"
         }
@@ -1846,8 +1846,8 @@ public struct AgentPluginCatalogEntry: Decodable, Sendable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         title = try c.decodeIfPresent(String.self, forKey: .title)
         description = try c.decodeIfPresent(String.self, forKey: .description)
-        identifier = (try c.decodeIfPresent(String.self, forKey: .identifier))
-            ?? (try c.decodeIfPresent(String.self, forKey: .repo))
+        identifier = try c.decodeIfPresent(String.self, forKey: .identifier)
+            ?? c.decodeIfPresent(String.self, forKey: .repo)
         category = try c.decodeIfPresent(String.self, forKey: .category)
         installed = try c.decodeIfPresent(Bool.self, forKey: .installed) ?? false
     }
@@ -1866,9 +1866,9 @@ public struct AgentPluginCatalogResponse: Decodable, Sendable {
             return
         }
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let list = (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .entries))
-            ?? (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .plugins))
-            ?? (try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .catalog))
+        let list = try c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .entries)
+            ?? c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .plugins)
+            ?? c.decodeIfPresent([AgentPluginCatalogEntry].self, forKey: .catalog)
             ?? []
         entries = list.filter { !$0.name.isEmpty }
     }
@@ -1896,8 +1896,8 @@ public struct VoiceLiveStatus: Decodable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         mode = try c.decodeIfPresent(String.self, forKey: .mode)
-        available = (try c.decodeIfPresent(Bool.self, forKey: .available))
-            ?? (try c.decodeIfPresent(Bool.self, forKey: .ready))
+        available = try c.decodeIfPresent(Bool.self, forKey: .available)
+            ?? c.decodeIfPresent(Bool.self, forKey: .ready)
             ?? false
     }
 }
@@ -2205,17 +2205,17 @@ public struct GitRepoStatus: Decodable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        isRepo = (try c.decodeIfPresent(Bool.self, forKey: .isRepo))
-            ?? (try c.decodeIfPresent(Bool.self, forKey: .isGitRepo))
+        isRepo = try c.decodeIfPresent(Bool.self, forKey: .isRepo)
+            ?? c.decodeIfPresent(Bool.self, forKey: .isGitRepo)
             ?? true
         branch = try c.decodeIfPresent(String.self, forKey: .branch) ?? ""
         ahead = try c.decodeIfPresent(Int.self, forKey: .ahead) ?? 0
         behind = try c.decodeIfPresent(Int.self, forKey: .behind) ?? 0
-        dirtyCount = (try c.decodeIfPresent(Int.self, forKey: .dirtyCount))
-            ?? ((try c.decodeIfPresent(Bool.self, forKey: .dirty)) == true ? 1 : 0)
+        dirtyCount = try c.decodeIfPresent(Int.self, forKey: .dirtyCount)
+            ?? ((c.decodeIfPresent(Bool.self, forKey: .dirty)) == true ? 1 : 0)
         stagedCount = try c.decodeIfPresent(Int.self, forKey: .stagedCount) ?? 0
-        rootPath = (try c.decodeIfPresent(String.self, forKey: .rootPath))
-            ?? (try c.decodeIfPresent(String.self, forKey: .topLevel))
+        rootPath = try c.decodeIfPresent(String.self, forKey: .rootPath)
+            ?? c.decodeIfPresent(String.self, forKey: .topLevel)
             ?? ""
     }
 }
@@ -2238,8 +2238,8 @@ public struct GitWorktreeItem: Decodable, Identifiable, Sendable {
         path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
         branch = try c.decodeIfPresent(String.self, forKey: .branch) ?? ""
         head = try c.decodeIfPresent(String.self, forKey: .head) ?? ""
-        isMain = (try c.decodeIfPresent(Bool.self, forKey: .isMain))
-            ?? (try c.decodeIfPresent(Bool.self, forKey: .isMainCamel))
+        isMain = try c.decodeIfPresent(Bool.self, forKey: .isMain)
+            ?? c.decodeIfPresent(Bool.self, forKey: .isMainCamel)
             ?? false
     }
 }
@@ -2272,8 +2272,8 @@ public struct GitBranchItem: Decodable, Identifiable, Sendable {
         }
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        isCurrent = (try c.decodeIfPresent(Bool.self, forKey: .isCurrent))
-            ?? (try c.decodeIfPresent(Bool.self, forKey: .isCurrentSnake))
+        isCurrent = try c.decodeIfPresent(Bool.self, forKey: .isCurrent)
+            ?? c.decodeIfPresent(Bool.self, forKey: .isCurrentSnake)
             ?? false
     }
 }
@@ -2301,8 +2301,8 @@ public struct GitReviewFileItem: Decodable, Identifiable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        path = (try c.decodeIfPresent(String.self, forKey: .path))
-            ?? (try c.decodeIfPresent(String.self, forKey: .file))
+        path = try c.decodeIfPresent(String.self, forKey: .path)
+            ?? c.decodeIfPresent(String.self, forKey: .file)
             ?? ""
         status = try c.decodeIfPresent(String.self, forKey: .status) ?? "M"
         staged = try c.decodeIfPresent(Bool.self, forKey: .staged) ?? false
@@ -2325,9 +2325,9 @@ public struct GitDiffResponse: Decodable, Sendable {
     enum CodingKeys: String, CodingKey { case diff, patch, content }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        diff = (try c.decodeIfPresent(String.self, forKey: .diff))
-            ?? (try c.decodeIfPresent(String.self, forKey: .patch))
-            ?? (try c.decodeIfPresent(String.self, forKey: .content))
+        diff = try c.decodeIfPresent(String.self, forKey: .diff)
+            ?? c.decodeIfPresent(String.self, forKey: .patch)
+            ?? c.decodeIfPresent(String.self, forKey: .content)
             ?? ""
     }
 }
@@ -2352,8 +2352,8 @@ public struct LocalModelStagedItem: Decodable, Identifiable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
-        sizeBytes = (try c.decodeIfPresent(Int64.self, forKey: .sizeBytes))
-            ?? (try c.decodeIfPresent(Int64.self, forKey: .size))
+        sizeBytes = try c.decodeIfPresent(Int64.self, forKey: .sizeBytes)
+            ?? c.decodeIfPresent(Int64.self, forKey: .size)
             ?? 0
         quant = try c.decodeIfPresent(String.self, forKey: .quant)
         isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
@@ -2435,8 +2435,8 @@ public struct LocalModelCatalogEntry: Decodable, Identifiable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? id
-        summary = (try c.decodeIfPresent(String.self, forKey: .summary))
-            ?? (try c.decodeIfPresent(String.self, forKey: .description))
+        summary = try c.decodeIfPresent(String.self, forKey: .summary)
+            ?? c.decodeIfPresent(String.self, forKey: .description)
             ?? ""
         sizeLabel = try c.decodeIfPresent(String.self, forKey: .sizeLabel)
         fits = try c.decodeIfPresent(Bool.self, forKey: .fits) ?? true
@@ -2449,9 +2449,9 @@ public struct LocalModelsCatalogResponse: Decodable, Sendable {
     enum CodingKeys: String, CodingKey { case models, entries, catalog }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        models = (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .models))
-            ?? (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .entries))
-            ?? (try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .catalog))
+        models = try c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .models)
+            ?? c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .entries)
+            ?? c.decodeIfPresent([LocalModelCatalogEntry].self, forKey: .catalog)
             ?? []
     }
 }
@@ -2487,8 +2487,8 @@ public struct OpsCheckpointsPruneReceipt: Decodable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        prunedCount = (try c.decodeIfPresent(Int.self, forKey: .prunedCount))
-            ?? (try c.decodeIfPresent(Int.self, forKey: .removedCount))
+        prunedCount = try c.decodeIfPresent(Int.self, forKey: .prunedCount)
+            ?? c.decodeIfPresent(Int.self, forKey: .removedCount)
             ?? 0
         freedBytes = try c.decodeIfPresent(Int64.self, forKey: .freedBytes) ?? 0
         message = try c.decodeIfPresent(String.self, forKey: .message) ?? "已完成清理"
