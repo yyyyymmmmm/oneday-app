@@ -653,6 +653,11 @@ struct DemoHermesClient: HermesClientProtocol {
         config: ServerConfig, archive: String, name: String?
     ) async throws { throw HermesError.demoLimitReached }
 
+    func renameProfile(config: ServerConfig, name: String, newName: String) async throws { throw HermesError.demoLimitReached }
+    func updateProfileDescription(config: ServerConfig, name: String, description: String) async throws { throw HermesError.demoLimitReached }
+    func autoDescribeProfile(config: ServerConfig, name: String, overwrite: Bool) async throws -> ProfileAutoDescribeResult { throw HermesError.demoLimitReached }
+    func updateProfileModel(config: ServerConfig, name: String, provider: String, model: String) async throws { throw HermesError.demoLimitReached }
+
     /// 演示 soul：带「人设」「风格」两段标题的合成样本
     /// （不放真实 soul 文本，数据设计 §2.4）
     func profileSoul(
@@ -689,6 +694,9 @@ struct DemoHermesClient: HermesClientProtocol {
     ) async throws { throw HermesError.demoLimitReached }
 
     func deleteMCPServer(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
+    func startMCPOAuthFlow(config: ServerConfig, name: String) async throws -> MCPOAuthFlowSnapshot { throw HermesError.demoLimitReached }
+    func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot { throw HermesError.demoLimitReached }
+    func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws { throw HermesError.demoLimitReached }
 
     // MARK: - 配置与密钥
 

@@ -47,6 +47,7 @@ struct ProfilesView: View {
     @State private var showImportSheet = false
     @State private var deleteTarget: ProfileItem?
     @State private var exportingProfile: ProfileItem?
+    @State private var editingProfile: ProfileItem?
 
     var body: some View {
         List {
@@ -195,6 +196,17 @@ struct ProfilesView: View {
         .sheet(item: $exportingProfile) { profile in
             ProfileExportSheet(profile: profile)
         }
+        .sheet(item: $editingProfile) { profile in
+            ProfileDetailEditSheet(
+                profile: profile,
+                isActive: profile.name == activeName,
+                existingNames: profiles.map(\.name),
+                onSaved: { message in
+                    notice = message
+                    await load()
+                }
+            )
+        }
         .confirmationDialog(
             "删除档案？",
             isPresented: Binding(
@@ -261,6 +273,16 @@ struct ProfilesView: View {
                         .padding(.vertical, 3)
                         .background(Palette.tintGreen, in: Capsule())
                 }
+                Button {
+                    editingProfile = profile
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("编辑分身 \(profile.name)")
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -269,6 +291,9 @@ struct ProfilesView: View {
         }
         .buttonStyle(.odPressable)
         .contextMenu {
+            Button("编辑分身配置与专属模型") {
+                editingProfile = profile
+            }
             if !isActive {
                 Button("切换到此分身") {
                     pendingSwitch = profile
@@ -289,6 +314,9 @@ struct ProfilesView: View {
 
     private func subtitle(_ profile: ProfileItem) -> String {
         var parts: [String] = []
+        if let desc = profile.description, !desc.isEmpty {
+            parts.append(desc)
+        }
         if let model = profile.model, !model.isEmpty {
             parts.append(model)
         }

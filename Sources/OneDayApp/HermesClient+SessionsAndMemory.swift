@@ -866,4 +866,47 @@ extension HermesClient {
         )
     }
 
+    func renameProfile(
+        config: ServerConfig, name: String, newName: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: profilePath(name: name), method: "PATCH",
+            endpoint: L10n.string("分身重命名"),
+            body: ["new_name": .string(newName)]
+        )
+    }
+
+    func updateProfileDescription(
+        config: ServerConfig, name: String, description: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: profilePath(name: name, suffix: "/description"),
+            method: "PUT", endpoint: L10n.string("分身简介"),
+            body: ["description": .string(description)]
+        )
+    }
+
+    func autoDescribeProfile(
+        config: ServerConfig, name: String, overwrite: Bool
+    ) async throws -> ProfileAutoDescribeResult {
+        try await sendJSONDecoding(
+            config: config, path: profilePath(name: name, suffix: "/describe-auto"),
+            method: "POST", endpoint: L10n.string("自动生成分身简介"),
+            body: ["overwrite": .bool(overwrite)]
+        )
+    }
+
+    func updateProfileModel(
+        config: ServerConfig, name: String, provider: String, model: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: profilePath(name: name, suffix: "/model"),
+            method: "PUT", endpoint: L10n.string("分身模型绑定"),
+            body: [
+                "provider": .string(provider),
+                "model": .string(model),
+            ]
+        )
+    }
+
 }

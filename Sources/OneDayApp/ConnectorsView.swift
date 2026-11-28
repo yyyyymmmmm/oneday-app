@@ -546,7 +546,9 @@ private struct MCPServerDetailView: View {
     let facade: ConnectorsFacade
     let appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var showDeleteConfirm = false
+    @State private var oauthPollTask: Task<Void, Never>?
 
     private var currentServer: MCPServerItem {
         facade.servers.first(where: { $0.name == server.name }) ?? server
@@ -598,6 +600,86 @@ private struct MCPServerDetailView: View {
                         }
                     ))
                     .disabled(facade.toggling.contains(currentServer.name))
+                }
+
+                if currentServer.url != nil && !currentServer.isPluginProvided {
+                    Section("OAuth 2.1 授权") {
+                        let flow = facade.oauthFlows[currentServer.name]
+                        let isStarting = facade.startingOAuth.contains(currentServer.name)
+                        Button {
+                            Task {
+                                if let authURL = await facade.startOAuth(for: currentServer, appState: appState) {
+                                    openURL(authURL)
+                                    if let flowID = facade.oauthFlows[currentServer.name]?.flowID {
+                                        oauthPollTask?.cancel()
+                                        oauthPollTask = Task {
+                                            await facade.pollOAuthUntilSettled(
+                                                serverName: currentServer.name,
+                                                flowID: flowID,
+                                                appState: appState
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Label("前往浏览器完成 OAuth 授权", systemImage: "person.badge.key.fill")
+                                Spacer()
+                                if isStarting {
+                                    ProgressView().controlSize(.small)
+                                }
+                            }
+                        }
+                        .disabled(isStarting)
+
+                        if let flow {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    if flow.isSuccess {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Palette.success)
+                                        Text("授权已完成")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Palette.successText)
+                                    } else if flow.isTerminal {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundStyle(Palette.danger)
+                                        Text("授权未完成（\(flow.status)）")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Palette.danger)
+                                    } else {
+                                        ProgressView().controlSize(.small)
+                                        Text("等待浏览器回调确认中…")
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(Palette.ink)
+                                    }
+                                    Spacer()
+                                    if !flow.isTerminal {
+                                        Button("取消", role: .destructive) {
+                                            oauthPollTask?.cancel()
+                                            Task { await facade.cancelOAuth(for: currentServer.name, appState: appState) }
+                                        }
+                                        .font(.caption.weight(.semibold))
+                                    }
+                                }
+                                if let err = flow.error, !err.isEmpty {
+                                    Text(err)
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.danger)
+                                }
+                                if let tools = flow.tools, !tools.isEmpty {
+                                    Text("已发现 \(tools.count) 个工具：\(tools.prefix(5).joined(separator: "、"))")
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .onDisappear {
+                        oauthPollTask?.cancel()
+                    }
                 }
 
                 Section("连通性测试") {

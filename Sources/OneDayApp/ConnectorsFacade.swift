@@ -37,6 +37,8 @@ final class ConnectorsFacade {
     private(set) var testResults: [String: MCPTestResult] = [:]
     private(set) var isAddingServer = false
     private(set) var deletingServers: Set<String> = []
+    private(set) var startingOAuth: Set<String> = []
+    private(set) var oauthFlows: [String: MCPOAuthFlowSnapshot] = [:]
     /// 工具数缓存（进页显示缓存值，测连/刷新时更新）
     private(set) var cachedToolCounts: [String: Int] = [:]
     // MARK: - MCP 目录（§388 H7，服务端单源）
@@ -277,6 +279,7 @@ final class ConnectorsFacade {
             if gone {
                 testResults.removeValue(forKey: server.name)
                 cachedToolCounts.removeValue(forKey: server.name)
+                oauthFlows.removeValue(forKey: server.name)
             }
             notice = gone
                 ? "已移除 MCP 服务「\(server.name)」。"
@@ -286,6 +289,69 @@ final class ConnectorsFacade {
             notice = (error as? HermesError)?.userMessage ?? "移除 MCP 服务失败。"
             return false
         }
+    }
+
+    /// 发起 MCP OAuth 2.1 授权流，返回服务端下发的授权链接（供界面拉起浏览器）
+    func startOAuth(for server: MCPServerItem, appState: AppState) async -> URL? {
+        startingOAuth.insert(server.name)
+        defer { startingOAuth.remove(server.name) }
+        do {
+            let snapshot = try await appState.performAdmin { client, config in
+                try await client.startMCPOAuthFlow(config: config, name: server.name)
+            }
+            oauthFlows[server.name] = snapshot
+            if let raw = snapshot.authorizationURL, let authURL = URL(string: raw) {
+                return authURL
+            }
+            if snapshot.isSuccess {
+                await loadServers(appState: appState)
+                notice = "「\(server.name)」已完成 OAuth 授权。"
+            }
+            return nil
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "发起 OAuth 授权失败。"
+            return nil
+        }
+    }
+
+    /// 轮询进行中的 MCP OAuth 流，直到完成/失败/取消或超时
+    func pollOAuthUntilSettled(serverName: String, flowID: String, appState: AppState) async {
+        for _ in 0..<90 {
+            if Task.isCancelled { return }
+            try? await Task.sleep(for: .seconds(2))
+            if Task.isCancelled { return }
+            do {
+                let snapshot = try await appState.performAdmin { client, config in
+                    try await client.pollMCPOAuthFlow(config: config, flowID: flowID)
+                }
+                oauthFlows[serverName] = snapshot
+                if snapshot.isTerminal {
+                    if snapshot.isSuccess {
+                        if let tools = snapshot.tools {
+                            cachedToolCounts[serverName] = tools.count
+                        }
+                        await loadServers(appState: appState)
+                        notice = "「\(serverName)」OAuth 授权成功。"
+                    }
+                    return
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    /// 取消进行中的 MCP OAuth 流，释放服务端占用的并发槽位
+    func cancelOAuth(for serverName: String, appState: AppState) async {
+        guard let flow = oauthFlows[serverName] else { return }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.cancelMCPOAuthFlow(config: config, flowID: flow.flowID)
+            }
+        } catch {
+            // 忽略过期取消错误
+        }
+        oauthFlows.removeValue(forKey: serverName)
     }
 
     // MARK: - 本机服务探活（0.29.0，只读 GET、不写生产）

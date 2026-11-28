@@ -1674,15 +1674,84 @@ public struct ProfileItem: Decodable, Sendable, Identifiable {
     public let skillCount: Int?
     public let gatewayRunning: Bool?
     public let displayName: String?
+    public let description: String?
+    public let descriptionAuto: Bool?
 
     public var id: String { name }
 
     enum CodingKeys: String, CodingKey {
-        case name, model, provider
+        case name, model, provider, description
         case isDefault = "is_default"
         case skillCount = "skill_count"
         case gatewayRunning = "gateway_running"
         case displayName = "display_name"
+        case descriptionAuto = "description_auto"
+    }
+}
+
+/// POST /api/profiles/{name}/describe-auto 回执
+public struct ProfileAutoDescribeResult: Decodable, Sendable {
+    public let ok: Bool
+    public let reason: String?
+    public let description: String?
+    public let descriptionAuto: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case ok, reason, description
+        case descriptionAuto = "description_auto"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try container.decodeIfPresent(Bool.self, forKey: .ok) ?? false
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        descriptionAuto = try container.decodeIfPresent(Bool.self, forKey: .descriptionAuto)
+    }
+}
+
+/// MCP OAuth 2.1 授权流快照（POST /api/mcp/servers/{name}/auth 与 GET /api/mcp/oauth/flows/{flow_id}）
+public struct MCPOAuthFlowSnapshot: Decodable, Sendable, Equatable {
+    public let flowID: String
+    public let serverName: String
+    public let status: String
+    public let authorizationURL: String?
+    public let error: String?
+    public let tools: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case flowID = "flow_id"
+        case serverName = "server_name"
+        case status
+        case authorizationURL = "authorization_url"
+        case error
+        case tools
+    }
+
+    public init(
+        flowID: String, serverName: String, status: String,
+        authorizationURL: String? = nil, error: String? = nil,
+        tools: [String]? = nil
+    ) {
+        self.flowID = flowID
+        self.serverName = serverName
+        self.status = status
+        self.authorizationURL = authorizationURL
+        self.error = error
+        self.tools = tools
+    }
+
+    public var isTerminal: Bool {
+        switch status {
+        case "completed", "succeeded", "connected", "error", "failed", "cancelled", "expired":
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isSuccess: Bool {
+        status == "completed" || status == "succeeded" || status == "connected"
     }
 }
 

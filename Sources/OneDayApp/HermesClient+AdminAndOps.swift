@@ -95,6 +95,34 @@ extension HermesClient {
         )
     }
 
+    func startMCPOAuthFlow(config: ServerConfig, name: String) async throws -> MCPOAuthFlowSnapshot {
+        try await sendJSONDecoding(
+            config: config, path: mcpPath(name: name, suffix: "/auth"),
+            method: "POST", endpoint: L10n.string("MCP OAuth 授权"),
+            body: [:]
+        )
+    }
+
+    func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = flowID.addingPercentEncoding(withAllowedCharacters: allowed) ?? flowID
+        return try await getJSON(
+            config: config, path: "/api/mcp/oauth/flows/\(encoded)",
+            endpoint: L10n.string("MCP OAuth 状态")
+        )
+    }
+
+    func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = flowID.addingPercentEncoding(withAllowedCharacters: allowed) ?? flowID
+        try await sendJSON(
+            config: config, path: "/api/mcp/oauth/flows/\(encoded)",
+            method: "DELETE", endpoint: L10n.string("取消 MCP OAuth")
+        )
+    }
+
     func computerUseStatus(
         config: ServerConfig
     ) async throws -> ComputerUseStatus {

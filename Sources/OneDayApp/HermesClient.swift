@@ -398,6 +398,22 @@ protocol HermesClientProtocol: Sendable {
     func importProfile(
         config: ServerConfig, archive: String, name: String?
     ) async throws
+    /// PATCH /api/profiles/{name} {new_name}（重命名分身，default 分身改写 display_name）
+    func renameProfile(
+        config: ServerConfig, name: String, newName: String
+    ) async throws
+    /// PUT /api/profiles/{name}/description {description}（编辑分身职责简介）
+    func updateProfileDescription(
+        config: ServerConfig, name: String, description: String
+    ) async throws
+    /// POST /api/profiles/{name}/describe-auto {overwrite}（辅助模型一键生成分身简介）
+    func autoDescribeProfile(
+        config: ServerConfig, name: String, overwrite: Bool
+    ) async throws -> ProfileAutoDescribeResult
+    /// PUT /api/profiles/{name}/model {provider, model}（为单个分身绑定专属模型）
+    func updateProfileModel(
+        config: ServerConfig, name: String, provider: String, model: String
+    ) async throws
 
     /// GET /api/tools/computer-use/status（回执 schema
     /// 未冻结，ComputerUseStatus 宽容提取；浏览器段留口）
@@ -431,6 +447,12 @@ protocol HermesClientProtocol: Sendable {
     ) async throws
     /// DELETE /api/mcp/servers/{name}（移除自定义 MCP 服务）
     func deleteMCPServer(config: ServerConfig, name: String) async throws
+    /// POST /api/mcp/servers/{name}/auth（发起 MCP OAuth 2.1 授权流，返回 authorization_url）
+    func startMCPOAuthFlow(config: ServerConfig, name: String) async throws -> MCPOAuthFlowSnapshot
+    /// GET /api/mcp/oauth/flows/{flow_id}（轮询 MCP OAuth 授权状态与工具发现）
+    func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot
+    /// DELETE /api/mcp/oauth/flows/{flow_id}（取消进行中的 MCP OAuth 授权流）
+    func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -1027,6 +1049,34 @@ extension HermesClientProtocol {
 
     func deleteMCPServer(config: ServerConfig, name: String) async throws {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("删除 MCP 服务"), status: 501)
+    }
+
+    func renameProfile(config: ServerConfig, name: String, newName: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("分身重命名"), status: 501)
+    }
+
+    func updateProfileDescription(config: ServerConfig, name: String, description: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("分身简介"), status: 501)
+    }
+
+    func autoDescribeProfile(config: ServerConfig, name: String, overwrite: Bool) async throws -> ProfileAutoDescribeResult {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("自动生成分身简介"), status: 501)
+    }
+
+    func updateProfileModel(config: ServerConfig, name: String, provider: String, model: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("分身模型绑定"), status: 501)
+    }
+
+    func startMCPOAuthFlow(config: ServerConfig, name: String) async throws -> MCPOAuthFlowSnapshot {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("MCP OAuth 授权"), status: 501)
+    }
+
+    func pollMCPOAuthFlow(config: ServerConfig, flowID: String) async throws -> MCPOAuthFlowSnapshot {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("MCP OAuth 状态"), status: 501)
+    }
+
+    func cancelMCPOAuthFlow(config: ServerConfig, flowID: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("取消 MCP OAuth"), status: 501)
     }
 }
 
