@@ -1926,8 +1926,22 @@ extension ChatView {
                 liveToolStack.removeAll { $0.id == id }
                 appState.liveActivityPhrase =
                     liveToolStack.last?.phrase
+            case .approvalRequest(let prompt):
+                activeRunApproval = prompt
+                appState.liveActivityPhrase = "等待你确认高危操作"
+                Haptics.impact(.medium)
+            case .approvalResponded:
+                activeRunApproval = nil
+            case .clarifyRequest(let prompt):
+                activeRunClarify = prompt
+                appState.liveActivityPhrase = "等待你的选择或补充"
+                Haptics.impact(.light)
+            case .clarifyResponded:
+                activeRunClarify = nil
             case .terminal(let kind, let output):
                 appState.liveActivityPhrase = nil
+                activeRunApproval = nil
+                activeRunClarify = nil
                 terminalOutputHint = output
                 // §494：终态拍全量发布——对账落定
                 // 前直播行先呈全文（与装配器兜底逐
@@ -3085,6 +3099,8 @@ extension ChatView {
         // 在调用本函数之前已把半截转入条目）
         liveToolCards = []
         liveOrder = []
+        activeRunApproval = nil
+        activeRunClarify = nil
         // 第 93 条：封存段真值在装配器本体内，下
         // 一轮 driveRun 起点归零，视图侧无镜像可清
     }
@@ -3141,6 +3157,61 @@ extension ChatView {
             } catch {
                 ChatDiagTrace.record("steer_run_failed: \(error.localizedDescription)")
                 showNotice(L10n.string("纠偏指令发送失败"), tier: .brief)
+            }
+        }
+    }
+
+    /// 响应运行中等待审批的工具请求（POST /v1/runs/{id}/approval）
+    func respondActiveRunApproval(
+        runID: String, prompt: RunApprovalPrompt, choice: String
+    ) {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        Haptics.impact(.light)
+        activeRunApproval = nil
+        Task {
+            do {
+                try await appState.client.respondRunApproval(
+                    config: config,
+                    apiKey: apiKey,
+                    runID: runID,
+                    requestID: prompt.requestID,
+                    choice: choice,
+                    executionGeneration: prompt.executionGeneration
+                )
+                let label = choice == "deny" ? "已拒绝此操作" : "已批准继续执行"
+                showNotice(L10n.string(label), tier: .brief)
+            } catch {
+                activeRunApproval = prompt
+                ChatDiagTrace.record("run_approval_failed: \(error.localizedDescription)")
+                showNotice(L10n.string("审批响应发送失败，请重试"), tier: .brief)
+            }
+        }
+    }
+
+    /// 回答运行中等待澄清的问题（POST /v1/runs/{id}/clarify）
+    func respondActiveRunClarify(
+        runID: String, prompt: RunClarifyPrompt, answer: String
+    ) {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        Haptics.impact(.light)
+        activeRunClarify = nil
+        Task {
+            do {
+                try await appState.client.respondRunClarify(
+                    config: config,
+                    apiKey: apiKey,
+                    runID: runID,
+                    requestID: prompt.requestID,
+                    answer: answer,
+                    executionGeneration: prompt.executionGeneration
+                )
+                showNotice(L10n.string("已提交答复，任务继续执行"), tier: .brief)
+            } catch {
+                activeRunClarify = prompt
+                ChatDiagTrace.record("run_clarify_failed: \(error.localizedDescription)")
+                showNotice(L10n.string("答复发送失败，请重试"), tier: .brief)
             }
         }
     }

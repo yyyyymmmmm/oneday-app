@@ -108,6 +108,16 @@ protocol HermesClientProtocol: Sendable {
     func steerRun(
         config: ServerConfig, apiKey: String, runID: String, input: String
     ) async throws -> RunSteerReceipt
+    /// POST /v1/runs/{id}/approval：响应运行中等待审批的工具请求（once/session/always/deny）
+    func respondRunApproval(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String?, choice: String, executionGeneration: Int?
+    ) async throws
+    /// POST /v1/runs/{id}/clarify：回答运行中等待澄清的问题
+    func respondRunClarify(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String, answer: String, executionGeneration: Int?
+    ) async throws
     /// POST /api/sessions/{id}/fork：在服务端无损克隆分支会话
     func forkServerSession(
         config: ServerConfig, apiKey: String, id: String, title: String?
@@ -963,6 +973,20 @@ extension HermesClientProtocol {
         config: ServerConfig, apiKey: String, runID: String, input: String
     ) async throws -> RunSteerReceipt {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("纠偏接口"), status: 501)
+    }
+
+    func respondRunApproval(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String?, choice: String, executionGeneration: Int?
+    ) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("运行审批接口"), status: 501)
+    }
+
+    func respondRunClarify(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String, answer: String, executionGeneration: Int?
+    ) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("运行澄清接口"), status: 501)
     }
 
     func forkServerSession(
@@ -1935,6 +1959,68 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             body: ["input": .string(input)],
             bearer: apiKey
         )
+    }
+
+    func respondRunApproval(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String?, choice: String, executionGeneration: Int?
+    ) async throws {
+        var payload: [String: Any] = ["choice": choice]
+        if let requestID, !requestID.isEmpty {
+            payload["request_id"] = requestID
+        }
+        if let executionGeneration {
+            payload["execution_generation"] = executionGeneration
+        }
+        var request = URLRequest(url: config.endpoint("/v1/runs/\(runID)/approval"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.fromHTTPResponse(
+                endpoint: L10n.string("运行审批接口"),
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
+    }
+
+    func respondRunClarify(
+        config: ServerConfig, apiKey: String, runID: String,
+        requestID: String, answer: String, executionGeneration: Int?
+    ) async throws {
+        var payload: [String: Any] = [
+            "request_id": requestID,
+            "answer": answer,
+        ]
+        if let executionGeneration {
+            payload["execution_generation"] = executionGeneration
+        }
+        var request = URLRequest(url: config.endpoint("/v1/runs/\(runID)/clarify"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw HermesError.apiKeyRejected
+            }
+            throw HermesError.fromHTTPResponse(
+                endpoint: L10n.string("运行澄清接口"),
+                status: http.statusCode,
+                data: data,
+                retryAfterSeconds: Self.retryAfterSeconds(from: http)
+            )
+        }
     }
 
     func forkServerSession(

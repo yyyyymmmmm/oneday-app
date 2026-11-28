@@ -24,6 +24,8 @@ struct ChatView: View {
     @State var activeCloudTakeover: CloudComputerTarget?
     @State var showQuickProfilesSheet = false
     @State var showQuickConnectorsSheet = false
+    @State var activeRunApproval: RunApprovalPrompt?
+    @State var activeRunClarify: RunClarifyPrompt?
     /// （§502 退役：中枢 zoom 转场命名空间与源 ID
     /// ——呈现改交互式卡片转场后无共享元素源，见
     /// hubCover；ZoomTransitionPolicy 本体留给图
@@ -2146,9 +2148,29 @@ struct ChatView: View {
                         activityPhrase: phrase,
                         liveToolCards: liveToolCards,
                         canSteer: activeRunID != nil,
+                        pendingApproval: activeRunApproval,
+                        pendingClarify: activeRunClarify,
                         onSteer: { text in
                             if let activeRunID {
                                 steerActiveRun(runID: activeRunID, text: text)
+                            }
+                        },
+                        onRespondApproval: { prompt, choice in
+                            if let activeRunID {
+                                respondActiveRunApproval(
+                                    runID: activeRunID,
+                                    prompt: prompt,
+                                    choice: choice
+                                )
+                            }
+                        },
+                        onRespondClarify: { prompt, answer in
+                            if let activeRunID {
+                                respondActiveRunClarify(
+                                    runID: activeRunID,
+                                    prompt: prompt,
+                                    answer: answer
+                                )
                             }
                         },
                         onStop: { requestRunStop() },

@@ -110,6 +110,8 @@ enum SettingsRoute: Hashable {
     case vault
     /// 云电脑与远程主机管理（托管云电脑 / Linux & Windows VPS / NAT 机 / 内网穿透节点）
     case cloudComputers
+    /// 智能体工作台二级收口页（记忆 / 技能 / 工具集 / 委派路由 / 定时任务）
+    case agentWorkspace
 }
 
 /// 目的地 → 设置路由映射（原 SettingsView 内私有，

@@ -191,6 +191,48 @@ public enum RunInput: Sendable {
 ///   产 admission 路径实测不发；思考全文以 transcr-
 ///   ipt 的 reasoning_content 对账回填为准）；
 /// - run.<终态>＝轮次终态（completed 带 output）。
+/// 运行中工具审批请求载荷（SSE `approval.request`）
+public struct RunApprovalPrompt: Sendable, Equatable, Identifiable {
+    public let requestID: String
+    public let command: String
+    public let description: String
+    public let choices: [String]
+    public let executionGeneration: Int?
+
+    public var id: String { requestID }
+
+    public init(
+        requestID: String, command: String, description: String,
+        choices: [String], executionGeneration: Int?
+    ) {
+        self.requestID = requestID
+        self.command = command
+        self.description = description
+        self.choices = choices
+        self.executionGeneration = executionGeneration
+    }
+}
+
+/// 运行中多选澄清请求载荷（SSE `clarify.request`）
+public struct RunClarifyPrompt: Sendable, Equatable, Identifiable {
+    public let requestID: String
+    public let question: String
+    public let options: [String]
+    public let executionGeneration: Int?
+
+    public var id: String { requestID }
+
+    public init(
+        requestID: String, question: String, options: [String],
+        executionGeneration: Int?
+    ) {
+        self.requestID = requestID
+        self.question = question
+        self.options = options
+        self.executionGeneration = executionGeneration
+    }
+}
+
 public enum RunStreamEvent: Sendable, Equatable {
     case contentDelta(String)
     case interim(String)
@@ -199,6 +241,10 @@ public enum RunStreamEvent: Sendable, Equatable {
         id: String, name: String, preview: String, failed: Bool
     )
     case reasoningPreview(String)
+    case approvalRequest(RunApprovalPrompt)
+    case approvalResponded
+    case clarifyRequest(RunClarifyPrompt)
+    case clarifyResponded
     case terminal(kind: RunStatusKind, output: String?)
     case other(name: String)
 }
@@ -258,6 +304,36 @@ public struct RunEventParser: Sendable {
             )
         case "reasoning.available":
             event = .reasoningPreview(string("text") ?? "")
+        case "approval.request":
+            let requestID = string("request_id") ?? string("prompt_id") ?? UUID().uuidString
+            let command = string("command") ?? ""
+            let description = string("description") ?? string("reason") ?? "需要你确认执行此操作"
+            let rawChoices = (dict["choices"] as? [String]) ?? ["once", "session", "deny"]
+            let gen = (dict["execution_generation"] as? NSNumber)?.intValue
+                ?? (dict["generation"] as? NSNumber)?.intValue
+            event = .approvalRequest(RunApprovalPrompt(
+                requestID: requestID,
+                command: command,
+                description: description,
+                choices: rawChoices,
+                executionGeneration: gen
+            ))
+        case "approval.responded":
+            event = .approvalResponded
+        case "clarify.request":
+            let requestID = string("request_id") ?? string("prompt_id") ?? string("clarify_id") ?? UUID().uuidString
+            let question = string("question") ?? string("prompt") ?? "请补充说明或选择一个选项"
+            let options = (dict["options"] as? [String]) ?? (dict["choices"] as? [String]) ?? []
+            let gen = (dict["execution_generation"] as? NSNumber)?.intValue
+                ?? (dict["generation"] as? NSNumber)?.intValue
+            event = .clarifyRequest(RunClarifyPrompt(
+                requestID: requestID,
+                question: question,
+                options: options,
+                executionGeneration: gen
+            ))
+        case "clarify.responded":
+            event = .clarifyResponded
         case "run.completed":
             event = .terminal(
                 kind: .completed, output: string("output")

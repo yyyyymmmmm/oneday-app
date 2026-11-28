@@ -279,6 +279,8 @@ struct DemoHermesClient: HermesClientProtocol {
     }
 
     func steerRun(config: ServerConfig, apiKey: String, runID: String, input: String) async throws -> RunSteerReceipt { throw HermesError.demoLimitReached }
+    func respondRunApproval(config: ServerConfig, apiKey: String, runID: String, requestID: String?, choice: String, executionGeneration: Int?) async throws { throw HermesError.demoLimitReached }
+    func respondRunClarify(config: ServerConfig, apiKey: String, runID: String, requestID: String, answer: String, executionGeneration: Int?) async throws { throw HermesError.demoLimitReached }
     func forkServerSession(config: ServerConfig, apiKey: String, id: String, title: String?) async throws -> ServerSession { throw HermesError.demoLimitReached }
     func uploadCrashReports(config: ServerConfig, apiKey: String, reports: [CrashReportRecord]) async throws -> CrashReportsUploadReceipt { throw HermesError.demoLimitReached }
     func listServerCrashReports(config: ServerConfig, apiKey: String, limit: Int) async throws -> [ServerCrashReportItem] { throw HermesError.demoLimitReached }

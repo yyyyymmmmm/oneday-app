@@ -102,8 +102,9 @@ struct SettingsView: View {
                     searchSection
                 } else {
                     identitySection
-                    generalPreferencesSection
-                    modelAndConnectionSection
+                    agentCapabilitiesSection
+                    serverAndSecuritySection
+                    preferencesSection
                     advancedAndSupportSection
                     versionFooter
                 }
@@ -251,6 +252,8 @@ struct SettingsView: View {
                     VaultListView()
                 case .cloudComputers:
                     CloudComputerListView()
+                case .agentWorkspace:
+                    agentWorkspaceView
                 }
             }
             // §496：断开行已迁当前服务器页，本确认框
@@ -386,35 +389,98 @@ struct SettingsView: View {
         ServerLabels.gatewayStateWord(for: status)
     }
 
-    // MARK: - 通用与偏好（大厂精简标准：高频偏好一屏直达）
+    // MARK: - 1. 智能体与能力（大厂 IA：核心生产力收口，零重复入口）
 
-    private var generalPreferencesSection: some View {
+    private var agentCapabilitiesSection: some View {
         Section {
-            navRow(icon: "sun.max", title: L10n.string("外观"), route: .appearance)
-            navRow(icon: "globe", title: L10n.string("语言"), route: .language)
+            statusNavRow(
+                icon: "person.crop.circle.badge.checkmark",
+                color: Palette.tintLavenderInk,
+                title: L10n.string("配置档案与分身"),
+                status: "分身管理 · 人设 · 专属模型",
+                route: .profiles
+            )
+            navRow(icon: "cpu", color: Palette.tintSkyInk, title: L10n.string("模型与服务商"), route: .models)
+            statusNavRow(
+                icon: "cable.connector",
+                color: Palette.tintGreenInk,
+                title: L10n.string("连接器与本机权限"),
+                status: "设备权限 · MCP 服务 · OAuth",
+                route: .agent(.mcp)
+            )
+            navRow(icon: "desktopcomputer", color: Palette.tintSkyInk, title: L10n.string("云电脑与远程主机"), route: .cloudComputers)
+            statusNavRow(
+                icon: "square.grid.2x2",
+                color: Palette.tintOrangeInk,
+                title: L10n.string("智能体工作台"),
+                status: "记忆 · 技能 · 工具集 · 委派 · 定时任务",
+                route: .agentWorkspace
+            )
+        } header: {
+            sectionHeader("智能体与能力")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    // MARK: - 2. 服务器与安全（账号、多设备、凭据与用量高内聚）
+
+    private var serverAndSecuritySection: some View {
+        Section {
+            navRow(icon: "server.rack", color: Palette.tintSkyInk, title: L10n.string("当前服务器"), route: .serverDetail)
+            statusNavRow(
+                icon: "key.radiowaves.forward",
+                color: Palette.tintLavenderInk,
+                title: L10n.string("登录会话与票据"),
+                status: appState.shortLivedTokenActive ? "短时票据已启用" : "点击启用或管理设备",
+                route: .authSessions
+            )
+            navRow(icon: "qrcode", color: Palette.tintSkyInk, title: L10n.string("添加设备"), route: .addDevice)
+            if pendingPairingCount > 0 {
+                statusNavRow(
+                    icon: "person.badge.key",
+                    color: Palette.tintOrangeInk,
+                    title: L10n.string("设备配对"),
+                    status: "\(pendingPairingCount) 条待批准",
+                    route: .pairingManagement
+                )
+            }
+            if appState.phase == .connected {
+                navRow(icon: "lock.shield", color: Palette.tintGreenInk, title: L10n.string("密码与安全凭证"), route: .vault)
+            }
+            navRow(icon: "chart.bar", color: Palette.tintOrangeInk, title: L10n.string("用量统计"), route: .usage)
+        } header: {
+            sectionHeader("服务器与安全")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    // MARK: - 3. 偏好设置（纯粹的本机交互与体验）
+
+    private var preferencesSection: some View {
+        Section {
+            navRow(icon: "sun.max", color: Palette.tintOrangeInk, title: L10n.string("外观"), route: .appearance)
+            navRow(icon: "globe", color: Palette.tintSkyInk, title: L10n.string("语言"), route: .language)
             if let voiceAvailabilityWord {
                 statusNavRow(
                     icon: "speaker.wave.2",
+                    color: Palette.tintLavenderInk,
                     title: L10n.string("语音"),
                     status: voiceAvailabilityWord,
                     route: .voice
                 )
             } else {
-                navRow(icon: "speaker.wave.2", title: L10n.string("语音"), route: .voice)
+                navRow(icon: "speaker.wave.2", color: Palette.tintLavenderInk, title: L10n.string("语音"), route: .voice)
             }
-            navRow(icon: "bell", title: L10n.string("通知"), route: .notifications)
-            navRow(icon: "face.smiling", title: L10n.string("互动"), route: .interaction)
-            navRow(icon: "cable.connector", title: L10n.string("连接器"), route: .agent(.mcp))
-            navRow(icon: "iphone.gen3", title: L10n.string("设备与权限"), route: .agent(.devicePermissions))
-            if appState.phase == .connected {
-                navRow(icon: "lock.shield", title: L10n.string("密码与安全凭证"), route: .vault)
-            }
+            navRow(icon: "bell", color: Palette.danger, title: L10n.string("通知"), route: .notifications)
+            navRow(icon: "face.smiling", color: Palette.tintGreenInk, title: L10n.string("互动"), route: .interaction)
             Toggle(isOn: Binding(
                 get: { Haptics.isEnabled },
                 set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
             )) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("iphone.radiowaves.left.and.right")
+                    rowIcon("iphone.radiowaves.left.and.right", color: Palette.tintSkyInk)
                     Text("触感反馈")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -423,83 +489,67 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .settingsSeparatorToIconEdge()
         } header: {
-            sectionHeader("通用与偏好")
+            sectionHeader("偏好设置")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
-    // MARK: - 模型、用量与连接（核心账号与设备入口）
-
-    private var modelAndConnectionSection: some View {
-        Section {
-            navRow(icon: "cpu", title: L10n.string("模型与服务商"), route: .models)
-            navRow(icon: "desktopcomputer", title: L10n.string("云电脑与远程主机"), route: .cloudComputers)
-            navRow(icon: "chart.bar", title: L10n.string("用量统计"), route: .usage)
-            navRow(icon: "server.rack", title: L10n.string("当前服务器"), route: .serverDetail)
-            NavigationLink(value: SettingsRoute.authSessions) {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("key.radiowaves.forward")
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("登录会话与票据")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Text(appState.shortLivedTokenActive ? "短时票据已启用" : "点击启用或管理设备")
-                            .font(.rowSubtitle)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .settingsSeparatorToIconEdge()
-            navRow(icon: "qrcode", title: L10n.string("添加设备"), route: .addDevice)
-            if pendingPairingCount > 0 {
-                statusNavRow(
-                    icon: "person.badge.key",
-                    title: L10n.string("设备配对"),
-                    status: "\(pendingPairingCount) 条待批准",
-                    route: .pairingManagement
-                )
-            }
-        } header: {
-            sectionHeader("模型与连接")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(OneDayMetrics.settingsRowInsets)
-    }
-
-    // MARK: - 高级与支持（运维诊断全部收进二级页，主列表零噪音）
+    // MARK: - 4. 高级与支持（运维诊断全部收进二级页，主列表零噪音）
 
     private var advancedAndSupportSection: some View {
         Section {
-            NavigationLink(value: SettingsRoute.advancedDiagnostics) {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("wrench.and.screwdriver")
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("高级与诊断")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Text("网关 · 环境变量 · 日志 · 自检")
-                            .font(.rowSubtitle)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .settingsSeparatorToIconEdge()
-            navRow(icon: "questionmark.circle", title: L10n.string("帮助与反馈"), route: .help)
-            navRow(icon: "info.circle", title: L10n.string("关于 OneDay"), route: .about)
+            statusNavRow(
+                icon: "wrench.and.screwdriver",
+                color: Palette.tintLavenderInk,
+                title: L10n.string("高级与诊断"),
+                status: "网关 · 环境变量 · 日志 · 自检",
+                route: .advancedDiagnostics
+            )
+            navRow(icon: "questionmark.circle", color: Palette.tintSkyInk, title: L10n.string("帮助与反馈"), route: .help)
+            navRow(icon: "info.circle", color: Palette.inkSecondary, title: L10n.string("关于 OneDay"), route: .about)
         } header: {
             sectionHeader("高级与支持")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    /// 二级收口页：Hermes 智能体全能力工作台（渐进披露，彻底避免设置根页乱堆）
+    private var agentWorkspaceView: some View {
+        List {
+            SettingsHeroCard(
+                symbol: "square.grid.2x2.fill",
+                tint: Palette.tintOrangeInk,
+                title: "智能体工作台",
+                subtitle: "统一管理 Hermes 的长期记忆、技能库、工具集、多智能体委派与定时自动化。"
+            )
+
+            Section {
+                navRow(icon: "memorychip", color: Palette.tintLavenderInk, title: L10n.string("记忆管理"), route: .agent(.memory))
+                navRow(icon: "puzzlepiece.extension", color: Palette.tintGreenInk, title: L10n.string("技能库"), route: .agent(.skills))
+                navRow(icon: "arrow.triangle.branch", color: Palette.tintSkyInk, title: L10n.string("委派路由"), route: .agent(.delegation))
+            } header: {
+                sectionHeader("记忆、技能与协作")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            Section {
+                navRow(icon: "wrench.and.screwdriver", color: Palette.tintOrangeInk, title: L10n.string("工具集与终端"), route: .agent(.toolsets))
+                navRow(icon: "clock.arrow.2.circlepath", color: Palette.tintSkyInk, title: L10n.string("定时任务"), route: .agent(.cron))
+            } header: {
+                sectionHeader("执行与自动化")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .navigationTitle("智能体工作台")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// 二级收口页：运维、服务器诊断与极客项全部扁平收纳于此，不再套娃嵌套
@@ -1064,18 +1114,23 @@ struct SettingsStatusPill: View {
     }
 }
 
-/// 统一设置行图标：20pt 单色线性 SF Symbols，默认次级色，
-/// 仅在异常、危险或明确状态指示时传入语义色
+/// 统一设置行图标（大厂 Apple Settings 规范）：
+/// 29×29 连续圆角 `.hierarchical` SF Symbol 语义色块，与连接器/分身视觉体系完全统一
 struct SettingsRowIcon: View {
     let symbol: String
     var color: Color? = nil
 
     var body: some View {
+        let ink = color ?? Palette.inkSecondary
         Image(systemName: symbol)
-            .font(.system(size: 20, weight: .regular))
-            .symbolRenderingMode(.monochrome)
-            .foregroundStyle(color ?? Palette.inkSecondary)
-            .frame(width: OneDayMetrics.iconSlot, height: OneDayMetrics.iconSlot)
+            .font(.system(size: 14, weight: .semibold))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(ink)
+            .frame(width: 29, height: 29)
+            .background(
+                ink.opacity(0.13),
+                in: RoundedRectangle(cornerRadius: 7.5, style: .continuous)
+            )
             .accessibilityHidden(true)
     }
 }
