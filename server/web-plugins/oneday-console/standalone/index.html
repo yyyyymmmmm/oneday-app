@@ -227,7 +227,9 @@
             hdrs.set("Authorization", "Bearer " + cfg.apiKey);
           }
           opts.headers = hdrs;
-          opts.credentials = "include";
+          if (!cfg.apiKey) {
+            opts.credentials = "include";
+          }
           return nativeFetch(cfg.serverUrl + url, opts);
         }
         return nativeFetch(input, init);
