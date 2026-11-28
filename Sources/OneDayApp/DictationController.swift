@@ -687,8 +687,16 @@ final class DictationController {
         // 即死（.ips 实锤，与①②③的关口全无关）
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(
-                .playAndRecord, mode: .spokenAudio)
+            if VoiceCallAudioSessionManager.shared.isVoiceCallActive {
+                var options: AVAudioSession.CategoryOptions = [.allowBluetoothHFP, .allowBluetoothA2DP]
+                if VoiceCallAudioSessionManager.shared.prefersSpeaker {
+                    options.insert(.defaultToSpeaker)
+                }
+                try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+            } else {
+                try audioSession.setCategory(
+                    .playAndRecord, mode: .spokenAudio)
+            }
             try audioSession.setActive(true)
         } catch {
             return .unavailable
@@ -974,7 +982,7 @@ final class DictationController {
         audioPipe?.finish()
         audioPipe = nil
         audioEngine = nil
-        if deactivateSession {
+        if deactivateSession && !VoiceCallAudioSessionManager.shared.isVoiceCallActive {
             try? AVAudioSession.sharedInstance().setActive(
                 false, options: .notifyOthersOnDeactivation)
         }

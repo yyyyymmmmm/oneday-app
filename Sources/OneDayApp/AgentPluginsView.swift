@@ -226,6 +226,15 @@ struct AgentPluginsView: View {
                     .background(Palette.primaryTint, in: Capsule())
                     .buttonStyle(.plain)
                 }
+                Button("卸载") {
+                    Task { await deletePlugin(plugin) }
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Palette.danger)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Palette.errorSurface, in: Capsule())
+                .buttonStyle(.plain)
                 Toggle("", isOn: Binding(
                     get: { plugin.enabled },
                     set: { newValue in
