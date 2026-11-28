@@ -201,6 +201,8 @@ final class ConnectionsStore {
             let updated = try await client.disconnect(config: config, id: id)
             if let updated { replace(updated) }
             notice = L10n.string("已断开。")
+        } catch let error as OneDayBridgeError {
+            notice = error.userFacingText
         } catch {
             notice = L10n.string("断开没能完成，请稍后再试。")
         }

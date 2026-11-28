@@ -170,28 +170,67 @@ final class CompanionFrontClient: @unchecked Sendable {
         return (response.ok, response.detail ?? "", response.connection)
     }
 
-    /// 断开（摘凭据）
+    /// 断开（摘凭据）：优先走统一网关正口 /v1/front/connections/{id}/disconnect，
+    /// 404/405 时兼容回落旧伴生口 /api/companion/connections/{id}/disconnect
     func disconnect(
         config: ServerConfig, id: String
     ) async throws -> CompanionConnection? {
-        let response: CredentialResponse = try await post(
-            config: config, path: "/connections/\(id)/disconnect",
-            body: [:], endpoint: L10n.string("断开连接")
-        )
-        return response.connection
+        do {
+            let response: CredentialResponse = try await postFullPath(
+                config: config, fullPath: "/v1/front/connections/\(id)/disconnect",
+                body: [:], endpoint: L10n.string("断开连接")
+            )
+            return response.connection
+        } catch OneDayBridgeError.recordGone {
+            let response: CredentialResponse = try await post(
+                config: config, path: "/connections/\(id)/disconnect",
+                body: [:], endpoint: L10n.string("断开连接")
+            )
+            return response.connection
+        }
     }
 
-    /// 删除用户自行添加的远程主机记录
+    /// 删除用户自行添加的远程主机记录：优先走统一网关正口 DELETE /v1/front/connections/{id}，
+    /// 404/405 时兼容回落旧伴生口 DELETE /api/companion/connections/{id}
     func deleteConnection(
         config: ServerConfig, id: String
     ) async throws {
         struct DeleteResponse: Decodable { let ok: Bool }
-        let _: DeleteResponse = try await base.send(
-            config: config, path: "/connections/\(id)", method: "DELETE",
-            body: nil as [String: String]?, endpoint: L10n.string("删除电脑")
-        ) { http, data in
-            try self.checkStatus(http, data: data, endpoint: L10n.string("删除电脑"))
+        do {
+            let request = try base.makeRequest(
+                config: config,
+                fullPath: "/v1/front/connections/\(id)",
+                method: "DELETE"
+            )
+            let (data, http) = try await base.performRaw(request)
+            if http.statusCode == 405 {
+                throw OneDayBridgeError.recordGone
+            }
+            try checkStatus(http, data: data, endpoint: L10n.string("删除电脑"))
+            _ = try? decoder.decode(DeleteResponse.self, from: data)
+        } catch OneDayBridgeError.recordGone {
+            let _: DeleteResponse = try await base.send(
+                config: config, path: "/connections/\(id)", method: "DELETE",
+                body: nil as [String: String]?, endpoint: L10n.string("删除电脑")
+            ) { http, data in
+                try self.checkStatus(http, data: data, endpoint: L10n.string("删除电脑"))
+            }
         }
+    }
+
+    private func postFullPath<T: Decodable>(
+        config: ServerConfig, fullPath: String,
+        body: [String: JSONValue], endpoint: String
+    ) async throws -> T {
+        var request = try base.makeRequest(config: config, fullPath: fullPath, method: "POST")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, http) = try await base.performRaw(request)
+        if http.statusCode == 405 {
+            throw OneDayBridgeError.recordGone
+        }
+        try checkStatus(http, data: data, endpoint: endpoint)
+        return try decoder.decode(T.self, from: data)
     }
 
     private struct CredentialResponse: Decodable {
