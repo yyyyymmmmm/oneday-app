@@ -1601,6 +1601,29 @@ public struct ModelAnalytics: Decodable, Sendable {
         }
     }
 
+    /// 按模型名去重合并：同名条目的 tokens/cost/sessions/apiCalls 求和，
+    /// provider 取首个非空值（若多条 provider 不一致保留首个），
+    /// 合并后按 tokens 降序排列
+    public var deduplicated: [ModelUsage] {
+        var dict: [String: ModelUsage] = [:]
+        for m in models {
+            if let existing = dict[m.model] {
+                dict[m.model] = ModelUsage(
+                    model: m.model,
+                    provider: existing.provider ?? m.provider,
+                    inputTokens: (existing.inputTokens ?? 0) + (m.inputTokens ?? 0),
+                    outputTokens: (existing.outputTokens ?? 0) + (m.outputTokens ?? 0),
+                    estimatedCost: (existing.estimatedCost ?? 0) + (m.estimatedCost ?? 0),
+                    sessions: (existing.sessions ?? 0) + (m.sessions ?? 0),
+                    apiCalls: (existing.apiCalls ?? 0) + (m.apiCalls ?? 0)
+                )
+            } else {
+                dict[m.model] = m
+            }
+        }
+        return dict.values.sorted { $0.tokens > $1.tokens }
+    }
+
     enum CodingKeys: String, CodingKey {
         case models
     }

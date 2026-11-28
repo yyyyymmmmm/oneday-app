@@ -257,9 +257,10 @@ struct UsageDetailView: View {
     // MARK: - 按模型分布（横向占比条）
 
     private func modelsSection(_ models: ModelAnalytics) -> some View {
-        let total = max(models.models.map(\.tokens).reduce(0, +), 1)
+        let dedupedModels = models.deduplicated
+        let total = max(dedupedModels.map(\.tokens).reduce(0, +), 1)
         return Section {
-            ForEach(models.models) { model in
+            ForEach(dedupedModels) { model in
                 let ratio = min(max(model.tokens / total, 0), 1)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                     HStack(alignment: .firstTextBaseline, spacing: OneDayMetrics.spacingS) {
