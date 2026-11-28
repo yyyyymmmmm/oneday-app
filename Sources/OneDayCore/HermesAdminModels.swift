@@ -1580,6 +1580,11 @@ public struct UsageAnalytics: Decodable, Sendable {
 public struct ModelAnalytics: Decodable, Sendable {
     public let models: [ModelUsage]
 
+    /// 供测试与调用方直接构造（自定义 init(from:) 会压掉合成的 memberwise init）
+    public init(models: [ModelUsage]) {
+        self.models = models
+    }
+
     public struct ModelUsage: Decodable, Sendable, Identifiable {
         public let model: String
         public let provider: String?
