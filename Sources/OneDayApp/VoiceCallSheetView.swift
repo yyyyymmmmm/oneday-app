@@ -1,14 +1,24 @@
+import AudioToolbox
 import AVFAudio
 import OneDayCore
 import OneDayDesign
+import Speech
 import SwiftUI
 
-// MARK: - 按句流式切分器（边生成边播报，对标豆包 / GPT 语音电话首音体验）
+// MARK: - 通话音效提示音（接通 / 发送 / 挂断 / 异常，对齐豆包 / 微信语音反馈）
+
+private enum VoiceCallEarcon {
+    static func playConnected() { AudioServicesPlaySystemSound(1113) }
+    static func playMessageSent() { AudioServicesPlaySystemSound(1114) }
+    static func playEnded() { AudioServicesPlaySystemSound(1117) }
+    static func playError() { AudioServicesPlaySystemSound(1053) }
+}
+
+// MARK: - 按句流式切分器（边生成边播报，降低首音延迟）
 
 private enum VoiceSentenceSplitter {
     private static let terminators: Set<Character> = ["。", "！", "？", "!", "?", "\n", "；", ";"]
 
-    /// 从累计流式文本的 `cursor` 位置起，提取所有已闭合的完整句子并推进游标
     static func extractCompleteSentences(from fullText: String, cursor: inout Int) -> [String] {
         guard fullText.count > cursor else { return [] }
         let startIdx = fullText.index(fullText.startIndex, offsetBy: cursor)
@@ -33,7 +43,6 @@ private enum VoiceSentenceSplitter {
         return results
     }
 
-    /// 流结束时刷出剩余尾句
     static func flushRemainder(from fullText: String, cursor: inout Int) -> String? {
         guard fullText.count > cursor else { return nil }
         let startIdx = fullText.index(fullText.startIndex, offsetBy: cursor)
@@ -45,7 +54,6 @@ private enum VoiceSentenceSplitter {
 
     static func cleanForSpeech(_ raw: String) -> String {
         var text = raw
-        // 去掉常见 Markdown 标记与代码块围栏，避免朗读出“井号/星号”
         text = text.replacingOccurrences(of: "```[\\s\\S]*?```", with: "代码片段已略过", options: .regularExpression)
         text = text.replacingOccurrences(of: "`([^`]+)`", with: "$1", options: .regularExpression)
         text = text.replacingOccurrences(of: "\\[([^\\]]+)\\]\\([^\\)]+\\)", with: "$1", options: .regularExpression)
@@ -54,13 +62,21 @@ private enum VoiceSentenceSplitter {
     }
 }
 
-// MARK: - 100% 有声保底：iOS 系统中文神经语音串行播报队列
+// MARK: - 实时通话字幕条目
+
+private struct VoiceCallTranscriptLine: Identifiable, Equatable {
+    let id = UUID()
+    let isUser: Bool
+    var text: String
+}
+
+// MARK: - 100% 有声保底：服务端 TTS + iOS 中文系统语音串行队列
 
 @MainActor
 private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published private(set) var isSpeaking = false
     @Published private(set) var currentSpokenSentence = ""
-    @Published private(set) var usingSystemVoiceFallback = false
+    @Published private(set) var lastAudioNotice: String?
 
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingSentences: [String] = []
@@ -69,7 +85,9 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
     private var activeServerPlayTask: Task<Void, Never>?
     private var activeAudioPlayer: AVAudioPlayer?
     private var audioPlayerDelegate: LocalAVPlayerDelegate?
+    private weak var pendingAppState: AppState?
 
+    var onWillStartSpeaking: (() -> Void)?
     var onAllFinished: (() -> Void)?
 
     override init() {
@@ -77,12 +95,13 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
         synthesizer.delegate = self
     }
 
-    func enqueue(_ sentence: String, appState: AppState) {
+    func enqueue(_ sentence: String, appState: AppState, forceLocal: Bool = false) {
         let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        pendingAppState = appState
         pendingSentences.append(trimmed)
         if !isProcessing {
-            playNext(appState: appState)
+            playNext(appState: appState, forceLocal: forceLocal)
         }
     }
 
@@ -102,7 +121,7 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
         VoiceCallAudioSessionManager.shared.clearAISpeechContext()
     }
 
-    private func playNext(appState: AppState) {
+    private func playNext(appState: AppState, forceLocal: Bool = false) {
         guard !pendingSentences.isEmpty else {
             isProcessing = false
             isSpeaking = false
@@ -112,15 +131,18 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
             return
         }
 
+        // 播报前先通知通话页暂停外放录音（防止 AVAudioEngine 抢占导致 AVSpeechSynthesizer 静音），
+        // 再显式加固扬声器路由，确保 100% 有声
+        onWillStartSpeaking?()
+        VoiceCallAudioSessionManager.shared.ensurePlaybackRoute()
+
         isProcessing = true
         isSpeaking = true
         let next = pendingSentences.removeFirst()
         currentSpokenSentence = next
         VoiceCallAudioSessionManager.shared.markAISpeechStarted(text: next)
 
-        // 若服务端 TTS 连续失败超过 1 次，本通电话直接走 iOS 高品质神经语音保底（零等待、绝不静音）
-        if serverTTSFailedCount >= 1 || appState.config == nil {
-            usingSystemVoiceFallback = true
+        if forceLocal || serverTTSFailedCount >= 1 || appState.config == nil {
             speakLocally(next, appState: appState)
             return
         }
@@ -133,7 +155,9 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
                     try await client.speak(config: config, text: next)
                 }
                 guard !Task.isCancelled else { return }
+                VoiceCallAudioSessionManager.shared.ensurePlaybackRoute()
                 let player = try AVAudioPlayer(data: data)
+                player.volume = 1.0
                 let delegate = LocalAVPlayerDelegate { [weak self] in
                     Task { @MainActor in
                         self?.activeAudioPlayer = nil
@@ -144,42 +168,49 @@ private final class VoiceCallSpeechQueue: NSObject, ObservableObject, AVSpeechSy
                 player.delegate = delegate
                 self.activeAudioPlayer = player
                 self.audioPlayerDelegate = delegate
-                self.usingSystemVoiceFallback = false
+                self.lastAudioNotice = nil
                 if !player.play() {
                     throw NSError(domain: "VoiceCall", code: -1)
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 self.serverTTSFailedCount += 1
-                self.usingSystemVoiceFallback = true
+                self.lastAudioNotice = "已自动切换系统语音播报"
                 self.speakLocally(next, appState: appState)
             }
         }
     }
 
     private func speakLocally(_ text: String, appState: AppState) {
+        VoiceCallAudioSessionManager.shared.ensurePlaybackRoute()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
             ?? AVSpeechSynthesisVoice(language: Locale.current.identifier)
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.06
+        utterance.volume = 1.0
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.04
         utterance.pitchMultiplier = 1.0
-        utterance.postUtteranceDelay = 0.08
-        self.pendingAppStateForSystemDelegate = appState
+        utterance.postUtteranceDelay = 0.06
+        pendingAppState = appState
         synthesizer.speak(utterance)
     }
-
-    private weak var pendingAppStateForSystemDelegate: AppState?
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
             guard self.isProcessing else { return }
-            if let appState = self.pendingAppStateForSystemDelegate {
+            if let appState = self.pendingAppState {
                 self.playNext(appState: appState)
             } else {
                 self.isProcessing = false
                 self.isSpeaking = false
                 self.onAllFinished?()
             }
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.isProcessing = false
+            self.isSpeaking = false
         }
     }
 }
@@ -191,7 +222,7 @@ private final class LocalAVPlayerDelegate: NSObject, AVAudioPlayerDelegate {
     func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) { onFinish() }
 }
 
-// MARK: - 豆包 / ChatGPT 级极简实时语音电话
+// MARK: - 豆包 / ChatGPT 级实时语音电话（带实时滚动文字 + 音效 + 权限明确诊断 + 100% 有声保底）
 
 struct VoiceCallSheetView: View {
     @Environment(AppState.self) private var appState
@@ -212,39 +243,55 @@ struct VoiceCallSheetView: View {
     @StateObject private var speechQueue = VoiceCallSpeechQueue()
 
     @State private var liveTranscript = ""
+    @State private var callTranscriptLines: [VoiceCallTranscriptLine] = []
+    @State private var showTranscriptPanel = true
     @State private var isMuted = false
     @State private var callSeconds = 0
     @State private var orbPulse = false
     @State private var silenceSendTask: Task<Void, Never>?
     @State private var spokenCursor = 0
     @State private var lastSettledReply = ""
-    @State private var micPermissionDenied = false
+
+    @State private var micPermissionIssue: String?
+    @State private var speechPermissionIssue: String?
 
     private enum CallPhase: Equatable {
+        case permissionBlocked
         case muted
         case listening
         case thinking
         case speaking
     }
 
+    private var hasPermissionBlocker: Bool {
+        micPermissionIssue != nil || speechPermissionIssue != nil
+    }
+
     private var phase: CallPhase {
+        if hasPermissionBlocker { return .permissionBlocked }
         if speechQueue.isSpeaking { return .speaking }
         if isAssistantStreaming { return .thinking }
         return isMuted ? .muted : .listening
     }
 
     private var humanStatusText: String {
-        if micPermissionDenied { return "需要开启麦克风权限才能通话" }
+        if let micErr = micPermissionIssue { return micErr }
+        if let spErr = speechPermissionIssue { return spErr }
         switch phase {
+        case .permissionBlocked: return "请先开启权限"
         case .muted: return "已静音"
-        case .listening: return liveTranscript.isEmpty ? "我在听，请直接说…" : "正在听你说…"
+        case .listening:
+            if !liveTranscript.isEmpty { return "正在听你说…" }
+            return callDictation.isRecording ? "我在听，请直接说…" : "准备收音中…"
         case .thinking: return "正在想…"
-        case .speaking: return "正在说 · 随时可以插话打断"
+        case .speaking: return "正在说 · 轻点光球可打断"
         }
     }
 
     private var orbGradientColors: [Color] {
         switch phase {
+        case .permissionBlocked:
+            return [Color.orange, Color.red.opacity(0.85)]
         case .muted:
             return [Color.gray.opacity(0.65), Color.gray.opacity(0.45)]
         case .listening:
@@ -262,7 +309,6 @@ struct VoiceCallSheetView: View {
 
     var body: some View {
         ZStack {
-            // 沉浸式深色渐变背景（对标豆包 / GPT 语音通话）
             LinearGradient(
                 colors: [
                     Color(red: 0.06, green: 0.07, blue: 0.11),
@@ -276,20 +322,24 @@ struct VoiceCallSheetView: View {
 
             VStack(spacing: 0) {
                 topBar
-                Spacer(minLength: 24)
+                Spacer(minLength: 14)
                 voiceOrb
-                Spacer(minLength: 24)
-                subtitleArea
-                if micPermissionDenied {
-                    permissionFixButton
-                        .padding(.top, 12)
+                if hasPermissionBlocker {
+                    permissionFixCard
+                        .padding(.top, 14)
                 }
-                Spacer(minLength: 28)
+                if showTranscriptPanel {
+                    liveTranscriptFeed
+                        .padding(.top, 16)
+                } else {
+                    Spacer(minLength: 24)
+                }
+                Spacer(minLength: 16)
                 bottomControls
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 14)
-            .padding(.bottom, 34)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 30)
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -304,7 +354,6 @@ struct VoiceCallSheetView: View {
                 callSeconds += 1
             }
         }
-        // 流式每吐出完整一句，立即进入播报队列（边想边说！）
         .onChange(of: streamingAssistantText) { _, newText in
             guard isAssistantStreaming, !newText.isEmpty else { return }
             let sentences = VoiceSentenceSplitter.extractCompleteSentences(from: newText, cursor: &spokenCursor)
@@ -312,22 +361,23 @@ struct VoiceCallSheetView: View {
                 speechQueue.enqueue(s, appState: appState)
             }
         }
-        // 生成结束时刷出最后半句；若整段未走流式（直接落盘），兜底整段按句切分播报
         .onChange(of: isAssistantStreaming) { wasStreaming, nowStreaming in
             if !wasStreaming && nowStreaming {
                 spokenCursor = 0
             } else if wasStreaming && !nowStreaming {
                 let source = !streamingAssistantText.isEmpty ? streamingAssistantText : latestAssistantReply
-                if spokenCursor == 0 && !source.isEmpty && source != lastSettledReply {
-                    var c = 0
-                    let parts = VoiceSentenceSplitter.extractCompleteSentences(from: source, cursor: &c)
-                    for s in parts { speechQueue.enqueue(s, appState: appState) }
-                    if let tail = VoiceSentenceSplitter.flushRemainder(from: source, cursor: &c) {
-                        speechQueue.enqueue(tail, appState: appState)
+                if !source.isEmpty && source != lastSettledReply {
+                    callTranscriptLines.append(VoiceCallTranscriptLine(isUser: false, text: source))
+                    if spokenCursor == 0 {
+                        var c = 0
+                        let parts = VoiceSentenceSplitter.extractCompleteSentences(from: source, cursor: &c)
+                        for s in parts { speechQueue.enqueue(s, appState: appState) }
+                        if let tail = VoiceSentenceSplitter.flushRemainder(from: source, cursor: &c) {
+                            speechQueue.enqueue(tail, appState: appState)
+                        }
+                    } else if let rem = VoiceSentenceSplitter.flushRemainder(from: source, cursor: &spokenCursor) {
+                        speechQueue.enqueue(rem, appState: appState)
                     }
-                    lastSettledReply = source
-                } else if let rem = VoiceSentenceSplitter.flushRemainder(from: source, cursor: &spokenCursor) {
-                    speechQueue.enqueue(rem, appState: appState)
                     lastSettledReply = source
                 }
             }
@@ -338,11 +388,11 @@ struct VoiceCallSheetView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             agentAvatar
                 .resizable()
                 .scaledToFill()
-                .frame(width: 38, height: 38)
+                .frame(width: 36, height: 36)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
 
@@ -350,16 +400,38 @@ struct VoiceCallSheetView: View {
                 Text(agentName)
                     .font(.headline)
                     .foregroundStyle(.white)
-                Text(formattedDuration)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.65))
+                HStack(spacing: 6) {
+                    Text(formattedDuration)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.65))
+                    if let note = speechQueue.lastAudioNotice {
+                        Text("· \(note)")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                }
             }
 
             Spacer()
 
-            // 系统蓝牙/AirPods 路由图标（零文字干扰）
+            Button {
+                Haptics.selection()
+                withAnimation(.snappy(duration: 0.2)) {
+                    showTranscriptPanel.toggle()
+                }
+            } label: {
+                Text(showTranscriptPanel ? "隐藏字幕" : "显示字幕")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.14), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
             VoiceCallRoutePickerButton(tintColor: .white, activeTintColor: .systemTeal)
-                .frame(width: 36, height: 36)
+                .frame(width: 34, height: 34)
                 .background(.white.opacity(0.12), in: Circle())
 
             Button {
@@ -367,9 +439,9 @@ struct VoiceCallSheetView: View {
                 dismiss()
             } label: {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 34, height: 34)
                     .background(.white.opacity(0.12), in: Circle())
             }
             .buttonStyle(.odPressable)
@@ -378,7 +450,7 @@ struct VoiceCallSheetView: View {
     }
 
     private var voiceOrb: some View {
-        VStack(spacing: 26) {
+        VStack(spacing: 16) {
             Button {
                 Haptics.impact(.light)
                 handleOrbTap()
@@ -386,11 +458,11 @@ struct VoiceCallSheetView: View {
                 ZStack {
                     Circle()
                         .fill(orbGradientColors[0].opacity(0.18))
-                        .frame(width: orbPulse ? 236 : 194, height: orbPulse ? 236 : 194)
-                        .blur(radius: 6)
+                        .frame(width: orbPulse ? 176 : 148, height: orbPulse ? 176 : 148)
+                        .blur(radius: 5)
                     Circle()
-                        .fill(orbGradientColors[1].opacity(0.26))
-                        .frame(width: orbPulse ? 186 : 158, height: orbPulse ? 186 : 158)
+                        .fill(orbGradientColors[1].opacity(0.28))
+                        .frame(width: orbPulse ? 138 : 118, height: orbPulse ? 138 : 118)
                     Circle()
                         .fill(
                             LinearGradient(
@@ -399,18 +471,18 @@ struct VoiceCallSheetView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 132, height: 132)
-                        .shadow(color: orbGradientColors[0].opacity(0.55), radius: 28, y: 8)
+                        .frame(width: 102, height: 102)
+                        .shadow(color: orbGradientColors[0].opacity(0.55), radius: 22, y: 6)
 
                     Image(systemName: orbSymbol)
-                        .font(.system(size: 40, weight: .medium))
+                        .font(.system(size: 32, weight: .medium))
                         .foregroundStyle(.white)
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .animation(
                     reduceMotion
                         ? .default
-                        : .easeInOut(duration: phase == .speaking ? 0.85 : 1.5).repeatForever(autoreverses: true),
+                        : .easeInOut(duration: phase == .speaking ? 0.8 : 1.4).repeatForever(autoreverses: true),
                     value: orbPulse
                 )
             }
@@ -418,73 +490,128 @@ struct VoiceCallSheetView: View {
             .onAppear { orbPulse = true }
 
             Text(humanStatusText)
-                .font(.body.weight(.medium))
-                .foregroundStyle(.white.opacity(0.92))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.94))
                 .multilineTextAlignment(.center)
         }
     }
 
     private var orbSymbol: String {
         switch phase {
+        case .permissionBlocked: return "exclamationmark.triangle.fill"
         case .muted: return "mic.slash.fill"
         case .listening: return "waveform"
         case .thinking: return "sparkles"
-        case .speaking: return "waveform.circle.fill"
+        case .speaking: return "speaker.wave.3.fill"
         }
     }
 
-    private var subtitleArea: some View {
+    /// 实时滚动对话字幕面板（对齐豆包/GPT 实时文字字幕体验）
+    private var liveTranscriptFeed: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if callTranscriptLines.isEmpty && liveTranscript.isEmpty && streamingAssistantText.isEmpty {
+                        Text("已接通，直接开口说话即可看到实时文字；停顿约 1.2 秒自动发送，AI 回复会实时出字并朗读。")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
+                            .padding(.vertical, 20)
+                    }
+
+                    ForEach(callTranscriptLines) { line in
+                        transcriptRow(isUser: line.isUser, text: line.text, isLive: false)
+                    }
+
+                    if !liveTranscript.isEmpty {
+                        transcriptRow(isUser: true, text: liveTranscript, isLive: true)
+                            .id("live-user")
+                    }
+
+                    if isAssistantStreaming && !streamingAssistantText.isEmpty {
+                        transcriptRow(isUser: false, text: streamingAssistantText, isLive: true)
+                            .id("live-ai")
+                    }
+
+                    Color.clear.frame(height: 1).id("transcript-bottom")
+                }
+                .padding(14)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 160, maxHeight: 260)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 0.75)
+            )
+            .onChange(of: liveTranscript) { _, _ in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo("transcript-bottom", anchor: .bottom)
+                }
+            }
+            .onChange(of: streamingAssistantText) { _, _ in
+                proxy.scrollTo("transcript-bottom", anchor: .bottom)
+            }
+            .onChange(of: callTranscriptLines.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo("transcript-bottom", anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    private func transcriptRow(isUser: Bool, text: String, isLive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(isUser ? "你" : agentName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(isUser ? Color.cyan : Color.green)
+                if isLive {
+                    Text("实时")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.white.opacity(0.16), in: Capsule())
+                }
+            }
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(isLive ? 0.98 : 0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var permissionFixCard: some View {
         VStack(spacing: 8) {
-            if !liveTranscript.isEmpty {
-                Text(liveTranscript)
-                    .font(.callout.weight(.medium))
+            Text("当前无法收音：请在 iPhone「设置 → OneDay」中同时打开「麦克风」和「语音识别」权限。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.85))
+                .multilineTextAlignment(.center)
+            Button {
+                #if canImport(UIKit)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                #endif
+            } label: {
+                Text("去系统设置开启权限")
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            } else if !speechQueue.currentSpokenSentence.isEmpty {
-                Text(speechQueue.currentSpokenSentence)
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            } else if isAssistantStreaming && !streamingAssistantText.isEmpty {
-                Text(String(streamingAssistantText.suffix(80)))
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            } else {
-                Text("说话停顿约 1.2 秒自动发送，轻点光球随时打断")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.48))
-                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue, in: Capsule())
             }
+            .buttonStyle(.plain)
         }
-        .frame(minHeight: 56)
-        .padding(.horizontal, 8)
-    }
-
-    private var permissionFixButton: some View {
-        Button {
-            #if canImport(UIKit)
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
-            #endif
-        } label: {
-            Text("去系统设置开启麦克风与语音识别")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(Color.blue, in: Capsule())
-        }
-        .buttonStyle(.plain)
+        .padding(12)
+        .background(Color.red.opacity(0.18), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var bottomControls: some View {
         HStack(spacing: 34) {
-            // 1. 扬声器 / 听筒
             Button {
                 Haptics.selection()
                 audioManager.toggleSpeakerReceiver()
@@ -502,7 +629,6 @@ struct VoiceCallSheetView: View {
             }
             .buttonStyle(.odPressable)
 
-            // 2. 静音
             Button {
                 Haptics.selection()
                 toggleMute()
@@ -520,9 +646,9 @@ struct VoiceCallSheetView: View {
             }
             .buttonStyle(.odPressable)
 
-            // 3. 挂断
             Button {
                 Haptics.impact(.heavy)
+                VoiceCallEarcon.playEnded()
                 endVoiceCallCleanup()
                 dismiss()
             } label: {
@@ -541,15 +667,21 @@ struct VoiceCallSheetView: View {
         }
     }
 
-    // MARK: - 通话控制逻辑
+    // MARK: - 通话控制与权限体检
 
     private func startVoiceCall() {
         lastSettledReply = latestAssistantReply
         spokenCursor = 0
         audioManager.activateForVoiceCall(preferSpeaker: true)
 
+        // 播报期间暂停外放录音，彻底避免 AVAudioEngine 压制系统语音导致无声；播完自动恢复收音
+        speechQueue.onWillStartSpeaking = { [self] in
+            if !audioManager.currentRoute.isExternalAccessory, callDictation.isRecording {
+                callDictation.cancel()
+            }
+        }
         speechQueue.onAllFinished = { [self] in
-            if !isMuted && !isAssistantStreaming {
+            if !isMuted && !isAssistantStreaming && !hasPermissionBlocker {
                 startListeningIfAllowed()
             }
         }
@@ -571,19 +703,26 @@ struct VoiceCallSheetView: View {
             commitCurrentTranscript()
         }
 
-        // 先检查麦克风权限，避免静默失败
-        AVAudioApplication.requestRecordPermission { granted in
-            Task { @MainActor in
-                micPermissionDenied = !granted
-                if granted {
-                    startListeningIfAllowed()
+        // 同时核查麦克风权限 + 语音识别权限，任何一项缺失立即提示并响异常音
+        AVAudioApplication.requestRecordPermission { micGranted in
+            SFSpeechRecognizer.requestAuthorization { speechStatus in
+                Task { @MainActor in
+                    micPermissionIssue = micGranted ? nil : "麦克风权限未开启"
+                    speechPermissionIssue = (speechStatus == .authorized) ? nil : "语音识别权限未开启"
+                    if micGranted && speechStatus == .authorized {
+                        VoiceCallEarcon.playConnected()
+                        // 接通即播报一句简短问候，既像真人接起，又立即验证扬声器有声
+                        speechQueue.enqueue("已接通，我在听。", appState: appState, forceLocal: true)
+                    } else {
+                        VoiceCallEarcon.playError()
+                    }
                 }
             }
         }
     }
 
     private func startListeningIfAllowed() {
-        guard !isMuted, !micPermissionDenied else { return }
+        guard !isMuted, !hasPermissionBlocker, !speechQueue.isSpeaking else { return }
         if !callDictation.isRecording {
             callDictation.toggle(currentDraft: "")
         }
@@ -634,10 +773,12 @@ struct VoiceCallSheetView: View {
         let text = liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         liveTranscript = ""
+        callTranscriptLines.append(VoiceCallTranscriptLine(isUser: true, text: text))
         if callDictation.isRecording {
             callDictation.cancel()
         }
         spokenCursor = 0
+        VoiceCallEarcon.playMessageSent()
         onSendMessage(text)
     }
 

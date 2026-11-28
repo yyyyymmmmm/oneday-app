@@ -3335,8 +3335,10 @@ struct ChatView: View {
         // 量测台要避的，故不扩围
         var feedIsExact = resolved.isExact
         var urgentHeight: CGFloat? = nil
-        if !resolved.isExact, entry.role == "user",
-           sessionSentEntryIDs.contains(entry.id) {
+        let isRichInlineCard = entry.toolCard != nil
+            || (entry.role == "user" && AsyncDelegationCallbackParser.isSystemCallback(entry.content))
+        if !resolved.isExact,
+           (isRichInlineCard || (entry.role == "user" && sessionSentEntryIDs.contains(entry.id))) {
             urgentHeight = rowMeasureDesk.measureNow(
                 rowKey: key
             )
@@ -3345,19 +3347,10 @@ struct ChatView: View {
             }
         }
         let highlighted = entry.id == anchorHighlightEntryID || entry.id == findController.highlightEntryID
-        // 台账 190 留账·nanoMuse 三件②（§335）：量
-        // 测未就绪时先问预计算——产物段高＋合成器
-        // facet 公式合成的近确值（与本行当前内容
-        // 同文、文本段是真量测值），优先于上次高/
-        // 兜底 120；产物缺失/不适用（用户行宽口径
-        // 闸、非条目行无产物）保持旧口径。喂入高
-        // 仍标临界（heightIsProvisional 不变）：确
-        // 值回填后经发布代次以确高重喂、本行终态
-        // 口径零变
         var feedHeight = resolved.height
         if let urgentHeight {
             feedHeight = urgentHeight
-        } else if !resolved.isExact,
+        } else if !resolved.isExact, !isRichInlineCard,
            let product = entryLayoutProduct(entry),
            let precomputed = composer
             .precomputedEntryHeight(
@@ -3369,6 +3362,9 @@ struct ChatView: View {
                 product: product
             ) {
             feedHeight = precomputed
+        } else if !resolved.isExact, isRichInlineCard {
+            // 兜底给足结构化分身/工具卡初始高度，杜绝 36pt 矮帧导致卡片与下一条气泡重叠
+            feedHeight = max(feedHeight, 220)
         }
         // 行描述备忘戳：构建输入全量（量测键含修订
         // 基段摘要＋facet 摘要＋环境指纹；落定高；

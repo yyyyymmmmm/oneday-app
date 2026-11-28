@@ -139,6 +139,34 @@ final class VoiceCallAudioSessionManager: ObservableObject {
         return true
     }
 
+    /// 每次准备播报 AI 语音前显式加固扬声器/蓝牙路由：
+    /// 使用 `.default` 模式避免 `.voiceChat` 把扬声器音量压到极小导致用户听不到声音。
+    func ensurePlaybackRoute() {
+        guard isVoiceCallActive else { return }
+        let session = AVAudioSession.sharedInstance()
+        var options: AVAudioSession.CategoryOptions = [
+            .allowBluetoothHFP,
+            .allowBluetoothA2DP,
+        ]
+        if prefersSpeaker {
+            options.insert(.defaultToSpeaker)
+        }
+        try? session.setCategory(.playAndRecord, mode: .default, options: options)
+        try? session.setActive(true)
+        let currentOutputs = session.currentRoute.outputs
+        let hasExternal = currentOutputs.contains { port in
+            port.portType == .bluetoothHFP
+                || port.portType == .bluetoothA2DP
+                || port.portType == .bluetoothLE
+                || port.portType == .headphones
+                || port.portType == .usbAudio
+        }
+        if !hasExternal {
+            try? session.overrideOutputAudioPort(prefersSpeaker ? .speaker : .none)
+        }
+        refreshCurrentRoute()
+    }
+
     // MARK: - 内部 AVAudioSession 调度
 
     private func applyAudioSession(preferSpeaker: Bool) {
@@ -150,8 +178,8 @@ final class VoiceCallAudioSessionManager: ObservableObject {
         if preferSpeaker {
             options.insert(.defaultToSpeaker)
         }
-        // `.voiceChat` 模式会启用 iOS 硬件回声消除（AEC）与人声自动增益
-        try? session.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+        // 使用 `.default` 模式保证外放响度正常（避免 `.voiceChat` 导致系统语音音量过小听不见）
+        try? session.setCategory(.playAndRecord, mode: .default, options: options)
         try? session.setActive(true)
 
         // 当未连接外部蓝牙/耳机时，显式覆盖扬声器/听筒输出端口
