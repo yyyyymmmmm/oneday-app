@@ -14,6 +14,7 @@ struct ConnectorsView: View {
     @State private var facade = ConnectorsFacade()
     @State private var query = ""
     @State private var detailTarget: DetailTarget?
+    @State private var showAddCustomMCPSheet = false
 
     private enum DetailTarget: Identifiable {
         case device(DeviceSourceID)
@@ -139,6 +140,23 @@ struct ConnectorsView: View {
         }
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
+        }
+        .sheet(isPresented: $showAddCustomMCPSheet) {
+            AddCustomMCPServerSheet(
+                existingNames: facade.servers.map(\.name),
+                facade: facade,
+                appState: appState
+            )
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAddCustomMCPSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("添加自定义 MCP 服务")
+            }
         }
     }
 
@@ -528,6 +546,7 @@ private struct MCPServerDetailView: View {
     let facade: ConnectorsFacade
     let appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteConfirm = false
 
     private var currentServer: MCPServerItem {
         facade.servers.first(where: { $0.name == server.name }) ?? server
@@ -622,6 +641,23 @@ private struct MCPServerDetailView: View {
                         .padding(.vertical, 4)
                     }
                 }
+
+                if !currentServer.isPluginProvided {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            HStack {
+                                Label("移除此 MCP 服务", systemImage: "trash")
+                                Spacer()
+                                if facade.deletingServers.contains(currentServer.name) {
+                                    ProgressView().controlSize(.small)
+                                }
+                            }
+                        }
+                        .disabled(facade.deletingServers.contains(currentServer.name))
+                    }
+                }
             }
             .navigationTitle(currentServer.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -630,7 +666,178 @@ private struct MCPServerDetailView: View {
                     Button("关闭") { dismiss() }
                 }
             }
+            .confirmationDialog(
+                "移除「\(currentServer.name)」？",
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("确认移除", role: .destructive) {
+                    Task {
+                        let removed = await facade.deleteServer(currentServer, appState: appState)
+                        if removed { dismiss() }
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("移除后 Hermes 将不再挂载此 MCP 服务的工具，可随时重新添加。")
+            }
         }
+    }
+}
+
+// MARK: - 添加自定义 Remote HTTP/SSE 或 stdio MCP 服务表单
+
+private struct AddCustomMCPServerSheet: View {
+    let existingNames: [String]
+    let facade: ConnectorsFacade
+    let appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    private enum Mode: String, CaseIterable, Identifiable {
+        case remoteHTTP = "远程 HTTP / SSE"
+        case localStdio = "本地命令行 (stdio)"
+        var id: String { rawValue }
+    }
+
+    private enum AuthMode: String, CaseIterable, Identifiable {
+        case none = "无需鉴权"
+        case header = "Bearer 密钥"
+        case oauth = "OAuth 2.1"
+        var id: String { rawValue }
+
+        var apiValue: String {
+            switch self {
+            case .none: return "none"
+            case .header: return "header"
+            case .oauth: return "oauth"
+            }
+        }
+    }
+
+    @State private var mode: Mode = .remoteHTTP
+    @State private var name = ""
+    @State private var url = ""
+    @State private var authMode: AuthMode = .none
+    @State private var bearerToken = ""
+    @State private var command = ""
+    @State private var argsText = ""
+    @State private var envLines = ""
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var nameConflict: Bool {
+        !trimmedName.isEmpty && existingNames.contains(trimmedName)
+    }
+
+    private var canSubmit: Bool {
+        guard !trimmedName.isEmpty, !nameConflict, !facade.isAddingServer else { return false }
+        switch mode {
+        case .remoteHTTP:
+            let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedURL.hasPrefix("http://") || trimmedURL.hasPrefix("https://")
+        case .localStdio:
+            return !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("基础信息") {
+                    TextField("服务名称（如 github / notion）", text: $name)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    if nameConflict {
+                        Text("已有同名 MCP 服务，请换一个名称。")
+                            .font(.caption)
+                            .foregroundStyle(Palette.danger)
+                    }
+                    Picker("接入方式", selection: $mode) {
+                        ForEach(Mode.allCases) { m in
+                            Text(m.rawValue).tag(m)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if mode == .remoteHTTP {
+                    Section("远程 MCP 端点") {
+                        TextField("https://example.com/mcp", text: $url)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                        Picker("鉴权方式", selection: $authMode) {
+                            ForEach(AuthMode.allCases) { item in
+                                Text(item.rawValue).tag(item)
+                            }
+                        }
+                        if authMode == .header {
+                            SecureField("Bearer Token / API Key", text: $bearerToken)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                        }
+                    }
+                } else {
+                    Section("本地命令（运行在 Hermes 宿主机）") {
+                        TextField("命令（如 npx / uvx / python3）", text: $command)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                        TextField("参数（空格分隔，如 -y @modelcontextprotocol/server-github）", text: $argsText)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
+                    Section("环境变量（可选，每行 KEY=VALUE）") {
+                        TextEditor(text: $envLines)
+                            .font(.footnote.monospaced())
+                            .frame(minHeight: 72)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
+                }
+            }
+            .navigationTitle("添加自定义 MCP")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(facade.isAddingServer ? "添加中…" : "添加") {
+                        Task { await submit() }
+                    }
+                    .disabled(!canSubmit)
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCmd = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedArgs = argsText
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+        var parsedEnv: [String: String] = [:]
+        for line in envLines.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard let eq = trimmed.firstIndex(of: "=") else { continue }
+            let k = String(trimmed[..<eq]).trimmingCharacters(in: .whitespaces)
+            let v = String(trimmed[trimmed.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+            if !k.isEmpty { parsedEnv[k] = v }
+        }
+        let ok = await facade.addCustomServer(
+            name: trimmedName,
+            url: mode == .remoteHTTP ? trimmedURL : nil,
+            command: mode == .localStdio ? trimmedCmd : nil,
+            args: mode == .localStdio ? parsedArgs : [],
+            env: mode == .localStdio ? parsedEnv : [:],
+            auth: mode == .remoteHTTP ? authMode.apiValue : nil,
+            bearerToken: (mode == .remoteHTTP && authMode == .header) ? bearerToken : nil,
+            appState: appState
+        )
+        if ok { dismiss() }
     }
 }
 

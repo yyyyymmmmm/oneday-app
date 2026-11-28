@@ -682,6 +682,14 @@ struct DemoHermesClient: HermesClientProtocol {
         config: ServerConfig, name: String
     ) async throws -> MCPTestResult { throw HermesError.demoLimitReached }
 
+    func addMCPServer(
+        config: ServerConfig, name: String, url: String?,
+        command: String?, args: [String], env: [String: String],
+        auth: String?, bearerToken: String?
+    ) async throws { throw HermesError.demoLimitReached }
+
+    func deleteMCPServer(config: ServerConfig, name: String) async throws { throw HermesError.demoLimitReached }
+
     // MARK: - 配置与密钥
 
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue] { throw HermesError.demoLimitReached }

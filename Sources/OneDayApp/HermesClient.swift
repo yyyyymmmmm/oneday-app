@@ -423,6 +423,14 @@ protocol HermesClientProtocol: Sendable {
     func installMCPCatalogEntry(
         config: ServerConfig, name: String, env: [String: String], enable: Bool
     ) async throws -> MCPInstallReceipt
+    /// POST /api/mcp/servers（Hermes v0.23.0 添加自定义 Remote HTTP/SSE 或 stdio MCP 服务）
+    func addMCPServer(
+        config: ServerConfig, name: String, url: String?,
+        command: String?, args: [String], env: [String: String],
+        auth: String?, bearerToken: String?
+    ) async throws
+    /// DELETE /api/mcp/servers/{name}（移除自定义 MCP 服务）
+    func deleteMCPServer(config: ServerConfig, name: String) async throws
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -1007,6 +1015,18 @@ extension HermesClientProtocol {
         config: ServerConfig, apiKey: String, sessionID: String
     ) async throws -> AuthRevokeReceipt {
         throw HermesError.unexpectedStatus(endpoint: L10n.string("撤销登录会话"), status: 501)
+    }
+
+    func addMCPServer(
+        config: ServerConfig, name: String, url: String?,
+        command: String?, args: [String], env: [String: String],
+        auth: String?, bearerToken: String?
+    ) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("添加 MCP 服务"), status: 501)
+    }
+
+    func deleteMCPServer(config: ServerConfig, name: String) async throws {
+        throw HermesError.unexpectedStatus(endpoint: L10n.string("删除 MCP 服务"), status: 501)
     }
 }
 

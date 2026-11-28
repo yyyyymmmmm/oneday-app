@@ -163,3 +163,310 @@ struct ClarifyPromptCardView: View {
         }
     }
 }
+
+// MARK: - 对话内「分身委派任务卡」（让用户亲眼看到 AI 开分身干活）
+
+struct SubagentDelegationCardView: View {
+    let card: SubagentDelegationCard
+    @State private var isOutputExpanded = false
+
+    private var headerTitle: String {
+        card.tasks.count > 1 ? "已派出 \(card.tasks.count) 个并行分身" : "已派出专属分身"
+    }
+
+    private var statusBadge: (text: String, color: Color, bg: Color) {
+        switch card.state {
+        case .running:
+            return ("执行中", Palette.tintSkyInk, Palette.tintSky)
+        case .succeeded:
+            return ("已完成", Palette.successText, Palette.tintGreen)
+        case .failed:
+            return ("未完成", Palette.danger, Palette.errorSurface)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "person.2.wave.2.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Palette.tintLavenderInk)
+                    .frame(width: 28, height: 28)
+                    .background(Palette.tintLavender, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+                Text(headerTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    if card.state == .running {
+                        ProgressView().controlSize(.mini)
+                    }
+                    Text(statusBadge.text)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(statusBadge.color)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(statusBadge.bg, in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(card.tasks) { task in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.caption2)
+                                .foregroundStyle(Palette.tintLavenderInk)
+                                .padding(.top, 3)
+                            Text(task.goal)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if !task.toolsets.isEmpty || task.profile != nil {
+                            HStack(spacing: 6) {
+                                if let profile = task.profile, !profile.isEmpty {
+                                    Text("分身：\(profile)")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(Palette.tintSkyInk)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Palette.tintSky, in: Capsule())
+                                }
+                                ForEach(task.toolsets.prefix(3), id: \.self) { ts in
+                                    Text(ts)
+                                        .font(.caption2)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Palette.fillTertiary, in: Capsule())
+                                }
+                            }
+                            .padding(.leading, 18)
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+
+            if let output = card.output, !output.isEmpty {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        isOutputExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isOutputExpanded ? "收起分身汇报" : "查看分身汇报")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.primary)
+                        Image(systemName: isOutputExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Palette.primary)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if isOutputExpanded {
+                    Text(output)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+        }
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 0.75)
+        }
+    }
+}
+
+// MARK: - 对话内「CLI 终端执行实时卡」（让用户亲眼看到 AI 跑命令与回显）
+
+struct TerminalExecutionCardView: View {
+    let card: TerminalExecutionCard
+    @State private var isExpanded = false
+    @State private var copied = false
+
+    private var statusBadge: (text: String, color: Color, bg: Color) {
+        switch card.state {
+        case .running:
+            return ("运行中", Palette.tintSkyInk, Palette.tintSky)
+        case .succeeded:
+            return ("完成", Palette.successText, Palette.tintGreen)
+        case .failed:
+            return ("异常退出", Palette.danger, Palette.errorSurface)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.tintSkyInk)
+                    .frame(width: 26, height: 26)
+                    .background(Palette.tintSky, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+                Text(card.kindLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    if card.state == .running {
+                        ProgressView().controlSize(.mini)
+                    }
+                    Text(statusBadge.text)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(statusBadge.color)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(statusBadge.bg, in: Capsule())
+
+                Button {
+                    UIPasteboard.general.string = card.command
+                    Haptics.impact(.light)
+                    copied = true
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(1.5))
+                        copied = false
+                    }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(copied ? Palette.successText : Palette.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("复制命令")
+            }
+
+            Text("$ \(card.command)")
+                .font(.caption.monospaced().weight(.medium))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(isExpanded ? nil : 2)
+                .textSelection(.enabled)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Palette.codeFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            if let output = card.output, !output.isEmpty {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isExpanded ? "收起终端输出" : "查看终端输出")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Palette.primary)
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Palette.primary)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Text(output)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(card.state == .failed ? Palette.danger : Palette.ink)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Palette.pageBG, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+            }
+        }
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 0.75)
+        }
+    }
+}
+
+// MARK: - 对话内「云电脑操作实时卡」（带一键全屏接管入口）
+
+struct CloudComputerActionCardView: View {
+    let card: CloudComputerActionCard
+    let onTakeover: () -> Void
+
+    var body: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 16, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Palette.tintOrangeInk)
+                .frame(width: 34, height: 34)
+                .background(Palette.tintOrange, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(card.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    if card.state == .running {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                Text(card.detail)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Button(action: onTakeover) {
+                HStack(spacing: 4) {
+                    Image(systemName: "hand.tap.fill")
+                        .font(.caption2.weight(.semibold))
+                    Text("接管")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Palette.primary, in: Capsule())
+            }
+            .buttonStyle(.odPressable)
+        }
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 0.75)
+        }
+    }
+}

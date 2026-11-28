@@ -35,6 +35,8 @@ final class ConnectorsFacade {
     private(set) var toggling: Set<String> = []
     private(set) var testing: Set<String> = []
     private(set) var testResults: [String: MCPTestResult] = [:]
+    private(set) var isAddingServer = false
+    private(set) var deletingServers: Set<String> = []
     /// 工具数缓存（进页显示缓存值，测连/刷新时更新）
     private(set) var cachedToolCounts: [String: Int] = [:]
     // MARK: - MCP 目录（§388 H7，服务端单源）
@@ -231,6 +233,58 @@ final class ConnectorsFacade {
                     ?? "测试请求失败",
                 toolCount: nil
             )
+        }
+    }
+
+    /// 添加自定义 Remote HTTP/SSE 或 stdio MCP 服务，写后回读列表对账
+    func addCustomServer(
+        name: String, url: String?, command: String?, args: [String],
+        env: [String: String], auth: String?, bearerToken: String?,
+        appState: AppState
+    ) async -> Bool {
+        isAddingServer = true
+        defer { isAddingServer = false }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.addMCPServer(
+                    config: config, name: name, url: url,
+                    command: command, args: args, env: env,
+                    auth: auth, bearerToken: bearerToken
+                )
+            }
+            await loadServers(appState: appState)
+            let confirmed = servers.contains { $0.name == name }
+            notice = confirmed
+                ? "已添加 MCP 服务「\(name)」。"
+                : "已提交添加「\(name)」，请下拉刷新核对。"
+            return confirmed
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "添加 MCP 服务失败，请检查配置。"
+            return false
+        }
+    }
+
+    /// 移除自定义 MCP 服务，写后回读列表确认消失
+    func deleteServer(_ server: MCPServerItem, appState: AppState) async -> Bool {
+        deletingServers.insert(server.name)
+        defer { deletingServers.remove(server.name) }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.deleteMCPServer(config: config, name: server.name)
+            }
+            await loadServers(appState: appState)
+            let gone = !servers.contains { $0.name == server.name }
+            if gone {
+                testResults.removeValue(forKey: server.name)
+                cachedToolCounts.removeValue(forKey: server.name)
+            }
+            notice = gone
+                ? "已移除 MCP 服务「\(server.name)」。"
+                : "已提交移除「\(server.name)」，但列表里仍在，请下拉刷新核对。"
+            return gone
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "移除 MCP 服务失败。"
+            return false
         }
     }
 

@@ -4385,6 +4385,9 @@ struct ChatView: View {
         guard let card = entry.toolCard else { return false }
         return TodoChecklistParser.parse(from: card) != nil
             || ClarifyPromptParser.parse(from: card) != nil
+            || SubagentDelegationParser.parse(from: card) != nil
+            || TerminalExecutionParser.parse(from: card) != nil
+            || CloudComputerActionParser.parse(from: card) != nil
     }
 
     var currentThreadAnchoredIDs: Set<String> {
@@ -5341,14 +5344,26 @@ struct ChatView: View {
             echoRow(entry)
         } else if let card = entry.toolCard {
             // 普通工具调用归页头胶囊活动行；Hermes v0.23.0 原生
-            // 结构化交互卡片（todo 任务进度 / clarify 澄清选项）
-            // 直接在对话流内渲染原生卡片
+            // 结构化交互卡片（todo 任务进度 / clarify 澄清选项 /
+            // 分身委派 / CLI 终端执行 / 云电脑操作）直接在对话流渲染原生卡片
             if let todoItems = TodoChecklistParser.parse(from: card) {
                 TodoChecklistCardView(items: todoItems)
             } else if let clarifyPrompt = ClarifyPromptParser.parse(from: card) {
                 ClarifyPromptCardView(prompt: clarifyPrompt) { choice in
                     input = choice
                     send()
+                }
+            } else if let subagentCard = SubagentDelegationParser.parse(from: card) {
+                SubagentDelegationCardView(card: subagentCard)
+            } else if let terminalCard = TerminalExecutionParser.parse(from: card) {
+                TerminalExecutionCardView(card: terminalCard)
+            } else if let cloudCard = CloudComputerActionParser.parse(from: card) {
+                CloudComputerActionCardView(card: cloudCard) {
+                    activeCloudTakeover = CloudComputerTarget(
+                        id: "live-box",
+                        boxID: nil,
+                        liveURL: ""
+                    )
                 }
             } else {
                 EmptyView()

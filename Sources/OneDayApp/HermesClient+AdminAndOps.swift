@@ -65,6 +65,36 @@ extension HermesClient {
         )
     }
 
+    func addMCPServer(
+        config: ServerConfig, name: String, url: String?,
+        command: String?, args: [String], env: [String: String],
+        auth: String?, bearerToken: String?
+    ) async throws {
+        var body: [String: JSONValue] = [
+            "name": .string(name),
+            "args": .array(args.map { .string($0) }),
+            "env": .object(env.mapValues { .string($0) }),
+        ]
+        if let url, !url.isEmpty { body["url"] = .string(url) }
+        if let command, !command.isEmpty { body["command"] = .string(command) }
+        if let auth, !auth.isEmpty { body["auth"] = .string(auth) }
+        if let bearerToken, !bearerToken.isEmpty {
+            body["bearer_token"] = .string(bearerToken)
+        }
+        try await sendJSON(
+            config: config, path: "/api/mcp/servers",
+            method: "POST", endpoint: L10n.string("添加 MCP 服务"),
+            body: body
+        )
+    }
+
+    func deleteMCPServer(config: ServerConfig, name: String) async throws {
+        try await sendJSON(
+            config: config, path: mcpPath(name: name),
+            method: "DELETE", endpoint: L10n.string("删除 MCP 服务")
+        )
+    }
+
     func computerUseStatus(
         config: ServerConfig
     ) async throws -> ComputerUseStatus {
