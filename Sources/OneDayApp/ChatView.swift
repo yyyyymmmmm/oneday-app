@@ -26,6 +26,9 @@ struct ChatView: View {
     @State var showQuickConnectorsSheet = false
     @State var showContextMeterSheet = false
     @State var showReasoningEffortSheet = false
+    @State var showCheckpointHistorySheet = false
+    @State var showSessionExportSheet = false
+    @State var showSkillBundlesSheet = false
     @State var mentionRosterProfiles: [ProfileSummary] = []
     @State var isLoadingMentionRoster = false
     @State var queuedFollowUpMessages: [String] = []
@@ -1176,6 +1179,27 @@ struct ChatView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCheckpointHistorySheet) {
+            CheckpointHistorySheet(entries: currentThread?.sortedEntries ?? []) { cmd in
+                input = cmd
+                send()
+            }
+        }
+        .sheet(isPresented: $showSessionExportSheet) {
+            SessionExportHandoffSheet(
+                threadTitle: currentThread?.title ?? "当前对话",
+                entries: currentThread?.sortedEntries ?? []
+            ) { cmd in
+                input = cmd
+                send()
+            }
+        }
+        .sheet(isPresented: $showSkillBundlesSheet) {
+            SkillBundlesSheet { cmd in
+                input = cmd
+                send()
+            }
+        }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
         .sheet(isPresented: $dictation.showPrep) {
@@ -2190,6 +2214,15 @@ struct ChatView: View {
                             case "reasoning":
                                 input = ""
                                 showReasoningEffortSheet = true
+                            case "rollback":
+                                input = ""
+                                showCheckpointHistorySheet = true
+                            case "export", "handoff":
+                                input = ""
+                                showSessionExportSheet = true
+                            case "bundle":
+                                input = ""
+                                showSkillBundlesSheet = true
                             default:
                                 input = item.insertText
                                 composerFocusHandle.focusAtEnd()
@@ -4569,6 +4602,8 @@ struct ChatView: View {
             || SubagentDelegationParser.parse(from: card) != nil
             || TerminalExecutionParser.parse(from: card) != nil
             || CloudComputerActionParser.parse(from: card) != nil
+            || CodeExecutionParser.parse(from: card) != nil
+            || MCPElicitationParser.parse(from: card) != nil
     }
 
     var currentThreadAnchoredIDs: Set<String> {
@@ -5545,6 +5580,15 @@ struct ChatView: View {
                         boxID: nil,
                         liveURL: ""
                     )
+                }
+            } else if let codeCard = CodeExecutionParser.parse(from: card) {
+                CodeExecutionCardView(card: codeCard) { path in
+                    openChatFile(path)
+                }
+            } else if let elicitation = MCPElicitationParser.parse(from: card) {
+                MCPElicitationCardView(prompt: elicitation) { responseText in
+                    input = responseText
+                    send()
                 }
             } else {
                 EmptyView()

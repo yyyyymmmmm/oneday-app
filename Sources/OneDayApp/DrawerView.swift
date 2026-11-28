@@ -170,6 +170,9 @@ struct DrawerView: View {
     /// 底条搜索词（本地过滤旁聊区，22:45 纠正后恢复
     /// 0.18.0 抽屉搜索口径）
     @State private var drawerQuery = ""
+    @State private var ftsHits: [SessionSearchHit] = []
+    @State private var isSearchingFTS = false
+    @State private var ftsSearchTask: Task<Void, Never>?
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
@@ -420,7 +423,12 @@ struct DrawerView: View {
                 wasPresented: wasPresented, isPresented: presented
             ) {
                 drawerQuery = ""
+                ftsHits = []
+                ftsSearchTask?.cancel()
             }
+        }
+        .onChange(of: drawerQuery) { _, newValue in
+            scheduleFTSSearch(query: newValue)
         }
         // §365 D2：开抽屉的账本可见段刷新（第 67 条
         // 包一：source/标题改读账本记录列）＋身份重拉
@@ -1051,10 +1059,116 @@ struct DrawerView: View {
                     drawerSideRowView(row, titles: titles)
                 }
             }
+            drawerFTSSearchSection
             Color.clear
                 .frame(height: OneDayMetrics.spacingL)
         }
         .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    @ViewBuilder
+    private var drawerFTSSearchSection: some View {
+        let needle = DrawerSearchPolicy.normalizedQuery(drawerQuery)
+        if !needle.isEmpty {
+            drawerDivider
+                .padding(.top, OneDayMetrics.spacingS)
+            HStack(spacing: 6) {
+                Text("FTS5 全文跨会话检索")
+                    .font(.sectionLabel)
+                    .foregroundStyle(Palette.drawerSectionInk)
+                Spacer()
+                if isSearchingFTS {
+                    ProgressView().controlSize(.mini)
+                } else if !ftsHits.isEmpty {
+                    Text("\(ftsHits.count) 条命中")
+                        .font(.caption2)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.drawerInset)
+            .padding(.top, OneDayMetrics.spacingSM)
+            .padding(.bottom, OneDayMetrics.spacingXS)
+
+            if ftsHits.isEmpty && !isSearchingFTS {
+                Text("云端全文索引暂无更多匹配轮次")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.horizontal, OneDayMetrics.drawerInset)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+            } else {
+                ForEach(ftsHits) { hit in
+                    Button {
+                        appState.router.pendingChatSessionID = hit.sessionID
+                        onClose()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "text.magnifyingglass")
+                                    .font(.caption)
+                                    .foregroundStyle(Palette.primary)
+                                Text(hit.title?.isEmpty == false ? (hit.title ?? "历史会话") : "历史会话")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                Spacer()
+                                if let count = hit.messageCount {
+                                    Text("\(count) 轮")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(Palette.inkMuted)
+                                }
+                            }
+                            if let rawSnippet = hit.snippet ?? hit.preview, !rawSnippet.isEmpty {
+                                Text(highlightedFTSSnippet(rawSnippet, query: needle))
+                                    .font(.caption)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                    .padding(.horizontal, OneDayMetrics.spacingS)
+                }
+            }
+        }
+    }
+
+    private func scheduleFTSSearch(query: String) {
+        ftsSearchTask?.cancel()
+        let trimmed = DrawerSearchPolicy.normalizedQuery(query)
+        guard trimmed.count >= 2 else {
+            ftsHits = []
+            isSearchingFTS = false
+            return
+        }
+        ftsSearchTask = Task {
+            try? await Task.sleep(for: .milliseconds(260))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { isSearchingFTS = true }
+            let results = (try? await appState.performAdmin { client, config in
+                try await client.searchSessions(config: config, query: trimmed, limit: 15)
+            }) ?? []
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                ftsHits = results
+                isSearchingFTS = false
+            }
+        }
+    }
+
+    private func highlightedFTSSnippet(_ text: String, query: String) -> AttributedString {
+        var attributed = AttributedString(text.replacingOccurrences(of: "\n", with: " "))
+        guard !query.isEmpty else { return attributed }
+        var searchRange = attributed.startIndex..<attributed.endIndex
+        while let range = attributed[searchRange].range(of: query, options: .caseInsensitive) {
+            attributed[range].foregroundColor = Palette.primary
+            attributed[range].font = .caption.weight(.semibold)
+            searchRange = range.upperBound..<attributed.endIndex
+        }
+        return attributed
     }
 
     /// 搜索态判定（§162 下沉 Core DrawerSearchPolicy

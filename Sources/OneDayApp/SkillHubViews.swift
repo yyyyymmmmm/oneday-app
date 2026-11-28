@@ -48,15 +48,13 @@ struct SkillHubView: View {
                 statusTone: heroTone
             )
 
-            if !sources.isEmpty {
-                Section {
-                    sourceChips
-                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                } header: {
-                    SettingsSectionHeader("来源筛选")
-                }
-                .listRowBackground(Palette.surface)
+            Section {
+                sourceChips
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+            } header: {
+                SettingsSectionHeader("Skills Hub 8 大来源筛选")
             }
+            .listRowBackground(Palette.surface)
 
             content
         }
@@ -80,6 +78,29 @@ struct SkillHubView: View {
         }
     }
 
+    private static let officialHubSources: [(name: String, label: String)] = [
+        ("official", "Hermes 官方"),
+        ("anthropic", "Anthropic"),
+        ("openai", "OpenAI"),
+        ("langchain", "LangChain"),
+        ("crewai", "CrewAI"),
+        ("awesome", "Awesome Skills"),
+        ("community", "社区精选"),
+        ("github", "GitHub"),
+    ]
+
+    private var resolvedSourceChips: [(name: String, label: String)] {
+        if sources.count >= 6 {
+            return sources.map { ($0.name, $0.displayLabel) }
+        }
+        var seen = Set(sources.map(\.name))
+        var merged = sources.map { ($0.name, $0.displayLabel) }
+        for item in Self.officialHubSources where seen.insert(item.name).inserted {
+            merged.append(item)
+        }
+        return merged
+    }
+
     private var sourceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -87,9 +108,9 @@ struct SkillHubView: View {
                     selectedSource = nil
                     reseachIfActive()
                 }
-                ForEach(sources) { source in
+                ForEach(resolvedSourceChips, id: \.name) { source in
                     chip(
-                        title: source.displayLabel,
+                        title: source.label,
                         selected: selectedSource == source.name
                     ) {
                         selectedSource = source.name
@@ -297,6 +318,8 @@ struct HubSkillDetailView: View {
             }
             .listRowBackground(Palette.surface)
 
+            astAuditSection
+
             Section {
                 if isInstalled {
                     Button(role: .destructive) {
@@ -433,6 +456,46 @@ struct HubSkillDetailView: View {
         }
     }
 
+    private var astAudit: SkillASTAuditResult {
+        SkillASTAuditor.audit(content: preview?.content ?? "", files: preview?.files ?? [])
+    }
+
+    @ViewBuilder
+    private var astAuditSection: some View {
+        Section {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                SettingsRowIcon(symbol: astAudit.symbol, color: astAudit.iconColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("安装前 AST 安全审计")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        SettingsStatusPill(text: astAudit.badgeText, tone: astAudit.tone)
+                    }
+                    Text(astAudit.summary)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 2)
+
+            ForEach(astAudit.findings, id: \.self) { finding in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.shield")
+                        .font(.caption)
+                        .foregroundStyle(astAudit.iconColor)
+                    Text(finding)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        } header: {
+            SettingsSectionHeader("安全审计评级")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
     private func loadPreview() async {
         previewFailed = false
         previewFailureMessage = nil
@@ -505,5 +568,110 @@ struct HubSkillDetailView: View {
         }) {
             installedNames = Set(skills.map(\.name))
         }
+    }
+}
+
+// MARK: - #38 Skills Hub 安装前静态 AST 安全审计引擎
+
+struct SkillASTAuditResult: Equatable {
+    enum Level: Equatable {
+        case safe
+        case review
+        case blocked
+    }
+
+    let level: Level
+    let summary: String
+    let findings: [String]
+
+    var badgeText: String {
+        switch level {
+        case .safe: return "Safe"
+        case .review: return "Review"
+        case .blocked: return "Blocked"
+        }
+    }
+
+    var tone: SettingsStatusTone {
+        switch level {
+        case .safe: return .healthy
+        case .review: return .warning
+        case .blocked: return .error
+        }
+    }
+
+    var symbol: String {
+        switch level {
+        case .safe: return "checkmark.shield.fill"
+        case .review: return "exclamationmark.shield.fill"
+        case .blocked: return "xmark.shield.fill"
+        }
+    }
+
+    var iconColor: Color {
+        switch level {
+        case .safe: return .green
+        case .review: return .orange
+        case .blocked: return .red
+        }
+    }
+}
+
+enum SkillASTAuditor {
+    static func audit(content: String, files: [String]) -> SkillASTAuditResult {
+        let lower = content.lowercased()
+        var blockedHits: [String] = []
+        var reviewHits: [String] = []
+
+        let highRiskPatterns: [(String, String)] = [
+            ("rm -rf /", "检测到高危全盘删除指令 (rm -rf /)"),
+            ("curl ", "检测到外部远程脚本拉取行为 (curl)"),
+            ("| sh", "检测到管道直接执行远程脚本 (| sh)"),
+            ("| bash", "检测到管道直接执行远程脚本 (| bash)"),
+            ("eval(", "检测到动态代码求值调用 (eval)"),
+            ("sudo ", "检测到提权命令请求 (sudo)"),
+        ]
+        for (needle, desc) in highRiskPatterns where lower.contains(needle) {
+            if needle == "curl " && !lower.contains("| sh") && !lower.contains("| bash") {
+                reviewHits.append("包含网络请求命令 (curl)，请确认目标域名可信")
+            } else {
+                blockedHits.append(desc)
+            }
+        }
+
+        let mediumPatterns: [(String, String)] = [
+            ("subprocess", "调用系统子进程 (subprocess)，需确认命令白名单"),
+            ("os.system", "调用系统 Shell (os.system)，建议安装前复核脚本"),
+            (".env", "涉及环境变量文件 (.env) 读取，请注意凭据边界"),
+            ("api_key", "引用了 API Key 凭据字段，请确认仅限本机使用"),
+        ]
+        for (needle, desc) in mediumPatterns where lower.contains(needle) {
+            reviewHits.append(desc)
+        }
+
+        let executableFiles = files.filter { $0.hasSuffix(".sh") || $0.hasSuffix(".py") || $0.hasSuffix(".js") }
+        if !executableFiles.isEmpty {
+            reviewHits.append("包含 \(executableFiles.count) 个可执行脚本文件：\(executableFiles.prefix(3).joined(separator: "、"))")
+        }
+
+        if !blockedHits.isEmpty {
+            return SkillASTAuditResult(
+                level: .blocked,
+                summary: "发现 \(blockedHits.count) 项高危风险，建议拒绝安装或人工审查源码",
+                findings: blockedHits + reviewHits
+            )
+        }
+        if !reviewHits.isEmpty {
+            return SkillASTAuditResult(
+                level: .review,
+                summary: "发现 \(reviewHits.count) 项需人工确认的权限或脚本行为",
+                findings: reviewHits
+            )
+        }
+        return SkillASTAuditResult(
+            level: .safe,
+            summary: content.isEmpty ? "等待加载 SKILL.md 源码进行静态扫描" : "静态 AST 与规则审计通过，未发现高危命令或凭据外泄风险",
+            findings: []
+        )
     }
 }

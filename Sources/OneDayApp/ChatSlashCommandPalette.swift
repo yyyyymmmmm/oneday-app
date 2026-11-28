@@ -83,6 +83,42 @@ struct HermesSlashCommand: Identifiable, Equatable {
             category: .skill
         ),
         HermesSlashCommand(
+            id: "bundle",
+            command: "/bundle",
+            insertText: "",
+            title: "Skill Bundles 技能组合",
+            subtitle: "一键装载场景化技能套件或提炼新技能",
+            symbol: "shippingbox.fill",
+            category: .skill
+        ),
+        HermesSlashCommand(
+            id: "rollback",
+            command: "/rollback",
+            insertText: "",
+            title: "文件检查点与回滚",
+            subtitle: "查看本会话文件变更彩色 Diff 并一键回滚",
+            symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+            category: .session
+        ),
+        HermesSlashCommand(
+            id: "export",
+            command: "/export",
+            insertText: "",
+            title: "脱敏导出与跨端 Handoff",
+            subtitle: "导出脱敏 MD/HTML/JSON 或转交其他渠道",
+            symbol: "square.and.arrow.up",
+            category: .session
+        ),
+        HermesSlashCommand(
+            id: "handoff",
+            command: "/handoff",
+            insertText: "",
+            title: "跨端转交会话",
+            subtitle: "将当前会话无缝交接给 Telegram/Slack/Web/CLI",
+            symbol: "arrow.triangle.swap",
+            category: .session
+        ),
+        HermesSlashCommand(
             id: "profiles",
             command: "/profiles",
             insertText: "",

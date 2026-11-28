@@ -13,6 +13,8 @@ struct MemoryView: View {
     @State private var notice: String?
     @State private var memoriesStore = MemoriesStore()
     @State private var learningStore = LearningGraphStore()
+    @State private var showMemoryEditorSheet = false
+    @State private var showMemoryRewindSheet = false
 
     var body: some View {
         List {
@@ -97,6 +99,18 @@ struct MemoryView: View {
             await load()
             await memoriesStore.loadIfNeeded(appState: appState)
             await learningStore.loadIfNeeded(appState: appState)
+        }
+        .sheet(isPresented: $showMemoryEditorSheet) {
+            MemoryMarkdownEditorSheet(appState: appState) {
+                notice = "记忆文档与审批策略已保存。"
+                Task { await load() }
+            }
+        }
+        .sheet(isPresented: $showMemoryRewindSheet) {
+            MemoryRewindSheet(appState: appState) { targetRev in
+                notice = "已提交记忆回滚请求：\(targetRev)"
+                Task { await load() }
+            }
         }
         .confirmationDialog(
             "重置记忆？",
@@ -198,8 +212,49 @@ struct MemoryView: View {
                 value: status.builtinFiles["user"].map { AdminFormat.count($0) } ?? "—",
                 monospaced: true
             )
+            Button {
+                showMemoryEditorSheet = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "square.and.pencil", color: .indigo)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("编辑 MEMORY / USER 与写入审批")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text("分段编辑长期记忆档案、查看并审批 AI 待写入 Diff")
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    Spacer()
+                    DisclosureChevron(font: .footnote.weight(.semibold))
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showMemoryRewindSheet = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "clock.arrow.trianglehead.counterclockwise.rotate.90", color: .purple)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("记忆版本回滚（memory-rewind）")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Text("按历史版本时间轴回滚并管理外部记忆后端")
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    Spacer()
+                    DisclosureChevron(font: .footnote.weight(.semibold))
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         } header: {
-            SettingsSectionHeader("内置记忆文件")
+            SettingsSectionHeader("内置记忆文件与版本控制")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)

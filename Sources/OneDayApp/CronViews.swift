@@ -268,6 +268,7 @@ struct CronJobDetailView: View {
                 infoGroup
             }
             actionsGroup
+            webhookTriggerGroup
             runsGroup
             dangerGroup
             if let notice {
@@ -470,6 +471,47 @@ struct CronJobDetailView: View {
             }
         } header: {
             SettingsSectionHeader("动作")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
+    }
+
+    private var webhookTriggerGroup: some View {
+        let base = appState.config?.baseString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "https://your-hermes-host"
+        let webhookURL = "\(base)/api/cron/jobs/\(current.id)/trigger"
+        return Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Webhook 触发地址（POST）")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                Text(webhookURL)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(Palette.ink)
+                    .textSelection(.enabled)
+            }
+            .padding(.vertical, 4)
+
+            Button {
+                UIPasteboard.general.string = "curl -X POST \"\(webhookURL)\" -H \"Authorization: Bearer <YOUR_API_KEY>\""
+                Haptics.success()
+                notice = "已复制 Webhook 触发 curl 命令到剪贴板。"
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "link.badge.plus", color: .blue)
+                    Text("复制 Webhook 触发命令（curl）")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.primary)
+                    Spacer()
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
+            .buttonStyle(.odPressable)
+        } header: {
+            SettingsSectionHeader("Webhook 触发器")
+        } footer: {
+            Text("支持从 GitHub Actions、飞书机器人或监控告警通过 HTTP POST 远程触发本任务。")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(OneDayMetrics.settingsRowInsets)
@@ -704,6 +746,7 @@ struct CronJobFormView: View {
     @State private var name: String
     @State private var prompt: String
     @State private var schedule: String
+    @State private var noAgentScriptMode: Bool
     /// 投递目标（§388 H6）：服务端单源拉取，""＝不指定
     /// （沿服务端默认）；拉不到时只剩「默认」一档、不假造
     @State private var deliveryTargets: [CronDeliveryTarget] = []
@@ -721,8 +764,10 @@ struct CronJobFormView: View {
         self.job = job
         self.onSaved = onSaved
         self.onCreated = onCreated
+        let initialPrompt = job?.prompt ?? prefillPrompt
+        _noAgentScriptMode = State(initialValue: initialPrompt.hasPrefix("!script\n") || initialPrompt.hasPrefix("#!/"))
         _name = State(initialValue: job?.name ?? prefillName)
-        _prompt = State(initialValue: job?.prompt ?? prefillPrompt)
+        _prompt = State(initialValue: initialPrompt)
         _selectedDeliver = State(initialValue: job?.deliver ?? "")
         // 编辑态预填：schedule 是字符串时原样，对象时用展示串
         // 兜底（服务端能解析展示串之外的表达式才建议改动）
@@ -742,12 +787,26 @@ struct CronJobFormView: View {
         NavigationStack {
             List {
                 Section {
+                    Toggle(isOn: $noAgentScriptMode) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("No-Agent 纯脚本模式")
+                                .font(.rowTitleL)
+                            Text("直接执行 Shell/Python 脚本，零模型 Token 消耗")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
                     fieldRow("名称（可选）") {
                         TextField("如：节点巡检", text: $name)
                     }
-                    fieldRow("指令") {
-                        TextField("要 Hermes 执行的事", text: $prompt, axis: .vertical)
-                            .lineLimit(2...5)
+                    fieldRow(noAgentScriptMode ? "纯脚本命令（Shell / Python）" : "指令") {
+                        TextField(
+                            noAgentScriptMode ? "#!/usr/bin/env bash\npython3 check_health.py" : "要 Hermes 执行的事",
+                            text: $prompt,
+                            axis: .vertical
+                        )
+                        .font(noAgentScriptMode ? .system(.body, design: .monospaced) : .body)
+                        .lineLimit(2...6)
                     }
                     fieldRow("计划（cron 表达式）") {
                         TextField("0 9 * * *", text: $schedule)

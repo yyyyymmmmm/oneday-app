@@ -643,6 +643,67 @@ private struct MCPServerDetailView: View {
 
                 MCPBudgetPolicySection(serverName: currentServer.name)
 
+                Section {
+                    let subStore = MCPEventSubscriptionStore.shared
+                    let currentSub = subStore.config(for: currentServer.name)
+                    Toggle(isOn: Binding(
+                        get: { subStore.config(for: currentServer.name).subscribeEvents },
+                        set: { enabled in
+                            var updated = subStore.config(for: currentServer.name)
+                            updated.subscribeEvents = enabled
+                            subStore.update(updated, for: currentServer.name)
+                            Haptics.selection()
+                            Task {
+                                if let config = appState.config, let apiKey = appState.apiKey {
+                                    _ = try? await appState.client.updateConfig(
+                                        config: config,
+                                        apiKey: apiKey,
+                                        values: ["mcp_servers.\(currentServer.name).subscribe_events": .bool(enabled)]
+                                    )
+                                }
+                            }
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("订阅服务端实时事件推送")
+                                .font(.rowTitleL)
+                            Text("接收该 MCP 服务的异步通知与状态变更事件")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+
+                    if currentSub.subscribeEvents {
+                        Toggle("事件同步写入通知中心", isOn: Binding(
+                            get: { subStore.config(for: currentServer.name).routeToNotifications },
+                            set: { val in
+                                var updated = subStore.config(for: currentServer.name)
+                                updated.routeToNotifications = val
+                                subStore.update(updated, for: currentServer.name)
+                            }
+                        ))
+                    }
+
+                    Toggle(isOn: Binding(
+                        get: { subStore.config(for: currentServer.name).allowElicitationForms },
+                        set: { val in
+                            var updated = subStore.config(for: currentServer.name)
+                            updated.allowElicitationForms = val
+                            subStore.update(updated, for: currentServer.name)
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("允许对话内 Elicitation 交互表单")
+                                .font(.rowTitleL)
+                            Text("服务请求补充参数时，直接在对话流渲染原生表单卡")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                } header: {
+                    Text("事件订阅与 Elicitation")
+                }
+
                 if currentServer.url != nil && !currentServer.isPluginProvided {
                     Section("OAuth 2.1 授权") {
                         let flow = facade.oauthFlows[currentServer.name]
