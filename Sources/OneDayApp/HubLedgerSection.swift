@@ -254,11 +254,34 @@ struct HubLedgerSection: View {
                 // 「活动记录」一节之下；今天默认展开、
                 // 其余默认折叠（初始化见 initializeCollapsedDays）
                 if snapshot.daySections.isEmpty {
-                    Text("暂无近期活动")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(rowInsets)
+                    // 空态只许在「已就绪且确实为空」时宣称
+                    // 无活动；加载中/失败/未上线各归其态，
+                    // 不许把没读出来冒充没有（2026-11-28
+                    // 真机报：退出重进整页变空）
+                    switch store.loadState {
+                    case .ready:
+                        Text("暂无近期活动")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    case .loading:
+                        ProgressView()
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    case .failed(let message):
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    case .unavailable(let message):
+                        Text(message ?? "台账尚未上线")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(rowInsets)
+                    }
                 }
                 ForEach(snapshot.daySections) { section in
                     Section {

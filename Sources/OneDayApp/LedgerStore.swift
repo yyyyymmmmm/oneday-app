@@ -182,6 +182,15 @@ final class LedgerStore {
         _ response: LedgerListResponse,
         summaryOverride: LedgerSummary?
     ) {
+        // 防空硬化（2026-11-28 真机报「活动页退出重进
+        // 就没有了」）：全量拉回空表而手头已有条目时，
+        // 不许整表盖空——保旧列表、只标联系中断（呈现
+        // 层自有陈旧弱化），等下一轮全量/增量对账
+        if response.items.isEmpty, !items.isEmpty {
+            snapshotSeq = response.snapshotSeq
+            connectionLost = true
+            return
+        }
         items = LedgerMerge.sorted(response.items)
         snapshotSeq = response.snapshotSeq
         ledgerUpdatedAt = response.ledgerUpdatedAt

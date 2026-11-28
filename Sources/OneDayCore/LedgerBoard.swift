@@ -54,7 +54,15 @@ public enum LedgerText {
         case .bridge: return L10n.string("自动作业", locale: locale)
         case .device: return L10n.string("设备", locale: locale)
         case .other(let raw):
-            return raw.isEmpty ? L10n.string("其他来源", locale: locale) : raw
+            // 2.23.0 起回合记录的来源词（gateway＝网关
+            // 边界直记、server＝服务端观察）不在枚举内，
+            // 不许原文出用户面：两者都是对话里的回合
+            switch raw {
+            case "gateway", "server":
+                return L10n.string("对话", locale: locale)
+            default:
+                return raw.isEmpty ? L10n.string("其他来源", locale: locale) : raw
+            }
         }
     }
 
@@ -94,6 +102,8 @@ public enum LedgerText {
         case "app": return L10n.string("App 上报", locale: locale)
         case "collector": return L10n.string("对账", locale: locale)
         case "bridge": return L10n.string("自动作业", locale: locale)
+        case "gateway": return L10n.string("网关", locale: locale)
+        case "server": return L10n.string("服务端", locale: locale)
         default: return raw ?? L10n.string("系统", locale: locale)
         }
     }
@@ -584,16 +594,20 @@ public enum LedgerBoard {
         var parts: [String] = []
         switch item.status {
         case .failed:
-            if let reason = item.failReason {
+            // 终态摘要以成果/结论句为先（详情页首卡的
+            // 「一句话摘要」本位）；用时在概况节有行，
+            // 本处不再叠
+            if let outcome = item.summary?.trimmingCharacters(
+                in: .whitespacesAndNewlines), !outcome.isEmpty {
+                parts.append(outcome)
+            } else if let reason = item.failReason {
                 parts.append(reason.category)
             }
-            if let duration = durationText(
-                for: item, serverNow: serverNow, locale: locale
-            ) {
-                parts.append(duration)
-            }
         case .completed, .cancelled:
-            if let duration = durationText(
+            if let outcome = item.summary?.trimmingCharacters(
+                in: .whitespacesAndNewlines), !outcome.isEmpty {
+                parts.append(outcome)
+            } else if let duration = durationText(
                 for: item, serverNow: serverNow, locale: locale
             ) {
                 parts.append(duration)
