@@ -758,3 +758,185 @@ public struct LedgerStep: Equatable, Sendable, Identifiable {
         self.conflict = conflict
     }
 }
+
+// MARK: - 线程真步呈现（GET /ledger/threads/{id}）
+
+/// 线程步一行（端点真步的呈现形态）：步名已过解
+/// 析链、相位已判定，视图只渲染。与 LedgerStep 分
+/// 开：真步的时刻/步长端点给多少算多少（运行步无
+/// 时刻——at 与 duration 同为 nil，视图整位不显，
+/// 不许拿条目时刻冒充步时刻）
+public struct LedgerThreadStepRow: Equatable, Sendable, Identifiable {
+    public let index: Int
+    public let title: String
+    public let phase: LedgerStepPhase
+    public let at: Double?
+    public let duration: Double?
+    /// 副行注记：语义步 humanNote 优先，其次步自带
+    /// note，再次审批步的裁决结果，再次失败原因
+    public let note: String?
+    /// 工具步的参数预览（命令/查询原文摘录，端点
+    /// preview 原样；语义步在时仍保留作细节行）
+    public let preview: String?
+    /// 记录者人话（只有变迁步带 by，其余 nil 不显）
+    public let actorWord: String?
+
+    public var id: Int { index }
+
+    public init(
+        index: Int, title: String, phase: LedgerStepPhase,
+        at: Double?, duration: Double?, note: String?,
+        preview: String?, actorWord: String?
+    ) {
+        self.index = index
+        self.title = title
+        self.phase = phase
+        self.at = at
+        self.duration = duration
+        self.note = note
+        self.preview = preview
+        self.actorWord = actorWord
+    }
+}
+
+extension LedgerBoard {
+    /// 线程真步 → 呈现行（纯派生）。步名解析链写
+    /// 死（2.25.0 契约）：①语义步 humanTitle（同序
+    /// 对位）→②步自带人话名→③步自带形态名（截断
+    /// 尾行 summary／审批步 action＋object／变迁步
+    /// 落点状态人话）→④规则名（工具名走聊天工具卡
+    /// 同一张词面表 ToolCardClassifier）。相位：失
+    /// 败看 ok/failReason、变迁步看落点状态、进行
+    /// 中线程的末个未回结果步为当前步。步长只在步
+    /// 自带时刻时按相邻步间隔派生（与 history 步同
+    /// 口径：终态落点是时间点不给步长）
+    public static func threadStepRows(
+        steps: [LedgerThreadStep],
+        humanSteps: [LedgerHumanStep],
+        inProgress: Bool, threadStatus: String?,
+        endedAt: Double?, serverNow: Double,
+        locale: Locale = AppLocale.uiLocale
+    ) -> [LedgerThreadStepRow] {
+        steps.enumerated().map { index, step in
+            let human = humanSteps.indices.contains(index)
+                ? humanSteps[index] : nil
+            let actionText = threadStepNonBlank(step.action)
+            let isTransition = actionText?.contains("→") ?? false
+            let transitionTail = isTransition
+                ? actionText?
+                    .components(separatedBy: "→").last?
+                    .trimmingCharacters(in: .whitespaces)
+                : nil
+            let transitionStatus = transitionTail.map {
+                LedgerStatus(rawValue: $0)
+            }
+            let title: String
+            if let humanTitle = threadStepNonBlank(
+                human?.humanTitle
+            ) {
+                title = humanTitle
+            } else if let own = threadStepNonBlank(step.ownTitle) {
+                title = own
+            } else if let summary = threadStepNonBlank(
+                step.summary
+            ) {
+                title = summary
+            } else if let action = actionText {
+                if isTransition {
+                    if let tail = transitionTail, !tail.isEmpty {
+                        title = LedgerText.statusWord(
+                            LedgerStatus(rawValue: tail),
+                            locale: locale
+                        )
+                    } else {
+                        title = L10n.string(
+                            "开始", locale: locale
+                        )
+                    }
+                } else if let object = threadStepNonBlank(
+                    step.object
+                ) {
+                    title = action + " " + object
+                } else {
+                    title = action
+                }
+            } else if let tool = threadStepNonBlank(step.tool) {
+                title = ToolCardClassifier.activityPhrase(
+                    forToolName: tool, locale: locale
+                )
+            } else {
+                title = L10n.string("步骤", locale: locale)
+            }
+            let isLast = index == steps.count - 1
+            let failed = step.ok == false || step.failReason != nil
+            let phase: LedgerStepPhase
+            if failed {
+                phase = .failed
+            } else if let status = transitionStatus {
+                switch status {
+                case .failed:
+                    phase = .failed
+                case .cancelled:
+                    phase = .cancelled
+                default:
+                    if isLast && inProgress {
+                        phase = .current
+                    } else if isLast && threadStatus == "stale" {
+                        phase = .stale
+                    } else {
+                        phase = .done
+                    }
+                }
+            } else if inProgress && isLast && step.ok == nil
+                        && step.result == nil
+                        && step.summary == nil {
+                phase = .current
+            } else {
+                phase = .done
+            }
+            let duration: Double?
+            if let at = step.at,
+               !(transitionStatus?.isTerminal ?? false) {
+                if index + 1 < steps.count,
+                   let next = steps[index + 1].at {
+                    duration = max(0, next - at)
+                } else if let ended = endedAt {
+                    duration = max(0, ended - at)
+                } else if inProgress {
+                    duration = max(0, serverNow - at)
+                } else {
+                    duration = nil
+                }
+            } else {
+                duration = nil
+            }
+            var note = threadStepNonBlank(human?.humanNote)
+                ?? threadStepNonBlank(step.note)
+            if note == nil, actionText != nil, !isTransition {
+                note = threadStepNonBlank(step.result)
+            }
+            if note == nil {
+                note = threadStepNonBlank(step.failReason)
+            }
+            return LedgerThreadStepRow(
+                index: index, title: title, phase: phase,
+                at: step.at, duration: duration, note: note,
+                preview: threadStepNonBlank(step.preview),
+                actorWord: step.by.map {
+                    LedgerText.actorWord($0, locale: locale)
+                }
+            )
+        }
+    }
+
+    private static func threadStepNonBlank(
+        _ value: String?
+    ) -> String? {
+        guard let value,
+              !value.trimmingCharacters(
+                  in: .whitespacesAndNewlines
+              ).isEmpty
+        else { return nil }
+        return value
+    }
+}

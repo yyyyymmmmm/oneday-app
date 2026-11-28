@@ -233,6 +233,22 @@ public struct LedgerHistoryEntry: Equatable, Sendable {
     }
 }
 
+/// 语义步一行（服务端 2.25.0 契约，条目出口
+/// stepsHuman）：与条目原始步骤按序一一对应的模型
+/// 人话步——humanTitle 是步名（详情步名解析链的第
+/// 一优先），humanNote 是可选的步下副行（说清这步
+/// 做了什么）。服务端未生成时整段缺省，客户端步名
+/// 走回落链（步自带名→规则名），不许拿空标题顶位
+public struct LedgerHumanStep: Equatable, Sendable {
+    public let humanTitle: String
+    public let humanNote: String?
+
+    public init(humanTitle: String, humanNote: String?) {
+        self.humanTitle = humanTitle
+        self.humanNote = humanNote
+    }
+}
+
 // MARK: - 条目
 
 public struct LedgerItem: Equatable, Identifiable, Sendable {
@@ -270,6 +286,16 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
     public let correctedBy: String?
     /// 仅详情面带（列表面桥侧剥除）
     public let history: [LedgerHistoryEntry]
+    /// 收口总结段（服务端 2.25.0 契约）：与标题同一
+    /// 条生成线产出的整段人话总结（做了什么、结果
+    /// 如何），详情页首位渲染、有段时顶替现行一句
+    /// 话摘要。旧服务端无此字段恒 nil，视图回落现
+    /// 行 detailSummary 一句话口径，不许空白
+    public let detailSummary: String?
+    /// 语义步（服务端 2.25.0 契约）：与本条目原始
+    /// 步骤按序对应的模型人话步；未生成时为空数组，
+    /// 步名走回落链（见 LedgerBoard.threadStepRows）
+    public let stepsHuman: [LedgerHumanStep]
 
     /// 内部系统任务判定（§名下状态行改造 2026-11-26 定规）：
     /// 动态调研/内部系统流程等不进活动流水——按标题特征判别
@@ -294,7 +320,9 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
         link: LedgerLink?, counts: [String: Int],
         failReason: LedgerFailReason?, evidenceLagging: Bool,
         lastSeq: Int, sessionId: String?, runId: String?,
-        correctedBy: String?, history: [LedgerHistoryEntry]
+        correctedBy: String?, history: [LedgerHistoryEntry],
+        detailSummary: String? = nil,
+        stepsHuman: [LedgerHumanStep] = []
     ) {
         self.id = id
         self.kind = kind
@@ -317,6 +345,8 @@ public struct LedgerItem: Equatable, Identifiable, Sendable {
         self.runId = runId
         self.correctedBy = correctedBy
         self.history = history
+        self.detailSummary = detailSummary
+        self.stepsHuman = stepsHuman
     }
 
     /// 工具调用子计数（缺省 nil＝未结算，不显示）
@@ -399,6 +429,186 @@ public struct LedgerListResponse: Equatable, Sendable {
         self.collectorHeartbeatAt = collectorHeartbeatAt
         self.serverNow = serverNow
         self.counts = counts
+    }
+}
+
+// MARK: - 线程详情（GET /ledger/threads/{id}）
+
+/// 线程原始步一行（服务端 _ledger_thread_steps 的
+/// 异形字典宽容收口）：运行步＝{tool, preview, ok?}、
+/// 审批步＝{action, object, result}、变迁步＝
+/// {action: "from → to", at, by, note?}、截断尾行＝
+/// {summary}。字段全可选、缺哪个省哪个——步的呈现
+/// 派生（步名解析链/相位/步长）在 LedgerBoard，
+/// 本处只如实搬运端点给了什么
+public struct LedgerThreadStep: Equatable, Sendable {
+    public let tool: String?
+    public let preview: String?
+    /// 工具结果成败（结果未回/未记录时缺省 nil）
+    public let ok: Bool?
+    public let action: String?
+    public let object: String?
+    public let result: String?
+    /// epoch 秒（只有变迁步带；运行步端点无时刻）
+    public let at: Double?
+    public let by: String?
+    public let note: String?
+    /// 截断尾行文案（「共 N 步，仅显示前 50 步」）
+    public let summary: String?
+    /// 步自带人话名（防御位：步字典自带 humanTitle/
+    /// title/label 时，步名解析链排规则名之前）
+    public let ownTitle: String?
+    /// 失败标记（字符串原文或 {category} 字典，两形
+    /// 归一到一串分类词；无失败为 nil）
+    public let failReason: String?
+
+    public init(
+        tool: String?, preview: String?, ok: Bool?,
+        action: String?, object: String?, result: String?,
+        at: Double?, by: String?, note: String?,
+        summary: String?, ownTitle: String?,
+        failReason: String?
+    ) {
+        self.tool = tool
+        self.preview = preview
+        self.ok = ok
+        self.action = action
+        self.object = object
+        self.result = result
+        self.at = at
+        self.by = by
+        self.note = note
+        self.summary = summary
+        self.ownTitle = ownTitle
+        self.failReason = failReason
+    }
+}
+
+/// 线程详情回执（服务端 _ledger_thread_detail 同
+/// 形）：线程本体字段＋steps（原始步，上限 50）＋
+/// stepsTotal＋items（成员条目详情）。2.25.0 契约
+/// 字段两处都宽容接：线程级 stepsHuman/detail-
+/// Summary 与成员条目自带同名字段（解析优先序在
+/// LedgerThreading）；旧服务端两处皆无，步名与摘
+/// 要全走回落链，页面不许因此空白或倒退
+public struct LedgerThreadDetail: Equatable, Sendable {
+    public let threadId: String
+    public let prototype: String?
+    public let inProgress: Bool
+    /// 线程状态原文（代表条目的 status）
+    public let status: String?
+    public let startedAt: Double?
+    public let endedAt: Double?
+    public let steps: [LedgerThreadStep]
+    public let stepsTotal: Int
+    /// 线程级语义步（与 steps 按序对应；服务端若把
+    /// 语义步挂在成员条目上，本字段为空、由
+    /// LedgerThreading 按成员序拼接）
+    public let stepsHuman: [LedgerHumanStep]
+    /// 线程级总结段（成员条目自带同名字段时优先
+    /// 成员，见 LedgerThreading.detailSummary）
+    public let detailSummary: String?
+    public let items: [LedgerItem]
+
+    public init(
+        threadId: String, prototype: String?,
+        inProgress: Bool, status: String?,
+        startedAt: Double?, endedAt: Double?,
+        steps: [LedgerThreadStep], stepsTotal: Int,
+        stepsHuman: [LedgerHumanStep],
+        detailSummary: String?, items: [LedgerItem]
+    ) {
+        self.threadId = threadId
+        self.prototype = prototype
+        self.inProgress = inProgress
+        self.status = status
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.steps = steps
+        self.stepsTotal = stepsTotal
+        self.stepsHuman = stepsHuman
+        self.detailSummary = detailSummary
+        self.items = items
+    }
+}
+
+/// 线程身份与契约字段解析（与服务端 activity_feed
+/// 的 classify_item＋thread_key 逐条同规——服务端
+/// 按此把条目组进线程，客户端按此反算 threadId 去
+/// 拉详情；两边必须同规，改一处先对另一处）
+public enum LedgerThreading {
+    /// 条目所属线程的 threadId；服务端不组线程的条
+    /// 目（job/monitor/device/未知类别、无会话锚或
+    /// 网关无状态会话的运行/审批）返回 nil——这类条
+    /// 目详情页不发线程请求、步区走 history 回落
+    public static func threadID(for item: LedgerItem) -> String? {
+        switch item.kind {
+        case .run:
+            // classify：无会话锚或 run_ 网关会话不入流
+            guard let sessionId = item.sessionId,
+                  !sessionId.isEmpty,
+                  !sessionId.hasPrefix("run_")
+            else { return nil }
+            let runId: String
+            if item.id.hasPrefix("run:") {
+                runId = nonEmpty(item.runId)
+                    ?? String(item.id.dropFirst("run:".count))
+            } else {
+                runId = nonEmpty(item.runId) ?? item.id
+            }
+            return "thread:run:\(runId)"
+        case .approval:
+            // classify：审批同样以会话锚为准入（锚即
+            // thread_key 的 anchor 第一优先）
+            guard let sessionId = item.sessionId,
+                  !sessionId.isEmpty,
+                  !sessionId.hasPrefix("run_")
+            else { return nil }
+            return "thread:appr:\(sessionId)"
+        case .kanban:
+            let taskId = nonEmpty(item.link?.targetId)
+                ?? (item.id.hasPrefix("task:")
+                    ? String(item.id.dropFirst("task:".count))
+                    : item.id)
+            return "thread:kanban:\(taskId)"
+        default:
+            return nil
+        }
+    }
+
+    /// 语义步解析：线程级整段优先；缺省时按成员序
+    /// （回执 items 与 steps 的拼接序同为 itemIds
+    /// 序）拼接各成员自带 stepsHuman——两处都空回
+    /// 空数组，步名全走回落链
+    public static func humanSteps(
+        for detail: LedgerThreadDetail
+    ) -> [LedgerHumanStep] {
+        if !detail.stepsHuman.isEmpty {
+            return detail.stepsHuman
+        }
+        return detail.items.flatMap { $0.stepsHuman }
+    }
+
+    /// 总结段解析：本条目成员自带优先，其次线程级
+    /// 同名字段；空白段视为无段（回 nil 走旧口径）
+    public static func detailSummary(
+        for detail: LedgerThreadDetail, itemID: String
+    ) -> String? {
+        if let member = detail.items.first(where: {
+            $0.id == itemID
+        }), let text = nonEmpty(member.detailSummary) {
+            return text
+        }
+        return nonEmpty(detail.detailSummary)
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value,
+              !value.trimmingCharacters(
+                  in: .whitespacesAndNewlines
+              ).isEmpty
+        else { return nil }
+        return value
     }
 }
 
@@ -708,6 +918,99 @@ extension LedgerItem: Decodable {
         correctedBy = ledgerString(container, ["correctedBy"])
         history = (try? container.decode(
             [LedgerHistoryEntry].self, forKey: LedgerAnyKey("history")
+        )) ?? []
+        detailSummary = ledgerString(
+            container, ["detailSummary", "detail_summary"]
+        )
+        stepsHuman = (try? container.decode(
+            [LedgerHumanStep].self,
+            forKey: LedgerAnyKey("stepsHuman")
+        )) ?? (try? container.decode(
+            [LedgerHumanStep].self,
+            forKey: LedgerAnyKey("steps_human")
+        )) ?? []
+    }
+}
+
+extension LedgerHumanStep: Decodable {
+    public init(from decoder: Decoder) throws {
+        let container = try ledgerContainer(decoder)
+        humanTitle = ledgerString(
+            container, ["humanTitle", "human_title"]
+        ) ?? ""
+        humanNote = ledgerString(
+            container, ["humanNote", "human_note"]
+        )
+    }
+}
+
+extension LedgerThreadStep: Decodable {
+    public init(from decoder: Decoder) throws {
+        let container = try ledgerContainer(decoder)
+        tool = ledgerString(container, ["tool"])
+        preview = ledgerString(container, ["preview"])
+        ok = ledgerBool(container, ["ok"])
+        action = ledgerString(container, ["action"])
+        object = ledgerString(container, ["object"])
+        result = ledgerString(container, ["result"])
+        at = ledgerEpoch(container, ["at"])
+        by = ledgerString(container, ["by"])
+        note = ledgerString(container, ["note"])
+        summary = ledgerString(container, ["summary"])
+        ownTitle = ledgerString(
+            container, ["humanTitle", "human_title", "title", "label"]
+        )
+        // failReason 两形：字符串原文直收；字典形取
+        // category（与条目 failReason 同口径）
+        if let text = ledgerString(container, ["failReason"]) {
+            failReason = text
+        } else if container.contains(LedgerAnyKey("failReason")),
+                  !(try container.decodeNil(
+                      forKey: LedgerAnyKey("failReason")
+                  )) {
+            failReason = try container.decode(
+                LedgerFailReason.self,
+                forKey: LedgerAnyKey("failReason")
+            ).category
+        } else {
+            failReason = nil
+        }
+    }
+}
+
+extension LedgerThreadDetail: Decodable {
+    public init(from decoder: Decoder) throws {
+        let container = try ledgerContainer(decoder)
+        threadId = ledgerString(
+            container, ["threadId", "thread_id"]
+        ) ?? ""
+        prototype = ledgerString(container, ["prototype"])
+        inProgress = ledgerBool(
+            container, ["inProgress", "in_progress"]
+        ) ?? false
+        status = ledgerString(container, ["status"])
+        startedAt = ledgerEpoch(
+            container, ["startedAt", "started_at"]
+        )
+        endedAt = ledgerEpoch(container, ["endedAt", "ended_at"])
+        steps = (try? container.decode(
+            [LedgerThreadStep].self, forKey: LedgerAnyKey("steps")
+        )) ?? []
+        stepsTotal = ledgerInt(
+            container, ["stepsTotal", "steps_total"]
+        ) ?? steps.count
+        stepsHuman = (try? container.decode(
+            [LedgerHumanStep].self,
+            forKey: LedgerAnyKey("stepsHuman")
+        )) ?? (try? container.decode(
+            [LedgerHumanStep].self,
+            forKey: LedgerAnyKey("steps_human")
+        )) ?? []
+        detailSummary = ledgerString(
+            container, ["detailSummary", "detail_summary"]
+        )
+        items = (try? container.decode(
+            [LedgerItem].self, forKey: LedgerAnyKey("items")
         )) ?? []
     }
 }

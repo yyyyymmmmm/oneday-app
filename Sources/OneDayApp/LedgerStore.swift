@@ -37,6 +37,12 @@ final class LedgerStore {
     private(set) var detail: LedgerItem?
     private(set) var detailLoading = false
     private(set) var detailGone = false
+    /// 线程详情回执（真步序列）与它对应的条目 id：
+    /// 换条目即作废防串用；拉不到时为 nil＋itemID
+    /// 照记（＝已试过、走回落），视图据此分流
+    private(set) var threadDetail: LedgerThreadDetail?
+    private(set) var threadDetailItemID: String?
+    private var threadLoadInFlightFor: String?
 
     private let client = LedgerBridgeClient()
     /// 伴生探测走 front 客户端（桥-1 归位：探针本属
@@ -287,6 +293,44 @@ final class LedgerStore {
         } catch {
             // 详情拉不到不翻整页：列表快照的行数据还在
             // 详情面顶着，history 区以缺失如实呈现
+        }
+    }
+
+    /// 详情页真步拉取：threadId 由 Core
+    /// LedgerThreading 按服务端 classify/thread_key
+    /// 同规反算。算不出（不组线程的条目）与拉不到
+    /// （404/网络）都静默收口——步区自有 history
+    /// 派生回落链，本拉取失败不翻任何态、不清已有
+    /// 回执（同条目刷新失败保旧步，不许把已渲染的
+    /// 真步打回回落态）
+    func loadThreadDetail(appState: AppState, item: LedgerItem) async {
+        guard let threadID = LedgerThreading.threadID(for: item)
+        else {
+            if threadDetailItemID != item.id {
+                threadDetail = nil
+                threadDetailItemID = item.id
+            }
+            return
+        }
+        guard let config = appState.config else { return }
+        guard threadLoadInFlightFor != item.id else { return }
+        threadLoadInFlightFor = item.id
+        defer {
+            if threadLoadInFlightFor == item.id {
+                threadLoadInFlightFor = nil
+            }
+        }
+        do {
+            let fetched = try await client.threadDetail(
+                config: config, threadId: threadID
+            )
+            threadDetail = fetched
+            threadDetailItemID = item.id
+        } catch {
+            if threadDetailItemID != item.id {
+                threadDetail = nil
+                threadDetailItemID = item.id
+            }
         }
     }
 }
