@@ -9,6 +9,7 @@ import SwiftUI
 struct BotRosterView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var profiles: [ProfileSummary] = []
     @State private var activeProfileName: String = ""
@@ -113,6 +114,7 @@ struct BotRosterView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
+        .animation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion), value: filteredProfiles.map(\.name))
         .searchable(text: $searchText, prompt: Text("搜索分身名称或模型"))
         .navigationTitle("专家分身花名册")
         .navigationBarTitleDisplayMode(.inline)

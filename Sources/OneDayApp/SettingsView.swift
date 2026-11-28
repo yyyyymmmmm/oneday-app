@@ -230,6 +230,8 @@ struct SettingsView: View {
                     )
                 case .advancedDiagnostics:
                     advancedDiagnosticsView
+                case .aiSettingsAudit:
+                    AISettingsAuditView()
                 case .healthCheck:
                     HealthCheckView()
                 case .connectionSelfCheck:
@@ -635,6 +637,13 @@ struct SettingsView: View {
                     title: L10n.string("网关状态"),
                     status: gatewayStateWord,
                     route: .gateway
+                )
+                statusNavRow(
+                    icon: "checkmark.shield.fill",
+                    color: Palette.tintGreenInk,
+                    title: L10n.string("AI 变更审计与撤销"),
+                    status: "查看 AI 改动的设置并一键回滚",
+                    route: .aiSettingsAudit
                 )
                 navRow(icon: "key", title: L10n.string("环境变量"), route: .envVars)
                 navRow(icon: "link", title: L10n.string("主会话"), route: .mainSession)

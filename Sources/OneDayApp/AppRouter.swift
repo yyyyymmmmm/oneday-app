@@ -90,6 +90,8 @@ enum SettingsRoute: Hashable {
     /// 避免直接目标式 NavigationLink 与 value 路由混用
     /// 造成的导航栈状态冲突
     case advancedDiagnostics
+    /// AI 设置变更审计与一键撤销（对接 /v1/settings/events & /v1/settings/revoke）
+    case aiSettingsAudit
     /// 连接自检面（H13，台账 33，DESIGN §357）：客
     /// 户端只读探活驻留面，落设置根服务器段（Core
     /// 目录 connectionSelfCheck 条目直达）

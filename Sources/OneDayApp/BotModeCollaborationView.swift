@@ -9,6 +9,13 @@ import SwiftUI
 /// 授权续期（POST /v1/room-members/grants/refresh）与立即撤销（POST /v1/room-members/grants/revoke）。
 struct BotModeCollaborationView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // 多分身 @mention 群聊编排
+    @State private var rosterProfiles: [ProfileSummary] = []
+    @State private var selectedBotNames: Set<String> = []
+    @State private var groupTopic = ""
 
     // 签发房间邀请表单
     @State private var roomID = "room-main"
@@ -50,6 +57,8 @@ struct BotModeCollaborationView: View {
                 }
                 .listRowBackground(Palette.surface)
             }
+
+            groupOrchestrationSection
 
             Section {
                 LabeledContent("房间 ID") {
@@ -174,8 +183,91 @@ struct BotModeCollaborationView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
+        .animation(MotionTokens.resolved(MotionTokens.swap, reduceMotion: reduceMotion), value: selectedBotNames)
         .navigationTitle("Bot Mode 多体协作")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await loadRosterProfiles() }
+    }
+
+    private var groupOrchestrationSection: some View {
+        let sortedSelected = rosterProfiles.map(\.name).filter { selectedBotNames.contains($0) }
+        let mentionsPrefix = sortedSelected.map { "@\($0)" }.joined(separator: " ")
+        return Section {
+            if rosterProfiles.isEmpty {
+                Text("正在读取常驻分身花名册…可在「配置档案与分身」中创建多个专家分身。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(rosterProfiles, id: \.name) { profile in
+                            let picked = selectedBotNames.contains(profile.name)
+                            Button {
+                                Haptics.selection()
+                                if picked {
+                                    selectedBotNames.remove(profile.name)
+                                } else {
+                                    selectedBotNames.insert(profile.name)
+                                }
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: picked ? "checkmark.circle.fill" : "person.crop.circle")
+                                    Text(profile.name)
+                                }
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(picked ? .white : Palette.ink)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 6)
+                                .background(
+                                    picked ? Palette.tintLavenderInk : Palette.fillTertiary,
+                                    in: Capsule()
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                TextField("输入协同议题（如：请各自评估此架构方案的风险与排期）", text: $groupTopic, axis: .vertical)
+                    .lineLimit(2...4)
+
+                if !mentionsPrefix.isEmpty {
+                    Text("将生成接力指令：\(mentionsPrefix) \(groupTopic)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+
+                Button {
+                    let combined = "\(mentionsPrefix) \(groupTopic.trimmingCharacters(in: .whitespacesAndNewlines))".trimmingCharacters(in: .whitespaces)
+                    UIPasteboard.general.string = combined
+                    Haptics.success()
+                    showFeedback("已生成多分身 @mention 协同指令并复制到剪贴板，正在跳转聊天页。", isError: false)
+                    appState.router.mainTabSwitchRequest = .chat
+                    dismiss()
+                } label: {
+                    Label("发起多分身 @mention 协同群聊", systemImage: "bubble.left.and.bubble.right.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.tintLavenderInk)
+                .disabled(selectedBotNames.count < 2 || groupTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } header: {
+            SettingsSectionHeader("多分身 @mention 群聊编排")
+        } footer: {
+            Text("选择 2 位及以上常驻专家分身，一键组装 @mention 接力指令并跳转会话协作。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    private func loadRosterProfiles() async {
+        guard let config = appState.config, let apiKey = appState.apiKey else { return }
+        if let resp = try? await appState.client.profiles(config: config, apiKey: apiKey) {
+            rosterProfiles = resp.profiles
+        }
     }
 
     private func mintInvitation() async {
