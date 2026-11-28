@@ -59,6 +59,28 @@ final class AppState {
     /// 第二行与中枢状态行同读此值——两面同源同口径；
     /// 无工具在飞恒 nil，两面各自回落既有状态口径
     var liveActivityPhrase: String?
+    /// 实时状况短语（服务端 2.22.0 agent-status 口）：
+    /// 智能体在别处（其他会话／后台真活）忙碌时的人
+    /// 话标签；idle 恒 nil，胶囊不留常驻空行
+    var agentStatusPhrase: String?
+    /// 胶囊活动短语单读口（§449.9 单源口径扩展）：
+    /// 本聊在飞工具短语优先，否则服务端实时状况——
+    /// 与 Muse 胶囊同理，智能体在哪干活都有状况行
+    var capsuleActivityPhrase: String? {
+        liveActivityPhrase ?? agentStatusPhrase
+    }
+
+    /// 拉一次实时状况（聊天页总览 30 秒轮询顺带调
+    /// 用，不另开轮询）；失败静默保留上次短语一拍，
+    /// 状况行缺席不算故障
+    func refreshAgentStatus() async {
+        guard let config else { return }
+        if let status = try? await LedgerBridgeClient()
+            .agentStatus(config: config) {
+            agentStatusPhrase = status.state == "idle"
+                ? nil : status.label
+        }
+    }
     /// AI 自反应能力结论（DESIGN §432）：外观页
     /// 「AI 反应」开关行的显隐单读此值——判定单源
     /// 在 Core CapabilityNegotiation，本处只持有最

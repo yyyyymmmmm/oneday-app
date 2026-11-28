@@ -598,7 +598,7 @@ struct AgentHubView: View {
         // 误记——实测 ≈17 regular，字档回 .body 17
         // regular（hub-type-measurement-20261124.md）
         HStack(spacing: OneDayMetrics.rowInnerGap) {
-            if let livePhrase = appState.liveActivityPhrase {
+            if let livePhrase = appState.capsuleActivityPhrase {
                 ProgressView()
                     .controlSize(.mini)
                 Text(livePhrase)

@@ -55,6 +55,18 @@ final class LedgerBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// GET /agent-status：实时状况（服务端 2.22.0）
+    /// ——state（waiting／working／idle）＋label 人话
+    /// 标签＋since＋active，供聊天胶囊名下状况行
+    func agentStatus(
+        config: ServerConfig
+    ) async throws -> AgentStatusResponse {
+        try await get(
+            config: config, path: "/agent-status",
+            endpoint: L10n.string("实时状况"), collection: false
+        )
+    }
+
     /// POST /ledger/report：App 主通道上报（开始／心
     /// 跳／终态，规格 §2.1）；回执取 seq。本包先落客
     /// 户端契约，聊天发送链的挂点接线由主线在合并时
@@ -103,4 +115,13 @@ final class LedgerBridgeClient: @unchecked Sendable {
             )
         }
     }
+}
+
+/// GET /agent-status 回执（服务端 seg_ledger
+/// _agent_status 同形；since 为浮点时间戳可缺省）
+struct AgentStatusResponse: Decodable {
+    let state: String
+    let label: String
+    let since: Double?
+    let active: Int
 }

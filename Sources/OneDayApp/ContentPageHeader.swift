@@ -16,7 +16,7 @@ struct ContentPageHeader<Trailing: View>: View {
             HubIdentityCapsule(
                 displayName: appState.agentDisplayName,
                 avatar: appState.agentAvatarImage,
-                liveActivityPhrase: appState.liveActivityPhrase,
+                liveActivityPhrase: appState.capsuleActivityPhrase,
                 onOpenHub: onOpenHub
             )
             HStack(alignment: .center) {

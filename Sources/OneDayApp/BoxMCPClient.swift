@@ -67,7 +67,11 @@ actor BoxMCPClient {
         let transport = HTTPClientTransport(
             endpoint: mcpURL,
             configuration: configuration,
-            streaming: false,
+            // 2.22.0 诊断订正：Simular 的长调用
+            // （box_ensure 唤醒等）以 SSE 流回执，
+            // 非流式传输解不开 SSE 帧、唤醒步必败，
+            // 盒子睡着时全链控制皆死——必须流式
+            streaming: true,
             requestModifier: { request in
                 var req = request
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

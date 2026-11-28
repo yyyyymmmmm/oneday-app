@@ -318,7 +318,7 @@ extension ChatView {
         HubIdentityCapsule(
             displayName: appState.agentDisplayName,
             avatar: appState.agentAvatarImage,
-            liveActivityPhrase: appState.liveActivityPhrase,
+            liveActivityPhrase: appState.capsuleActivityPhrase,
             onOpenHub: { presentHub() },
             onFindInConversation: { findController.open() },
             onForkSession: currentThread?.serverSessionID != nil

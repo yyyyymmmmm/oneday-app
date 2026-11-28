@@ -987,6 +987,9 @@ struct ChatView: View {
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
         // 同一份通知状态，不另开轮询
         .task(id: overviewStore?.snapshot?.generatedAt) {
+            // 2.22.0：实时状况同乘总览轮询（不另开
+            // 轮询，与通知同纪律）——胶囊状况行读数
+            await appState.refreshAgentStatus()
             if let overviewStore {
                 // §426（缺陷二）：本页正打开的会话作
                 // 为前台会话传给消账判定——本会话的
