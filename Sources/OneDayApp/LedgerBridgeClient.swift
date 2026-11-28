@@ -124,4 +124,7 @@ struct AgentStatusResponse: Decodable {
     let label: String
     let since: Double?
     let active: Int
+    /// 在飞轮次的任务标题种子（服务端 2.23.0）：状态
+    /// 短语据此拼「正在＋任务」，与 Muse 同语义层
+    let taskTitle: String?
 }

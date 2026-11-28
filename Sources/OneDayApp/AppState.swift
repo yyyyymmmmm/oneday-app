@@ -77,8 +77,18 @@ final class AppState {
         guard let config else { return }
         if let status = try? await LedgerBridgeClient()
             .agentStatus(config: config) {
-            agentStatusPhrase = status.state == "idle"
-                ? nil : status.label
+            // 2.23.0 机制对齐：在飞时短语优先「正在＋
+            // 任务标题」（任务语义层，与 Muse 状态行
+            // 同构）；无任务标题时回落服务端步骤标签
+            if status.state == "idle" {
+                agentStatusPhrase = nil
+            } else if status.state == "working",
+                      let title = status.taskTitle,
+                      !title.isEmpty {
+                agentStatusPhrase = "正在" + title
+            } else {
+                agentStatusPhrase = status.label
+            }
         }
     }
     /// AI 自反应能力结论（DESIGN §432）：外观页
