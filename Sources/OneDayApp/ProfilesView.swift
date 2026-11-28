@@ -76,7 +76,11 @@ struct ProfilesView: View {
                         profileRow(profile)
                     }
                 } header: {
-                    SettingsSectionHeader("全部档案")
+                    SettingsSectionHeader("全部分身与档案")
+                } footer: {
+                    Text("每个分身拥有独立的 SOUL.md 人设、模型、技能与记忆库；长按可导出分身包跨机分发，或通过新建快速克隆出专业分身。")
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(OneDayMetrics.settingsRowInsets)
@@ -218,6 +222,17 @@ struct ProfilesView: View {
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: isActive ? "person.crop.circle.badge.checkmark" : "person.crop.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isActive ? Palette.tintSkyInk : Palette.tintLavenderInk)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        isActive ? Palette.tintSky : Palette.tintLavender,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile, style: .continuous)
+                    )
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(profile.name)
@@ -225,8 +240,11 @@ struct ProfilesView: View {
                             .foregroundStyle(Palette.ink)
                         if profile.isDefault == true {
                             Text("默认")
-                                .font(.caption)
+                                .font(.caption2.weight(.medium))
                                 .foregroundStyle(Palette.inkSecondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Palette.fillTertiary, in: Capsule())
                         }
                     }
                     Text(subtitle(profile))
@@ -237,8 +255,11 @@ struct ProfilesView: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if isActive {
                     Text("使用中")
-                        .font(.footnote)
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Palette.successText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Palette.tintGreen, in: Capsule())
                 }
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
@@ -249,17 +270,17 @@ struct ProfilesView: View {
         .buttonStyle(.odPressable)
         .contextMenu {
             if !isActive {
-                Button("切换到此档案") {
+                Button("切换到此分身") {
                     pendingSwitch = profile
                 }
             }
-            Button("导出档案") {
+            Button("导出分身包") {
                 exportingProfile = profile
             }
             // 当前档案与默认档案不给删：删当前会让服务端
             // 无档案可用，删默认没有退路
             if !isActive && profile.isDefault != true {
-                Button("删除档案", role: .destructive) {
+                Button("删除分身", role: .destructive) {
                     deleteTarget = profile
                 }
             }

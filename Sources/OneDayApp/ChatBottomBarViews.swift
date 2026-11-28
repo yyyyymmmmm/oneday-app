@@ -39,6 +39,8 @@ struct ChatBottomBarView: View {
     var speechPlaybackBarView: AnyView?
     var approvalZoneVisible: Bool = false
     var approvalZoneView: AnyView?
+    var slashCommandPaletteVisible: Bool = false
+    var slashCommandPaletteView: AnyView? = nil
     // 输入舱段依赖（透传下两件结构体）
     var dictation: DictationController
     var dictationFailureBarView: AnyView?
@@ -137,6 +139,10 @@ struct ChatBottomBarView: View {
                     .padding(.horizontal, OneDayMetrics.pageGutter)
                     .transition(.opacity)
             }
+            if slashCommandPaletteVisible, let slashCommandPaletteView {
+                slashCommandPaletteView
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             ChatInputBarView(
                 dictation: dictation,
                 dictationFailureBarView: dictationFailureBarView,
@@ -208,6 +214,12 @@ struct ChatBottomBarView: View {
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: approvalZoneVisible
+        )
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: slashCommandPaletteVisible
         )
         // D3（DESIGN §352；0.50.88 自 body 根链迁来本
         // 子树）：编辑非末轮的破坏性确认——N 轮实算

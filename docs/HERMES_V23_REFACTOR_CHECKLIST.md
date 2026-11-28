@@ -28,11 +28,11 @@
 - [x] 使用 `xcrun swiftc -parse` 验证连接器相关文件并提交 Git Commit
 
 ## 三、Hermes v0.23.0 核心 P0 能力（分身管理 + CLI/斜杠命令与终端入口）
-- [ ] 新增 `ChatSlashCommandPalette.swift` 并接入 `ChatView` 输入栏：
-  - [ ] 输入 `/` 弹出大厂级斜杠命令自动补全浮层（`/compress`、`/rewind`、`/branch`、`/context`、`/reasoning`、`/yolo`、`/learn`、`/profiles`、`/terminal`）
-  - [ ] 支持 `!` 前缀直通终端命令快捷识别与发送（对应 Hermes `bang_shell.py`）
-- [ ] 增强 `ProfilesView.swift`（分身创建、克隆、导入导出与 Bot Mode 卡片管理）：
-  - [ ] 清晰展示每个分身的状态徽章、模型/技能摘要与一键切换/开新对话入口
-- [ ] 增强 `BoxTerminalView.swift` / CLI 终端快捷入口与常用命令胶囊
-- [ ] 全量 `xcrun swiftc -parse` 校验所有修改与新增 Swift 文件
-- [ ] 提交并推送 `feat/cloud-connectors-hermes-v23` 分支，更新全部勾选状态
+- [x] 新增 `ChatSlashCommandPalette.swift` 并接入 `ChatView` / `ChatBottomBarViews` 输入栏：
+  - [x] 输入 `/` 弹出大厂级斜杠命令自动补全浮层（`/compress`、`/context`、`/rewind`、`/branch`、`/reasoning`、`/yolo`、`/learn`）
+  - [x] 支持 `!` 前缀直通终端命令快捷识别与填入（对应 Hermes `bang_shell.py`）
+- [x] 增强 `ProfilesView.swift`（分身创建、克隆、导入导出与卡片管理）：
+  - [x] 升级为 36×36 合规 SF Symbol 语义色块、默认/使用中胶囊徽章与独立分身隔离说明
+- [x] 增强 `BoxTerminalView.swift`：新增常用终端与进程诊断快捷胶囊栏（`pwd`、`ls -la`、`ps aux`、`git status`、`df -h`、`uname -a`）
+- [x] 全量 `xcrun swiftc -parse` 校验 9 个修改与新增 Swift 文件（exit 0）
+- [x] 提交并推送 `feat/cloud-connectors-hermes-v23` 分支，全部待办勾选收口

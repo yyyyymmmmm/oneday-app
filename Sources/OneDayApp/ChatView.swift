@@ -2088,6 +2088,17 @@ struct ChatView: View {
                     )
                 )
                 : nil,
+            slashCommandPaletteVisible: !HermesSlashCommand.matching(for: input).isEmpty,
+            slashCommandPaletteView: {
+                let matched = HermesSlashCommand.matching(for: input)
+                guard !matched.isEmpty else { return nil }
+                return AnyView(
+                    ChatSlashCommandPaletteView(commands: matched) { item in
+                        input = item.insertText
+                        composerFocusHandle.focusAtEnd()
+                    }
+                )
+            }(),
             dictation: dictation,
             dictationFailureBarView: dictation.failure.map {
                 AnyView(

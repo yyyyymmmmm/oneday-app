@@ -30,6 +30,10 @@ struct BoxTerminalView: View {
     @State private var running = false
     @State private var exchanges: [Exchange] = []
 
+    private static let quickCommands = [
+        "pwd", "ls -la", "ps aux", "git status", "df -h", "uname -a"
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
             switch phase {
@@ -70,11 +74,33 @@ struct BoxTerminalView: View {
                     .autocorrectionDisabled()
                     .onSubmit { submit() }
                 Button("执行") { submit() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .disabled(
                         running
                             || BoxShellCommandText.normalize(commandText) == nil
                     )
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ForEach(Self.quickCommands, id: \.self) { cmd in
+                        Button {
+                            commandText = cmd
+                            submit()
+                        } label: {
+                            Text(cmd)
+                                .font(.caption.monospaced().weight(.medium))
+                                .foregroundStyle(Palette.ink)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Palette.surface, in: Capsule())
+                                .overlay(
+                                    Capsule().strokeBorder(Palette.hairline, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.odPressable)
+                        .disabled(running)
+                    }
+                }
             }
             if running {
                 HStack(spacing: OneDayMetrics.spacingS) {
