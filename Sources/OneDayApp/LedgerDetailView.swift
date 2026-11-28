@@ -20,9 +20,14 @@ import SwiftUI
 /// 与去向、没有任何裁决入口。
 /// 步骤卡改造（2026-11-28 皇上亲点）：整页收成
 /// 一张卡——卡首（标题＋chip＋成果句）＋步骤清单
-/// （history 变迁派生，LedgerBoard.steps）＋卡底
-/// 元数据一行小字；旧概况节／工作量节／事件时间
-/// 线节并入卡内，信息一件不少、重复全删。
+/// ＋卡底元数据一行小字；旧概况节／工作量节／事
+/// 件时间线节并入卡内，信息一件不少、重复全删。
+/// 真步接线（274，2026-11-28 皇上真机否 271 后
+/// 的内容纠正）：步骤改接服务端线程端点（GET
+/// /ledger/threads/{id}，真步＝工具调用序列）＋
+/// 2.25.0 语义步/总结段渲染；端点拉不到或步为空
+/// 才回落 271 的 history 变迁派生（LedgerBoard.
+/// steps），现状不许倒退。
 struct LedgerDetailView: View {
     var store: LedgerStore
     /// 列表快照行（详情回执到达前先以它渲染）
@@ -90,6 +95,10 @@ struct LedgerDetailView: View {
             // LedgerMonitorChange）
             if !LedgerMonitorChange.isMonitorChange(itemID: item.id) {
                 await store.loadDetail(appState: appState, id: item.id)
+                await store.loadThreadDetail(
+                    appState: appState, item: item
+                )
+                await refreshWhileActive()
             }
         }
         .sheet(item: $diffTarget) { record in
@@ -235,6 +244,65 @@ struct LedgerDetailView: View {
         )
     }
 
+    /// 进行中条目停留在本页时步骤生长：跟随台账现
+    /// 行 10 秒轮询节奏重拉条目详情与线程真步；条
+    /// 目落终态或离页（task 取消）即止
+    private func refreshWhileActive() async {
+        while !Task.isCancelled {
+            let active = store.detail?.id == item.id
+                ? (store.detail?.status.isActive ?? false)
+                : item.status.isActive
+            guard active else { return }
+            try? await Task.sleep(for: .seconds(10))
+            if Task.isCancelled { return }
+            await store.loadDetail(appState: appState, id: item.id)
+            await store.loadThreadDetail(
+                appState: appState, item: item
+            )
+        }
+    }
+
+    /// 页首总结段（服务端 2.25.0）：条目自带
+    /// detailSummary 优先，其次线程回执里本条目成
+    /// 员/线程级同名字段。有段时整段顶替现行一句
+    /// 话摘要——两段说同一件事不许并列；无段回
+    /// nil，页首走 LedgerBoard.detailSummary 旧口径
+    private var summaryParagraph: String? {
+        if let text = current.detailSummary,
+           !text.trimmingCharacters(
+               in: .whitespacesAndNewlines
+           ).isEmpty {
+            return text
+        }
+        guard store.threadDetailItemID == item.id,
+              let detail = store.threadDetail
+        else { return nil }
+        return LedgerThreading.detailSummary(
+            for: detail, itemID: item.id
+        )
+    }
+
+    /// 线程真步行：回执对得上本条目且步非空才有；
+    /// 转换口径在 Core LedgerBoard.threadStepRows。
+    /// nil＝无真步可用，步区走 history 回落链
+    private func threadStepRows(
+        serverNow: Double
+    ) -> [LedgerThreadStepRow]? {
+        guard store.threadDetailItemID == item.id,
+              let detail = store.threadDetail,
+              !detail.steps.isEmpty
+        else { return nil }
+        let rows = LedgerBoard.threadStepRows(
+            steps: detail.steps,
+            humanSteps: LedgerThreading.humanSteps(for: detail),
+            inProgress: detail.inProgress,
+            threadStatus: detail.status,
+            endedAt: detail.endedAt,
+            serverNow: serverNow
+        )
+        return rows.isEmpty ? nil : rows
+    }
+
     /// 点达执行：落点落 AppState 后关枢纽回聊天格
     /// （ChatView 消费请求切线程定位，与原审核段同）
     private func goToAnchor(
@@ -250,11 +318,12 @@ struct LedgerDetailView: View {
 
     /// 详情主卡（Muse 式步骤卡，2026-11-28 皇上亲
     /// 点改造）：整页信息收进一张卡——卡首标题＋状
-    /// 态 chip＋成果句（§475／270 的 detailSummary
-    /// 口径不变），中段步骤清单（LedgerBoard.steps
-    /// 由 history 变迁派生，真实数据、无步不编），
-    /// 卡底把概况与工作量压成一行小字；旧「概况」节
-    /// 与「事件时间线」节就此并入本卡，不再分节重复
+    /// 态 chip＋总结段（2.25.0 detailSummary 优先，
+    /// 无段回 §475／270 的一句话摘要），中段步骤清
+    /// 单（线程端点真步优先、history 变迁派生回
+    /// 落，真实数据、无步不编），卡底把概况与工作
+    /// 量压成一行小字；旧「概况」节与「事件时间
+    /// 线」节就此并入本卡，不再分节重复
     private var cardSection: some View {
         Section {
             Group {
@@ -292,7 +361,13 @@ struct LedgerDetailView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 statusChip
-                if let summary = LedgerBoard.detailSummary(
+                if let paragraph = summaryParagraph {
+                    // 总结段是正文不是元数据：主色呈
+                    // 现（与 Muse 详情页首段同位）
+                    Text(paragraph)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.ink)
+                } else if let summary = LedgerBoard.detailSummary(
                     for: current, serverNow: serverNow
                 ) {
                     Text(summary)
@@ -326,15 +401,26 @@ struct LedgerDetailView: View {
         )
     }
 
-    /// 步骤区：详情未到／已删／空流水各如实露（与旧
-    /// 时间线节同四态），不拿列表快照的空 history
-    /// 冒充「没有步骤」
+    /// 步骤区：真步（线程端点）优先——回执到且非空
+    /// 时整段走真步；端点拉不到/步为空回落 history
+    /// 派生步（271 口径逐字不变，不许倒退）。详情未
+    /// 到／已删／空流水各如实露（与旧时间线节同四
+    /// 态），不拿列表快照的空 history 冒充「没有步骤」
     @ViewBuilder
     private func stepsBlock(serverNow: Double) -> some View {
         if store.detailGone {
             Text("这条记录已不在，步骤读不到。")
                 .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
+        } else if let rows = threadStepRows(serverNow: serverNow) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row in
+                    threadStepRow(
+                        row,
+                        isLast: row.index == rows.count - 1
+                    )
+                }
+            }
         } else if store.detail?.id == item.id {
             let steps = LedgerBoard.steps(
                 for: current, serverNow: serverNow
@@ -423,6 +509,86 @@ struct LedgerDetailView: View {
             }
             .padding(.bottom, isLast ? 0 : OneDayMetrics.spacingSM)
         }
+    }
+
+    /// 真步一行：与 history 步行同版式（状态图标＋
+    /// 竖线串联、当前步加重）；端点没给的位整位不
+    /// 显——无时刻不显时刻、无步长不显步长。副行之
+    /// 下先语义注记（humanNote 等）、后参数预览，
+    /// 与 Muse 步骤卡的「步名＋描述」同构
+    private func threadStepRow(
+        _ row: LedgerThreadStepRow, isLast: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            VStack(spacing: 0) {
+                stepIcon(row.phase)
+                if !isLast {
+                    Rectangle()
+                        .fill(Palette.hairline)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 20)
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingMicro
+            ) {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Text(row.title)
+                        .font(
+                            .subheadline.weight(
+                                row.phase == .current
+                                    ? .semibold : .regular
+                            )
+                        )
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    if let at = row.at {
+                        NumberText(
+                            LedgerClock.timeWithSeconds(at),
+                            font: .caption
+                        )
+                        .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                if let subline = threadStepSubline(row) {
+                    Text(subline)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                if let note = row.note {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                if let preview = row.preview {
+                    Text(preview)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(.bottom, isLast ? 0 : OneDayMetrics.spacingSM)
+        }
+    }
+
+    /// 真步副行：步长（有才显）＋记录者人话（有才
+    /// 显），两件都缺时整行不显
+    private func threadStepSubline(
+        _ row: LedgerThreadStepRow
+    ) -> String? {
+        var parts: [String] = []
+        if let duration = row.duration {
+            parts.append(
+                "用时 \(LedgerElapsed.format(seconds: duration))"
+            )
+        }
+        if let actor = row.actorWord {
+            parts.append(actor)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// 步副行：步长（有才显）＋记录者人话，两件都缺

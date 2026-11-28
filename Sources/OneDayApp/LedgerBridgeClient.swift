@@ -55,6 +55,20 @@ final class LedgerBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// GET /ledger/threads/{threadId}：线程详情——
+    /// 真步序列（state.db 工具调用拼装，服务端
+    /// _ledger_thread_detail）＋成员条目。线程不存
+    /// 在＝404（recordGone），调用方按「无真步」回
+    /// 落 history 派生步处理，不作错误露面
+    func threadDetail(
+        config: ServerConfig, threadId: String
+    ) async throws -> LedgerThreadDetail {
+        try await get(
+            config: config, path: "/ledger/threads/\(threadId)",
+            endpoint: L10n.string("台账线程详情"), collection: false
+        )
+    }
+
     /// GET /agent-status：实时状况（服务端 2.22.0）
     /// ——state（waiting／working／idle）＋label 人话
     /// 标签＋since＋active，供聊天胶囊名下状况行
