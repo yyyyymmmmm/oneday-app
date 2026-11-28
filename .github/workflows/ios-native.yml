@@ -76,12 +76,13 @@ jobs:
       - name: Build simulator test targets
         id: simulator-build
         run: |
+          # Simulator test hosts need an application identifier for Keychain access.
           xcodebuild build-for-testing \
             -workspace OneDay.xcworkspace \
             -scheme OneDayApp \
             -destination "$IOS_TEST_DESTINATION" \
             -derivedDataPath build/test-dd \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee test-build.log
 
       - name: Core and app tests

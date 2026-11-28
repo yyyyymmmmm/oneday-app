@@ -5,8 +5,8 @@ import XCTest
 /// 对同一语料集的块产物与 runs 产物逐项比对。
 /// 放行口径：差异只许出现在签收表登记的条目上
 ///（signedBlockDiffIDs／signedRunDiffIDs），未登
-/// 记差异＝红；每次运行把全量差分报告写到仓库根
-/// mdswap-diff-report.txt 备查。签收表正本见
+/// 记差异＝红；每次运行把全量差分报告附到测试结果。
+/// 签收表正本见
 /// oneday-design-review/md-swap-diff-signoff-
 /// 20261123.md。语料构成：现行三套钉测＋行内套
 /// 的全部 fixture、边角集、Hermes 风格真实文档、
@@ -49,7 +49,7 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
 
     // MARK: - 块级差分
 
-    func testBlockDifferentialCorpus() throws {
+    func testBlockDifferentialCorpus() {
         XCTAssertGreaterThanOrEqual(
             Self.blockCorpus.count, 100,
             "语料须 ≥100 篇，实际 \(Self.blockCorpus.count)"
@@ -79,7 +79,7 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
                 if !signed { unsigned.append(entry.id) }
             }
         }
-        try Self.writeReport(report, name: "mdswap-diff-blocks.txt")
+        attachReport(report, name: "mdswap-diff-blocks.txt")
         XCTAssertTrue(
             unsigned.isEmpty,
             "未签收的块级差异：\(unsigned)"
@@ -115,7 +115,7 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
                 if !signed { unsigned.append(entry.id) }
             }
         }
-        try? Self.writeReport(report, name: "mdswap-diff-runs.txt")
+        attachReport(report, name: "mdswap-diff-runs.txt")
         XCTAssertTrue(
             unsigned.isEmpty,
             "未签收的行内差异：\(unsigned)"
@@ -163,7 +163,7 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
                 + "新核中位 \(currentMedian)s、比值 "
                 + "\(currentMedian / legacyMedian)"
         )
-        try? Self.writeReport(
+        attachReport(
             "# §417 性能门（全链中位，语料 \(perfCorpus.count) 篇×5 轮）\n"
                 + "旧核 \(legacyMedian)s\n新核 \(currentMedian)s\n"
                 + "比值 \(currentMedian / legacyMedian)（门限 1.10）\n",
@@ -241,17 +241,11 @@ final class MarkdownEngineDifferentialTests: XCTestCase {
         text.replacingOccurrences(of: "\n", with: "⏎")
     }
 
-    private static func writeReport(
-        _ report: String, name: String
-    ) throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        try report.write(
-            to: root.appendingPathComponent(name),
-            atomically: true, encoding: .utf8
-        )
+    private func attachReport(_ report: String, name: String) {
+        let attachment = XCTAttachment(string: report)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     // MARK: - 语料条目
