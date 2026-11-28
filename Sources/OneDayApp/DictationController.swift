@@ -99,6 +99,13 @@ final class DictationController {
             warmIfNeeded()
         }
     }
+    /// 是否正在录音（通话面等消费方按此判麦克风实况；
+    /// 合并接缝修复：v23 通话面引用此名，控制器只有
+    /// phase——按 .recording 态派生，与 isActive 分工）
+    var isRecording: Bool {
+        phase == .recording
+    }
+
     /// 录音面是否应占住发送舱（准备中/录音中/收尾）
     var isActive: Bool {
         phase == .preparing || phase == .recording

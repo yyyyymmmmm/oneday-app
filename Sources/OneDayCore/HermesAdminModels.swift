@@ -1856,6 +1856,25 @@ public struct AgentPluginCatalogEntry: Decodable, Sendable, Identifiable {
 
     public var id: String { name }
 
+    /// 合并接缝修复：自定义 init(from:) 压掉了合成成员
+    /// 构造器，App 侧精选目录的 .init(name:…) 构造无从
+    /// 落地——补公开成员构造器（同 ModelAnalytics 先例）
+    public init(
+        name: String,
+        title: String? = nil,
+        description: String? = nil,
+        identifier: String? = nil,
+        category: String? = nil,
+        installed: Bool
+    ) {
+        self.name = name
+        self.title = title
+        self.description = description
+        self.identifier = identifier
+        self.category = category
+        self.installed = installed
+    }
+
     enum CodingKeys: String, CodingKey {
         case name, title, description, identifier, category, installed, repo
     }

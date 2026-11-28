@@ -90,6 +90,14 @@ final class ConnectionsStore {
         }
     }
 
+    /// 本地落盘失败（如钥匙回读验证不过）：已 verified
+    /// 后的本地失败由店面直接落 failed——状态机的
+    /// receipt 只认 submitting 态，覆盖不到这类本地
+    /// 终局失败（合并接缝修复：box-key 回读验证面）
+    func markCredentialSaveFailed(detail: String) {
+        credentialPhase = .failed(detail: detail)
+    }
+
     func resetCredentialPhase() {
         credentialPhase = .idle
     }

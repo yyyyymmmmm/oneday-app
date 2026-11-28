@@ -1006,7 +1006,7 @@ struct CredentialFormView: View {
                     BoxMCPClientFactory.reset()
                 } else {
                     // 写失败当场明示
-                    store.credentialPhase = .failed("钥匙保存失败：请检查设备存储权限后重试")
+                    store.markCredentialSaveFailed(detail: "钥匙保存失败：请检查设备存储权限后重试")
                     return
                 }
             }

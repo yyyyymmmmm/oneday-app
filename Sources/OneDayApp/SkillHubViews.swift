@@ -240,14 +240,14 @@ struct SkillHubView: View {
     }
 
     private static let curatedFallbackSkills: [HubSkill] = [
-        .init(name: "pdf-toolkit", identifier: "official/pdf-toolkit", description: "PDF 文档提取、合并、拆分、表格解析与格式化生成", source: "official", author: "Hermes Official", version: "1.2.0"),
-        .init(name: "browser-automation", identifier: "official/browser-automation", description: "自动化浏览器网页巡检、截图取证与交互式表单操作", source: "official", author: "Hermes Official", version: "1.4.0"),
-        .init(name: "deep-research", identifier: "official/deep-research", description: "多源信息检索、交叉核验与结构化行业研报撰写", source: "official", author: "Hermes Official", version: "2.0.0"),
-        .init(name: "code-review", identifier: "anthropic/code-review", description: "深度代码审查、安全漏洞扫描与架构重构建议", source: "anthropic", author: "Anthropic Skills", version: "1.1.0"),
-        .init(name: "git-workflow", identifier: "official/git-workflow", description: "标准化分支管理、Commit 规范、PR 描述与冲突解决", source: "official", author: "Hermes Official", version: "1.0.5"),
-        .init(name: "data-analyst", identifier: "openai/data-analyst", description: "CSV/Excel 数据清洗、统计建模与可视化图表生成", source: "openai", author: "OpenAI Skills", version: "1.3.0"),
-        .init(name: "calendar-planner", identifier: "community/calendar-planner", description: "智能日程统筹、冲突避让与每日晨间简报生成", source: "community", author: "OneDay Community", version: "1.0.2"),
-        .init(name: "obsidian-sync", identifier: "awesome/obsidian-sync", description: "双向同步 Obsidian 知识库、自动打标签与双链整理", source: "awesome", author: "Awesome Skills", version: "1.1.4"),
+        .init(identifier: "official/pdf-toolkit", name: "pdf-toolkit", description: "PDF 文档提取、合并、拆分、表格解析与格式化生成", source: "official", author: "Hermes Official", version: "1.2.0"),
+        .init(identifier: "official/browser-automation", name: "browser-automation", description: "自动化浏览器网页巡检、截图取证与交互式表单操作", source: "official", author: "Hermes Official", version: "1.4.0"),
+        .init(identifier: "official/deep-research", name: "deep-research", description: "多源信息检索、交叉核验与结构化行业研报撰写", source: "official", author: "Hermes Official", version: "2.0.0"),
+        .init(identifier: "anthropic/code-review", name: "code-review", description: "深度代码审查、安全漏洞扫描与架构重构建议", source: "anthropic", author: "Anthropic Skills", version: "1.1.0"),
+        .init(identifier: "official/git-workflow", name: "git-workflow", description: "标准化分支管理、Commit 规范、PR 描述与冲突解决", source: "official", author: "Hermes Official", version: "1.0.5"),
+        .init(identifier: "openai/data-analyst", name: "data-analyst", description: "CSV/Excel 数据清洗、统计建模与可视化图表生成", source: "openai", author: "OpenAI Skills", version: "1.3.0"),
+        .init(identifier: "community/calendar-planner", name: "calendar-planner", description: "智能日程统筹、冲突避让与每日晨间简报生成", source: "community", author: "OneDay Community", version: "1.0.2"),
+        .init(identifier: "awesome/obsidian-sync", name: "obsidian-sync", description: "双向同步 Obsidian 知识库、自动打标签与双链整理", source: "awesome", author: "Awesome Skills", version: "1.1.4"),
     ]
 
     private func filteredFallbackSkills(query: String, source: String?) -> [HubSkill] {
