@@ -54,9 +54,11 @@ final class AVSpeechAudioEngine: NSObject,
     }
 
     func start() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
+        if !VoiceCallAudioSessionManager.shared.isVoiceCallActive {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default)
+            try? session.setActive(true)
+        }
         player.play()
     }
 
@@ -77,13 +79,18 @@ final class AVSpeechAudioEngine: NSObject,
     /// 激活；仍幂等重设一次类别并激活，防打断等外
     /// 部因素动过会话后静默无声
     func resume() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
+        if !VoiceCallAudioSessionManager.shared.isVoiceCallActive {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default)
+            try? session.setActive(true)
+        }
         player.play()
     }
 
     private func releaseSession() {
+        // 全双工语音通话进行中时，保留 `.playAndRecord` + `.voiceChat` 硬件 AEC 会话，
+        // 避免播放完毕停用会话导致麦克风和蓝牙路由掉线
+        guard !VoiceCallAudioSessionManager.shared.isVoiceCallActive else { return }
         try? AVAudioSession.sharedInstance().setActive(
             false, options: [.notifyOthersOnDeactivation]
         )

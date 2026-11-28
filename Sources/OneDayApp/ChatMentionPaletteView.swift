@@ -80,14 +80,31 @@ enum ChatMentionQuery {
         return ResolvedTargets(mentionsAll: mentionsAll, matchedProfiles: matched)
     }
 
-    /// 将对话内的 `@全员` / `@分身名` 转换为透明的 Hermes 多体协同路由前缀（仅发往模型上下文，
-    /// 不污染用户本地聊天记录气泡），让主助手按真实分身画像并行委派并统一汇总。
+    /// 将对话内的 `@全员` / `@分身名` 及当前房间常驻分身转换为透明的 Hermes 多体协同路由前缀
+    /// （仅发往模型上下文，不污染用户本地聊天记录气泡），确保：
+    /// 1. 主助手与所有常驻分身共享同一房间上下文，彼此可见发言与产出；
+    /// 2. 点名 `@分身` 时优先由该常驻分身接管并署名汇报；
+    /// 3. `@全员` 时并行协同并由主助手统一汇总交付。
     static func enrichedOutgoingPrompt(
         for rawText: String,
-        knownProfiles: [ProfileItem]
+        knownProfiles: [ProfileItem],
+        residentAgents: [ResidentSubagent] = []
     ) -> String {
         let resolved = resolveTargets(in: rawText, knownProfiles: knownProfiles)
-        guard resolved.isActive else { return rawText }
+
+        let sharedRoomHeader: String
+        if residentAgents.isEmpty {
+            sharedRoomHeader = ""
+        } else {
+            let memberList = residentAgents
+                .map { "@\($0.name)（\($0.roleSummary)）" }
+                .joined(separator: "、")
+            sharedRoomHeader = "[房间共享上下文协议｜当前常驻成员：主助手、\(memberList)。所有成员共享本对话上下文流、互相可见彼此历史发言与结论；引用或承接其他成员产出时请直接衔接协作。]\n"
+        }
+
+        guard resolved.isActive else {
+            return sharedRoomHeader.isEmpty ? rawText : "\(sharedRoomHeader)\(rawText)"
+        }
 
         if resolved.mentionsAll {
             let rosterDesc: String
@@ -103,7 +120,7 @@ enum ChatMentionQuery {
                 rosterDesc = "已召集全部常驻专家分身（\(names)）并行分工"
             }
             return """
-            [多体协同指令：@全员｜\(rosterDesc)。请使用 delegate_task 并行拆解，并在最终回复中严格按以下结构输出：每位分身独立一段，以 `### @分身名` 作为小标题署名陈述观点；最后以 `### 综合结论` 作为小标题由你给出统一可执行结论。]
+            \(sharedRoomHeader)[多体协同指令：@全员｜\(rosterDesc)。请使用 delegate_task 并行拆解，并在最终回复中严格按以下结构输出：每位分身独立一段，以 `### @分身名` 作为小标题署名陈述观点（彼此可见并可互相补充）；最后以 `### 综合结论` 作为小标题由你给出统一可执行结论。]
             \(rawText)
             """
         }
@@ -115,7 +132,7 @@ enum ChatMentionQuery {
             return "@\(profile.name)"
         }.joined(separator: "、")
         return """
-        [分身定向指令：用户点名召唤 \(targetDesc)。请优先按该分身专长（必要时通过 delegate_task）处理，并在回复首行以 `### @分身名` 署名汇报。]
+        \(sharedRoomHeader)[分身定向指令：用户点名召唤 \(targetDesc)。请优先按该分身专长（必要时通过 delegate_task，并共享当前房间上下文）处理，并在回复首行以 `### @分身名` 署名汇报。]
         \(rawText)
         """
     }

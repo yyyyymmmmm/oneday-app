@@ -27,6 +27,7 @@ struct VoiceCallSheetView: View {
     @State private var silenceSendTask: Task<Void, Never>?
     @State private var lastSpokenReply = ""
     @State private var statusHint: String?
+    @StateObject private var audioManager = VoiceCallAudioSessionManager.shared
 
     private var speechPlayer: SpeechPlayer { .shared }
 
@@ -90,7 +91,9 @@ struct VoiceCallSheetView: View {
                 voiceOrbSection
                 Spacer(minLength: 20)
                 transcriptCard
-                Spacer(minLength: 24)
+                Spacer(minLength: 14)
+                audioRouteControlBar
+                Spacer(minLength: 16)
                 bottomControls
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -115,9 +118,12 @@ struct VoiceCallSheetView: View {
             }
         }
         .onChange(of: speechPlayer.machine.state) { oldState, newState in
-            if case .playing = oldState, case .idle = newState, !isMuted {
-                // 播完后自动切回聆听
-                startListeningIfAllowed()
+            if case .playing = oldState, case .idle = newState {
+                audioManager.clearAISpeechContext()
+                if !isMuted {
+                    // 播完后自动切回聆听
+                    startListeningIfAllowed()
+                }
             }
         }
         .sheet(isPresented: $callDictation.showPrep) {
@@ -261,6 +267,59 @@ struct VoiceCallSheetView: View {
         )
     }
 
+    /// 旗舰级音频路由切换条（扬声器 ↔ 听筒一键切 + 系统蓝牙/AirPods 路由选择器 + 硬件 AEC 状态标识）
+    private var audioRouteControlBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                Haptics.selection()
+                audioManager.toggleSpeakerReceiver()
+                statusHint = "已切换至\(audioManager.currentRoute.displayName)"
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: audioManager.currentRoute.symbolName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.primary)
+                    Text(audioManager.currentRoute.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Palette.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 0.75))
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("切换扬声器或听筒，当前\(audioManager.currentRoute.displayName)")
+
+            HStack(spacing: 4) {
+                VoiceCallRoutePickerButton()
+                    .frame(width: 22, height: 22)
+                Text("蓝牙/设备")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Palette.surface, in: Capsule())
+            .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 0.75))
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 4) {
+                Image(systemName: "waveform.badge.checkmark")
+                    .font(.caption2)
+                    .foregroundStyle(Palette.successText)
+                Text("AEC 防回声")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(Palette.successText)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Palette.tintGreen, in: Capsule())
+        }
+    }
+
     private var bottomControls: some View {
         HStack(spacing: 28) {
             // 静音切换
@@ -340,13 +399,20 @@ struct VoiceCallSheetView: View {
 
     private func startVoiceCall() {
         lastSpokenReply = latestAssistantReply
+        audioManager.activateForVoiceCall(preferSpeaker: true)
         callDictation.armPreheat()
         callDictation.onTextChange = { text, _ in
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            // 全双工 Barge-In：用户开口立即打断 AI 语音播报
+            // 全双工 Barge-In（带硬件 AEC + 防回声自激门控）：
+            // 播报期间过滤扬声器漏音，仅在真实人声打断时立即停播
             if case .playing = speechPlayer.machine.state {
+                guard audioManager.shouldAcceptBargeIn(forTranscript: trimmed) else {
+                    return
+                }
                 speechPlayer.stop()
+                audioManager.clearAISpeechContext()
+                statusHint = "已打断，正在听你说…"
             }
             liveTranscript = trimmed
             scheduleSilenceAutoSend()
@@ -422,6 +488,7 @@ struct VoiceCallSheetView: View {
         let trimmed = latestAssistantReply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != lastSpokenReply else { return }
         lastSpokenReply = trimmed
+        audioManager.markAISpeechStarted(text: trimmed)
         speechPlayer.toggle(entryID: UUID(), content: trimmed, appState: appState)
     }
 
@@ -432,5 +499,6 @@ struct VoiceCallSheetView: View {
         }
         callDictation.disarmPreheat()
         speechPlayer.stop()
+        audioManager.deactivateAfterVoiceCall()
     }
 }

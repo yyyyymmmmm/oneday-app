@@ -13,6 +13,8 @@ struct SkillHubView: View {
     @State private var selectedSource: String?
     @State private var phase: Phase = .idle
     @State private var installedNames: Set<String> = []
+    @State private var busySkillIDs: Set<String> = []
+    @State private var hubNotice: String?
 
     enum Phase {
         case idle
@@ -72,9 +74,14 @@ struct SkillHubView: View {
         }
         .navigationTitle("技能商店")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await refreshInstalled()
+            await search()
+        }
         .task {
             await loadSources()
             await refreshInstalled()
+            await search()
         }
     }
 
@@ -186,12 +193,20 @@ struct SkillHubView: View {
             }
             .listRowBackground(Color.clear)
         case .results(let skills):
+            if let hubNotice {
+                Section {
+                    Text(hubNotice)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .listRowBackground(Color.clear)
+            }
             Section {
                 ForEach(skills) { skill in
                     hubRow(skill)
                 }
             } header: {
-                SettingsSectionHeader("搜索结果（\(skills.count)）")
+                SettingsSectionHeader(queryText.trimmingCharacters(in: .whitespaces).isEmpty ? "技能索引（\(skills.count)）" : "搜索结果（\(skills.count)）")
             }
             .listRowBackground(Palette.surface)
         case .failed(let message):
@@ -212,30 +227,60 @@ struct SkillHubView: View {
     }
 
     private func hubRow(_ skill: HubSkill) -> some View {
-        NavigationLink {
-            HubSkillDetailView(skill: skill, installedNames: $installedNames)
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: OneDayMetrics.spacingXS) {
-                    Text(skill.displayName)
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    if installedNames.contains(skill.installedName) {
-                        SettingsStatusPill(text: "已安装", tone: .healthy)
+        let isInstalled = installedNames.contains(skill.installedName)
+        let isBusy = busySkillIDs.contains(skill.identifier)
+        return HStack(spacing: OneDayMetrics.spacingS) {
+            NavigationLink {
+                HubSkillDetailView(skill: skill, installedNames: $installedNames)
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
+                        Text(skill.displayName)
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        if isInstalled {
+                            SettingsStatusPill(text: "已安装", tone: .healthy)
+                        }
                     }
-                }
-                if let description = skill.description,
-                   !description.isEmpty {
-                    Text(description)
-                        .font(.footnote)
+                    if let description = skill.description,
+                       !description.isEmpty {
+                        Text(description)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(2)
+                    }
+                    Text(skill.sourceLabel)
+                        .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(2)
                 }
-                Text(skill.sourceLabel)
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
+
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 56)
+            } else if isInstalled {
+                Button("卸载") {
+                    Task { await quickUninstall(skill) }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Palette.danger)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Palette.errorSurface, in: Capsule())
+                .buttonStyle(.plain)
+            } else {
+                Button("安装") {
+                    Task { await quickInstall(skill) }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Palette.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Palette.primaryTint, in: Capsule())
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -265,6 +310,7 @@ struct SkillHubView: View {
     private func search() async {
         let query = queryText.trimmingCharacters(in: .whitespaces)
         phase = .searching
+        hubNotice = nil
         do {
             let results = try await appState.performAdmin { client, config in
                 try await client.skillHubSearch(
@@ -274,6 +320,9 @@ struct SkillHubView: View {
             if results.isEmpty {
                 let fallback = filteredFallbackSkills(query: query, source: selectedSource)
                 phase = .results(fallback)
+                if !fallback.isEmpty {
+                    hubNotice = "服务端远程索引暂未返回匹配项，已展示官方精选技能目录（可直接一键安装）。"
+                }
             } else {
                 phase = .results(results)
             }
@@ -283,9 +332,44 @@ struct SkillHubView: View {
             let fallback = filteredFallbackSkills(query: query, source: selectedSource)
             if !fallback.isEmpty {
                 phase = .results(fallback)
+                hubNotice = "服务端远程索引暂不可达，已加载官方精选目录供检索与一键安装。"
             } else {
                 phase = .failed("服务端连接外部技能库超时或出错，请稍后再试。")
             }
+        }
+    }
+
+    private func quickInstall(_ skill: HubSkill) async {
+        busySkillIDs.insert(skill.identifier)
+        defer { busySkillIDs.remove(skill.identifier) }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.skillHubInstall(config: config, identifier: skill.identifier)
+            }
+            await refreshInstalled()
+            if installedNames.contains(skill.installedName) {
+                Haptics.success()
+                hubNotice = "已安装技能「\(skill.displayName)」，服务端已同步生效。"
+            } else {
+                hubNotice = "已提交「\(skill.displayName)」安装请求，后台正在拉取技能包，稍后下拉刷新即可查看。"
+            }
+        } catch {
+            hubNotice = (error as? HermesError)?.userMessage ?? "安装技能「\(skill.displayName)」失败，请稍后重试。"
+        }
+    }
+
+    private func quickUninstall(_ skill: HubSkill) async {
+        busySkillIDs.insert(skill.identifier)
+        defer { busySkillIDs.remove(skill.identifier) }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.skillHubUninstall(config: config, name: skill.installedName)
+            }
+            await refreshInstalled()
+            Haptics.light()
+            hubNotice = "已卸载技能「\(skill.displayName)」。"
+        } catch {
+            hubNotice = (error as? HermesError)?.userMessage ?? "卸载技能「\(skill.displayName)」失败。"
         }
     }
 
