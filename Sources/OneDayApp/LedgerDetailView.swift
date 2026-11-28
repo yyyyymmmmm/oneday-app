@@ -18,6 +18,11 @@ import SwiftUI
 /// 看改动」＋「查看原对话」锚点（§165 同解析）；
 /// 审批仍只在聊天界面裁决（§155），本页只有记录
 /// 与去向、没有任何裁决入口。
+/// 步骤卡改造（2026-11-28 皇上亲点）：整页收成
+/// 一张卡——卡首（标题＋chip＋成果句）＋步骤清单
+/// （history 变迁派生，LedgerBoard.steps）＋卡底
+/// 元数据一行小字；旧概况节／工作量节／事件时间
+/// 线节并入卡内，信息一件不少、重复全删。
 struct LedgerDetailView: View {
     var store: LedgerStore
     /// 列表快照行（详情回执到达前先以它渲染）
@@ -52,14 +57,7 @@ struct LedgerDetailView: View {
 
     var body: some View {
         List {
-            headerSection
-            overviewSection
-            if current.toolCalls != nil || current.subTasks != nil {
-                countsSection
-            }
-            if let reason = current.failReason {
-                failSection(reason)
-            }
+            cardSection
             if let target = sessionTarget {
                 Section {
                     Button {
@@ -81,7 +79,6 @@ struct LedgerDetailView: View {
             if current.kind == .approval {
                 approvalSection
             }
-            historySection
         }
         .listStyle(.plain)
         .navigationTitle("工作详情")
@@ -251,32 +248,52 @@ struct LedgerDetailView: View {
 
     // MARK: - 段
 
-    /// 页首卡（§475，对 Muse 任务详情卡形态）：人话
-    /// 标题＋状态 chip＋一句话摘要，三件齐；不再用
-    /// 「状态词 · 来源词」的字段拼接行冒充摘要
-    private var headerSection: some View {
+    /// 详情主卡（Muse 式步骤卡，2026-11-28 皇上亲
+    /// 点改造）：整页信息收进一张卡——卡首标题＋状
+    /// 态 chip＋成果句（§475／270 的 detailSummary
+    /// 口径不变），中段步骤清单（LedgerBoard.steps
+    /// 由 history 变迁派生，真实数据、无步不编），
+    /// 卡底把概况与工作量压成一行小字；旧「概况」节
+    /// 与「事件时间线」节就此并入本卡，不再分节重复
+    private var cardSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            Group {
+                if current.status.isActive {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        cardContent(
+                            serverNow: store.displayServerNow(
+                                at: context.date
+                            )
+                        )
+                    }
+                } else {
+                    cardContent(serverNow: store.serverNow)
+                }
+            }
+            .listRowInsets(
+                EdgeInsets(
+                    top: OneDayMetrics.spacingS,
+                    leading: OneDayMetrics.spacingSM,
+                    bottom: OneDayMetrics.spacingS,
+                    trailing: OneDayMetrics.spacingSM
+                )
+            )
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+    }
+
+    private func cardContent(serverNow: Double) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingS
+            ) {
                 Text(current.title)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 statusChip
-                if current.status.isActive {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        if let summary = LedgerBoard.detailSummary(
-                            for: current,
-                            serverNow: store.displayServerNow(
-                                at: context.date
-                            )
-                        ) {
-                            Text(summary)
-                                .font(.subheadline)
-                                .monospacedDigit()
-                                .foregroundStyle(Palette.inkSecondary)
-                        }
-                    }
-                } else if let summary = LedgerBoard.detailSummary(
-                    for: current, serverNow: store.serverNow
+                if let summary = LedgerBoard.detailSummary(
+                    for: current, serverNow: serverNow
                 ) {
                     Text(summary)
                         .font(.subheadline)
@@ -289,9 +306,232 @@ struct LedgerDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .padding(.vertical, OneDayMetrics.spacingMicro)
-            .listRowSeparator(.hidden)
+            Divider()
+            stepsBlock(serverNow: serverNow)
+            if let reason = current.failReason {
+                Divider()
+                failBlock(reason)
+            }
+            Divider()
+            metaLine(serverNow: serverNow)
         }
+        .padding(OneDayMetrics.spacingSM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard,
+                style: .continuous
+            )
+            .fill(Palette.surface)
+        )
+    }
+
+    /// 步骤区：详情未到／已删／空流水各如实露（与旧
+    /// 时间线节同四态），不拿列表快照的空 history
+    /// 冒充「没有步骤」
+    @ViewBuilder
+    private func stepsBlock(serverNow: Double) -> some View {
+        if store.detailGone {
+            Text("这条记录已不在，步骤读不到。")
+                .font(.subheadline)
+                .foregroundStyle(Palette.inkSecondary)
+        } else if store.detail?.id == item.id {
+            let steps = LedgerBoard.steps(
+                for: current, serverNow: serverNow
+            )
+            if steps.isEmpty {
+                Text("暂无流转记录。")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(steps) { step in
+                        stepRow(
+                            step,
+                            isLast: step.index == steps.count - 1
+                        )
+                    }
+                }
+            }
+        } else if store.detailLoading {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ProgressView().controlSize(.small)
+                Text("正在读取步骤…")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        } else {
+            Text("步骤暂时读不到。")
+                .font(.subheadline)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+    }
+
+    /// 步骤一行：状态图标＋竖线串联（末步无线）、步
+    /// 名（当前步加重）、右侧步时；步长与记录者收副
+    /// 行小字，变迁注记与对账留痕照旧时间线口径
+    private func stepRow(
+        _ step: LedgerStep, isLast: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            VStack(spacing: 0) {
+                stepIcon(step.phase)
+                if !isLast {
+                    Rectangle()
+                        .fill(Palette.hairline)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 20)
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingMicro
+            ) {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Text(step.title)
+                        .font(
+                            .subheadline.weight(
+                                step.phase == .current
+                                    ? .semibold : .regular
+                            )
+                        )
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    NumberText(
+                        LedgerClock.timeWithSeconds(step.at),
+                        font: .caption
+                    )
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                if let subline = stepSubline(step) {
+                    Text(subline)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                if step.corrected {
+                    tag("已纠正")
+                } else if step.conflict {
+                    tag("证据有冲突 · 保持原判")
+                }
+                if let note = step.note, !note.isEmpty {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .padding(.bottom, isLast ? 0 : OneDayMetrics.spacingSM)
+        }
+    }
+
+    /// 步副行：步长（有才显）＋记录者人话，两件都缺
+    /// 时整行不显
+    private func stepSubline(_ step: LedgerStep) -> String? {
+        var parts: [String] = []
+        if let duration = step.duration {
+            parts.append(
+                "用时 \(LedgerElapsed.format(seconds: duration))"
+            )
+        }
+        parts.append(step.actorWord)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// 步相位图标：走完打勾、失败叉、取消减、失联
+    /// 叹号（皆现行 Palette 语义色）；当前步＝主色
+    /// 环＋实心点（进行中高亮，不用灰阶假装未到）
+    @ViewBuilder
+    private func stepIcon(_ phase: LedgerStepPhase) -> some View {
+        switch phase {
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.body)
+                .foregroundStyle(Palette.successText)
+                .frame(width: 20, height: 20)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .font(.body)
+                .foregroundStyle(Palette.danger)
+                .frame(width: 20, height: 20)
+        case .cancelled:
+            Image(systemName: "minus.circle.fill")
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 20, height: 20)
+        case .stale:
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 20, height: 20)
+        case .current:
+            ZStack {
+                Circle()
+                    .strokeBorder(Palette.primary, lineWidth: 2)
+                Circle()
+                    .fill(Palette.primary)
+                    .padding(5)
+            }
+            .frame(width: 18, height: 18)
+            .frame(width: 20, height: 20)
+        }
+    }
+
+    /// 失败块（卡内）：分类＋原始摘录，与旧「原因」
+    /// 节同内容、收进卡里紧跟步骤
+    private func failBlock(_ reason: LedgerFailReason) -> some View {
+        VStack(
+            alignment: .leading, spacing: OneDayMetrics.spacingXS
+        ) {
+            Text("失败原因 · \(reason.category)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Palette.danger)
+            if let excerpt = reason.excerpt, !excerpt.isEmpty {
+                Text(excerpt)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    /// 卡底元数据一行小字：来源／开始／结束／用时
+    /// （终态）／最后确认（失联时）／工具调用／子任
+    /// 务——旧概况节与工作量节的全部字段压到这一行，
+    /// 缺哪件省哪件，不单开节、不重复页首摘要
+    private func metaLine(serverNow: Double) -> some View {
+        var parts: [String] = []
+        parts.append("来源 \(LedgerText.sourceWord(current.source))")
+        parts.append(
+            "开始 \(DisplayDate.dateTime(Date(timeIntervalSince1970: current.startedAt)))"
+        )
+        if let ended = current.endedAt {
+            parts.append(
+                "结束 \(DisplayDate.dateTime(Date(timeIntervalSince1970: ended)))"
+            )
+        }
+        if !current.status.isActive,
+           let duration = LedgerBoard.durationText(
+               for: current, serverNow: serverNow
+           ) {
+            parts.append(duration)
+        }
+        if current.status == .stale,
+           let evidence = current.lastEvidenceAt {
+            parts.append(
+                "最后确认 \(DisplayDate.dateTime(Date(timeIntervalSince1970: evidence)))"
+            )
+        }
+        if let calls = current.toolCalls {
+            parts.append("工具调用 \(calls) 次")
+        }
+        if let subs = current.subTasks {
+            parts.append("子任务 \(subs) 个")
+        }
+        return Text(parts.joined(separator: " · "))
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(Palette.inkSecondary)
     }
 
     /// 状态 chip：状态词只走 LedgerText.statusWord
@@ -321,160 +561,10 @@ struct LedgerDetailView: View {
         }
     }
 
-    /// 概况（§475）：只留人话字段——来源、开始、结束
-    /// 与用时；「最后确认」只在失联待核时有意义（它
-    /// 就是失联的判据），其余状态不占行
-    private var overviewSection: some View {
-        Section("概况") {
-            row("来源", LedgerText.sourceWord(current.source))
-            row(
-                "开始",
-                DisplayDate.dateTime(
-                    Date(timeIntervalSince1970: current.startedAt)
-                )
-            )
-            if let ended = current.endedAt {
-                row(
-                    "结束",
-                    DisplayDate.dateTime(
-                        Date(timeIntervalSince1970: ended)
-                    )
-                )
-            }
-            if current.status == .stale,
-               let evidence = current.lastEvidenceAt {
-                row(
-                    "最后确认",
-                    DisplayDate.dateTime(
-                        Date(timeIntervalSince1970: evidence)
-                    )
-                )
-            }
-            // 活跃态的已运行时长在页首摘要里逐秒走，
-            // 本节不重复占行；终态在此给总用时
-            if !current.status.isActive,
-               let text = LedgerBoard.durationText(
-                   for: current, serverNow: store.serverNow
-               ) {
-                row("用时", text)
-            }
-        }
-    }
-
-    private var countsSection: some View {
-        Section("工作量") {
-            if let calls = current.toolCalls {
-                row("工具调用", "\(calls) 次")
-            }
-            if let subs = current.subTasks {
-                row("子任务", "\(subs) 个")
-            }
-        }
-    }
-
-    private func failSection(
-        _ reason: LedgerFailReason
-    ) -> some View {
-        Section("原因") {
-            row("分类", reason.category)
-            if let excerpt = reason.excerpt, !excerpt.isEmpty {
-                Text(excerpt)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .textSelection(.enabled)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var historySection: some View {
-        Section("事件时间线") {
-            if store.detailGone {
-                Text("这条记录已不在，时间线读不到。")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-            } else if store.detail?.id == item.id {
-                if current.history.isEmpty {
-                    ContentUnavailableView {
-                        Label("暂无流转记录。", systemImage: "clock")
-                    }
-                } else {
-                    ForEach(
-                        Array(current.history.enumerated()),
-                        id: \.offset
-                    ) { _, entry in
-                        historyRow(entry)
-                    }
-                }
-            } else if store.detailLoading {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    ProgressView().controlSize(.small)
-                    Text("正在读取时间线…")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-            } else {
-                Text("时间线暂时读不到。")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-    }
-
-    private func historyRow(_ entry: LedgerHistoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                NumberText(
-                    LedgerClock.timeWithSeconds(entry.at), font: .footnote
-                )
-                .foregroundStyle(Palette.inkSecondary)
-                Text(transitionText(entry))
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-                Text(LedgerText.actorWord(entry.by))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            if entry.corrected {
-                tag("已纠正")
-            } else if entry.conflict {
-                tag("证据有冲突 · 保持原判")
-            }
-            if let note = entry.note, !note.isEmpty {
-                Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-        .padding(.vertical, 1)
-    }
-
-    private func transitionText(_ entry: LedgerHistoryEntry) -> String {
-        let to = LedgerText.statusWord(
-            LedgerStatus(rawValue: entry.to)
-        )
-        guard let from = entry.from else { return "开始 · \(to)" }
-        return "\(LedgerText.statusWord(LedgerStatus(rawValue: from))) → \(to)"
-    }
-
     private func tag(_ text: String) -> some View {
         Text(text)
             .font(.caption2)
             .foregroundStyle(Palette.inkSecondary)
     }
 
-    private func row(_ label: String, _ value: String) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(Palette.inkSecondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline)
-                .monospacedDigit()
-                .foregroundStyle(Palette.ink)
-                .multilineTextAlignment(.trailing)
-        }
-    }
 }

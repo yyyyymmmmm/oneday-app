@@ -646,4 +646,115 @@ public enum LedgerBoard {
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
+
+    /// 详情步骤清单（Muse 式步骤卡的步源）：只由条
+    /// 目 history 变迁派生——每条变迁开启一步，步名
+    /// ＝变迁落点状态的人话（落点缺失的建账行称「开
+    /// 始」），步长＝到下一变迁的间隔（末步到条目结
+    /// 束时刻／活跃态到当前时刻；落点为终态的步是时
+    /// 间点不是阶段，步长 nil）。history 之外没有步
+    /// 骤数据源，未发生的步不编造、不存在「未到」步
+    public static func steps(
+        for item: LedgerItem, serverNow: Double,
+        locale: Locale = AppLocale.uiLocale
+    ) -> [LedgerStep] {
+        let entries = item.history.sorted { $0.at < $1.at }
+        return entries.enumerated().map { index, entry in
+            let toStatus = LedgerStatus(rawValue: entry.to)
+            let isLast = index == entries.count - 1
+            let title: String
+            if entry.to != nil {
+                title = LedgerText.statusWord(
+                    toStatus, locale: locale
+                )
+            } else {
+                title = L10n.string("开始", locale: locale)
+            }
+            let duration: Double?
+            if toStatus.isTerminal {
+                duration = nil
+            } else if !isLast {
+                duration = max(0, entries[index + 1].at - entry.at)
+            } else if let ended = item.endedAt {
+                duration = max(0, ended - entry.at)
+            } else if item.status.isActive {
+                duration = max(0, serverNow - entry.at)
+            } else if item.status == .stale,
+                      let evidence = item.lastEvidenceAt {
+                duration = max(0, evidence - entry.at)
+            } else {
+                duration = nil
+            }
+            let phase: LedgerStepPhase
+            switch toStatus {
+            case .failed:
+                phase = .failed
+            case .cancelled:
+                phase = .cancelled
+            default:
+                if isLast && item.status.isActive {
+                    phase = .current
+                } else if isLast && item.status == .stale {
+                    phase = .stale
+                } else {
+                    phase = .done
+                }
+            }
+            return LedgerStep(
+                index: index, title: title, at: entry.at,
+                duration: duration, phase: phase,
+                note: entry.note,
+                actorWord: LedgerText.actorWord(
+                    entry.by, locale: locale
+                ),
+                corrected: entry.corrected,
+                conflict: entry.conflict
+            )
+        }
+    }
+}
+
+/// 详情步骤一行的相位：done 已走完／current 正在这
+/// 一步（活跃条目的末步）／failed 落点失败／
+/// cancelled 落点取消／stale 失联待核
+public enum LedgerStepPhase: Equatable, Sendable {
+    case done
+    case current
+    case failed
+    case cancelled
+    case stale
+}
+
+/// 详情步骤一行（纯派生，视图只渲染）：步名、步时
+/// （epoch 秒）、步长（秒，nil＝不显）、相位、变迁
+/// 注记与记录者人话、对账纠正／冲突留痕
+public struct LedgerStep: Equatable, Sendable, Identifiable {
+    public let index: Int
+    public let title: String
+    public let at: Double
+    public let duration: Double?
+    public let phase: LedgerStepPhase
+    public let note: String?
+    public let actorWord: String
+    public let corrected: Bool
+    public let conflict: Bool
+
+    public var id: Int { index }
+
+    public init(
+        index: Int, title: String, at: Double,
+        duration: Double?, phase: LedgerStepPhase,
+        note: String?, actorWord: String,
+        corrected: Bool, conflict: Bool
+    ) {
+        self.index = index
+        self.title = title
+        self.at = at
+        self.duration = duration
+        self.phase = phase
+        self.note = note
+        self.actorWord = actorWord
+        self.corrected = corrected
+        self.conflict = conflict
+    }
 }
