@@ -170,7 +170,7 @@ struct GatewayView: View {
             ),
             titleVisibility: .visible
         ) {
-            Button(dialogButton, role: pendingAction == "stop" ? .destructive : nil) {
+            Button(dialogButton, role: (pendingAction == "stop" || pendingAction == "clearAuth") ? .destructive : nil) {
                 if let action = pendingAction {
                     Task { await perform(action) }
                 }
@@ -245,6 +245,28 @@ struct GatewayView: View {
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
+
+        Section {
+            Button(role: .destructive) {
+                pendingAction = "clearAuth"
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    SettingsRowIcon(symbol: "trash", color: .red)
+                    Text("清除认证信息")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.danger)
+                    Spacer()
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
+            .disabled(isActing)
+        } footer: {
+            Text("将移除本地存储的 API 密钥和服务器地址，下次需要重新连接。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func percentRow(_ label: String, percent: Double?, detail: String) -> some View {
@@ -267,6 +289,7 @@ struct GatewayView: View {
         switch pendingAction {
         case "restart": return "重启网关？"
         case "stop": return "停止网关？"
+        case "clearAuth": return "清除认证信息？"
         default: return "启动网关？"
         }
     }
@@ -275,6 +298,7 @@ struct GatewayView: View {
         switch pendingAction {
         case "restart": return "重启"
         case "stop": return "停止"
+        case "clearAuth": return "清除"
         default: return "启动"
         }
     }
@@ -285,6 +309,8 @@ struct GatewayView: View {
             return "停止后 Agent 将无法收发消息，直到重新启动。"
         case "restart":
             return "重启期间对话会短暂中断，进行中的任务会被打断。"
+        case "clearAuth":
+            return "将移除本地存储的 API 密钥和服务器地址，清除后需要重新连接网关。"
         default:
             return "启动后 Agent 恢复收发消息。"
         }
@@ -342,6 +368,14 @@ struct GatewayView: View {
     private func perform(_ action: String) async {
         isActing = true
         defer { isActing = false }
+
+        if action == "clearAuth" {
+            appState.localStore.clearCredentials()
+            Haptics.success()
+            notice = "认证信息已清除。"
+            return
+        }
+
         do {
             switch action {
             case "restart":
